@@ -1,0 +1,30 @@
+{
+  "configurations" : [
+    {
+      "id" : "1C329EB9-0E91-43B3-9AD2-1BF2AF88FCEB",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : true,
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Spectra.xcodeproj",
+      "identifier" : "907491622F56D1E500D098D2",
+      "name" : "Spectra"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Spectra.xcodeproj",
+        "identifier" : "91B0000C2F5B000100AAA001",
+        "name" : "SpectraTests"
+      }
+    }
+  ],
+  "version" : 1
+}

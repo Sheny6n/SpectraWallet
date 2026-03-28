@@ -1,0 +1,10 @@
+{
+  "navigationTitle": "Endpoints",
+  "intro": "This page houses the chain endpoints Spectra currently uses. Custom overrides are editable where this build already supports them.",
+  "readOnlyFootnote": "Read-only in this build.",
+  "addEsploraEndpointPlaceholder": "Add Esplora endpoint",
+  "addEndpointButtonTitle": "Add Endpoint",
+  "clearCustomBitcoinEndpointsTitle": "Clear Custom Bitcoin Endpoints",
+  "customEthereumRPCURLPlaceholder": "Custom Ethereum RPC URL",
+  "customMoneroBackendURLPlaceholder": "Custom Monero Backend URL"
+}

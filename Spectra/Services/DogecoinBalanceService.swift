@@ -1,0 +1,1131 @@
+// MARK: - File Overview
+// Dogecoin network service handling balances/history/status checks across provider backends.
+//
+// Responsibilities:
+// - Implements DOGE provider querying, fallback behavior, and parsing.
+// - Exposes stable async APIs used by refresh and diagnostics flows.
+
+import Foundation
+import CryptoKit
+
+struct DogecoinTransactionStatus {
+    let confirmed: Bool
+    let blockHeight: Int?
+    let networkFeeDOGE: Double?
+    let confirmations: Int?
+}
+
+private struct DogecoinAddressPayload: Decodable {
+    let confirmedBalance: String?
+    let balance: String?
+
+    enum CodingKeys: String, CodingKey {
+        case confirmedBalance = "confirmed_balance"
+        case balance
+    }
+}
+
+private struct DogecoinAddressDashboardResponse: Decodable {
+    let data: [String: DogecoinAddressDashboardEntry]
+}
+
+private struct DogecoinAddressDashboardEntry: Decodable {
+    let transactions: [String]
+}
+
+private struct DogecoinTransactionDashboardResponse: Decodable {
+    let data: [String: DogecoinTransactionDashboardEntry]
+}
+
+private struct BlockCypherDogecoinAddressResponse: Decodable {
+    struct TransactionReference: Decodable {
+        let txHash: String
+
+        enum CodingKeys: String, CodingKey {
+            case txHash = "tx_hash"
+        }
+    }
+
+    let txrefs: [TransactionReference]?
+    let unconfirmedTxrefs: [TransactionReference]?
+
+    enum CodingKeys: String, CodingKey {
+        case txrefs
+        case unconfirmedTxrefs = "unconfirmed_txrefs"
+    }
+}
+
+private struct BlockCypherDogecoinTransactionResponse: Decodable {
+    struct Input: Decodable {
+        let addresses: [String]?
+        let outputValue: Int64?
+        let value: Int64?
+
+        enum CodingKeys: String, CodingKey {
+            case addresses
+            case outputValue = "output_value"
+            case value
+        }
+    }
+
+    struct Output: Decodable {
+        let addresses: [String]?
+        let value: Int64?
+    }
+
+    let hash: String?
+    let received: String?
+    let blockHeight: Int?
+    let confirmations: Int?
+    let inputs: [Input]?
+    let outputs: [Output]?
+
+    enum CodingKeys: String, CodingKey {
+        case hash
+        case received
+        case blockHeight = "block_height"
+        case confirmations
+        case inputs
+        case outputs
+    }
+}
+
+private struct BlockCypherDogecoinNetworkResponse: Decodable {
+    let height: Int?
+}
+
+private struct BlockCypherDogecoinBalanceResponse: Decodable {
+    let finalBalance: Int64?
+    let balance: Int64?
+
+    enum CodingKeys: String, CodingKey {
+        case finalBalance = "final_balance"
+        case balance
+    }
+}
+
+private struct DogecoinTransactionDashboardEntry: Decodable {
+    let transaction: DogecoinDashboardTransaction
+    let inputs: [DogecoinDashboardTransfer]
+    let outputs: [DogecoinDashboardTransfer]
+}
+
+private struct DogecoinDashboardTransaction: Decodable {
+    let hash: String?
+    let time: String?
+    let blockID: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case hash
+        case time
+        case blockID = "block_id"
+    }
+}
+
+private struct DogecoinDashboardTransfer: Decodable {
+    let recipient: String?
+    let value: Int64?
+}
+
+enum DogecoinBalanceService {
+    private static let blockchairTimestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return formatter
+    }()
+
+    private static let iso8601Formatter = ISO8601DateFormatter()
+    private static let iso8601FractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let statusProviderSelectionDefaultsKey = "dogecoin.status.provider.selection.v1"
+    private static let statusProviderSelectionLock = NSLock()
+    private static let providerReliabilityDefaultsKey = "dogecoin.provider.reliability.v1"
+    private static let providerReliabilityLock = NSLock()
+    private static let blockchairAPIBaseURLString = ChainBackendRegistry.DogecoinRuntimeEndpoints.blockchairBaseURL
+    private static let blockcypherAPIBaseURLString = ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherBaseURL
+    private static let dogechainAPIBaseURLString = ChainBackendRegistry.DogecoinRuntimeEndpoints.dogechainBaseURL
+    private static let providerCircuitFailureThreshold = 3
+    private static let providerCircuitBaseCooldownSeconds: TimeInterval = 60
+    private static let providerCircuitMaxCooldownSeconds: TimeInterval = 15 * 60
+
+    private enum ProviderEndpoint: String, CaseIterable {
+        case blockchair
+        case blockcypher
+        case dogechain
+    }
+
+    private enum ProviderOperation: String, CaseIterable {
+        case balance
+        case history
+        case status
+    }
+
+    private enum StatusProvider: String, CaseIterable {
+        case blockchair
+        case blockcypher
+    }
+
+    private struct ProviderReliabilityCounter: Codable {
+        var successCount: Int
+        var failureCount: Int
+        var consecutiveFailures: Int
+        var cooldownUntil: TimeInterval
+        var lastError: String?
+        var lastUpdatedAt: TimeInterval
+    }
+
+    struct ProviderHealth: Identifiable, Equatable {
+        let providerID: String
+        let endpoint: String
+        let reachable: Bool
+        let statusCode: Int?
+        let message: String
+
+        var id: String { providerID }
+    }
+
+    struct ProviderReliability: Identifiable, Equatable {
+        let operation: String
+        let providerID: String
+        let successCount: Int
+        let failureCount: Int
+        let consecutiveFailures: Int
+        let successRate: Double
+        let cooldownRemainingSeconds: Int
+        let lastError: String?
+
+        var id: String { "\(operation):\(providerID)" }
+    }
+
+    struct AddressTransactionSnapshot {
+        let hash: String
+        let kind: TransactionKind
+        let status: TransactionStatus
+        let amount: Double
+        let counterpartyAddress: String
+        let createdAt: Date
+        let blockNumber: Int?
+    }
+
+    struct DogecoinHistoryPage {
+        let snapshots: [AddressTransactionSnapshot]
+        let nextCursor: String?
+        let sourceUsed: String
+    }
+
+    /// Handles "isValidDogecoinAddress" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func isValidDogecoinAddress(_ address: String, allowTestnet: Bool = false) -> Bool {
+        let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (25 ... 40).contains(trimmedAddress.count) else {
+            return false
+        }
+
+        guard let decoded = base58Decode(trimmedAddress), decoded.count == 25 else {
+            return false
+        }
+
+        let payload = decoded.prefix(21)
+        let checksum = decoded.suffix(4)
+        let computedChecksum = doubleSHA256(payload).prefix(4)
+        guard checksum.elementsEqual(computedChecksum) else {
+            return false
+        }
+
+        guard let version = payload.first else { return false }
+        if allowTestnet {
+            return version == 0x1e || version == 0x16 || version == 0x71 || version == 0xc4
+        }
+        return version == 0x1e || version == 0x16
+    }
+
+    /// Handles "fetchBalance" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func fetchBalance(for address: String) async throws -> Double {
+        let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidDogecoinAddress(trimmedAddress) else {
+            throw URLError(.badURL)
+        }
+
+        return try await runWithProviderFallback(
+            operation: .balance,
+            candidates: [.dogechain, .blockcypher]
+        ) { provider in
+            switch provider {
+            case .dogechain:
+                return try await fetchBalanceViaDogechain(for: trimmedAddress)
+            case .blockcypher:
+                return try await fetchBalanceViaBlockcypher(for: trimmedAddress)
+            case .blockchair:
+                throw URLError(.cannotLoadFromNetwork)
+            }
+        }
+    }
+
+    /// Handles "fetchBalanceViaDogechain" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchBalanceViaDogechain(for address: String) async throws -> Double {
+        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = dogechainURL(path: "/address/balance/\(encodedAddress)") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await fetchData(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let payload = try JSONDecoder().decode(DogecoinAddressPayload.self, from: data)
+        let balanceText = payload.confirmedBalance ?? payload.balance ?? "0"
+        guard let balance = Double(balanceText) else {
+            throw URLError(.cannotParseResponse)
+        }
+        return max(0, balance)
+    }
+
+    /// Handles "fetchBalanceViaBlockcypher" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchBalanceViaBlockcypher(for address: String) async throws -> Double {
+        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = blockcypherURL(path: "/addrs/\(encodedAddress)/balance") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await fetchData(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let payload = try JSONDecoder().decode(BlockCypherDogecoinBalanceResponse.self, from: data)
+        let balanceKoinu = max(0, payload.finalBalance ?? payload.balance ?? 0)
+        return Double(balanceKoinu) / 100_000_000
+    }
+
+    /// Handles "fetchRecentTransactions" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func fetchRecentTransactions(for address: String, limit: Int = 15) async throws -> [AddressTransactionSnapshot] {
+        try await fetchTransactionPage(for: address, limit: limit, cursor: nil).snapshots
+    }
+
+    /// Handles "fetchTransactionPage" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func fetchTransactionPage(for address: String, limit: Int = 15, cursor: String? = nil) async throws -> DogecoinHistoryPage {
+        let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidDogecoinAddress(trimmedAddress) else {
+            throw URLError(.badURL)
+        }
+
+        let clampedLimit = max(1, min(limit, 200))
+        let offset = max(0, Int(cursor ?? "") ?? 0)
+        var providerSnapshots: [[AddressTransactionSnapshot]] = []
+        var lastError: Error?
+
+        for provider in orderedProviders(
+            for: .history,
+            candidates: [.blockchair, .blockcypher]
+        ) {
+            do {
+                let snapshots: [AddressTransactionSnapshot]
+                switch provider {
+                case .blockchair:
+                    snapshots = try await fetchRecentTransactionsViaBlockchair(for: trimmedAddress, limit: clampedLimit)
+                case .blockcypher:
+                    snapshots = try await fetchRecentTransactionsViaBlockcypher(for: trimmedAddress, limit: clampedLimit)
+                case .dogechain:
+                    continue
+                }
+                recordProviderAttempt(operation: .history, provider: provider, success: true, error: nil)
+                providerSnapshots.append(snapshots)
+            } catch {
+                recordProviderAttempt(operation: .history, provider: provider, success: false, error: error)
+                lastError = error
+            }
+        }
+
+        guard !providerSnapshots.isEmpty else {
+            if let lastError {
+                throw lastError
+            }
+            throw URLError(.cannotLoadFromNetwork)
+        }
+
+        let reconciled = reconcileTransactionSnapshots(providerSnapshots)
+            .sorted { $0.createdAt > $1.createdAt }
+        if offset >= reconciled.count {
+            return DogecoinHistoryPage(snapshots: [], nextCursor: nil, sourceUsed: "dogecoin.providers")
+        }
+        let paged = Array(reconciled.dropFirst(offset).prefix(clampedLimit))
+        let nextCursor = (offset + clampedLimit) < reconciled.count ? String(offset + clampedLimit) : nil
+        return DogecoinHistoryPage(snapshots: paged, nextCursor: nextCursor, sourceUsed: "dogecoin.providers")
+    }
+
+    /// Handles "fetchRecentTransactionsViaBlockchair" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchRecentTransactionsViaBlockchair(for address: String, limit: Int) async throws -> [AddressTransactionSnapshot] {
+        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw URLError(.badURL)
+        }
+
+        guard let baseURL = blockchairURL(path: "/dashboards/address/\(encodedAddress)") else {
+            throw URLError(.badURL)
+        }
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "limit", value: String(limit))]
+        guard let addressURL = components?.url else {
+            throw URLError(.badURL)
+        }
+
+        let (addressData, addressResponse) = try await fetchData(from: addressURL)
+        guard let addressHTTPResponse = addressResponse as? HTTPURLResponse, (200 ..< 300).contains(addressHTTPResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let addressPayload = try JSONDecoder().decode(DogecoinAddressDashboardResponse.self, from: addressData)
+        guard let addressEntry = addressPayload.data.values.first else {
+            return []
+        }
+
+        let transactionHashes = Array(addressEntry.transactions.prefix(limit))
+        guard !transactionHashes.isEmpty else {
+            return []
+        }
+
+        let hashList = transactionHashes.joined(separator: ",")
+        guard let encodedHashList = hashList.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let transactionsURL = blockchairURL(path: "/dashboards/transactions/\(encodedHashList)") else {
+            throw URLError(.badURL)
+        }
+
+        let (transactionsData, transactionsResponse) = try await fetchData(from: transactionsURL)
+        guard let transactionsHTTPResponse = transactionsResponse as? HTTPURLResponse, (200 ..< 300).contains(transactionsHTTPResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let transactionPayload = try JSONDecoder().decode(DogecoinTransactionDashboardResponse.self, from: transactionsData)
+        let normalizedAddress = address.lowercased()
+
+        return transactionHashes.compactMap { hash -> AddressTransactionSnapshot? in
+            guard let entry = transactionPayload.data[hash] else { return nil }
+            return mapTransactionSnapshot(
+                txHash: entry.transaction.hash ?? hash,
+                timestamp: parseBlockchairTimestamp(entry.transaction.time),
+                blockHeight: entry.transaction.blockID,
+                confirmations: entry.transaction.blockID == nil ? 0 : nil,
+                inputTransfers: entry.inputs.map { (recipient: $0.recipient, value: $0.value) },
+                outputTransfers: entry.outputs.map { (recipient: $0.recipient, value: $0.value) },
+                walletAddress: normalizedAddress,
+                defaultCounterparty: address
+            )
+        }
+    }
+
+    /// Handles "fetchRecentTransactionsViaBlockcypher" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchRecentTransactionsViaBlockcypher(for address: String, limit: Int) async throws -> [AddressTransactionSnapshot] {
+        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let addressURL = blockcypherURL(path: "/addrs/\(encodedAddress)?limit=\(limit)&unspentOnly=false&includeScript=false") else {
+            throw URLError(.badURL)
+        }
+
+        let (addressData, addressResponse) = try await fetchData(from: addressURL)
+        guard let addressHTTPResponse = addressResponse as? HTTPURLResponse, (200 ..< 300).contains(addressHTTPResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let addressPayload = try JSONDecoder().decode(BlockCypherDogecoinAddressResponse.self, from: addressData)
+        let allRefs = (addressPayload.txrefs ?? []) + (addressPayload.unconfirmedTxrefs ?? [])
+        let hashes = Array(Set(allRefs.map(\.txHash))).prefix(limit)
+        guard !hashes.isEmpty else { return [] }
+
+        var snapshots: [AddressTransactionSnapshot] = []
+        for hash in hashes {
+            guard let encodedHash = hash.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                  let txURL = blockcypherURL(path: "/txs/\(encodedHash)") else {
+                continue
+            }
+
+            do {
+                let (txData, txResponse) = try await fetchData(from: txURL)
+                guard let txHTTPResponse = txResponse as? HTTPURLResponse, (200 ..< 300).contains(txHTTPResponse.statusCode) else {
+                    continue
+                }
+                let payload = try JSONDecoder().decode(BlockCypherDogecoinTransactionResponse.self, from: txData)
+                guard let txHash = payload.hash else { continue }
+                let snapshot = mapTransactionSnapshot(
+                    txHash: txHash,
+                    timestamp: parseBlockcypherTimestamp(payload.received),
+                    blockHeight: payload.blockHeight,
+                    confirmations: payload.confirmations,
+                    inputTransfers: (payload.inputs ?? []).map { (recipient: $0.addresses?.first, value: $0.outputValue ?? $0.value) },
+                    outputTransfers: (payload.outputs ?? []).map { (recipient: $0.addresses?.first, value: $0.value) },
+                    walletAddress: address.lowercased(),
+                    defaultCounterparty: address
+                )
+                if let snapshot {
+                    snapshots.append(snapshot)
+                }
+            } catch {
+                continue
+            }
+        }
+
+        return snapshots
+    }
+
+    /// Handles "mapTransactionSnapshot" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func mapTransactionSnapshot(
+        txHash: String,
+        timestamp: Date?,
+        blockHeight: Int?,
+        confirmations: Int?,
+        inputTransfers: [(recipient: String?, value: Int64?)],
+        outputTransfers: [(recipient: String?, value: Int64?)],
+        walletAddress: String,
+        defaultCounterparty: String
+    ) -> AddressTransactionSnapshot? {
+        let incomingValue = outputTransfers.reduce(Int64(0)) { partialResult, output in
+            guard output.recipient?.lowercased() == walletAddress else { return partialResult }
+            return partialResult + max(0, output.value ?? 0)
+        }
+
+        let outgoingValue = inputTransfers.reduce(Int64(0)) { partialResult, input in
+            guard input.recipient?.lowercased() == walletAddress else { return partialResult }
+            return partialResult + max(0, input.value ?? 0)
+        }
+
+        let netValue = incomingValue - outgoingValue
+        guard netValue != 0 else { return nil }
+
+        let kind: TransactionKind = netValue > 0 ? .receive : .send
+        let amount = Double(abs(netValue)) / 100_000_000
+
+        let counterparty: String
+        if kind == .receive {
+            counterparty = inputTransfers.first(where: { $0.recipient?.lowercased() != walletAddress })?.recipient ?? defaultCounterparty
+        } else {
+            counterparty = outputTransfers.first(where: { $0.recipient?.lowercased() != walletAddress })?.recipient ?? defaultCounterparty
+        }
+
+        let isPending: Bool
+        if let confirmations {
+            isPending = confirmations <= 0
+        } else {
+            isPending = blockHeight == nil
+        }
+
+        return AddressTransactionSnapshot(
+            hash: txHash,
+            kind: kind,
+            status: isPending ? .pending : .confirmed,
+            amount: amount,
+            counterpartyAddress: counterparty,
+            createdAt: timestamp ?? Date.distantPast,
+            blockNumber: blockHeight
+        )
+    }
+
+    #if DEBUG
+    /// Handles "reconcileSnapshotsForTesting" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func reconcileSnapshotsForTesting(_ providerSnapshots: [[AddressTransactionSnapshot]]) -> [AddressTransactionSnapshot] {
+        reconcileTransactionSnapshots(providerSnapshots)
+    }
+    #endif
+
+    /// Handles "reconcileTransactionSnapshots" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func reconcileTransactionSnapshots(_ providerSnapshots: [[AddressTransactionSnapshot]]) -> [AddressTransactionSnapshot] {
+        var groupedByHash: [String: [AddressTransactionSnapshot]] = [:]
+        for snapshots in providerSnapshots {
+            for snapshot in snapshots {
+                groupedByHash[snapshot.hash, default: []].append(snapshot)
+            }
+        }
+
+        return groupedByHash.values.compactMap { group in
+            guard let baseline = group.first else { return nil }
+            if group.count == 1 {
+                return baseline
+            }
+
+            let hasKindConflict = Set(group.map(\.kind)).count > 1
+            let hasAmountConflict = (group.map(\.amount).max() ?? baseline.amount) - (group.map(\.amount).min() ?? baseline.amount) > 0.0001
+            let hasCounterpartyConflict = Set(group.map { $0.counterpartyAddress.lowercased() }).count > 1
+
+            let resolvedKind: TransactionKind
+            if hasKindConflict {
+                resolvedKind = group.contains(where: { $0.kind == .send }) ? .send : .receive
+            } else {
+                resolvedKind = baseline.kind
+            }
+
+            let resolvedAmount = group.map(\.amount).max() ?? baseline.amount
+            let resolvedStatus: TransactionStatus = group.contains(where: { $0.status == .pending }) ? .pending : .confirmed
+            let resolvedBlock = group.compactMap(\.blockNumber).max()
+            let knownDates = group.map(\.createdAt).filter { $0 != Date.distantPast }
+            let resolvedCreatedAt = knownDates.min() ?? baseline.createdAt
+
+            let resolvedCounterparty = group
+                .map(\.counterpartyAddress)
+                .first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+                ?? baseline.counterpartyAddress
+
+            let finalStatus: TransactionStatus = (hasKindConflict || hasAmountConflict || hasCounterpartyConflict) ? .pending : resolvedStatus
+
+            return AddressTransactionSnapshot(
+                hash: baseline.hash,
+                kind: resolvedKind,
+                status: finalStatus,
+                amount: resolvedAmount,
+                counterpartyAddress: resolvedCounterparty,
+                createdAt: resolvedCreatedAt,
+                blockNumber: resolvedBlock
+            )
+        }
+    }
+
+    /// Handles "fetchTransactionStatus" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func fetchTransactionStatus(txid: String) async throws -> DogecoinTransactionStatus {
+        var capturedError: Error?
+        let statusCandidates = enabledStatusProviders().map { provider -> ProviderEndpoint in
+            switch provider {
+            case .blockchair:
+                return .blockchair
+            case .blockcypher:
+                return .blockcypher
+            }
+        }
+
+        for provider in orderedProviders(for: .status, candidates: statusCandidates) {
+            do {
+                switch provider {
+                case .blockchair:
+                    let result = try await fetchTransactionStatusViaBlockchair(txid: txid)
+                    recordProviderAttempt(operation: .status, provider: provider, success: true, error: nil)
+                    return result
+                case .blockcypher:
+                    let result = try await fetchTransactionStatusViaBlockcypher(txid: txid)
+                    recordProviderAttempt(operation: .status, provider: provider, success: true, error: nil)
+                    return result
+                case .dogechain:
+                    continue
+                }
+            } catch {
+                recordProviderAttempt(operation: .status, provider: provider, success: false, error: error)
+                capturedError = error
+            }
+        }
+        if let capturedError {
+            throw capturedError
+        }
+        throw URLError(.cannotLoadFromNetwork)
+    }
+
+    /// Handles "providerReliabilitySnapshot" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func providerReliabilitySnapshot() -> [ProviderReliability] {
+        let counters = loadProviderReliabilityCounters()
+        let now = Date().timeIntervalSince1970
+
+        var items: [ProviderReliability] = []
+        for operation in ProviderOperation.allCases {
+            for provider in ProviderEndpoint.allCases {
+                let key = providerReliabilityKey(operation: operation, provider: provider)
+                let counter = counters[key] ?? ProviderReliabilityCounter(
+                    successCount: 0,
+                    failureCount: 0,
+                    consecutiveFailures: 0,
+                    cooldownUntil: 0,
+                    lastError: nil,
+                    lastUpdatedAt: 0
+                )
+                let attempts = max(1, counter.successCount + counter.failureCount)
+                let cooldownRemaining = max(0, Int((counter.cooldownUntil - now).rounded(.up)))
+                items.append(
+                    ProviderReliability(
+                        operation: operation.rawValue,
+                        providerID: provider.rawValue,
+                        successCount: counter.successCount,
+                        failureCount: counter.failureCount,
+                        consecutiveFailures: counter.consecutiveFailures,
+                        successRate: Double(counter.successCount) / Double(attempts),
+                        cooldownRemainingSeconds: cooldownRemaining,
+                        lastError: counter.lastError
+                    )
+                )
+            }
+        }
+
+        return items.sorted { lhs, rhs in
+            if lhs.operation != rhs.operation {
+                return lhs.operation < rhs.operation
+            }
+            return lhs.providerID < rhs.providerID
+        }
+    }
+
+    /// Handles "resetProviderReliability" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func resetProviderReliability() {
+        providerReliabilityLock.lock()
+        defer { providerReliabilityLock.unlock() }
+        UserDefaults.standard.removeObject(forKey: providerReliabilityDefaultsKey)
+    }
+
+    private static func runWithProviderFallback<T>(
+        operation: ProviderOperation,
+        candidates: [ProviderEndpoint],
+        task: (ProviderEndpoint) async throws -> T
+    ) async throws -> T {
+        var capturedError: Error?
+        for provider in orderedProviders(for: operation, candidates: candidates) {
+            do {
+                let value = try await task(provider)
+                recordProviderAttempt(operation: operation, provider: provider, success: true, error: nil)
+                return value
+            } catch {
+                recordProviderAttempt(operation: operation, provider: provider, success: false, error: error)
+                capturedError = error
+            }
+        }
+        if let capturedError {
+            throw capturedError
+        }
+        throw URLError(.cannotLoadFromNetwork)
+    }
+
+    /// Handles "configureStatusProviders" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func configureStatusProviders(useBlockchair: Bool, useBlockCypher: Bool) {
+        statusProviderSelectionLock.lock()
+        defer { statusProviderSelectionLock.unlock() }
+
+        var enabledProviderIDs: [String] = []
+        if useBlockchair {
+            enabledProviderIDs.append(StatusProvider.blockchair.rawValue)
+        }
+        if useBlockCypher {
+            enabledProviderIDs.append(StatusProvider.blockcypher.rawValue)
+        }
+        UserDefaults.standard.set(enabledProviderIDs, forKey: statusProviderSelectionDefaultsKey)
+    }
+
+    /// Handles "resetStatusProviderSelection" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func resetStatusProviderSelection() {
+        statusProviderSelectionLock.lock()
+        defer { statusProviderSelectionLock.unlock() }
+        UserDefaults.standard.removeObject(forKey: statusProviderSelectionDefaultsKey)
+    }
+
+    static func endpointCatalog() -> [String] {
+        [
+            blockchairAPIBaseURLString,
+            blockcypherAPIBaseURLString,
+            dogechainAPIBaseURLString,
+        ]
+    }
+
+    /// Handles "checkProviderHealth" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func checkProviderHealth() async -> [ProviderHealth] {
+        let checks: [(String, URL?, String)] = [
+            ("blockchair", blockchairURL(path: "/stats"), currentBlockchairEndpoint()),
+            ("blockcypher", blockcypherURL(path: ""), currentBlockcypherEndpoint()),
+            ("dogechain", dogechainURL(path: "/"), currentDogechainEndpoint())
+        ]
+
+        var results: [ProviderHealth] = []
+        for (providerID, url, endpoint) in checks {
+            guard let url else {
+                results.append(
+                    ProviderHealth(
+                        providerID: providerID,
+                        endpoint: endpoint,
+                        reachable: false,
+                        statusCode: nil,
+                        message: "Invalid endpoint URL"
+                    )
+                )
+                continue
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.timeoutInterval = 8
+
+            do {
+                let (_, response) = try await fetchData(for: request)
+                let statusCode = (response as? HTTPURLResponse)?.statusCode
+                let reachable = statusCode.map { (200 ... 499).contains($0) } ?? false
+                results.append(
+                    ProviderHealth(
+                        providerID: providerID,
+                        endpoint: endpoint,
+                        reachable: reachable,
+                        statusCode: statusCode,
+                        message: reachable ? "Reachable" : "Unreachable response"
+                    )
+                )
+            } catch {
+                results.append(
+                    ProviderHealth(
+                        providerID: providerID,
+                        endpoint: endpoint,
+                        reachable: false,
+                        statusCode: nil,
+                        message: error.localizedDescription
+                    )
+                )
+            }
+        }
+
+        return results
+    }
+
+    /// Handles "enabledStatusProviders" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func enabledStatusProviders() -> [StatusProvider] {
+        statusProviderSelectionLock.lock()
+        defer { statusProviderSelectionLock.unlock() }
+
+        guard let configuredProviderIDs = UserDefaults.standard.array(forKey: statusProviderSelectionDefaultsKey) as? [String] else {
+            return StatusProvider.allCases
+        }
+        let providers = configuredProviderIDs.compactMap(StatusProvider.init(rawValue:))
+        return providers.isEmpty ? StatusProvider.allCases : providers
+    }
+
+    /// Handles "orderedProviders" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func orderedProviders(
+        for operation: ProviderOperation,
+        candidates: [ProviderEndpoint]
+    ) -> [ProviderEndpoint] {
+        let now = Date().timeIntervalSince1970
+        let counters = loadProviderReliabilityCounters()
+
+        let uniqueCandidates = Array(Set(candidates))
+        let available = uniqueCandidates.filter { provider in
+            let counter = counters[providerReliabilityKey(operation: operation, provider: provider)]
+            return (counter?.cooldownUntil ?? 0) <= now
+        }
+
+        let activeCandidates = available.isEmpty ? uniqueCandidates : available
+        return activeCandidates.sorted { lhs, rhs in
+            let leftScore = providerScore(
+                counters[providerReliabilityKey(operation: operation, provider: lhs)]
+            )
+            let rightScore = providerScore(
+                counters[providerReliabilityKey(operation: operation, provider: rhs)]
+            )
+            if leftScore != rightScore {
+                return leftScore > rightScore
+            }
+            return lhs.rawValue < rhs.rawValue
+        }
+    }
+
+    /// Handles "providerScore" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func providerScore(_ counter: ProviderReliabilityCounter?) -> Double {
+        guard let counter else { return 1_000 }
+        let attempts = max(1, counter.successCount + counter.failureCount)
+        let successRate = Double(counter.successCount) / Double(attempts)
+        let failurePenalty = Double(counter.consecutiveFailures) * 0.2
+        return successRate - failurePenalty
+    }
+
+    /// Handles "providerReliabilityKey" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func providerReliabilityKey(
+        operation: ProviderOperation,
+        provider: ProviderEndpoint
+    ) -> String {
+        "\(operation.rawValue):\(provider.rawValue)"
+    }
+
+    /// Handles "loadProviderReliabilityCounters" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func loadProviderReliabilityCounters() -> [String: ProviderReliabilityCounter] {
+        providerReliabilityLock.lock()
+        defer { providerReliabilityLock.unlock() }
+        guard let data = UserDefaults.standard.data(forKey: providerReliabilityDefaultsKey),
+              let decoded = try? JSONDecoder().decode([String: ProviderReliabilityCounter].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
+    /// Handles "saveProviderReliabilityCounters" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func saveProviderReliabilityCounters(_ counters: [String: ProviderReliabilityCounter]) {
+        providerReliabilityLock.lock()
+        defer { providerReliabilityLock.unlock() }
+        guard let data = try? JSONEncoder().encode(counters) else { return }
+        UserDefaults.standard.set(data, forKey: providerReliabilityDefaultsKey)
+    }
+
+    /// Handles "recordProviderAttempt" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func recordProviderAttempt(
+        operation: ProviderOperation,
+        provider: ProviderEndpoint,
+        success: Bool,
+        error: Error?
+    ) {
+        var counters = loadProviderReliabilityCounters()
+        let key = providerReliabilityKey(operation: operation, provider: provider)
+        var counter = counters[key] ?? ProviderReliabilityCounter(
+            successCount: 0,
+            failureCount: 0,
+            consecutiveFailures: 0,
+            cooldownUntil: 0,
+            lastError: nil,
+            lastUpdatedAt: 0
+        )
+        let now = Date().timeIntervalSince1970
+        if success {
+            counter.successCount += 1
+            counter.consecutiveFailures = 0
+            counter.cooldownUntil = 0
+            counter.lastError = nil
+        } else {
+            counter.failureCount += 1
+            counter.consecutiveFailures += 1
+            counter.lastError = error?.localizedDescription
+            if counter.consecutiveFailures >= providerCircuitFailureThreshold {
+                let shift = min(counter.consecutiveFailures - providerCircuitFailureThreshold, 6)
+                let multiplier = Double(1 << shift)
+                let cooldown = min(
+                    providerCircuitMaxCooldownSeconds,
+                    providerCircuitBaseCooldownSeconds * multiplier
+                )
+                counter.cooldownUntil = now + cooldown
+            }
+        }
+        counter.lastUpdatedAt = now
+        counters[key] = counter
+        saveProviderReliabilityCounters(counters)
+    }
+
+    /// Handles "blockchairURL" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func blockchairURL(path: String) -> URL? {
+        URL(string: blockchairAPIBaseURLString + path)
+    }
+
+    /// Handles "blockcypherURL" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func blockcypherURL(path: String) -> URL? {
+        URL(string: blockcypherAPIBaseURLString + path)
+    }
+
+    /// Handles "dogechainURL" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func dogechainURL(path: String) -> URL? {
+        URL(string: dogechainAPIBaseURLString + path)
+    }
+
+    /// Handles "currentBlockchairEndpoint" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func currentBlockchairEndpoint() -> String {
+        return blockchairAPIBaseURLString
+    }
+
+    /// Handles "currentBlockcypherEndpoint" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func currentBlockcypherEndpoint() -> String {
+        return blockcypherAPIBaseURLString
+    }
+
+    /// Handles "currentDogechainEndpoint" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func currentDogechainEndpoint() -> String {
+        return dogechainAPIBaseURLString
+    }
+
+    /// Handles "fetchTransactionStatusViaBlockchair" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchTransactionStatusViaBlockchair(txid: String) async throws -> DogecoinTransactionStatus {
+        let trimmedTXID = txid.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTXID.isEmpty,
+              let encodedTXID = trimmedTXID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = blockchairURL(path: "/dashboards/transactions/\(encodedTXID)") else {
+            throw URLError(.badURL)
+        }
+
+        let (data, response) = try await fetchData(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let payload = try JSONDecoder().decode(DogecoinTransactionDashboardResponse.self, from: data)
+        guard let entry = payload.data.values.first else {
+            throw URLError(.cannotParseResponse)
+        }
+
+        let blockHeight = entry.transaction.blockID
+        let confirmations: Int?
+        if let blockHeight {
+            let chainTipHeight = try? await fetchDogecoinChainTipHeight()
+            if let chainTipHeight, chainTipHeight >= blockHeight {
+                confirmations = max(1, chainTipHeight - blockHeight + 1)
+            } else {
+                confirmations = 1
+            }
+        } else {
+            confirmations = 0
+        }
+
+        return DogecoinTransactionStatus(
+            confirmed: blockHeight != nil,
+            blockHeight: blockHeight,
+            networkFeeDOGE: {
+                let inputTotalKoinu = entry.inputs.reduce(Int64(0)) { $0 + max(0, $1.value ?? 0) }
+                let outputTotalKoinu = entry.outputs.reduce(Int64(0)) { $0 + max(0, $1.value ?? 0) }
+                let feeKoinu = max(0, inputTotalKoinu - outputTotalKoinu)
+                return Double(feeKoinu) / 100_000_000
+            }(),
+            confirmations: confirmations
+        )
+    }
+
+    /// Handles "fetchTransactionStatusViaBlockcypher" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchTransactionStatusViaBlockcypher(txid: String) async throws -> DogecoinTransactionStatus {
+        let trimmedTXID = txid.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTXID.isEmpty,
+              let encodedTXID = trimmedTXID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = blockcypherURL(path: "/txs/\(encodedTXID)") else {
+            throw URLError(.badURL)
+        }
+
+        let (data, response) = try await fetchData(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let payload = try JSONDecoder().decode(BlockCypherDogecoinTransactionResponse.self, from: data)
+        let confirmed = (payload.confirmations ?? 0) > 0 || payload.blockHeight != nil
+        let inputTotalKoinu = (payload.inputs ?? []).reduce(Int64(0)) { partialResult, input in
+            partialResult + max(0, input.outputValue ?? input.value ?? 0)
+        }
+        let outputTotalKoinu = (payload.outputs ?? []).reduce(Int64(0)) { partialResult, output in
+            partialResult + max(0, output.value ?? 0)
+        }
+        let feeDOGE = Double(max(0, inputTotalKoinu - outputTotalKoinu)) / 100_000_000
+
+        return DogecoinTransactionStatus(
+            confirmed: confirmed,
+            blockHeight: payload.blockHeight,
+            networkFeeDOGE: feeDOGE,
+            confirmations: payload.confirmations
+        )
+    }
+
+    /// Handles "parseBlockchairTimestamp" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func parseBlockchairTimestamp(_ timestamp: String?) -> Date? {
+        guard let timestamp else { return nil }
+        if let unix = TimeInterval(timestamp) {
+            return Date(timeIntervalSince1970: unix)
+        }
+
+        if let parsedISO = iso8601Formatter.date(from: timestamp) {
+            return parsedISO
+        }
+        if let parsedFractionalISO = iso8601FractionalFormatter.date(from: timestamp) {
+            return parsedFractionalISO
+        }
+
+        if let parsedLegacy = blockchairTimestampFormatter.date(from: timestamp) {
+            return parsedLegacy
+        }
+
+        let normalized = timestamp.replacingOccurrences(of: "T", with: " ")
+        return blockchairTimestampFormatter.date(from: normalized)
+    }
+
+    /// Handles "parseBlockcypherTimestamp" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func parseBlockcypherTimestamp(_ timestamp: String?) -> Date? {
+        guard let timestamp else { return nil }
+        let formatter = ISO8601DateFormatter()
+        return formatter.date(from: timestamp)
+    }
+
+    /// Handles "fetchDogecoinChainTipHeight" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchDogecoinChainTipHeight() async throws -> Int {
+        guard let url = blockcypherURL(path: "") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await fetchData(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        let payload = try JSONDecoder().decode(BlockCypherDogecoinNetworkResponse.self, from: data)
+        guard let height = payload.height, height > 0 else {
+            throw URLError(.cannotParseResponse)
+        }
+        return height
+    }
+
+    /// Handles "fetchData" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
+        try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+    }
+
+    /// Handles "fetchData" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+    }
+
+    /// Handles "base58Decode" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func base58Decode(_ string: String) -> Data? {
+        let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+        var alphabetMap: [Character: Int] = [:]
+        for (index, character) in alphabet.enumerated() {
+            alphabetMap[character] = index
+        }
+
+        var bytes = [UInt8](repeating: 0, count: 1)
+        for character in string {
+            guard let value = alphabetMap[character] else {
+                return nil
+            }
+
+            var carry = value
+            for index in (0 ..< bytes.count).reversed() {
+                let total = Int(bytes[index]) * 58 + carry
+                bytes[index] = UInt8(total & 0xff)
+                carry = total >> 8
+            }
+            while carry > 0 {
+                bytes.insert(UInt8(carry & 0xff), at: 0)
+                carry >>= 8
+            }
+        }
+
+        let leadingOnes = string.prefix { $0 == "1" }.count
+        if leadingOnes > 0 {
+            bytes.insert(contentsOf: repeatElement(0, count: leadingOnes), at: 0)
+        }
+
+        return Data(bytes)
+    }
+
+    private static func doubleSHA256<S: Sequence>(_ bytes: S) -> Data where S.Element == UInt8 {
+        let first = SHA256.hash(data: Data(bytes))
+        let second = SHA256.hash(data: Data(first))
+        return Data(second)
+    }
+}

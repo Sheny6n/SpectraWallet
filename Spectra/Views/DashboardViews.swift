@@ -1,0 +1,1006 @@
+// MARK: - File Overview
+// Home dashboard UI modules showing portfolio summary, assets list, and high-level wallet actions.
+//
+// Responsibilities:
+// - Presents top-level account state (totals, assets, quick actions).
+// - Connects refresh and navigation hooks into wallet/store workflows.
+
+import SwiftUI
+
+private func localizedDashboardString(_ key: String) -> String {
+    AppLocalization.string(key)
+}
+
+private func dashboardSupportedTokenEntries(
+    for assetGroup: DashboardAssetGroup,
+    store: WalletStore
+) -> [TokenPreferenceEntry] {
+    var seenKeys = Set<String>()
+    return store.resolvedTokenPreferences
+        .filter { entry in
+            entry.symbol.caseInsensitiveCompare(assetGroup.symbol) == .orderedSame &&
+            !entry.contractAddress.isEmpty
+        }
+        .sorted { lhs, rhs in
+            lhs.chain.rawValue.localizedCaseInsensitiveCompare(rhs.chain.rawValue) == .orderedAscending
+        }
+        .filter { entry in
+            let key = "\(entry.chain.rawValue.lowercased())|\(entry.contractAddress.lowercased())"
+            return seenKeys.insert(key).inserted
+        }
+}
+
+@ViewBuilder
+private func dashboardDetailRow(label: String, value: String) -> some View {
+    HStack(alignment: .top) {
+        Text(label)
+            .foregroundStyle(.secondary)
+        Spacer(minLength: 16)
+        Text(value)
+            .multilineTextAlignment(.trailing)
+    }
+    .font(.caption)
+}
+
+private func dashboardConfigButtonLabel() -> some View {
+    Image(systemName: "slider.horizontal.3")
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(Color.primary.opacity(0.78))
+        .frame(width: 30, height: 30)
+        .background(Circle().fill(.white.opacity(0.14)))
+}
+
+struct DashboardView: View {
+    @ObservedObject var store: WalletStore
+    @State private var dashboardPage: DashboardPage = .assets
+    @State private var isShowingPinnedAssetsSheet = false
+    @State private var selectedWalletID: UUID?
+    @State private var selectedAssetGroup: DashboardAssetGroup?
+
+    private var deleteWalletMessage: String {
+        guard let pendingWallet = store.walletPendingDeletion else {
+            return ""
+        }
+        if store.isWatchOnlyWallet(pendingWallet) {
+            return localizedDashboardString("You can't recover this wallet after deletion until you still have this address.")
+        }
+        return localizedDashboardString("Please take note of your seed phrase because you can't recover this wallet after deletion.")
+    }
+
+    private var selectedWallet: ImportedWallet? {
+        guard let selectedWalletID else { return nil }
+        return store.wallet(for: selectedWalletID.uuidString)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                SpectraBackdrop()
+                
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: 22) {
+                        portfolioHeader
+                        actionButtons
+                        dashboardCardSection
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 24)
+                }
+                .refreshable {
+                    await store.performUserInitiatedRefresh()
+                }
+                .scrollBounceBehavior(.always)
+            }
+            .navigationTitle("Spectra")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    NavigationLink {
+                        AppNoticesView(store: store)
+                    } label: {
+                        noticeToolbarLabel
+                    }
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        Button("Create New Wallet") {
+                            store.beginWalletCreation()
+                        }
+                        Button("Import Existing Wallet") {
+                            store.beginWalletImport()
+                        }
+                        Button("Watch Addresses") {
+                            store.beginWatchAddressesImport()
+                        }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { store.isShowingWalletImporter && store.editingWalletID == nil },
+                set: { isPresented in
+                    if !isPresented {
+                        store.isShowingWalletImporter = false
+                    }
+                }
+            )) {
+                SetupView(store: store, draft: store.importDraft)
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { selectedWallet != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        selectedWalletID = nil
+                    }
+                }
+            )) {
+                if let selectedWallet {
+                    WalletDetailView(store: store, wallet: selectedWallet)
+                }
+            }
+            .navigationDestination(item: $selectedAssetGroup) { assetGroup in
+                AssetGroupDetailView(store: store, assetGroup: assetGroup)
+            }
+            .navigationDestination(isPresented: store.isShowingSendSheetBinding) {
+                SendView(store: store)
+            }
+            .navigationDestination(isPresented: store.isShowingReceiveSheetBinding) {
+                ReceiveView(store: store)
+            }
+            .alert("Delete Wallet?", isPresented: Binding(
+                get: { store.walletPendingDeletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        store.walletPendingDeletion = nil
+                    }
+                }
+            )) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await store.deletePendingWallet()
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    store.walletPendingDeletion = nil
+                }
+            } message: {
+                Text(deleteWalletMessage)
+            }
+        }
+    }
+    
+    private var portfolioHeader: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    SpectraLogo(size: 36)
+                    Text("Portfolio")
+                        .font(.headline)
+                        .foregroundStyle(Color.primary.opacity(0.82))
+                }
+                
+                Text(store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.totalBalanceIfAvailable))
+                    .font(.system(size: 42, weight: .black, design: .rounded))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.45)
+                    .allowsTightening(true)
+                
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 8) {
+                NavigationLink {
+                    PortfolioWalletSelectionView(store: store)
+                } label: {
+                    Image(systemName: "chevron.right.circle.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(Color.primary.opacity(0.88))
+                }
+                .buttonStyle(.plain)
+
+                Text(localizedFormat("%lld in total", store.includedPortfolioWallets.count))
+                    .font(.caption2)
+                    .foregroundStyle(Color.primary.opacity(0.72))
+            }
+        }
+        .padding(20)
+        .spectraBubbleFill()
+        .glassEffect(.regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 30))
+        .padding(.top, 12)
+    }
+
+    private var noticeToolbarLabel: some View {
+        ZStack(alignment: .topTrailing) {
+            Image(systemName: activeNotices.isEmpty ? "tray" : "exclamationmark.bubble")
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 24, height: 24)
+
+            if !activeNotices.isEmpty {
+                Text("\(min(activeNotices.count, 9))")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.red))
+                    .offset(x: 6, y: -5)
+            }
+        }
+        .frame(width: 32, height: 28, alignment: .center)
+        .foregroundStyle(Color.primary)
+        .accessibilityLabel(
+            activeNotices.isEmpty
+                ? NSLocalizedString("No active notices", comment: "")
+                : localizedFormat("%lld active notices", activeNotices.count)
+        )
+    }
+    
+    private var actionButtons: some View {
+        HStack(spacing: 12) {
+            Button {
+                store.beginSend()
+            } label: {
+                Label("Send", systemImage: "arrow.up.right")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+            }
+            .buttonStyle(.glass)
+            .disabled(!store.canBeginSend)
+            .opacity(store.canBeginSend ? 1.0 : 0.5)
+            
+            Button {
+                store.beginReceive()
+            } label: {
+                Label("Receive", systemImage: "arrow.down.left")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+            }
+            .buttonStyle(.glassProminent)
+            .disabled(!store.canBeginReceive)
+            .opacity(store.canBeginReceive ? 1.0 : 0.5)
+        }
+    }
+
+    private var dashboardCardSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 12) {
+                sectionHeading(dashboardCardTitle, symbol: dashboardCardSymbol)
+                Text(dashboardCardCountText)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.primary.opacity(0.72))
+                Spacer()
+                dashboardConfigMenu
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                switch dashboardPage {
+                case .wallets:
+                    walletsSectionContent
+                        .transition(dashboardContentTransition)
+                case .assets:
+                    assetsSectionContent
+                        .transition(dashboardContentTransition)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .spectraBubbleFill()
+            .glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 30))
+            .contentShape(Rectangle())
+            .animation(.easeOut(duration: 0.16), value: dashboardPage)
+        }
+    }
+
+    private var walletsSectionContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if store.wallets.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("No wallets yet")
+                        .font(.headline)
+                        .foregroundStyle(Color.primary)
+                    Text("Tap the + button in the top right to add your first wallet.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.primary.opacity(0.76))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+            } else {
+                ForEach(store.wallets) { wallet in
+                    WalletCardView(store: store, wallet: wallet)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedWalletID = wallet.id
+                        }
+                }
+            }
+        }
+    }
+    
+    private var assetsSectionContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if visiblePortfolio.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("No assets to display yet")
+                        .font(.headline)
+                        .foregroundStyle(Color.primary)
+                    Text("Import a wallet or pull to refresh to load chain balances.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.primary.opacity(0.76))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .glassEffect(.regular.tint(.white.opacity(0.02)), in: .rect(cornerRadius: 20))
+            } else {
+                ForEach(visiblePortfolio) { assetGroup in
+                    DashboardAssetRowView(store: store, assetGroup: assetGroup)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedAssetGroup = assetGroup
+                        }
+                }
+            }
+        }
+        .sheet(isPresented: $isShowingPinnedAssetsSheet) {
+            PinnedAssetsView(store: store)
+        }
+    }
+
+    private var visiblePortfolio: [DashboardAssetGroup] {
+        store.dashboardAssetGroups
+    }
+    
+    private var activeNotices: [AppNoticeItem] { store.appNoticeItems }
+
+    private var dashboardContentTransition: AnyTransition {
+        .opacity
+    }
+
+    private var dashboardCardTitle: String {
+        dashboardPage == .assets ? "My Assets" : "My Wallets"
+    }
+
+    private var dashboardCardSymbol: String {
+        dashboardPage == .assets ? "bitcoinsign.circle" : "wallet.pass"
+    }
+
+    private var dashboardCardCountText: String {
+        dashboardPage == .assets ? "\(visiblePortfolio.count)" : "\(store.wallets.count)"
+    }
+
+    private var dashboardConfigMenu: some View {
+        Menu {
+            Picker("Dashboard Section", selection: $dashboardPage) {
+                Text("Assets").tag(DashboardPage.assets)
+                Text("Wallets").tag(DashboardPage.wallets)
+            }
+
+            if dashboardPage == .assets {
+                Divider()
+                Button("Customize Assets") {
+                    isShowingPinnedAssetsSheet = true
+                }
+            }
+        } label: {
+            dashboardConfigButtonLabel()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            dashboardPage == .assets
+                ? "Configure asset view"
+                : "Configure wallet view"
+        )
+    }
+
+    @ViewBuilder
+    /// Handles "sectionHeading" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private func sectionHeading(_ title: String, symbol: String) -> some View {
+        Label(localizedDashboardString(title), systemImage: symbol)
+            .font(.headline)
+            .foregroundStyle(Color.primary)
+    }
+}
+
+enum DashboardPage {
+    case wallets
+    case assets
+}
+
+enum AppNoticeSeverity {
+    case warning
+    case error
+
+    var tint: Color {
+        switch self {
+        case .warning:
+            return .orange
+        case .error:
+            return .red
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .warning:
+            return NSLocalizedString("Warning", comment: "")
+        case .error:
+            return NSLocalizedString("Error", comment: "")
+        }
+    }
+}
+
+struct AppNoticeItem: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let severity: AppNoticeSeverity
+    let systemImage: String
+    var timestamp: Date? = nil
+}
+
+struct DashboardAssetChainEntry: Identifiable {
+    let coin: Coin
+    let valueUSD: Double?
+
+    var id: String {
+        let contract = DashboardAssetIdentity.normalizedContractAddress(
+            coin.contractAddress,
+            chainName: coin.chainName,
+            tokenStandard: coin.tokenStandard
+        ) ?? "native"
+        return "\(coin.chainName.lowercased())|\(coin.symbol.lowercased())|\(contract)"
+    }
+}
+
+struct DashboardAssetGroup: Identifiable, Hashable {
+    let id: String
+    let representativeCoin: Coin
+    let totalAmount: Double
+    let totalValueUSD: Double?
+    let chainEntries: [DashboardAssetChainEntry]
+    let isPinned: Bool
+
+    var name: String { representativeCoin.name }
+    var symbol: String { representativeCoin.symbol }
+    var iconIdentifier: String { representativeCoin.iconIdentifier }
+    var mark: String { representativeCoin.mark }
+    var color: Color { representativeCoin.color }
+    static func == (lhs: DashboardAssetGroup, rhs: DashboardAssetGroup) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
+
+struct DashboardPinOption: Identifiable {
+    let symbol: String
+    let name: String
+    let subtitle: String
+    let assetIdentifier: String?
+    let mark: String
+    let color: Color
+
+    var id: String { symbol }
+}
+
+enum DashboardAssetIdentity {
+    static func normalizedContractAddress(_ contractAddress: String?, chainName: String, tokenStandard: String) -> String? {
+        guard let trimmed = contractAddress?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+
+        if chainName == "Sui" {
+            let lowercased = trimmed.lowercased()
+            let components = lowercased.split(separator: "::", omittingEmptySubsequences: false)
+            guard let first = components.first else { return lowercased }
+            let normalizedPackage = normalizeSuiPackage(String(first))
+            guard components.count > 1 else { return normalizedPackage }
+            return ([normalizedPackage] + components.dropFirst().map(String.init)).joined(separator: "::")
+        }
+
+        if chainName == "Aptos" {
+            return normalizeAptosIdentifier(trimmed)
+        }
+
+        return trimmed.lowercased()
+    }
+
+    private static func normalizeSuiPackage(_ value: String) -> String {
+        guard value.hasPrefix("0x") else { return value }
+        let hexPortion = value.dropFirst(2)
+        let trimmedHex = hexPortion.drop { $0 == "0" }
+        let canonicalHex = trimmedHex.isEmpty ? "0" : String(trimmedHex)
+        return "0x" + canonicalHex
+    }
+
+    private static func normalizeAptosIdentifier(_ value: String) -> String {
+        let lowercased = value.lowercased()
+        var result = ""
+        var index = lowercased.startIndex
+        while index < lowercased.endIndex {
+            if lowercased[index...].hasPrefix("0x") {
+                let start = index
+                var end = lowercased.index(index, offsetBy: 2)
+                while end < lowercased.endIndex, lowercased[end].isHexDigit {
+                    end = lowercased.index(after: end)
+                }
+                result += canonicalAptosAddress(String(lowercased[start..<end]))
+                index = end
+            } else {
+                result.append(lowercased[index])
+                index = lowercased.index(after: index)
+            }
+        }
+        return result
+    }
+
+    private static func canonicalAptosAddress(_ value: String) -> String {
+        guard value.hasPrefix("0x") else { return value }
+        let hexPortion = value.dropFirst(2)
+        let trimmedHex = hexPortion.drop { $0 == "0" }
+        let canonicalHex = trimmedHex.isEmpty ? "0" : String(trimmedHex)
+        return "0x" + canonicalHex
+    }
+}
+
+struct DashboardAssetRowView: View {
+    @ObservedObject var store: WalletStore
+    let assetGroup: DashboardAssetGroup
+
+    private var priceText: String {
+        guard let price = store.currentPriceIfAvailable(for: assetGroup.representativeCoin) else {
+            return store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: nil)
+        }
+        return store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: price)
+    }
+
+    private var amountText: String {
+        store.formattedAssetAmount(
+            assetGroup.totalAmount,
+            symbol: assetGroup.symbol,
+            chainName: assetGroup.representativeCoin.chainName
+        )
+    }
+
+    private var chainSummaryText: String {
+        if assetGroup.chainEntries.isEmpty {
+            return NSLocalizedString("No chain balances yet", comment: "")
+        }
+        if assetGroup.chainEntries.count == 1, let chainName = assetGroup.chainEntries.first?.coin.chainName {
+            return localizedFormat("dashboard.asset.onChain", chainName)
+        }
+        let names = assetGroup.chainEntries.map(\.coin.chainName)
+        let preview = names.prefix(2).joined(separator: ", ")
+        let remainder = names.count - min(names.count, 2)
+        if remainder > 0 {
+            return localizedFormat("On %@ +%lld more", preview, remainder)
+        }
+        return localizedFormat("dashboard.asset.onChain", preview)
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            CoinBadge(
+                assetIdentifier: assetGroup.iconIdentifier,
+                fallbackText: assetGroup.mark,
+                color: assetGroup.color,
+                size: 40
+            )
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    if assetGroup.isPinned {
+                        Image(systemName: "pin.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.red.opacity(0.82))
+                            .frame(width: 28, height: 20)
+                            .background(Color.red.opacity(0.1), in: Capsule())
+                            .clipped()
+                    }
+                    Text(assetGroup.name)
+                        .font(.headline)
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+
+                Text(amountText)
+                    .font(.caption)
+                    .foregroundStyle(Color.primary.opacity(0.72))
+                    .spectraNumericTextLayout()
+
+                Text(chainSummaryText)
+                    .font(.caption2)
+                    .foregroundStyle(Color.primary.opacity(0.58))
+            }
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: assetGroup.totalValueUSD))
+                    .font(.headline)
+                    .foregroundStyle(Color.primary)
+                    .spectraNumericTextLayout()
+                Text(priceText)
+                    .font(.caption)
+                    .foregroundStyle(Color.primary.opacity(0.68))
+                    .spectraNumericTextLayout()
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.primary.opacity(0.42))
+        }
+        .padding(16)
+        .spectraBubbleFill()
+        .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+    }
+}
+
+struct AssetGroupDetailView: View {
+    @ObservedObject var store: WalletStore
+    let assetGroup: DashboardAssetGroup
+
+    private var supportedTokenEntries: [TokenPreferenceEntry] {
+        dashboardSupportedTokenEntries(for: assetGroup, store: store)
+    }
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        CoinBadge(
+                            assetIdentifier: assetGroup.iconIdentifier,
+                            fallbackText: assetGroup.mark,
+                            color: assetGroup.color,
+                            size: 52
+                        )
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(assetGroup.name)
+                                .font(.headline)
+                            Text(assetGroup.symbol)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    dashboardDetailRow(
+                        label: "Total Amount",
+                        value: store.formattedAssetAmount(
+                            assetGroup.totalAmount,
+                            symbol: assetGroup.symbol,
+                            chainName: assetGroup.representativeCoin.chainName
+                        )
+                    )
+                    dashboardDetailRow(label: "Total Value", value: store.formattedFiatAmountOrZero(fromUSD: assetGroup.totalValueUSD))
+                    dashboardDetailRow(label: "Chains", value: "\(assetGroup.chainEntries.count)")
+                }
+                .padding(16)
+                .spectraBubbleFill()
+                .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Chain Breakdown")
+                            .font(.headline)
+                            .foregroundStyle(Color.primary)
+                        Spacer()
+                        Text("\(assetGroup.chainEntries.count)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.primary.opacity(0.68))
+                    }
+
+                    if assetGroup.chainEntries.isEmpty {
+                        Text(NSLocalizedString("No chain balances yet for this asset.", comment: ""))
+                            .font(.subheadline)
+                            .foregroundStyle(Color.primary.opacity(0.72))
+                    } else {
+                        ForEach(assetGroup.chainEntries) { entry in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(entry.coin.chainName)
+                                            .font(.headline)
+                                        Text(entry.coin.tokenStandard)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    VStack(alignment: .trailing, spacing: 3) {
+                                        Text(store.formattedAssetAmount(entry.coin.amount, symbol: entry.coin.symbol, chainName: entry.coin.chainName))
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(Color.primary)
+                                            .spectraNumericTextLayout()
+                                        Text(store.formattedFiatAmountOrZero(fromUSD: entry.valueUSD))
+                                            .font(.caption)
+                                            .foregroundStyle(Color.primary.opacity(0.68))
+                                            .spectraNumericTextLayout()
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+
+                        Text("This asset view merges balances across chains while preserving the per-chain token standard details here.")
+                            .font(.caption)
+                            .foregroundStyle(Color.primary.opacity(0.62))
+                    }
+                }
+                .padding(16)
+                .spectraBubbleFill()
+                .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
+        }
+        .background(SpectraBackdrop())
+        .navigationTitle(assetGroup.symbol)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !supportedTokenEntries.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink("Details") {
+                        AssetContractsDetailView(store: store, assetGroup: assetGroup)
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+struct AssetContractsDetailView: View {
+    @ObservedObject var store: WalletStore
+    let assetGroup: DashboardAssetGroup
+
+    private var supportedTokenEntries: [TokenPreferenceEntry] {
+        dashboardSupportedTokenEntries(for: assetGroup, store: store)
+    }
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        CoinBadge(
+                            assetIdentifier: assetGroup.iconIdentifier,
+                            fallbackText: assetGroup.mark,
+                            color: assetGroup.color,
+                            size: 44
+                        )
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(assetGroup.name)
+                                .font(.headline)
+                            Text(assetGroup.symbol)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    dashboardDetailRow(label: "Supported Chains", value: "\(supportedTokenEntries.count)")
+                }
+                .padding(16)
+                .spectraBubbleFill()
+                .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Contracts")
+                        .font(.headline)
+                        .foregroundStyle(Color.primary)
+
+                    if supportedTokenEntries.isEmpty {
+                        Text("No contract addresses are available for this asset.")
+                            .font(.subheadline)
+                            .foregroundStyle(Color.primary.opacity(0.72))
+                    } else {
+                        ForEach(supportedTokenEntries) { entry in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(entry.chain.rawValue)
+                                            .font(.headline)
+                                        Text(entry.tokenStandard)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+
+                                Text(entry.contractAddress)
+                                    .font(.footnote.monospaced())
+                                    .foregroundStyle(Color.primary.opacity(0.8))
+                                    .textSelection(.enabled)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+                .padding(16)
+                .spectraBubbleFill()
+                .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
+        }
+        .background(SpectraBackdrop())
+        .navigationTitle(localizedFormat("%@ Details", assetGroup.symbol))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+}
+
+struct PinnedAssetsView: View {
+    @ObservedObject var store: WalletStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText: String = ""
+
+    private var filteredOptions: [DashboardPinOption] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let allOptions = store.availableDashboardPinOptions
+        guard !query.isEmpty else { return allOptions }
+        return allOptions.filter { option in
+            option.symbol.localizedCaseInsensitiveContains(query) ||
+            option.name.localizedCaseInsensitiveContains(query) ||
+            option.subtitle.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(filteredOptions) { option in
+                        Toggle(isOn: binding(for: option.symbol)) {
+                            HStack(spacing: 12) {
+                                CoinBadge(
+                                    assetIdentifier: option.assetIdentifier,
+                                    fallbackText: option.mark,
+                                    color: option.color,
+                                    size: 34
+                                )
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(option.name)
+                                    Text(localizedFormat("dashboard.pinnedAsset.symbolSubtitle", option.symbol, option.subtitle))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Pinned Assets")
+                } footer: {
+                    Text("Pinned assets stay visible in My Assets even when the total balance is zero.")
+                }
+            }
+            .navigationTitle("Pinned Assets")
+            .searchable(text: $searchText, prompt: "Search assets")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Reset") {
+                        store.resetPinnedDashboardAssets()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func binding(for symbol: String) -> Binding<Bool> {
+        Binding(
+            get: { store.isDashboardAssetPinned(symbol) },
+            set: { isPinned in
+                store.setDashboardAssetPinned(isPinned, symbol: symbol)
+            }
+        )
+    }
+
+}
+
+struct PortfolioWalletSelectionView: View {
+    @ObservedObject var store: WalletStore
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(store.wallets) { wallet in
+                    Toggle(isOn: binding(for: wallet.id)) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(wallet.name)
+                            Text(wallet.selectedChain)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } header: {
+                Text("Included In Portfolio Total")
+            } footer: {
+                Text("Only selected wallets contribute to the portfolio total and the aggregated asset list on the home page.")
+            }
+        }
+        .navigationTitle("Portfolio Wallets")
+    }
+
+    private func binding(for walletID: UUID) -> Binding<Bool> {
+        Binding(
+            get: {
+                store.wallets.first(where: { $0.id == walletID })?.includeInPortfolioTotal ?? true
+            },
+            set: { isIncluded in
+                store.setPortfolioInclusion(isIncluded, for: walletID)
+            }
+        )
+    }
+}
+
+struct AppNoticesView: View {
+    @ObservedObject var store: WalletStore
+
+    var body: some View {
+        List {
+            if store.appNoticeItems.isEmpty {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("No active notices")
+                            .font(.headline)
+                        Text("Current wallet, pricing, and chain-state warnings will appear here.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 6)
+                }
+            } else {
+                Section("Active Notices") {
+                    ForEach(store.appNoticeItems) { notice in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 10) {
+                                Image(systemName: notice.systemImage)
+                                    .foregroundStyle(notice.severity.tint)
+                                Text(notice.title)
+                                    .font(.headline)
+                                Spacer()
+                                Text(notice.severity.label)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(notice.severity.tint)
+                            }
+
+                            Text(notice.message)
+                                .font(.subheadline)
+                                .foregroundStyle(.primary)
+
+                            if let timestamp = notice.timestamp {
+                                Text(localizedFormat("Last known healthy sync: %@", timestamp.formatted(date: .abbreviated, time: .shortened)))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+        }
+        .navigationTitle("Notices")
+    }
+}
+
+
+private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
+    let format = NSLocalizedString(key, comment: "")
+    return String(format: format, locale: Locale.current, arguments: arguments)
+}

@@ -1,0 +1,32 @@
+{
+  "navigationTitle": "捐赠",
+  "heroTitle": "支持 Spectra",
+  "heroSubtitle": "开源、零手续费，由社区直接支持持续发展。",
+  "destinations": [
+    {
+      "chainName": "Bitcoin",
+      "title": "Bitcoin",
+      "address": "bc1pc7vh4gd3qcghvyplv2e8kg7wfrdduvus98chqfka3kl7cl3g9n0qa2xk03"
+    },
+    {
+      "chainName": "Ethereum",
+      "title": "Ethereum",
+      "address": "0xefa039ed09c3fe6aeceb89b365b2740e4050365c"
+    },
+    {
+      "chainName": "Solana",
+      "title": "Solana",
+      "address": "Cbjxsz2mtdxo8ZRStCDpAjuRcHcAg9kMNMgVjE6E9VBv"
+    },
+    {
+      "chainName": "Tron",
+      "title": "Tron",
+      "address": "TUYaUXqRKoLs6GSWrrGgc6BUg8cgyHbB44"
+    },
+    {
+      "chainName": "Monero",
+      "title": "Monero",
+      "address": "门罗币地址占位符"
+    }
+  ]
+}

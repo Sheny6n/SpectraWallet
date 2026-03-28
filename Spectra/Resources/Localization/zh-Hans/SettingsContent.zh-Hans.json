@@ -1,0 +1,27 @@
+{
+  "pricingIntro": "如果你需要实时价格，请选择一个价格提供商。Spectra 会从所选提供商批量请求价格，并在实时数据不可用时回退到内置参考价格。",
+  "fiatRateProviderNote": "用于 USD 到本地法币的转换。默认是 Open ER。",
+  "coinGeckoNote": "可选。Spectra 可以在有或没有密钥的情况下使用 CoinGecko 价格。当实时价格不可用时，Spectra 会使用内置参考价格。",
+  "publicProviderNote": "该提供商使用公开的批量报价接口。当前构建无需 API 密钥。",
+  "aboutTitle": "Spectra",
+  "aboutSubtitle": "一个专注于本地控制、透明网络访问和最小信任假设的自托管多链钱包。",
+  "aboutEthosTitle": "Spectra 理念",
+  "aboutEthosLines": [
+    "免费且开源。",
+    "不收集数据。",
+    "去中心化软件。",
+    "我们没有服务器来处理你的数据。",
+    "自托管。",
+    "你完全掌控自己的密钥。"
+  ],
+  "aboutNarrativeTitle": "这意味着什么",
+  "aboutNarrativeParagraphs": [
+    "除非你明确选择共享，否则你的钱包数据会一直保留在设备上。Spectra 的设计目标是让密钥材料、观察地址和本地交易状态都由你自己掌控。",
+    "你始终掌控恢复短语和私钥。这个应用是客户端，不是托管方，应当被理解为与链上基础设施通信的本地钱包软件，而不是托管账户平台。"
+  ],
+  "reportProblemDescription": "使用此页面打开未来的支持表单或问题跟踪器。下方链接目前仍是占位地址。",
+  "reportProblemActionTitle": "打开反馈表单",
+  "reportProblemURL": "https://example.com/spectra/report-problem",
+  "buyProvidersIntro": "这些是官方法币入金服务商，支持使用现金或绑定的银行卡/支付卡付款，并将加密资产直接发送到钱包地址。不同提供商的可用性、费用、身份验证、支持网络和地区覆盖范围会有所不同。",
+  "buyWarning": "Spectra 不处理购买流程。付款前请务必再次确认钱包地址、所选链和资产，因为加密转账通常不可逆。"
+}

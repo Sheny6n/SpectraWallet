@@ -1,0 +1,10 @@
+{
+  "navigationTitle": "端點",
+  "intro": "此頁面列出 Spectra 目前使用的鏈端點。若此版本已支援自訂覆寫，則可以在這裡編輯。",
+  "readOnlyFootnote": "此版本中為唯讀。",
+  "addEsploraEndpointPlaceholder": "新增 Esplora 端點",
+  "addEndpointButtonTitle": "新增端點",
+  "clearCustomBitcoinEndpointsTitle": "清除自訂比特幣端點",
+  "customEthereumRPCURLPlaceholder": "自訂以太坊 RPC 位址",
+  "customMoneroBackendURLPlaceholder": "自訂門羅後端位址"
+}

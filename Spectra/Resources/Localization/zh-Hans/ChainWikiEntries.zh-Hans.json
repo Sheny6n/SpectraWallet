@@ -1,0 +1,434 @@
+[
+  {
+    "id": "bitcoin",
+    "name": "Bitcoin",
+    "symbol": "BTC",
+    "family": "UTXO / 基础层结算网络",
+    "consensus": "工作量证明（SHA-256）",
+    "stateModel": "UTXO 集",
+    "primaryUse": "用于最终结算、长期自托管以及简单的原生 BTC 转账。",
+    "slip44CoinType": "0（比特币）",
+    "derivationPath": "m/84'/0'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "协议上限为 21,000,000 BTC。",
+    "notableDetails": [
+      "Spectra 使用原生比特币引擎，而不是通用的钱包核心库（WalletCore）路径辅助逻辑。",
+      "这里显示的默认收款路径是原生隔离见证（SegWit）的 BIP84 账户 0。",
+      "余额本质上来自可花费 UTXO 状态，而不是账户余额字段。"
+    ]
+  },
+  {
+    "id": "bitcoin-cash",
+    "name": "Bitcoin Cash",
+    "symbol": "BCH",
+    "family": "UTXO 支付网络",
+    "consensus": "工作量证明（SHA-256）",
+    "stateModel": "UTXO 集",
+    "primaryUse": "采用比特币衍生 UTXO 模型、但具有独立地址与网络规则的点对点支付。",
+    "slip44CoinType": "145（比特币现金）",
+    "derivationPath": "m/44'/145'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "协议上限为 21,000,000 BCH。",
+    "notableDetails": [
+      "比特币现金保留了比特币家族的 UTXO 模型，但在 Spectra 中使用 BCH 专用的地址校验、历史提供商和发送逻辑。",
+      "CashAddr 地址格式是 BCH 用户常见的展示形式，Spectra 会据此进行规范化处理。",
+      "与比特币一样，权威的可花费状态来自已确认且可花费的 UTXO，而不是账户余额字段。"
+    ]
+  },
+  {
+    "id": "bitcoin-sv",
+    "name": "Bitcoin SV",
+    "symbol": "BSV",
+    "family": "UTXO 支付网络",
+    "consensus": "工作量证明（SHA-256）",
+    "stateModel": "UTXO 集",
+    "primaryUse": "在 BSV 网络上进行基于比特币衍生 UTXO 的转账，并遵循其特定地址、策略和提供商行为。",
+    "slip44CoinType": "236（比特币SV）",
+    "derivationPath": "m/44'/236'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "协议上限为 21,000,000 BSV。",
+    "notableDetails": [
+      "比特币SV 保留了比特币家族的 UTXO 记账模型，但在 Spectra 中使用自己的网络规则、提供商和浏览器接口。",
+      "其权威可花费余额仍然来自可花费 UTXO，而不是账户式余额字段。",
+      "虽然与比特币同源，但 Spectra 对 BSV 的支持是通过独立的服务和引擎流程实现的，而不是沿用 BTC 设置。"
+    ]
+  },
+  {
+    "id": "litecoin",
+    "name": "Litecoin",
+    "symbol": "LTC",
+    "family": "UTXO 支付网络",
+    "consensus": "工作量证明（Scrypt）",
+    "stateModel": "UTXO 集",
+    "primaryUse": "相较比特币提供更低费用与更快出块节奏的支付网络。",
+    "slip44CoinType": "2（莱特币）",
+    "derivationPath": "m/44'/2'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "协议上限为 84,000,000 LTC。",
+    "notableDetails": [
+      "它与比特币共享 UTXO 记账模型，但地址与费用环境不同。",
+      "Spectra 通过钱包核心库（WalletCore）派生莱特币，并使用莱特币专用提供商进行刷新。",
+      "总供应量约为比特币的四倍，但这不会改变其可分割性或账本语义。"
+    ]
+  },
+  {
+    "id": "dogecoin",
+    "name": "Dogecoin",
+    "symbol": "DOGE",
+    "family": "UTXO 支付网络",
+    "consensus": "工作量证明，并支持 AuxPoW 合并挖矿生态",
+    "stateModel": "UTXO 集",
+    "primaryUse": "用于低门槛支付、转账以及广泛的交易所支持场景。",
+    "slip44CoinType": "3（狗狗币）",
+    "derivationPath": "m/44'/3'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "没有固定终局上限。虽然每区块和每年增发有边界，但生命周期总供应量并未在协议层封顶。",
+    "notableDetails": [
+      "相比其他 UTXO 链，Spectra 对 DOGE 增加了更多发现、keypool 与操作诊断逻辑。",
+      "由于没有终局供应上限，这里刻意将其长期流通量视为无法由静态设置页面准确估算。",
+      "与比特币和莱特币一样，其权威可花费状态来自 UTXO 集。"
+    ]
+  },
+  {
+    "id": "ethereum",
+    "name": "Ethereum",
+    "symbol": "ETH",
+    "family": "账户式智能合约网络",
+    "consensus": "权益证明",
+    "stateModel": "账户状态 + 合约存储",
+    "primaryUse": "用于通用智能合约、DeFi、ERC-20 代币以及链上执行。",
+    "slip44CoinType": "60（以太币）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "没有固定最大供应。供应量会随验证者发行和手续费销毁而变化，因此长期流通量不能被静态估算。",
+    "notableDetails": [
+      "BNB Chain 在 Spectra 中复用了相同的 EVM 密钥空间和默认派生路径家族。",
+      "ETH 余额来自账户状态；ERC-20 余额来自代币合约状态。",
+      "在 EVM 链上，历史 API 与实时余额 API 是两类不同的问题。"
+    ]
+  },
+  {
+    "id": "ethereum-classic",
+    "name": "Ethereum Classic",
+    "symbol": "ETC",
+    "family": "账户式智能合约网络",
+    "consensus": "工作量证明（Etchash）",
+    "stateModel": "账户状态 + 合约存储",
+    "primaryUse": "用于原生 ETC 转账，以及在原始以太坊分叉链上的保守型 EVM 合约执行。",
+    "slip44CoinType": "61（以太坊经典）",
+    "derivationPath": "m/44'/61'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "没有固定最大供应。ETC 的货币政策会随时间降低发行，因此其流通量是动态变化的。",
+    "notableDetails": [
+      "Spectra 通过 EVM 引擎栈处理 ETC，但它拥有独立的链上下文、链 ID、RPC 集合与派生路径。",
+      "ETC 与以太坊使用相同的 0x 地址格式，但它是独立网络，拥有自己的历史与费用条件。",
+      "在 Spectra 当前支持面中，ETC 不启用 ERC-20 风格代币跟踪，整体更偏向原生资产支持。"
+    ]
+  },
+  {
+    "id": "bnb",
+    "name": "BNB Chain",
+    "symbol": "BNB",
+    "family": "EVM 兼容智能合约网络",
+    "consensus": "BNB Chain 验证者共识",
+    "stateModel": "账户状态 + 合约存储",
+    "primaryUse": "用于更低成本的 EVM 执行、BEP-20 资产以及与交易所生态相关的链上活动。",
+    "slip44CoinType": "9006（币安智能链）；Spectra 当前为了 EVM 兼容性，仍使用 60 路径派生 BNB 链钱包。",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "创世供应量为 200,000,000 BNB，协议和生态销毁机制目标是将长期供应降至更低水平，因此流通量是动态变化的。",
+    "notableDetails": [
+      "Spectra 将 BNB Chain 视为 EVM 网络，并通过以太坊风格的引擎栈进行处理。",
+      "它与以太坊共用地址格式和私钥家族，但拥有不同的链上下文和 RPC 网络。",
+      "BEP-20 代币处理逻辑总体与 ERC-20 合约余额逻辑相同。"
+    ]
+  },
+  {
+    "id": "arbitrum",
+    "name": "Arbitrum",
+    "symbol": "ARB",
+    "family": "EVM 兼容二层智能合约网络",
+    "consensus": "由以太坊安全性保障的 Optimistic Rollup",
+    "stateModel": "账户状态 + 合约存储",
+    "primaryUse": "用于更低成本的 EVM 执行、ERC-20 代币以及 Arbitrum One 上与以太坊兼容的活动。",
+    "slip44CoinType": "60（以太币）；Spectra 使用与以太坊兼容的 EVM 路径家族派生 Arbitrum 钱包。",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "其原生燃料资产是从以太坊主网桥接过来的 ETH，因此 Arbitrum 自身没有独立的固定供应上限概念。",
+    "notableDetails": [
+      "Spectra 将 Arbitrum 视为独立 EVM 链上下文，拥有链 ID 42161、单独的 RPC 轮换、浏览器链接、诊断和 ERC-20 跟踪支持。",
+      "Arbitrum 使用标准 0x 风格地址，但它与以太坊主网、BNB Chain 和 Avalanche 仍是不同网络。",
+      "Arbitrum 上的原生燃料资产是 ETH，而 ARB 是治理型 ERC-20 代币，而不是燃料代币。"
+    ]
+  },
+  {
+    "id": "optimism",
+    "name": "Optimism",
+    "symbol": "OP",
+    "family": "EVM 兼容二层智能合约网络",
+    "consensus": "由以太坊安全性保障的 Optimistic Rollup",
+    "stateModel": "账户状态 + 合约存储",
+    "primaryUse": "用于更低成本的 EVM 执行、ERC-20 代币以及 Optimism 主网上与以太坊兼容的活动。",
+    "slip44CoinType": "60（以太币）；Spectra 使用与以太坊兼容的 EVM 路径家族派生 Optimism 钱包。",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "其原生燃料资产是从以太坊主网桥接过来的 ETH，因此 Optimism 自身没有独立的固定供应上限概念。",
+    "notableDetails": [
+      "Spectra 将 Optimism 视为独立 EVM 链上下文，拥有链 ID 10、单独的 RPC 轮换、浏览器链接、诊断和 ERC-20 跟踪支持。",
+      "Optimism 使用标准 0x 风格地址，但它与以太坊主网、Arbitrum、BNB Chain 和 Avalanche 仍是不同网络。",
+      "Optimism 上的原生燃料资产是 ETH，而 OP 是治理型 ERC-20 代币，而不是燃料代币。"
+    ]
+  },
+  {
+    "id": "avalanche",
+    "name": "Avalanche",
+    "symbol": "AVAX",
+    "family": "EVM 兼容智能合约网络",
+    "consensus": "权益证明 + Avalanche 共识",
+    "stateModel": "账户状态 + 合约存储",
+    "primaryUse": "用于 Avalanche 主网上原生 AVAX 转账和 C-Chain EVM 活动。",
+    "slip44CoinType": "9005（Avalanche C-Chain）；Spectra 当前为了 EVM 兼容性，仍使用 60 路径派生 Avalanche 钱包。",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "AVAX 总供应上限为 720,000,000，流通量会随着发行和手续费销毁持续变化。",
+    "notableDetails": [
+      "Spectra 将 Avalanche C-Chain 视为独立的 EVM 网络，拥有自己的链上下文、链 ID、RPC 目录和诊断接口。",
+      "Avalanche 使用标准 0x 风格地址，但它是独立于以太坊和 BNB Chain 的网络。",
+      "Spectra 当前对 AVAX 的支持更偏向原生资产，而不是 ERC-20 风格代币余额。"
+    ]
+  },
+  {
+    "id": "hyperliquid",
+    "name": "Hyperliquid",
+    "symbol": "HYPE",
+    "family": "EVM 兼容智能合约网络",
+    "consensus": "基于 HyperBFT 的 HyperEVM 结算",
+    "stateModel": "账户状态 + 合约存储",
+    "primaryUse": "用于 Hyperliquid 主网上原生 HYPE 转账和 HyperEVM 活动。",
+    "slip44CoinType": "2457（Hyperliquid）；Spectra 当前为了 EVM 兼容性，仍使用 60 路径派生 Hyperliquid 钱包。",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "HYPE 的流通量会随时间变化，因此此页面将其视为动态值。",
+    "notableDetails": [
+      "Spectra 将 Hyperliquid HyperEVM 视为独立的 EVM 链上下文，拥有自己的链 ID、RPC 目录、浏览器链接和诊断接口。",
+      "Hyperliquid 使用标准 0x 风格地址，但它与以太坊、BNB Chain 和 Avalanche 是不同网络。",
+      "Spectra 支持 HyperEVM 上的 ERC-20 跟踪余额与代币历史，也支持原生 HYPE 的余额刷新与发送流程。"
+    ]
+  },
+  {
+    "id": "tron",
+    "name": "Tron",
+    "symbol": "TRX",
+    "family": "账户式智能合约网络",
+    "consensus": "委托权益证明",
+    "stateModel": "账户状态 + 合约存储",
+    "primaryUse": "用于转账、TRC-20 代币活动和基于资源计费的智能合约执行。",
+    "slip44CoinType": "195（波场）",
+    "derivationPath": "m/44'/195'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "这里未给出固定供应上限。有效流通量会随时间变化，因此被视为不可静态估算。",
+    "notableDetails": [
+      "波场的费用基于资源模型，依赖带宽和能量，而不是纯粹的燃料费模型。",
+      "波场上的 USDT 是重要的现实使用路径，在 Spectra 中被作为 TRC-20 跟踪资产处理。",
+      "波场地址虽然源自同一 ECDSA 密钥家族，但使用的是波场专用地址编码。"
+    ]
+  },
+  {
+    "id": "solana",
+    "name": "Solana",
+    "symbol": "SOL",
+    "family": "账户式高吞吐网络",
+    "consensus": "权益证明 + 历史证明时间机制",
+    "stateModel": "账户状态 + 程序拥有的代币账户",
+    "primaryUse": "用于高吞吐转账、SPL 代币以及低延迟链上应用。",
+    "slip44CoinType": "501（Solana）",
+    "derivationPath": "m/44'/501'/0'/0'",
+    "alternateDerivationPath": "Spectra 支持的旧兼容路径：m/44'/501'/0'",
+    "totalCirculationModel": "没有固定最大供应。通胀、质押经济和解锁计划会使长期流通量动态变化。",
+    "notableDetails": [
+      "SPL 代币余额存放在关联代币账户中，而不是直接存放在钱包所有者账户里。",
+      "Spectra 同时支持当前默认的 Solana 路径和旧版兼容路径。",
+      "即使代币账户余额发现退化，钱包仍可能显示正确历史，因此 Spectra 对 Solana 有专门回退逻辑。"
+    ]
+  },
+  {
+    "id": "aptos",
+    "name": "Aptos",
+    "symbol": "APT",
+    "family": "账户式 Move 智能合约网络",
+    "consensus": "权益证明 + AptosBFT",
+    "stateModel": "账户状态 + Move 资源",
+    "primaryUse": "用于原生 APT 转账、Move 应用，以及基于账户/资源的链上执行。",
+    "slip44CoinType": "637（Aptos）",
+    "derivationPath": "m/44'/637'/0'/0'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "APT 的流通量会随质押发行、解锁和协议经济模型而变化，因此被视为动态值。",
+    "notableDetails": [
+      "从开发模型上看，Aptos 与 Sui 比与 EVM 链更接近，但其链上状态是账户与资源模型，而不是对象中心模型。",
+      "在当前构建中，Spectra 对 Aptos 的支持聚焦于原生资产，包括 APT 余额、发送、历史、诊断与浏览器支持。",
+      "Aptos 地址是十六进制账户地址，Spectra 会将其规范化为小写且带 0x 前缀的形式。"
+    ]
+  },
+  {
+    "id": "ton",
+    "name": "TON",
+    "symbol": "TON",
+    "family": "账户式消息驱动智能合约网络",
+    "consensus": "权益证明 + 验证者终局机制",
+    "stateModel": "账户状态 + 合约 / 消息",
+    "primaryUse": "用于 The Open Network 上的原生 Toncoin 转账、jetton 以及异步合约交互。",
+    "slip44CoinType": "607（TON）",
+    "derivationPath": "m/44'/607'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Toncoin 供应量会随时间变化，因此此页面将其视为非静态值。",
+    "notableDetails": [
+      "TON 的转账和合约执行是基于消息的，因此其钱包行为不同于 UTXO 链和同步 EVM 调用。",
+      "用户常见的钱包地址往往是友好的 Base64URL 格式，而不是原始的 workchain:hash 形式。",
+      "Spectra 将 TON 视为原生资产链，并提供专门的余额、发送、历史和诊断支持。"
+    ]
+  },
+  {
+    "id": "cardano",
+    "name": "Cardano",
+    "symbol": "ADA",
+    "family": "扩展 UTXO 智能合约网络",
+    "consensus": "Ouroboros 权益证明",
+    "stateModel": "eUTXO",
+    "primaryUse": "用于原生资产转账、质押以及基于 eUTXO 的智能合约流程。",
+    "slip44CoinType": "1815（Cardano）",
+    "derivationPath": "m/44'/1815'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "协议上限为 45,000,000,000 ADA。",
+    "notableDetails": [
+      "Cardano 不是以太坊意义上的账户模型；它是在 UTXO 模型基础上扩展出更丰富脚本语义的系统。",
+      "剩余储备和奖励分发会影响流通量，但最大供应量本身是固定的。",
+      "Cardano 上的原生资产不需要 ERC-20 风格的代币合约。"
+    ]
+  },
+  {
+    "id": "xrp",
+    "name": "XRP Ledger",
+    "symbol": "XRP",
+    "family": "账户式支付账本",
+    "consensus": "XRPL 共识协议",
+    "stateModel": "账户状态 + 信任线对象",
+    "primaryUse": "用于快速支付、发行资产以及基于订单簿的转账。",
+    "slip44CoinType": "144（XRP）",
+    "derivationPath": "m/44'/144'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "总创建供应量固定为 100,000,000,000 XRP。",
+    "notableDetails": [
+      "没有挖矿：所有 XRP 在创世时就已创建完成。",
+      "XRPL 使用储备要求来防止账本垃圾和过度状态膨胀。",
+      "XRPL 上的发行资产与 ERC-20 和 SPL 代币模型有本质差异。"
+    ]
+  },
+  {
+    "id": "monero",
+    "name": "Monero",
+    "symbol": "XMR",
+    "family": "隐私型账户 / 一次性输出网络",
+    "consensus": "工作量证明（RandomX）",
+    "stateModel": "带一次性隐身地址的私密输出模型",
+    "primaryUse": "用于隐藏发送方、接收方和金额的私密价值转移。",
+    "slip44CoinType": "128（门罗币）",
+    "derivationPath": "在 Spectra 当前 UI 中不可由用户配置。门罗币使用引擎专用的钱包派生和地址构造方式，而不是通用的钱包核心库（WalletCore）路径界面。",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "没有固定终局上限。门罗币在主发行结束后仍有尾部发行，因此长期总供应量并未封顶。",
+    "notableDetails": [
+      "门罗币使用隐身地址、环签名和机密金额，因此其账本解释方式与透明链完全不同。",
+      "由于门罗币天生强调隐私，余额与历史逻辑依赖门罗币专用后端假设。",
+      "尾部发行确保矿工激励持续存在，而不是让发行永久降到零。"
+    ]
+  },
+  {
+    "id": "sui",
+    "name": "Sui",
+    "symbol": "SUI",
+    "family": "对象中心型智能合约网络",
+    "consensus": "委托权益证明",
+    "stateModel": "拥有对象 + 共享对象",
+    "primaryUse": "用于 Move 应用、对象转移以及以资产为中心的执行模型。",
+    "slip44CoinType": "784（Sui）",
+    "derivationPath": "m/44'/784'/0'/0'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "总供应上限为 10,000,000,000 SUI，流通量会随时间逐步释放。",
+    "notableDetails": [
+      "Sui 并不只是账户模型；资产和其他资源被建模为可编程对象。",
+      "Move 类型系统和对象所有权规则是其转移和共享状态机制的核心。",
+      "Spectra 使用专门的 Sui 引擎处理它，而不是把它当作 EVM 克隆链。"
+    ]
+  },
+  {
+    "id": "near",
+    "name": "NEAR",
+    "symbol": "NEAR",
+    "family": "账户式智能合约网络",
+    "consensus": "权益证明 + Doomslug / Nightshade 架构",
+    "stateModel": "账户状态 + 合约存储",
+    "primaryUse": "用于具名账户转账、智能合约和更易用的账户式链上活动。",
+    "slip44CoinType": "397（NEAR Protocol）",
+    "derivationPath": "m/44'/397'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "这里未给出固定终局上限。供应量会随时间变化，因此流通量被视为动态值。",
+    "notableDetails": [
+      "NEAR 同时支持人类可读的具名账户和 64 字符的隐式账户。",
+      "账户和合约在网络中都是一等实体，而不是单纯附着在外部拥有账户（EOA）上的合约。",
+      "Spectra 使用 NEAR RPC 获取余额，并通过 NearBlocks 风格的索引历史源发现交易记录。"
+    ]
+  },
+  {
+    "id": "polkadot",
+    "name": "Polkadot",
+    "symbol": "DOT",
+    "family": "中继链 / 提名权益证明网络",
+    "consensus": "提名权益证明",
+    "stateModel": "账户状态 + 运行时模块（pallet）",
+    "primaryUse": "用于原生 DOT 转账、质押、治理和中继链安全参与。",
+    "slip44CoinType": "354（Polkadot）",
+    "derivationPath": "m/44'/354'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "这里未给出固定终局上限。供应量会随质押时代发行和协议经济模型变化，因此被视为动态值。",
+    "notableDetails": [
+      "Polkadot 地址使用 SS58 地址格式，而不是以太坊风格十六进制地址。",
+      "Spectra 使用公开的 Polkadot Sidecar 和 RPC 端点进行余额、历史、端点诊断以及应用内发送支持。",
+      "Polkadot 转账属于运行时调用，以外部交易（extrinsic）的形式签名，而不是 EVM 风格的简单账户状态更新。"
+    ]
+  },
+  {
+    "id": "internet-computer",
+    "name": "Internet Computer",
+    "symbol": "ICP",
+    "family": "账户式 canister 网络",
+    "consensus": "Threshold Relay + chain-key cryptography",
+    "stateModel": "账户标识符 + canister 管理状态",
+    "primaryUse": "用于原生 ICP 转账、治理参与以及基于 canister 的应用。",
+    "slip44CoinType": "223（互联网计算机）",
+    "derivationPath": "m/44'/223'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "供应量是动态的，并与治理、质押和协议经济模型相关，因此此页面将其视为非静态值。",
+    "notableDetails": [
+      "当前 Spectra 主要通过互联网计算机的 Rosetta 端点支持原生 ICP 转账，而不是容器智能合约代币标准。",
+      "ICP 账户使用 64 字符账户标识符，而不是以太坊风格的外部拥有账户（EOA）或对象式地址。",
+      "应用内发送支持会本地签名原生 ICP 转账，并通过公开 Rosetta 基础设施广播。"
+    ]
+  },
+  {
+    "id": "stellar",
+    "name": "Stellar",
+    "symbol": "XLM",
+    "family": "账户式支付网络",
+    "consensus": "恒星共识协议",
+    "stateModel": "账户状态 + 信任线对象",
+    "primaryUse": "用于恒星网络上的原生 XLM 转账、发行资产结算和低费用支付路由。",
+    "slip44CoinType": "148（恒星币）",
+    "derivationPath": "m/44'/148'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "这里未给出固定终局上限。流通量是动态的，并部分受基金会持仓和销毁影响，因此此页面将其视为非静态值。",
+    "notableDetails": [
+      "当前 Spectra 主要聚焦原生 XLM 转账，而不是恒星网络的发行资产和信任线管理。",
+      "恒星网络使用 StrKey 编码的公开地址，通常以 G 开头，而不是十六进制或 SS58 风格格式。",
+      "应用内发送支持会签名恒星支付操作，并通过公开的 Horizon 端点广播。"
+    ]
+  }
+]

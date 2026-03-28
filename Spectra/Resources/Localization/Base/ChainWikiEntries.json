@@ -1,0 +1,434 @@
+[
+  {
+    "id": "bitcoin",
+    "name": "Bitcoin",
+    "symbol": "BTC",
+    "family": "UTXO / base-layer settlement network",
+    "consensus": "Proof of Work (SHA-256)",
+    "stateModel": "UTXO set",
+    "primaryUse": "Final settlement, long-horizon self-custody, and simple native BTC transfers.",
+    "slip44CoinType": "0 (Bitcoin)",
+    "derivationPath": "m/84'/0'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Protocol-capped at 21,000,000 BTC.",
+    "notableDetails": [
+      "Spectra uses a native Bitcoin engine rather than the generic WalletCore path helper.",
+      "The default receive path shown here is native SegWit BIP84 account 0.",
+      "Balance is fundamentally derived from spendable UTXO state, not an account balance field."
+    ]
+  },
+  {
+    "id": "bitcoin-cash",
+    "name": "Bitcoin Cash",
+    "symbol": "BCH",
+    "family": "UTXO payments network",
+    "consensus": "Proof of Work (SHA-256)",
+    "stateModel": "UTXO set",
+    "primaryUse": "Peer-to-peer payments with a Bitcoin-derived UTXO model and distinct address/network rules.",
+    "slip44CoinType": "145 (Bitcoin Cash)",
+    "derivationPath": "m/44'/145'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Protocol-capped at 21,000,000 BCH.",
+    "notableDetails": [
+      "Bitcoin Cash keeps the Bitcoin-family UTXO model, but uses BCH-specific address validation, transaction history providers, and send logic in Spectra.",
+      "CashAddr formatting is common in user-facing BCH workflows, and Spectra normalizes BCH addresses accordingly.",
+      "Like Bitcoin, authoritative spendable state comes from confirmed and spendable UTXOs rather than an account balance field."
+    ]
+  },
+  {
+    "id": "bitcoin-sv",
+    "name": "Bitcoin SV",
+    "symbol": "BSV",
+    "family": "UTXO payments network",
+    "consensus": "Proof of Work (SHA-256)",
+    "stateModel": "UTXO set",
+    "primaryUse": "Bitcoin-derived UTXO transfers on the BSV network with chain-specific address, policy, and provider behavior.",
+    "slip44CoinType": "236 (Bitcoin SV)",
+    "derivationPath": "m/44'/236'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Protocol-capped at 21,000,000 BSV.",
+    "notableDetails": [
+      "Bitcoin SV keeps the Bitcoin-family UTXO accounting model while using its own network rules, providers, and explorer surface in Spectra.",
+      "Authoritative spendable balance still comes from spendable UTXOs rather than an account-style balance field.",
+      "Although it shares Bitcoin lineage, BSV support in Spectra is handled through dedicated service and engine flows rather than BTC settings."
+    ]
+  },
+  {
+    "id": "litecoin",
+    "name": "Litecoin",
+    "symbol": "LTC",
+    "family": "UTXO payments network",
+    "consensus": "Proof of Work (Scrypt)",
+    "stateModel": "UTXO set",
+    "primaryUse": "Lower-fee payments and faster block cadence than Bitcoin.",
+    "slip44CoinType": "2 (Litecoin)",
+    "derivationPath": "m/44'/2'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Protocol-capped at 84,000,000 LTC.",
+    "notableDetails": [
+      "Shares the UTXO accounting model with Bitcoin but uses a different address and fee environment.",
+      "Spectra derives Litecoin through WalletCore and refreshes against Litecoin-specific providers.",
+      "Four-times Bitcoin's nominal supply does not change divisibility or ledger semantics."
+    ]
+  },
+  {
+    "id": "dogecoin",
+    "name": "Dogecoin",
+    "symbol": "DOGE",
+    "family": "UTXO payments network",
+    "consensus": "Proof of Work with AuxPoW merged-mining ecosystem support",
+    "stateModel": "UTXO set",
+    "primaryUse": "Low-friction payments, transfers, and broad exchange support.",
+    "slip44CoinType": "3 (Dogecoin)",
+    "derivationPath": "m/44'/3'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "No fixed terminal cap. Issuance is bounded per block and per year, but the lifetime supply is not protocol-capped.",
+    "notableDetails": [
+      "Spectra tracks DOGE with extra discovery, keypool, and operational diagnostics beyond the other UTXO chains.",
+      "Because supply has no terminal cap, long-run circulation is intentionally treated here as unestimatable from a static settings page.",
+      "Like Bitcoin and Litecoin, the authoritative spendable state is the UTXO set."
+    ]
+  },
+  {
+    "id": "ethereum",
+    "name": "Ethereum",
+    "symbol": "ETH",
+    "family": "Account-based smart contract network",
+    "consensus": "Proof of Stake",
+    "stateModel": "Account state + contract storage",
+    "primaryUse": "General-purpose smart contracts, DeFi, ERC-20 tokens, and on-chain execution.",
+    "slip44CoinType": "60 (Ether)",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "No fixed maximum supply. Supply changes with validator issuance and fee burn, so long-run circulation is not statically estimatable.",
+    "notableDetails": [
+      "BNB Chain reuses the same EVM keyspace and default derivation path family in Spectra.",
+      "ETH balances come from account state; ERC-20 balances come from token contract state.",
+      "History APIs and live balance APIs are separate concerns on EVM chains."
+    ]
+  },
+  {
+    "id": "ethereum-classic",
+    "name": "Ethereum Classic",
+    "symbol": "ETC",
+    "family": "Account-based smart contract network",
+    "consensus": "Proof of Work (Etchash)",
+    "stateModel": "Account state + contract storage",
+    "primaryUse": "Native ETC transfers and conservative EVM-compatible contract execution on the original Ethereum chain lineage.",
+    "slip44CoinType": "61 (Ether Classic)",
+    "derivationPath": "m/44'/61'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "No fixed maximum supply. Emission declines over time under the ETC monetary policy, so live circulation changes and is treated as dynamic in this wiki.",
+    "notableDetails": [
+      "Spectra routes ETC through the EVM engine stack, but with a dedicated chain context, chain ID, RPC set, and derivation path.",
+      "ETC uses the same 0x-style address format as Ethereum, while remaining a separate network with separate transaction history and fee conditions.",
+      "Tracked ERC-20 style tokens are intentionally not enabled on ETC in Spectra's current support surface; the ETC integration is native-asset focused."
+    ]
+  },
+  {
+    "id": "bnb",
+    "name": "BNB Chain",
+    "symbol": "BNB",
+    "family": "EVM-compatible smart contract network",
+    "consensus": "Validator-based BNB Chain consensus",
+    "stateModel": "Account state + contract storage",
+    "primaryUse": "Lower-cost EVM execution, BEP-20 assets, and exchange-adjacent on-chain activity.",
+    "slip44CoinType": "9006 (Binance Smart Chain); Spectra currently derives BNB Chain wallets with 60 for EVM compatibility.",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Genesis supply began at 200,000,000 BNB, with protocol and ecosystem burn mechanisms targeting a lower long-run supply. Live circulation is dynamic, so this page treats it as not statically estimatable.",
+    "notableDetails": [
+      "Spectra treats BNB Chain as an EVM network and routes it through the Ethereum-style engine stack.",
+      "Same address format and private-key family as Ethereum, but a distinct chain context and RPC network.",
+      "BEP-20 token handling follows the same general contract-balance logic as ERC-20."
+    ]
+  },
+  {
+    "id": "arbitrum",
+    "name": "Arbitrum",
+    "symbol": "ARB",
+    "family": "EVM-compatible layer-2 smart contract network",
+    "consensus": "Ethereum-secured optimistic rollup",
+    "stateModel": "Account state + contract storage",
+    "primaryUse": "Lower-cost EVM execution, ERC-20 tokens, and Ethereum-compatible activity on Arbitrum One.",
+    "slip44CoinType": "60 (Ether); Spectra derives Arbitrum wallets with the Ethereum-compatible EVM path family.",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "The native gas asset is ETH bridged from Ethereum mainnet, so supply is not a chain-native fixed-cap figure for Arbitrum itself.",
+    "notableDetails": [
+      "Spectra treats Arbitrum as its own EVM chain context with chain ID 42161, separate RPC rotation, explorer links, diagnostics, and tracked ERC-20 token support.",
+      "Arbitrum uses standard 0x-style EVM addresses while remaining distinct from Ethereum mainnet, BNB Chain, and Avalanche.",
+      "ETH is the native gas asset on Arbitrum, while ARB is a tracked ERC-20 governance token rather than the gas token."
+    ]
+  },
+  {
+    "id": "optimism",
+    "name": "Optimism",
+    "symbol": "OP",
+    "family": "EVM-compatible layer-2 smart contract network",
+    "consensus": "Ethereum-secured optimistic rollup",
+    "stateModel": "Account state + contract storage",
+    "primaryUse": "Lower-cost EVM execution, ERC-20 tokens, and Ethereum-compatible activity on Optimism mainnet.",
+    "slip44CoinType": "60 (Ether); Spectra derives Optimism wallets with the Ethereum-compatible EVM path family.",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "The native gas asset is ETH bridged from Ethereum mainnet, so supply is not a chain-native fixed-cap figure for Optimism itself.",
+    "notableDetails": [
+      "Spectra treats Optimism as its own EVM chain context with chain ID 10, separate RPC rotation, explorer links, diagnostics, and tracked ERC-20 token support.",
+      "Optimism uses standard 0x-style EVM addresses while remaining distinct from Ethereum mainnet, Arbitrum, BNB Chain, and Avalanche.",
+      "ETH is the native gas asset on Optimism, while OP is a tracked ERC-20 governance token rather than the gas token."
+    ]
+  },
+  {
+    "id": "avalanche",
+    "name": "Avalanche",
+    "symbol": "AVAX",
+    "family": "EVM-compatible smart contract network",
+    "consensus": "Proof of Stake with Avalanche consensus",
+    "stateModel": "Account state + contract storage",
+    "primaryUse": "Native AVAX transfers and C-Chain EVM activity on Avalanche mainnet.",
+    "slip44CoinType": "9005 (Avalanche C-Chain); Spectra currently derives Avalanche wallets with 60 for EVM compatibility.",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "AVAX supply is capped at 720,000,000 with live circulating supply changing over time as issuance and fee burn continue.",
+    "notableDetails": [
+      "Spectra treats Avalanche C-Chain as an EVM network with its own chain context, chain ID, RPC catalog, and diagnostics surface.",
+      "Avalanche uses standard 0x-style EVM addresses while remaining a separate network from Ethereum and BNB Chain.",
+      "Current Spectra support is native-asset focused for AVAX rather than tracked ERC-20 style token balances."
+    ]
+  },
+  {
+    "id": "hyperliquid",
+    "name": "Hyperliquid",
+    "symbol": "HYPE",
+    "family": "EVM-compatible smart contract network",
+    "consensus": "HyperBFT-backed HyperEVM settlement on Hyperliquid",
+    "stateModel": "Account state + contract storage",
+    "primaryUse": "Native HYPE transfers and HyperEVM activity on Hyperliquid mainnet.",
+    "slip44CoinType": "2457 (Hyperliquid); Spectra currently derives Hyperliquid wallets with 60 for EVM compatibility.",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "HYPE circulation is dynamic over time, so this page treats live circulating supply as non-static.",
+    "notableDetails": [
+      "Spectra treats Hyperliquid HyperEVM as a dedicated EVM chain context with its own chain ID, RPC catalog, explorer links, and diagnostics surface.",
+      "Hyperliquid uses standard 0x-style EVM addresses while remaining separate from Ethereum, BNB Chain, and Avalanche.",
+      "Spectra supports tracked ERC-20 balances and token history on HyperEVM alongside native HYPE balance refresh and send flows."
+    ]
+  },
+  {
+    "id": "tron",
+    "name": "Tron",
+    "symbol": "TRX",
+    "family": "Account-based smart contract network",
+    "consensus": "Delegated Proof of Stake",
+    "stateModel": "Account state + contract storage",
+    "primaryUse": "Transfers, TRC-20 token activity, and resource-metered smart contract execution.",
+    "slip44CoinType": "195 (Tron)",
+    "derivationPath": "m/44'/195'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "No fixed supply statement is surfaced here. Effective circulating supply changes over time, so it is treated as not statically estimatable in this wiki.",
+    "notableDetails": [
+      "Tron fees are resource-based and rely on Bandwidth and Energy rather than a pure gas model.",
+      "USDT on Tron is a major real-world usage path and is handled as a tracked TRC-20 asset in Spectra.",
+      "Tron addresses are derived from the ECDSA key family but use Tron-specific address encoding."
+    ]
+  },
+  {
+    "id": "solana",
+    "name": "Solana",
+    "symbol": "SOL",
+    "family": "Account-based high-throughput network",
+    "consensus": "Proof of Stake with Proof of History timing",
+    "stateModel": "Account state + program-owned token accounts",
+    "primaryUse": "High-throughput transfers, SPL tokens, and latency-sensitive on-chain applications.",
+    "slip44CoinType": "501 (Solana)",
+    "derivationPath": "m/44'/501'/0'/0'",
+    "alternateDerivationPath": "Legacy compatibility path supported in Spectra: m/44'/501'/0'",
+    "totalCirculationModel": "No fixed maximum supply. Inflation, staking economics, and unlock schedules make long-run live circulation dynamic.",
+    "notableDetails": [
+      "SPL token balances live in associated token accounts, not in the owner wallet account directly.",
+      "Spectra supports both the current Solana default path and a legacy compatibility path.",
+      "A wallet can show correct history even when token-account balance discovery is degraded, which is why Spectra has Solana-specific fallback logic."
+    ]
+  },
+  {
+    "id": "aptos",
+    "name": "Aptos",
+    "symbol": "APT",
+    "family": "Account-based Move smart contract network",
+    "consensus": "Proof of Stake with AptosBFT",
+    "stateModel": "Account state + Move resources",
+    "primaryUse": "Native APT transfers, Move-based applications, and account/resource-oriented on-chain execution.",
+    "slip44CoinType": "637 (Aptos)",
+    "derivationPath": "m/44'/637'/0'/0'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "APT circulation changes over time with staking emissions, unlocks, and protocol economics, so this page treats live circulation as dynamic.",
+    "notableDetails": [
+      "Aptos is closer to Sui in developer model than to EVM chains, but its on-chain state is account-and-resource based rather than object-centric.",
+      "Spectra treats Aptos as a native-asset focused chain in this build, with direct APT balance, send, history, diagnostics, and explorer support.",
+      "Aptos addresses are hex-formatted account addresses and Spectra normalizes them into lowercase 0x-prefixed form."
+    ]
+  },
+  {
+    "id": "ton",
+    "name": "TON",
+    "symbol": "TON",
+    "family": "Account-based message-driven smart contract network",
+    "consensus": "Proof of Stake with validator-set finality",
+    "stateModel": "Account state + contracts/messages",
+    "primaryUse": "Native Toncoin transfers, jettons, and asynchronous contract interactions on The Open Network.",
+    "slip44CoinType": "607 (TON)",
+    "derivationPath": "m/44'/607'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Toncoin supply is dynamic over time, so this page treats live circulation as non-static.",
+    "notableDetails": [
+      "TON transfers and contract execution are message-based, so wallet behavior differs from UTXO chains and synchronous EVM calls.",
+      "User-facing wallet addresses are often shown in friendly base64url format rather than raw workchain:hash form.",
+      "Spectra treats TON as a native-asset chain with dedicated balance, send, history, and diagnostics support."
+    ]
+  },
+  {
+    "id": "cardano",
+    "name": "Cardano",
+    "symbol": "ADA",
+    "family": "Extended-UTXO smart contract network",
+    "consensus": "Ouroboros Proof of Stake",
+    "stateModel": "eUTXO",
+    "primaryUse": "Native-asset transfers, staking, and eUTXO-based smart contract workflows.",
+    "slip44CoinType": "1815 (Cardano)",
+    "derivationPath": "m/44'/1815'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Protocol-capped at 45,000,000,000 ADA.",
+    "notableDetails": [
+      "Cardano is not account-based in the Ethereum sense; it extends the UTXO model with richer script semantics.",
+      "The remaining reserve and reward distribution affect circulating supply over time, but the maximum supply is fixed.",
+      "Native assets on Cardano do not require ERC-20-style token contracts."
+    ]
+  },
+  {
+    "id": "xrp",
+    "name": "XRP Ledger",
+    "symbol": "XRP",
+    "family": "Account-based payments ledger",
+    "consensus": "XRPL consensus protocol",
+    "stateModel": "Account state + trust line objects",
+    "primaryUse": "Fast payments, issued assets, and order-book based transfers.",
+    "slip44CoinType": "144 (XRP)",
+    "derivationPath": "m/44'/144'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Fixed at 100,000,000,000 XRP total created supply.",
+    "notableDetails": [
+      "No mining: all XRP was created at genesis.",
+      "XRPL uses reserve requirements to prevent ledger spam and excessive state growth.",
+      "Issued assets on XRPL differ materially from ERC-20 and SPL token models."
+    ]
+  },
+  {
+    "id": "monero",
+    "name": "Monero",
+    "symbol": "XMR",
+    "family": "Privacy-preserving account/one-time-output network",
+    "consensus": "Proof of Work (RandomX)",
+    "stateModel": "Private output model with one-time stealth addresses",
+    "primaryUse": "Private value transfer with sender, receiver, and amount obfuscation.",
+    "slip44CoinType": "128 (Monero)",
+    "derivationPath": "Not user-configurable in Spectra's current UI. Monero uses engine-specific wallet derivation and address construction rather than the generic WalletCore path surface.",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "No fixed terminal cap. Monero uses tail emission after main emission, so long-run lifetime supply is not capped.",
+    "notableDetails": [
+      "Monero uses stealth addresses, ring signatures, and confidential amounts, so ledger interpretation differs radically from transparent chains.",
+      "Because Monero is privacy-preserving by design, balance and history logic rely on Monero-specific backend assumptions.",
+      "Tail emission keeps miner incentives alive instead of letting issuance fall to zero permanently."
+    ]
+  },
+  {
+    "id": "sui",
+    "name": "Sui",
+    "symbol": "SUI",
+    "family": "Object-centric smart contract network",
+    "consensus": "Delegated Proof of Stake",
+    "stateModel": "Owned objects + shared objects",
+    "primaryUse": "Move-based applications, object transfers, and asset-centric execution.",
+    "slip44CoinType": "784 (Sui)",
+    "derivationPath": "m/44'/784'/0'/0'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Total supply capped at 10,000,000,000 SUI, with circulation released over time.",
+    "notableDetails": [
+      "Sui is not simply account-based; assets and other resources are modeled as programmable objects.",
+      "The Move type system and object ownership rules are core to how transfers and shared state work.",
+      "Spectra handles Sui with a dedicated engine rather than treating it like an EVM clone."
+    ]
+  },
+  {
+    "id": "near",
+    "name": "NEAR",
+    "symbol": "NEAR",
+    "family": "Account-based smart contract network",
+    "consensus": "Proof of Stake with Doomslug / Nightshade architecture",
+    "stateModel": "Account state + contract storage",
+    "primaryUse": "Named-account transfers, smart contracts, and user-friendly account-based activity.",
+    "slip44CoinType": "397 (NEAR Protocol)",
+    "derivationPath": "m/44'/397'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "No fixed terminal cap is surfaced here. Supply changes over time, so live circulation is treated as dynamic.",
+    "notableDetails": [
+      "NEAR supports both human-readable named accounts and 64-character implicit accounts.",
+      "Accounts and contracts are both first-class network entities, rather than contracts being purely attached to EOAs.",
+      "Spectra uses NEAR RPC for balances and a NearBlocks-style indexed history source for transaction discovery."
+    ]
+  },
+  {
+    "id": "polkadot",
+    "name": "Polkadot",
+    "symbol": "DOT",
+    "family": "Relay-chain / nominated proof-of-stake network",
+    "consensus": "Nominated Proof of Stake",
+    "stateModel": "Account state + runtime pallets",
+    "primaryUse": "Native DOT transfers, staking, governance, and relay-chain security participation.",
+    "slip44CoinType": "354 (Polkadot)",
+    "derivationPath": "m/44'/354'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "No fixed terminal cap is surfaced here. Supply changes over time through staking-era issuance and protocol economics, so live circulation is treated as dynamic.",
+    "notableDetails": [
+      "Polkadot addresses use the SS58 address format instead of Ethereum-style hex addresses.",
+      "Spectra uses public Polkadot Sidecar and RPC endpoints for balance, history, endpoint diagnostics, and in-app send support.",
+      "Polkadot transfers are runtime calls signed as extrinsics rather than simple account-state updates through an EVM-style transaction model."
+    ]
+  },
+  {
+    "id": "internet-computer",
+    "name": "Internet Computer",
+    "symbol": "ICP",
+    "family": "Account-based canister network",
+    "consensus": "Threshold Relay + chain-key cryptography",
+    "stateModel": "Account identifiers + canister-managed state",
+    "primaryUse": "Native ICP transfers, governance participation, and canister-powered applications.",
+    "slip44CoinType": "223 (Internet Computer)",
+    "derivationPath": "m/44'/223'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Supply is dynamic and tied to governance, staking, and protocol economics, so this page treats live circulation as non-static.",
+    "notableDetails": [
+      "Spectra currently focuses on native ICP transfers through Internet Computer Rosetta endpoints rather than canister token standards.",
+      "ICP accounts use 64-character account identifiers rather than Ethereum-style EOAs or object-style addresses.",
+      "In-app send support signs native ICP transfers locally and broadcasts them through public Rosetta infrastructure."
+    ]
+  },
+  {
+    "id": "stellar",
+    "name": "Stellar",
+    "symbol": "XLM",
+    "family": "Account-based payments network",
+    "consensus": "Stellar Consensus Protocol",
+    "stateModel": "Account state + trustline objects",
+    "primaryUse": "Native XLM transfers, issued-asset settlement, and low-fee payment routing on Stellar.",
+    "slip44CoinType": "148 (Stellar Lumens)",
+    "derivationPath": "m/44'/148'/0'",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "No fixed terminal cap is surfaced here. Circulating supply is dynamic and partly shaped by foundation-controlled holdings and burns, so this page treats live circulation as non-static.",
+    "notableDetails": [
+      "Spectra currently focuses on native XLM transfers rather than Stellar issued assets and trustline management.",
+      "Stellar uses StrKey-encoded public addresses that typically start with G, not hex or SS58-style formats.",
+      "In-app send support signs Stellar payment operations and broadcasts them through public Horizon endpoints."
+    ]
+  }
+]

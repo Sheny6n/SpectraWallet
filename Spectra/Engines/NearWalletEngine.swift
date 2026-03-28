@@ -1,0 +1,517 @@
+// MARK: - File Overview
+// NEAR wallet engine for address derivation, access-key handling, signing, and transaction submission.
+//
+// Responsibilities:
+// - Derives NEAR addresses and signing keys from local wallet material.
+// - Builds, signs, broadcasts, and verifies NEAR transfers using live chain state.
+
+import Foundation
+import CryptoKit
+import WalletCore
+
+enum NearWalletEngineError: LocalizedError {
+    case invalidAddress
+    case invalidAmount
+    case invalidSeedPhrase
+    case invalidResponse
+    case accessKeyUnavailable
+    case signingFailed(String)
+    case networkError(String)
+    case broadcastFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidAddress:
+            return NSLocalizedString("The NEAR address is not valid.", comment: "")
+        case .invalidAmount:
+            return NSLocalizedString("The amount is not valid for this NEAR transfer.", comment: "")
+        case .invalidSeedPhrase:
+            return NSLocalizedString("The NEAR seed phrase is invalid.", comment: "")
+        case .invalidResponse:
+            return NSLocalizedString("The NEAR provider response was invalid.", comment: "")
+        case .accessKeyUnavailable:
+            return NSLocalizedString("No full-access NEAR key was found for this account.", comment: "")
+        case .signingFailed(let message):
+            let format = NSLocalizedString("Failed to sign NEAR transaction: %@", comment: "")
+            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+        case .networkError(let message):
+            let format = NSLocalizedString("NEAR network request failed: %@", comment: "")
+            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+        case .broadcastFailed(let message):
+            let format = NSLocalizedString("NEAR broadcast failed: %@", comment: "")
+            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+        }
+    }
+}
+
+struct NearSendPreview: Equatable {
+    let estimatedNetworkFeeNEAR: Double
+    let gasPriceYoctoNear: String
+}
+
+struct NearSendResult: Equatable {
+    let transactionHash: String
+    let estimatedNetworkFeeNEAR: Double
+    let verificationStatus: SendBroadcastVerificationStatus
+}
+
+enum NearWalletEngine {
+    private static let yoctoMultiplier = Decimal(string: "1000000000000000000000000")!
+    private static let defaultGasPriceYocto = Decimal(string: "100000000")!
+    private static let estimatedTransferGasUnits = Decimal(string: "450000000000")!
+    private static let base58Alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+
+    private struct RPCEnvelope<ResultType: Decodable>: Decodable {
+        let result: ResultType?
+        let error: RPCError?
+    }
+
+    private struct RPCError: Decodable {
+        let code: Int?
+        let message: String?
+        let name: String?
+        let cause: RPCCause?
+    }
+
+    private struct RPCCause: Decodable {
+        let name: String?
+        let info: String?
+    }
+
+    private struct AccessKeyResult: Decodable {
+        let nonce: UInt64
+        let blockHash: String
+
+        enum CodingKeys: String, CodingKey {
+            case nonce
+            case blockHash = "block_hash"
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            if let nonce = try? container.decode(UInt64.self, forKey: .nonce) {
+                self.nonce = nonce
+            } else if let nonceText = try? container.decode(String.self, forKey: .nonce),
+                      let nonce = UInt64(nonceText) {
+                self.nonce = nonce
+            } else {
+                throw NearWalletEngineError.invalidResponse
+            }
+            self.blockHash = try container.decode(String.self, forKey: .blockHash)
+        }
+    }
+
+    private struct GasPriceResult: Decodable {
+        let gasPrice: String
+
+        enum CodingKeys: String, CodingKey {
+            case gasPrice = "gas_price"
+        }
+    }
+
+    private struct NearTransaction {
+        let signerID: String
+        let publicKey: Data
+        let nonce: UInt64
+        let receiverID: String
+        let blockHash: Data
+        let depositYocto: String
+    }
+
+    static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
+        let material = try WalletCoreDerivation.deriveMaterial(
+            seedPhrase: seedPhrase,
+            coin: .near,
+            derivationPath: "m/44'/397'/\(account)'"
+        )
+        let normalized = normalizeAddress(material.address)
+        guard AddressValidation.isValidNearAddress(normalized) else {
+            throw NearWalletEngineError.invalidSeedPhrase
+        }
+        return normalized
+    }
+
+    static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) async throws -> NearSendPreview {
+        let normalizedOwner = normalizeAddress(ownerAddress)
+        let normalizedDestination = normalizeAddress(destinationAddress)
+        guard AddressValidation.isValidNearAddress(normalizedOwner),
+              AddressValidation.isValidNearAddress(normalizedDestination) else {
+            throw NearWalletEngineError.invalidAddress
+        }
+        guard amount > 0 else {
+            throw NearWalletEngineError.invalidAmount
+        }
+
+        let gasPriceYocto = try await fetchGasPriceYocto()
+        let estimatedFeeYocto = gasPriceYocto * estimatedTransferGasUnits
+        let estimatedFeeNEAR = decimalToDouble(estimatedFeeYocto / yoctoMultiplier)
+        return NearSendPreview(
+            estimatedNetworkFeeNEAR: estimatedFeeNEAR,
+            gasPriceYoctoNear: NSDecimalNumber(decimal: gasPriceYocto).stringValue
+        )
+    }
+
+    static func sendInBackground(
+        seedPhrase: String,
+        ownerAddress: String,
+        destinationAddress: String,
+        amount: Double,
+        derivationAccount: UInt32 = 0
+    ) async throws -> NearSendResult {
+        let normalizedOwner = normalizeAddress(ownerAddress)
+        let normalizedDestination = normalizeAddress(destinationAddress)
+        guard AddressValidation.isValidNearAddress(normalizedOwner),
+              AddressValidation.isValidNearAddress(normalizedDestination) else {
+            throw NearWalletEngineError.invalidAddress
+        }
+        guard amount > 0 else {
+            throw NearWalletEngineError.invalidAmount
+        }
+
+        let material = try WalletCoreDerivation.deriveMaterial(
+            seedPhrase: seedPhrase,
+            coin: .near,
+            derivationPath: "m/44'/397'/\(derivationAccount)'"
+        )
+        guard !material.privateKeyData.isEmpty else {
+            throw NearWalletEngineError.invalidSeedPhrase
+        }
+        guard normalizeAddress(material.address) == normalizedOwner else {
+            throw NearWalletEngineError.invalidAddress
+        }
+
+        let privateKey = try privateKey(from: material.privateKeyData)
+        let publicKey = privateKey.getPublicKeyEd25519().data
+        let publicKeyString = "ed25519:\(base58Encode(publicKey))"
+        let accessKey = try await fetchAccessKey(accountID: normalizedOwner, publicKey: publicKeyString)
+        let blockHash = try base58Decode(accessKey.blockHash)
+        guard blockHash.count == 32 else {
+            throw NearWalletEngineError.invalidResponse
+        }
+
+        let depositYocto = try scaledWholeNumberString(amount, decimals: 24)
+        let transaction = NearTransaction(
+            signerID: normalizedOwner,
+            publicKey: publicKey,
+            nonce: accessKey.nonce + 1,
+            receiverID: normalizedDestination,
+            blockHash: blockHash,
+            depositYocto: depositYocto
+        )
+        let serializedTransaction = try serialize(transaction: transaction)
+        let digest = Data(SHA256.hash(data: serializedTransaction))
+        guard let signature = privateKey.sign(digest: digest, curve: .ed25519) else {
+            throw NearWalletEngineError.signingFailed("WalletCore returned an empty Ed25519 signature.")
+        }
+
+        let signedTransaction = try serializeSignedTransaction(transaction: transaction, signature: signature)
+        let transactionHash = try await broadcastSignedTransaction(signedTransaction)
+        let preview = try await estimateSendPreview(
+            from: normalizedOwner,
+            to: normalizedDestination,
+            amount: amount
+        )
+        return NearSendResult(
+            transactionHash: transactionHash,
+            estimatedNetworkFeeNEAR: preview.estimatedNetworkFeeNEAR,
+            verificationStatus: .verified
+        )
+    }
+
+    private static func fetchAccessKey(accountID: String, publicKey: String) async throws -> AccessKeyResult {
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": "spectra-near-access-key",
+            "method": "query",
+            "params": [
+                "request_type": "view_access_key",
+                "finality": "final",
+                "account_id": accountID,
+                "public_key": publicKey
+            ]
+        ]
+
+        var lastError: Error?
+        for endpoint in NearBalanceService.rpcEndpointCatalog() {
+            do {
+                return try await postRPC(payload: payload, endpoint: endpoint)
+            } catch let error as NearWalletEngineError {
+                if case .broadcastFailed(let message) = error,
+                   message.localizedCaseInsensitiveContains("does not exist") {
+                    throw NearWalletEngineError.accessKeyUnavailable
+                }
+                lastError = error
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError ?? NearWalletEngineError.accessKeyUnavailable
+    }
+
+    private static func fetchGasPriceYocto() async throws -> Decimal {
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": "spectra-near-gas-price",
+            "method": "gas_price",
+            "params": [NSNull()]
+        ]
+
+        for endpoint in NearBalanceService.rpcEndpointCatalog() {
+            do {
+                let result: GasPriceResult = try await postRPC(payload: payload, endpoint: endpoint)
+                if let decimal = Decimal(string: result.gasPrice) {
+                    return decimal
+                }
+            } catch {
+                continue
+            }
+        }
+        return defaultGasPriceYocto
+    }
+
+    private static func broadcastSignedTransaction(_ payload: Data) async throws -> String {
+        let encodedTransaction = payload.base64EncodedString()
+        let requestPayload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": "spectra-near-broadcast",
+            "method": "broadcast_tx_commit",
+            "params": [encodedTransaction]
+        ]
+
+        var lastError: Error?
+        for endpoint in NearBalanceService.rpcEndpointCatalog() {
+            guard let url = URL(string: endpoint) else { continue }
+            do {
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.timeoutInterval = 30
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try JSONSerialization.data(withJSONObject: requestPayload, options: [])
+
+                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+                guard let http = response as? HTTPURLResponse else {
+                    throw NearWalletEngineError.invalidResponse
+                }
+                guard (200 ... 299).contains(http.statusCode) else {
+                    throw NearWalletEngineError.networkError("NEAR RPC returned HTTP \(http.statusCode).")
+                }
+
+                guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    throw NearWalletEngineError.invalidResponse
+                }
+                if let error = root["error"] as? [String: Any] {
+                    let message = (error["message"] as? String)
+                        ?? ((error["cause"] as? [String: Any])?["info"] as? String)
+                        ?? "Unknown NEAR RPC error."
+                    throw NearWalletEngineError.broadcastFailed(message)
+                }
+                guard let result = root["result"] as? [String: Any] else {
+                    throw NearWalletEngineError.invalidResponse
+                }
+                if let status = result["status"] as? [String: Any],
+                   let failure = status["Failure"] {
+                    throw NearWalletEngineError.broadcastFailed(String(describing: failure))
+                }
+                if let transaction = result["transaction"] as? [String: Any],
+                   let hash = transaction["hash"] as? String,
+                   !hash.isEmpty {
+                    return hash
+                }
+                if let outcome = result["transaction_outcome"] as? [String: Any],
+                   let id = outcome["id"] as? String,
+                   !id.isEmpty {
+                    return id
+                }
+                throw NearWalletEngineError.invalidResponse
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError ?? NearWalletEngineError.broadcastFailed("All NEAR broadcast endpoints failed.")
+    }
+
+    private static func postRPC<ResultType: Decodable>(payload: [String: Any], endpoint: String) async throws -> ResultType {
+        guard let url = URL(string: endpoint) else {
+            throw NearWalletEngineError.invalidResponse
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
+
+        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        guard let http = response as? HTTPURLResponse else {
+            throw NearWalletEngineError.invalidResponse
+        }
+        guard (200 ... 299).contains(http.statusCode) else {
+            throw NearWalletEngineError.networkError("NEAR RPC returned HTTP \(http.statusCode).")
+        }
+
+        let envelope = try JSONDecoder().decode(RPCEnvelope<ResultType>.self, from: data)
+        if let error = envelope.error {
+            let message = error.message ?? error.cause?.info ?? error.name ?? "Unknown NEAR RPC error"
+            throw NearWalletEngineError.broadcastFailed(message)
+        }
+        guard let result = envelope.result else {
+            throw NearWalletEngineError.invalidResponse
+        }
+        return result
+    }
+
+    private static func serialize(transaction: NearTransaction) throws -> Data {
+        var data = Data()
+        data.appendBorshString(transaction.signerID)
+        data.append(UInt8(0))
+        data.append(transaction.publicKey)
+        data.appendLittleEndian(transaction.nonce)
+        data.appendBorshString(transaction.receiverID)
+        data.append(transaction.blockHash)
+        data.appendLittleEndian(UInt32(1))
+        data.append(UInt8(3))
+        data.append(try encodeUInt128LE(decimalString: transaction.depositYocto))
+        return data
+    }
+
+    private static func serializeSignedTransaction(transaction: NearTransaction, signature: Data) throws -> Data {
+        guard signature.count == 64 else {
+            throw NearWalletEngineError.signingFailed("Unexpected Ed25519 signature length.")
+        }
+        var data = try serialize(transaction: transaction)
+        data.append(UInt8(0))
+        data.append(signature)
+        return data
+    }
+
+    private static func privateKey(from data: Data) throws -> PrivateKey {
+        guard let key = PrivateKey(data: data) else {
+            throw NearWalletEngineError.invalidSeedPhrase
+        }
+        return key
+    }
+
+    private static func scaledWholeNumberString(_ amount: Double, decimals: Int) throws -> String {
+        guard amount > 0 else {
+            throw NearWalletEngineError.invalidAmount
+        }
+        var decimalAmount = Decimal(amount)
+        var multiplier = Decimal(1)
+        for _ in 0 ..< decimals {
+            multiplier *= 10
+        }
+        decimalAmount *= multiplier
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &decimalAmount, 0, .plain)
+        let numberString = NSDecimalNumber(decimal: rounded).stringValue
+        guard numberString != "nan", !numberString.hasPrefix("-") else {
+            throw NearWalletEngineError.invalidAmount
+        }
+        return numberString
+    }
+
+    private static func encodeUInt128LE(decimalString: String) throws -> Data {
+        let trimmed = decimalString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed.allSatisfy(\.isNumber) else {
+            throw NearWalletEngineError.invalidAmount
+        }
+        if trimmed == "0" {
+            return Data(repeating: 0, count: 16)
+        }
+
+        var digits = trimmed.compactMap { $0.wholeNumberValue }
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(16)
+        while !digits.isEmpty {
+            var quotient: [Int] = []
+            quotient.reserveCapacity(digits.count)
+            var remainder = 0
+            for digit in digits {
+                let accumulator = remainder * 10 + digit
+                let q = accumulator / 256
+                remainder = accumulator % 256
+                if !quotient.isEmpty || q != 0 {
+                    quotient.append(q)
+                }
+            }
+            bytes.append(UInt8(remainder))
+            digits = quotient
+        }
+        guard bytes.count <= 16 else {
+            throw NearWalletEngineError.invalidAmount
+        }
+        return Data(bytes + Array(repeating: 0, count: 16 - bytes.count))
+    }
+
+    private static func normalizeAddress(_ address: String) -> String {
+        address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func decimalToDouble(_ value: Decimal) -> Double {
+        NSDecimalNumber(decimal: value).doubleValue
+    }
+
+    private static func base58Encode(_ data: Data) -> String {
+        guard !data.isEmpty else { return "" }
+        var digits = [Int](repeating: 0, count: 1)
+        for byte in data {
+            var carry = Int(byte)
+            for index in digits.indices {
+                let value = digits[index] * 256 + carry
+                digits[index] = value % 58
+                carry = value / 58
+            }
+            while carry > 0 {
+                digits.append(carry % 58)
+                carry /= 58
+            }
+        }
+        var result = String(repeating: "1", count: data.prefix(while: { $0 == 0 }).count)
+        for digit in digits.reversed() {
+            result.append(base58Alphabet[digit])
+        }
+        return result
+    }
+
+    private static func base58Decode(_ string: String) throws -> Data {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw NearWalletEngineError.invalidResponse
+        }
+
+        let alphabetMap = Dictionary(uniqueKeysWithValues: base58Alphabet.enumerated().map { ($0.element, $0.offset) })
+        var bytes = [UInt8](repeating: 0, count: 1)
+        for character in trimmed {
+            guard let value = alphabetMap[character] else {
+                throw NearWalletEngineError.invalidResponse
+            }
+            var carry = value
+            for index in bytes.indices {
+                let accumulator = Int(bytes[index]) * 58 + carry
+                bytes[index] = UInt8(accumulator & 0xff)
+                carry = accumulator >> 8
+            }
+            while carry > 0 {
+                bytes.append(UInt8(carry & 0xff))
+                carry >>= 8
+            }
+        }
+
+        let leadingZeros = trimmed.prefix(while: { $0 == "1" }).count
+        let decoded = Data(repeating: 0, count: leadingZeros) + Data(bytes.reversed())
+        return decoded
+    }
+}
+
+private extension Data {
+    mutating func appendLittleEndian<T: FixedWidthInteger>(_ value: T) {
+        var littleEndian = value.littleEndian
+        Swift.withUnsafeBytes(of: &littleEndian) { append(contentsOf: $0) }
+    }
+
+    mutating func appendBorshString(_ string: String) {
+        let utf8Data = Data(string.utf8)
+        appendLittleEndian(UInt32(utf8Data.count))
+        append(utf8Data)
+    }
+}

@@ -1,0 +1,846 @@
+import Foundation
+import SwiftUI
+
+enum AppLocalization {
+    private final class BundleMarker {}
+    private struct LocalizationState {
+        let signature: String
+        let identifiers: [String]
+        let locale: Locale
+        let bundles: [Bundle]
+    }
+
+    private static let candidateBundles: [Bundle] = {
+        var seen = Set<URL>()
+        return ([Bundle.main, Bundle(for: BundleMarker.self)] + Bundle.allBundles + Bundle.allFrameworks).filter { bundle in
+            guard let bundleURL = bundle.bundleURL.standardizedFileURL as URL? else {
+                return false
+            }
+            return seen.insert(bundleURL).inserted
+        }
+    }()
+    private static var localizedStringCache: [String: String] = [:]
+    private static var cachedState: LocalizationState?
+
+    static var locale: Locale {
+        localizationState().locale
+    }
+
+    static func string(_ key: String, table: String? = nil) -> String {
+        let state = localizationState()
+        let signature = state.signature
+        let cacheKey = "\(signature)|\(table ?? "<default>")|\(key)"
+        if let cachedValue = localizedStringCache[cacheKey] {
+            return cachedValue
+        }
+
+        for bundle in state.bundles {
+            let value = bundle.localizedString(forKey: key, value: key, table: table)
+            if value != key {
+                localizedStringCache[cacheKey] = value
+                return value
+            }
+        }
+
+        let fallbackValue: String
+        if let developmentPath = Bundle.main.path(forResource: Bundle.main.developmentLocalization ?? "en", ofType: "lproj"),
+           let developmentBundle = Bundle(path: developmentPath) {
+            fallbackValue = developmentBundle.localizedString(forKey: key, value: key, table: table)
+        } else {
+            fallbackValue = Bundle.main.localizedString(forKey: key, value: key, table: table)
+        }
+        localizedStringCache[cacheKey] = fallbackValue
+        return fallbackValue
+    }
+
+    static func preferredLocalizationIdentifiers() -> [String] {
+        localizationState().identifiers
+    }
+
+    private static func localizationState() -> LocalizationState {
+        let signature = preferenceSignature()
+        if let cachedState, cachedState.signature == signature {
+            return cachedState
+        }
+
+        let supported = supportedLocalizationIdentifiers()
+        guard !supported.isEmpty else {
+            let state = LocalizationState(
+                signature: signature,
+                identifiers: ["Base"],
+                locale: Locale(identifier: "en"),
+                bundles: [Bundle.main]
+            )
+            cachedState = state
+            return state
+        }
+
+        let development = Bundle.main.developmentLocalization ?? "en"
+        let preferred = preferredLanguageCandidates()
+        let resolved = preferred.compactMap { preferredLocalization(for: $0, supported: supported) }
+
+        var ordered: [String] = []
+        var seen = Set<String>()
+        for localization in resolved where seen.insert(localization).inserted {
+            ordered.append(localization)
+        }
+
+        if seen.insert(development).inserted {
+            ordered.append(development)
+        }
+        if seen.insert("Base").inserted {
+            ordered.append("Base")
+        }
+        let bundles = ordered.compactMap { identifier in
+            guard identifier != "Base" else { return Bundle.main }
+            guard let path = Bundle.main.path(forResource: identifier, ofType: "lproj"),
+                  let bundle = Bundle(path: path) else {
+                return nil
+            }
+            return bundle
+        } + [Bundle.main]
+        let state = LocalizationState(
+            signature: signature,
+            identifiers: ordered,
+            locale: Locale(identifier: ordered.first ?? development),
+            bundles: bundles
+        )
+        cachedState = state
+        return state
+    }
+
+    private static func preferenceSignature() -> String {
+        let bundlePreferred = Bundle.main.preferredLocalizations
+        return bundlePreferred.joined(separator: "|")
+    }
+
+    private static func supportedLocalizationIdentifiers() -> [String] {
+        let supported = Bundle.main.localizations.filter { $0 != "Base" }
+        return supported.isEmpty ? ["en"] : supported
+    }
+
+    private static func preferredLanguageCandidates() -> [String] {
+        var candidates: [String] = []
+        var seen = Set<String>()
+
+        for identifier in Bundle.main.preferredLocalizations {
+            for fallback in localizationFallbacks(for: identifier) where seen.insert(fallback).inserted {
+                candidates.append(fallback)
+            }
+        }
+
+        if candidates.isEmpty {
+            let fallbackIdentifiers = [Bundle.main.developmentLocalization ?? "en"]
+            for identifier in fallbackIdentifiers {
+                for fallback in localizationFallbacks(for: identifier) where seen.insert(fallback).inserted {
+                    candidates.append(fallback)
+                }
+            }
+        }
+
+        return candidates
+    }
+
+    private static func preferredLocalization(for identifier: String, supported: [String]) -> String? {
+        if supported.contains(identifier) {
+            return identifier
+        }
+
+        let normalized = identifier.replacingOccurrences(of: "_", with: "-")
+        if supported.contains(normalized) {
+            return normalized
+        }
+
+        if normalized.lowercased().hasPrefix("zh-hans"), supported.contains("zh-Hans") {
+            return "zh-Hans"
+        }
+        if normalized.lowercased().hasPrefix("zh-hant"), supported.contains("zh-Hant") {
+            return "zh-Hant"
+        }
+
+        let languageCode = normalized.split(separator: "-").first.map(String.init) ?? normalized
+        return supported.first(where: { $0.caseInsensitiveCompare(languageCode) == .orderedSame })
+    }
+
+    private static func localizationFallbacks(for identifier: String) -> [String] {
+        let normalized = identifier.replacingOccurrences(of: "_", with: "-")
+        let components = normalized.split(separator: "-").map(String.init)
+        guard !components.isEmpty else { return [] }
+
+        var fallbacks: [String] = []
+        for index in stride(from: components.count, through: 1, by: -1) {
+            fallbacks.append(components.prefix(index).joined(separator: "-"))
+        }
+        return fallbacks
+    }
+}
+
+private enum LocalizationCatalogReferenceKeeper {
+    // Xcode's localization validator does not track dynamic `AppLocalization.string(...)`
+    // lookups, so keep explicit references for dynamic keys that are intentionally resolved
+    // through the app's localization layer at runtime.
+    static let strings: [String] = [
+        String(localized: "%@ Diagnostics"),
+        String(localized: "%lld valid %@ address%@ ready to import."),
+        String(localized: "About Spectra"),
+        String(localized: "Addresses"),
+        String(localized: "Aptos"),
+        String(localized: "Arbitrum"),
+        String(localized: "Asset"),
+        String(localized: "Avalanche"),
+        String(localized: "Bitcoin"),
+        String(localized: "Bitcoin Cash"),
+        String(localized: "Bitcoin SV"),
+        String(localized: "Block"),
+        String(localized: "BNB Chain"),
+        String(localized: "Broadcasting Bitcoin Cash transaction..."),
+        String(localized: "Broadcasting Bitcoin transaction..."),
+        String(localized: "Broadcasting Cardano transaction..."),
+        String(localized: "Broadcasting Dogecoin transaction..."),
+        String(localized: "Broadcasting Litecoin transaction..."),
+        String(localized: "Broadcasting Monero transaction..."),
+        String(localized: "Broadcasting Tron transaction..."),
+        String(localized: "Broadcasting XRP transaction..."),
+        String(localized: "Cancel This Transaction"),
+        String(localized: "Cardano"),
+        String(localized: "Change Address"),
+        String(localized: "Change Path"),
+        String(localized: "Confirmations"),
+        String(localized: "Done"),
+        String(localized: "Dogecoin"),
+        String(localized: "DOGE Change Output"),
+        String(localized: "DOGE Confirmed Fee"),
+        String(localized: "DOGE Fee Priority"),
+        String(localized: "DOGE Fee Rate"),
+        String(localized: "Enter one %@ address per line."),
+        String(localized: "Ethereum"),
+        String(localized: "Ethereum Classic"),
+        String(localized: "Ethereum Mempool Actions"),
+        String(localized: "Effective Gas Price"),
+        String(localized: "EVM (Ethereum / ETC / Arbitrum / Optimism / BNB Chain / Avalanche / Hyperliquid)"),
+        String(localized: "Every line must contain a valid %@ address."),
+        String(localized: "Failure"),
+        String(localized: "From"),
+        String(localized: "Gas Used"),
+        String(localized: "History Source"),
+        String(localized: "Hyperliquid"),
+        String(localized: "Internet Computer"),
+        String(localized: "Litecoin"),
+        String(localized: "Monero"),
+        String(localized: "My Assets"),
+        String(localized: "My Wallets"),
+        String(localized: "NEAR"),
+        String(localized: "Network"),
+        String(localized: "Network Fee"),
+        String(localized: "Optimism"),
+        String(localized: "Overview"),
+        String(localized: "Polkadot"),
+        String(localized: "Primary Use"),
+        String(localized: "Preparing replacement/cancel context..."),
+        String(localized: "Protocol Reference"),
+        String(localized: "QR Code"),
+        String(localized: "Regenerate"),
+        String(localized: "Scan to Donate"),
+        String(localized: "SLIP44"),
+        String(localized: "SLIP44 Coin Type"),
+        String(localized: "Seed Phrase Length"),
+        String(localized: "Solana"),
+        String(localized: "Source Address"),
+        String(localized: "Source Confidence"),
+        String(localized: "Source Path"),
+        String(localized: "Speed Up This Transaction"),
+        String(localized: "State"),
+        String(localized: "State Model"),
+        String(localized: "Stellar"),
+        String(localized: "Status"),
+        String(localized: "Sui"),
+        String(localized: "Support Link"),
+        String(localized: "Technical Notes"),
+        String(localized: "This opens the Send composer with the same nonce and higher fee defaults so you can safely speed up or cancel the pending transaction."),
+        String(localized: "Timestamp"),
+        String(localized: "TON"),
+        String(localized: "To"),
+        String(localized: "Transaction Hash"),
+        String(localized: "Tron"),
+        String(localized: "Type"),
+        String(localized: "Wallet"),
+        String(localized: "XRP Ledger"),
+        String(localized: "Browse Spectra's supported chains, default derivation paths, registered SLIP44 coin types, and protocol-level notes in a cleaner reference format."),
+        String(localized: "Chains"),
+        String(localized: "Circulation Model"),
+        String(localized: "Consensus"),
+        String(localized: "Default Path"),
+        String(localized: "Derivation In Spectra"),
+        String(localized: "Derivation Paths"),
+        String(localized: "Family"),
+        String(localized: "Identity"),
+        String(localized: "Ticker")
+    ]
+}
+
+enum StaticContentCatalog {
+    private final class BundleMarker {}
+    private static let decoder = JSONDecoder()
+    private static let localizationRootDirectoryName = "Localization"
+    private static let candidateBundles: [Bundle] = {
+        var seen = Set<URL>()
+        return ([Bundle.main, Bundle(for: BundleMarker.self)] + Bundle.allBundles + Bundle.allFrameworks).filter { bundle in
+            guard let bundleURL = bundle.bundleURL.standardizedFileURL as URL? else {
+                return false
+            }
+            return seen.insert(bundleURL).inserted
+        }
+    }()
+    private static var resourceURLCache: [String: URL] = [:]
+    private static var decodedResourceCache: [String: Any] = [:]
+    private static var textResourceCache: [String: String] = [:]
+    private static var localizedResourceIndexCache: [String: [String: URL]] = [:]
+    private static var flatResourceIndexCache: [String: URL]?
+
+    static func loadResource<T: Decodable>(_ resourceName: String, as type: T.Type) -> T? {
+        let cacheKey = "\(localizationCacheKeyPrefix())|json|\(resourceName)|\(String(reflecting: type))"
+        if let cachedValue = decodedResourceCache[cacheKey] as? T {
+            return cachedValue
+        }
+        guard let url = resourceURL(named: resourceName),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        guard let decodedValue = try? decoder.decode(type, from: data) else {
+            return nil
+        }
+        decodedResourceCache[cacheKey] = decodedValue
+        return decodedValue
+    }
+
+    static func loadRequiredResource<T: Decodable>(_ resourceName: String, as type: T.Type) -> T {
+        guard let value = loadResource(resourceName, as: type) else {
+            fatalError("Missing required bundled resource: \(resourceName).json")
+        }
+        return value
+    }
+
+    static func loadTextResource(_ resourceName: String, extension fileExtension: String = "txt") -> String? {
+        let cacheKey = "\(localizationCacheKeyPrefix())|text|\(resourceName)|\(fileExtension)"
+        if let cachedValue = textResourceCache[cacheKey] {
+            return cachedValue
+        }
+        guard let url = resourceURL(named: resourceName, fileExtension: fileExtension) else {
+            return nil
+        }
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            return nil
+        }
+        textResourceCache[cacheKey] = text
+        return text
+    }
+
+    static func loadRequiredTextResource(_ resourceName: String, extension fileExtension: String = "txt") -> String {
+        guard let value = loadTextResource(resourceName, extension: fileExtension) else {
+            fatalError("Missing required bundled resource: \(resourceName).\(fileExtension)")
+        }
+        return value
+    }
+
+    private static func resourceURL(named resourceName: String) -> URL? {
+        resourceURL(named: resourceName, fileExtension: "json")
+    }
+
+    private static func resourceURL(named resourceName: String, fileExtension: String) -> URL? {
+        for localizationIdentifier in preferredLocalizationIdentifiers() {
+            let expectedFilename = localizedFilename(
+                resourceName: resourceName,
+                localizationIdentifier: localizationIdentifier,
+                fileExtension: fileExtension
+            )
+            let cacheKey = "\(localizationRootDirectoryName)/\(localizationIdentifier)/\(expectedFilename)"
+            if let cachedURL = resourceURLCache[cacheKey] {
+                return cachedURL
+            }
+
+            let localizedIndex = localizedResourceIndex(for: localizationIdentifier)
+            if let indexedURL = localizedIndex[expectedFilename] {
+                resourceURLCache[cacheKey] = indexedURL
+                return indexedURL
+            }
+
+            for bundle in candidateBundles {
+                guard let resourceRootURL = bundle.resourceURL else { continue }
+                let candidateURL = resourceRootURL
+                    .appendingPathComponent(localizationRootDirectoryName, isDirectory: true)
+                    .appendingPathComponent(localizationIdentifier, isDirectory: true)
+                    .appendingPathComponent(expectedFilename, isDirectory: false)
+                if FileManager.default.fileExists(atPath: candidateURL.path) {
+                    resourceURLCache[cacheKey] = candidateURL
+                    return candidateURL
+                }
+
+                if let enumerator = FileManager.default.enumerator(
+                    at: resourceRootURL,
+                    includingPropertiesForKeys: [.isRegularFileKey],
+                    options: [.skipsHiddenFiles]
+                ) {
+                    for case let fileURL as URL in enumerator where fileURL.lastPathComponent == expectedFilename {
+                        resourceURLCache[cacheKey] = fileURL
+                        return fileURL
+                    }
+                }
+            }
+        }
+
+        let expectedFilename = "\(resourceName).\(fileExtension)"
+        let flatCacheKey = expectedFilename
+        if let cachedURL = resourceURLCache[flatCacheKey] {
+            return cachedURL
+        }
+
+        let flatIndex = flatResourceIndex()
+        if let indexedURL = flatIndex[expectedFilename] {
+            resourceURLCache[flatCacheKey] = indexedURL
+            return indexedURL
+        }
+
+        for bundle in candidateBundles {
+            if let url = bundle.url(forResource: resourceName, withExtension: fileExtension) {
+                resourceURLCache[flatCacheKey] = url
+                return url
+            }
+            if let resourceURL = bundle.resourceURL,
+               let enumerator = FileManager.default.enumerator(
+                at: resourceURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+               ) {
+                for case let fileURL as URL in enumerator where fileURL.lastPathComponent == expectedFilename {
+                    resourceURLCache[flatCacheKey] = fileURL
+                    return fileURL
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func localizedFilename(
+        resourceName: String,
+        localizationIdentifier: String,
+        fileExtension: String
+    ) -> String {
+        if localizationIdentifier == "Base" {
+            return "\(resourceName).\(fileExtension)"
+        }
+        return "\(resourceName).\(localizationIdentifier).\(fileExtension)"
+    }
+
+    private static func preferredLocalizationIdentifiers() -> [String] {
+        AppLocalization.preferredLocalizationIdentifiers()
+    }
+
+    private static func localizationCacheKeyPrefix() -> String {
+        preferredLocalizationIdentifiers().joined(separator: "|")
+    }
+
+    private static func localizedResourceIndex(for localizationIdentifier: String) -> [String: URL] {
+        if let cachedIndex = localizedResourceIndexCache[localizationIdentifier] {
+            return cachedIndex
+        }
+
+        var index: [String: URL] = [:]
+        for bundle in candidateBundles {
+            guard let resourceRootURL = bundle.resourceURL else { continue }
+
+            let directLocalizationRoot = resourceRootURL
+                .appendingPathComponent(localizationRootDirectoryName, isDirectory: true)
+                .appendingPathComponent(localizationIdentifier, isDirectory: true)
+
+            if let enumerator = FileManager.default.enumerator(
+                at: directLocalizationRoot,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) {
+                for case let fileURL as URL in enumerator {
+                    index[fileURL.lastPathComponent] = fileURL
+                }
+                continue
+            }
+
+            if let enumerator = FileManager.default.enumerator(
+                at: resourceRootURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) {
+                let localizedSuffix = ".\(localizationIdentifier)."
+                for case let fileURL as URL in enumerator where fileURL.lastPathComponent.contains(localizedSuffix) {
+                    index[fileURL.lastPathComponent] = fileURL
+                }
+            }
+        }
+
+        localizedResourceIndexCache[localizationIdentifier] = index
+        return index
+    }
+
+    private static func flatResourceIndex() -> [String: URL] {
+        if let cachedIndex = flatResourceIndexCache {
+            return cachedIndex
+        }
+
+        var index: [String: URL] = [:]
+        for bundle in candidateBundles {
+            if let resourceRootURL = bundle.resourceURL,
+               let enumerator = FileManager.default.enumerator(
+                at: resourceRootURL,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+               ) {
+                for case let fileURL as URL in enumerator {
+                    index[fileURL.lastPathComponent] = fileURL
+                }
+            }
+        }
+
+        flatResourceIndexCache = index
+        return index
+    }
+
+    private static func localizationFallbacks(for identifier: String) -> [String] {
+        let components = identifier
+            .split(separator: "-")
+            .map(String.init)
+
+        guard !components.isEmpty else { return [] }
+
+        var fallbacks: [String] = []
+        for index in stride(from: components.count, through: 1, by: -1) {
+            fallbacks.append(components.prefix(index).joined(separator: "-"))
+        }
+        return fallbacks
+    }
+}
+
+struct SettingsContentCopy: Decodable {
+    let pricingIntro: String
+    let fiatRateProviderNote: String
+    let coinGeckoNote: String
+    let publicProviderNote: String
+    let aboutTitle: String
+    let aboutSubtitle: String
+    let aboutEthosTitle: String
+    let aboutEthosLines: [String]
+    let aboutNarrativeTitle: String
+    let aboutNarrativeParagraphs: [String]
+    let reportProblemDescription: String
+    let reportProblemActionTitle: String
+    let reportProblemURL: String
+    let buyProvidersIntro: String
+    let buyWarning: String
+
+    static var current: SettingsContentCopy {
+        StaticContentCatalog.loadRequiredResource("SettingsContent", as: SettingsContentCopy.self)
+    }
+}
+
+struct DiagnosticsContentCopy: Decodable {
+    let navigationTitle: String
+    let searchPrompt: String
+    let chainsSectionTitle: String
+    let crossChainSectionTitle: String
+    let actionsSectionTitle: String
+    let statusSectionTitle: String
+    let crossChainHistoryTitle: String
+    let crossChainHistoryKeywords: [String]
+    let historyNotRunYet: String
+    let walletDiagnosticsCoveredFormat: String
+    let mostUsedHistorySourceFormat: String
+    let lastHistoryRunFormat: String
+    let lastEndpointCheckFormat: String
+    let endpointHealthFormat: String
+    let noHistoryTelemetryYet: String
+    let noEndpointChecksYet: String
+    let bitcoinEsploraHint: String
+    let ethereumRPCNote: String
+    let etherscanNote: String
+    let moneroBackendNote: String
+    let moneroAPIKeyNote: String
+    let dogecoinTestnetNote: String
+    let noBroadcastReliabilityYet: String
+    let broadcastReliabilityFormat: String
+    let totalNormalizedEntriesFormat: String
+    let noNormalizedHistoryYet: String
+
+    static var current: DiagnosticsContentCopy {
+        StaticContentCatalog.loadRequiredResource("DiagnosticsContent", as: DiagnosticsContentCopy.self)
+    }
+}
+
+struct ImportFlowContent: Decodable {
+    let backupVerificationTitle: String
+    let advancedTitle: String
+    let watchAddressesTitle: String
+    let recordSeedPhraseTitle: String
+    let enterPrivateKeyTitle: String
+    let enterSeedPhraseTitle: String
+    let editWalletTitle: String
+    let createWalletTitle: String
+    let importWalletTitle: String
+    let backupVerificationSubtitle: String
+    let advancedSubtitle: String
+    let watchAddressesSubtitle: String
+    let privateKeySubtitle: String
+    let saveRecoveryPhraseSubtitle: String
+    let enterRecoveryPhraseSubtitle: String
+    let editWalletSubtitle: String
+    let chooseNameAndChainsSubtitle: String
+    let chooseNameAndChainSubtitle: String
+    let seedImportMethodDescription: String
+    let privateKeyImportMethodDescription: String
+    let importSeedLengthTitle: String
+    let importSeedLengthSubtitle: String
+    let createSeedLengthTitle: String
+    let createSeedLengthSubtitle: String
+    let seedPhraseEntryHelp: String
+    let createSeedPhraseWarning: String
+    let privateKeyTitle: String
+    let privateKeyPrompt: String
+    let privateKeyPlaceholder: String
+    let backupVerificationButtonTitle: String
+    let backupVerifiedMessage: String
+    let backupVerificationHint: String
+    let watchOnlyFixedMessage: String
+    let publicAddressOnlyMessage: String
+    let moneroWatchUnsupportedMessage: String
+    let addressesToWatchTitle: String
+    let addressesToWatchSubtitle: String
+    let bitcoinWatchCaption: String
+
+    static var current: ImportFlowContent {
+        StaticContentCatalog.loadRequiredResource("ImportFlowContent", as: ImportFlowContent.self)
+    }
+}
+
+struct TokenVisualRegistrySeed: Decodable {
+    let title: String
+    let symbol: String
+    let referenceChain: String
+    let mark: String
+    let colorName: String
+    let assetName: String
+}
+
+enum TokenVisualRegistryCatalog {
+    static func loadEntries() -> [TokenVisualRegistryEntry] {
+        let seeds = StaticContentCatalog.loadRequiredResource("TokenVisualRegistry", as: [TokenVisualRegistrySeed].self)
+        return seeds.compactMap { seed in
+            guard let referenceChain = TokenTrackingChain(rawValue: seed.referenceChain) else { return nil }
+            return TokenVisualRegistryEntry(
+                title: seed.title,
+                symbol: seed.symbol,
+                referenceChain: referenceChain,
+                mark: seed.mark,
+                color: color(named: seed.colorName),
+                assetName: seed.assetName
+            )
+        }
+    }
+
+    private static func color(named name: String) -> Color {
+        switch name.lowercased() {
+        case "green": return .green
+        case "blue": return .blue
+        case "orange": return .orange
+        case "pink": return .pink
+        case "indigo": return .indigo
+        case "yellow": return .yellow
+        case "cyan": return .cyan
+        case "teal": return .teal
+        case "gray": return .gray
+        case "red": return .red
+        default: return .accentColor
+        }
+    }
+}
+
+struct BuyCryptoProviderSeed: Decodable {
+    let name: String
+    let description: String
+    let url: String
+    let urlLabel: String
+}
+
+enum BuyCryptoProviderCatalog {
+    static func loadEntries() -> [BuyCryptoProviderSeed] {
+        StaticContentCatalog.loadRequiredResource("BuyCryptoProviders", as: [BuyCryptoProviderSeed].self)
+    }
+}
+
+struct DonationDestinationSeed: Decodable {
+    let chainName: String
+    let title: String
+    let address: String
+}
+
+struct DonationsContentCopy: Decodable {
+    let navigationTitle: String
+    let heroTitle: String
+    let heroSubtitle: String
+    let destinations: [DonationDestinationSeed]
+
+    static var current: DonationsContentCopy {
+        StaticContentCatalog.loadRequiredResource("DonationsContent", as: DonationsContentCopy.self)
+    }
+}
+
+struct EndpointsContentCopy: Decodable {
+    let navigationTitle: String
+    let intro: String
+    let readOnlyFootnote: String
+    let addEsploraEndpointPlaceholder: String
+    let addEndpointButtonTitle: String
+    let clearCustomBitcoinEndpointsTitle: String
+    let customEthereumRPCURLPlaceholder: String
+    let customMoneroBackendURLPlaceholder: String
+
+    static var current: EndpointsContentCopy {
+        StaticContentCatalog.loadRequiredResource("EndpointsContent", as: EndpointsContentCopy.self)
+    }
+}
+
+struct ChainVisualRegistrySeed: Decodable {
+    let id: String
+    let mark: String
+    let colorName: String
+    let assetName: String
+}
+
+struct ChainVisualRegistryEntry {
+    let id: String
+    let mark: String
+    let color: Color
+    let assetName: String
+}
+
+enum ChainVisualRegistryCatalog {
+    static func loadEntries() -> [String: ChainVisualRegistryEntry] {
+        let seeds = StaticContentCatalog.loadRequiredResource("ChainVisualRegistry", as: [ChainVisualRegistrySeed].self)
+        return Dictionary(uniqueKeysWithValues: seeds.map {
+            (
+                $0.id,
+                ChainVisualRegistryEntry(
+                    id: $0.id,
+                    mark: $0.mark,
+                    color: color(named: $0.colorName),
+                    assetName: $0.assetName
+                )
+            )
+        })
+    }
+
+    private static func color(named name: String) -> Color {
+        switch name.lowercased() {
+        case "green": return .green
+        case "blue": return .blue
+        case "orange": return .orange
+        case "pink": return .pink
+        case "indigo": return .indigo
+        case "yellow": return .yellow
+        case "cyan": return .cyan
+        case "teal": return .teal
+        case "gray": return .gray
+        case "red": return .red
+        case "purple": return .purple
+        case "mint": return .mint
+        default: return .accentColor
+        }
+    }
+}
+
+struct BuiltInTokenRegistrySeed: Decodable {
+    let chain: String
+    let name: String
+    let symbol: String
+    let tokenStandard: String
+    let contractAddress: String
+    let marketDataID: String
+    let coinGeckoID: String
+    let decimals: Int
+    let displayDecimals: Int?
+    let category: String
+    let isBuiltIn: Bool
+    let isEnabledByDefault: Bool
+}
+
+enum BuiltInTokenRegistryCatalog {
+    static func loadEntries() -> [ChainTokenRegistryEntry] {
+        let seeds = StaticContentCatalog.loadRequiredResource("BuiltInTokenRegistry", as: [BuiltInTokenRegistrySeed].self)
+        return seeds.compactMap { seed in
+            guard let chain = tokenTrackingChain(for: seed.chain),
+                  let category = TokenPreferenceCategory(rawValue: seed.category) else {
+                return nil
+            }
+            return ChainTokenRegistryEntry(
+                chain: chain,
+                name: seed.name,
+                symbol: seed.symbol,
+                tokenStandard: seed.tokenStandard,
+                contractAddress: seed.contractAddress,
+                marketDataID: seed.marketDataID,
+                coinGeckoID: seed.coinGeckoID,
+                decimals: seed.decimals,
+                displayDecimals: seed.displayDecimals,
+                category: category,
+                isBuiltIn: seed.isBuiltIn,
+                isEnabledByDefault: seed.isEnabledByDefault
+            )
+        }
+    }
+
+    private static func tokenTrackingChain(for value: String) -> TokenTrackingChain? {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "ethereum":
+            return .ethereum
+        case "arbitrum":
+            return .arbitrum
+        case "optimism":
+            return .optimism
+        case "bnb", "bnb chain":
+            return .bnb
+        case "avalanche":
+            return .avalanche
+        case "hyperliquid":
+            return .hyperliquid
+        case "solana":
+            return .solana
+        case "sui":
+            return .sui
+        case "aptos":
+            return .aptos
+        case "ton":
+            return .ton
+        case "near":
+            return .near
+        case "tron":
+            return .tron
+        default:
+            return TokenTrackingChain.allCases.first {
+                $0.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalized
+            }
+        }
+    }
+}
+
+extension ChainTokenRegistryEntry {
+    static let builtIn: [ChainTokenRegistryEntry] = BuiltInTokenRegistryCatalog.loadEntries()
+}
+
+enum BIP39EnglishWordList {
+    static let words: Set<String> = {
+        let text = StaticContentCatalog.loadRequiredTextResource("BIP39EnglishWordList")
+        return Set(
+            text
+                .split(whereSeparator: \.isWhitespace)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        )
+    }()
+}

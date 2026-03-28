@@ -1,0 +1,737 @@
+// MARK: - File Overview
+// Litecoin transaction/signing engine providing chain-specific derivation and send primitives.
+//
+// Responsibilities:
+// - Prepares and signs LTC transactions against wallet key material.
+// - Presents Litecoin behavior via async interfaces used by WalletStore.
+
+import Foundation
+import CryptoKit
+import WalletCore
+
+enum LitecoinWalletEngineError: LocalizedError {
+    case invalidSeedPhrase
+    case invalidAddress
+    case signingFailed
+    case insufficientFunds
+    case networkFailure(String)
+    case invalidUTXO
+    case sourceAddressDoesNotMatchSeed
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidSeedPhrase:
+            return NSLocalizedString("The Litecoin seed phrase is invalid.", comment: "")
+        case .invalidAddress:
+            return NSLocalizedString("The Litecoin destination address is invalid.", comment: "")
+        case .signingFailed:
+            return NSLocalizedString("Failed to sign Litecoin transaction.", comment: "")
+        case .insufficientFunds:
+            return NSLocalizedString("Insufficient Litecoin balance for amount plus fee.", comment: "")
+        case let .networkFailure(message):
+            return NSLocalizedString(message, comment: "")
+        case .invalidUTXO:
+            return NSLocalizedString("Received invalid Litecoin UTXO data.", comment: "")
+        case .sourceAddressDoesNotMatchSeed:
+            return NSLocalizedString("The source Litecoin address does not match the provided seed phrase.", comment: "")
+        }
+    }
+}
+
+private struct LitecoinUTXO: Decodable {
+    let txid: String
+    let vout: Int
+    let value: UInt64
+}
+
+enum LitecoinWalletEngine {
+    private static let litecoinspaceBaseURL = ChainBackendRegistry.LitecoinRuntimeEndpoints.litecoinspaceBaseURL
+    private static let blockcypherBaseURL = ChainBackendRegistry.LitecoinRuntimeEndpoints.blockcypherBaseURL
+    private static let litoshiPerLTC: Double = 100_000_000
+
+    private enum Provider {
+        case litecoinspace
+        case blockcypher
+    }
+
+    enum ChangeStrategy: String, CaseIterable, Identifiable {
+        case derivedChange
+        case reuseSourceAddress
+
+        var id: String { rawValue }
+
+        var displayName: String {
+            switch self {
+            case .derivedChange:
+                return "Derived change address"
+            case .reuseSourceAddress:
+                return "Reuse source address"
+            }
+        }
+    }
+
+    struct SendOptions {
+        let maxInputCount: Int?
+        let changeStrategy: ChangeStrategy
+        let enableRBF: Bool
+    }
+
+    struct LitecoinSendResult: Equatable {
+        let transactionHash: String
+        let rawTransactionHex: String
+        let verificationStatus: SendBroadcastVerificationStatus
+    }
+
+    private struct BlockCypherUTXOResponse: Decodable {
+        struct UTXO: Decodable {
+            let txHash: String
+            let txOutputN: Int
+            let value: UInt64
+
+            enum CodingKeys: String, CodingKey {
+                case txHash = "tx_hash"
+                case txOutputN = "tx_output_n"
+                case value
+            }
+        }
+
+        let txrefs: [UTXO]?
+        let unconfirmedTxrefs: [UTXO]?
+
+        enum CodingKeys: String, CodingKey {
+            case txrefs
+            case unconfirmedTxrefs = "unconfirmed_txrefs"
+        }
+    }
+
+    private struct BlockCypherFeesResponse: Decodable {
+        let highFeePerKB: Int64?
+        let mediumFeePerKB: Int64?
+        let lowFeePerKB: Int64?
+
+        enum CodingKeys: String, CodingKey {
+            case highFeePerKB = "high_fee_per_kb"
+            case mediumFeePerKB = "medium_fee_per_kb"
+            case lowFeePerKB = "low_fee_per_kb"
+        }
+    }
+
+    private struct BlockCypherBroadcastResponse: Decodable {
+        struct Transaction: Decodable {
+            let hash: String?
+        }
+        let tx: Transaction?
+    }
+
+    /// Handles "derivedAddress" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
+        try derivedAddress(
+            for: seedPhrase,
+            derivationPath: "m/44'/2'/\(account)'/0/0"
+        )
+    }
+
+    static func derivedAddress(for seedPhrase: String, derivationPath: String) throws -> String {
+        let normalized = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
+        let words = BitcoinWalletEngine.normalizedMnemonicWords(from: normalized)
+        guard !words.isEmpty else { throw LitecoinWalletEngineError.invalidSeedPhrase }
+        let material = try WalletCoreDerivation.deriveMaterial(
+            seedPhrase: normalized,
+            coin: .litecoin,
+            derivationPath: derivationPath
+        )
+        return material.address
+    }
+
+    /// Handles "estimateSendPreview" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func estimateSendPreview(
+        seedPhrase: String,
+        sourceAddress: String,
+        feePriority: BitcoinFeePriority,
+        maxInputCount: Int? = nil
+    ) async throws -> BitcoinSendPreview {
+        let fetched = try await fetchUTXOs(for: sourceAddress)
+        let utxos: [LitecoinUTXO]
+        if let maxInputCount, maxInputCount > 0 {
+            utxos = Array(fetched.sorted(by: { $0.value > $1.value }).prefix(maxInputCount))
+        } else {
+            utxos = fetched
+        }
+        let totalInputLitoshi = utxos.reduce(UInt64(0)) { $0 + $1.value }
+        let rate = try await fetchFeeRate(priority: feePriority)
+        let estimatedBytes = UInt64(10 + (148 * max(1, utxos.count)) + 68)
+        let estimatedFee = max(UInt64(1_000), UInt64(Double(estimatedBytes) * Double(rate)))
+        let spendable = totalInputLitoshi > estimatedFee ? totalInputLitoshi - estimatedFee : 0
+        if spendable == 0 {
+            throw LitecoinWalletEngineError.insufficientFunds
+        }
+        return BitcoinSendPreview(
+            estimatedFeeRateSatVb: rate,
+            estimatedNetworkFeeBTC: Double(estimatedFee) / litoshiPerLTC
+        )
+    }
+
+    /// Handles "sendInBackground" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    static func sendInBackground(
+        seedPhrase: String,
+        sourceAddress: String,
+        to destinationAddress: String,
+        amountLTC: Double,
+        feePriority: BitcoinFeePriority,
+        options: SendOptions? = nil,
+        derivationPath: String = "m/44'/2'/0'/0/0"
+    ) async throws -> LitecoinSendResult {
+        let effectiveOptions = options ?? SendOptions(
+            maxInputCount: nil,
+            changeStrategy: .derivedChange,
+            enableRBF: false
+        )
+        guard AddressValidation.isValidLitecoinAddress(destinationAddress) else {
+            throw LitecoinWalletEngineError.invalidAddress
+        }
+
+        let normalizedSeed = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
+        let keyMaterial = try WalletCoreDerivation.deriveMaterial(
+            seedPhrase: normalizedSeed,
+            coin: .litecoin,
+            derivationPath: derivationPath
+        )
+        let normalizedSourceAddress = sourceAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard keyMaterial.address == normalizedSourceAddress else {
+            throw LitecoinWalletEngineError.sourceAddressDoesNotMatchSeed
+        }
+        let changePath = DerivationPathParser.replacingLastTwoSegments(
+            in: derivationPath,
+            branch: UInt32(WalletDerivationBranch.change.rawValue),
+            index: 0,
+            fallback: "m/44'/2'/0'/1/0"
+        )
+        let changeMaterial = try WalletCoreDerivation.deriveMaterial(
+            seedPhrase: normalizedSeed,
+            coin: .litecoin,
+            derivationPath: changePath
+        )
+
+        let amountLitoshi = UInt64((amountLTC * litoshiPerLTC).rounded())
+        guard amountLitoshi > 0 else {
+            throw LitecoinWalletEngineError.invalidUTXO
+        }
+
+        let utxos = try await fetchUTXOs(for: sourceAddress)
+        guard !utxos.isEmpty else {
+            throw LitecoinWalletEngineError.insufficientFunds
+        }
+
+        let feeRate = try await fetchFeeRate(priority: feePriority)
+        guard let sourceScript = scriptPubKey(for: sourceAddress) else {
+            throw LitecoinWalletEngineError.invalidAddress
+        }
+        let selectedUTXOs = try selectUTXOs(
+            from: utxos,
+            sendAmountLitoshi: amountLitoshi,
+            feeRateSatVb: feeRate,
+            maxInputCount: effectiveOptions.maxInputCount
+        )
+        let changeAddress: String
+        switch effectiveOptions.changeStrategy {
+        case .derivedChange:
+            changeAddress = changeMaterial.address
+        case .reuseSourceAddress:
+            changeAddress = sourceAddress
+        }
+
+        var signingInput = BitcoinSigningInput()
+        signingInput.hashType = 0x01
+        signingInput.amount = Int64(amountLitoshi)
+        signingInput.byteFee = Int64(feeRate)
+        signingInput.toAddress = destinationAddress
+        signingInput.changeAddress = changeAddress
+        signingInput.coinType = CoinType.litecoin.rawValue
+        signingInput.privateKey = [keyMaterial.privateKeyData]
+        signingInput.utxo = try selectedUTXOs.map {
+            try walletCoreUnspentTransaction(
+                from: $0,
+                sourceScript: sourceScript,
+                sequence: effectiveOptions.enableRBF ? 0xFFFFFFFD : UInt32.max
+            )
+        }
+
+        let output: BitcoinSigningOutput = AnySigner.sign(input: signingInput, coin: .litecoin)
+        if !output.errorMessage.isEmpty || output.encoded.isEmpty {
+            throw LitecoinWalletEngineError.signingFailed
+        }
+        let rawHex = output.encoded.map { String(format: "%02x", $0) }.joined()
+        let txid = try await broadcast(rawTransactionHex: rawHex)
+        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
+        return LitecoinSendResult(
+            transactionHash: txid,
+            rawTransactionHex: rawHex,
+            verificationStatus: verificationStatus
+        )
+    }
+
+    /// Handles "fetchUTXOs" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchUTXOs(for address: String) async throws -> [LitecoinUTXO] {
+        try await runWithFallback(candidates: [.litecoinspace, .blockcypher]) { provider in
+            switch provider {
+            case .litecoinspace:
+                return try await fetchUTXOsViaLitecoinspace(for: address)
+            case .blockcypher:
+                return try await fetchUTXOsViaBlockcypher(for: address)
+            }
+        }
+    }
+
+    /// Handles "fetchUTXOsViaLitecoinspace" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchUTXOsViaLitecoinspace(for address: String) async throws -> [LitecoinUTXO] {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(litecoinspaceBaseURL)/address/\(encoded)/utxo") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            throw LitecoinWalletEngineError.networkFailure("Failed to fetch Litecoin UTXOs.")
+        }
+        return try JSONDecoder().decode([LitecoinUTXO].self, from: data)
+    }
+
+    /// Handles "fetchUTXOsViaBlockcypher" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchUTXOsViaBlockcypher(for address: String) async throws -> [LitecoinUTXO] {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(blockcypherBaseURL)/addrs/\(encoded)?unspentOnly=true&includeScript=true") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            throw LitecoinWalletEngineError.networkFailure("Failed to fetch Litecoin UTXOs.")
+        }
+        let decoded = try JSONDecoder().decode(BlockCypherUTXOResponse.self, from: data)
+        let refs = (decoded.txrefs ?? []) + (decoded.unconfirmedTxrefs ?? [])
+        return refs.map { LitecoinUTXO(txid: $0.txHash, vout: $0.txOutputN, value: $0.value) }
+    }
+
+    /// Handles "fetchFeeRate" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchFeeRate(priority: BitcoinFeePriority) async throws -> UInt64 {
+        do {
+            return try await runWithFallback(candidates: [.litecoinspace, .blockcypher]) { provider in
+                switch provider {
+                case .litecoinspace:
+                    return try await fetchFeeRateViaLitecoinspace(priority: priority)
+                case .blockcypher:
+                    return try await fetchFeeRateViaBlockcypher(priority: priority)
+                }
+            }
+        } catch {
+            return fallbackFeeRate(priority: priority)
+        }
+    }
+
+    /// Handles "fetchFeeRateViaLitecoinspace" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchFeeRateViaLitecoinspace(priority: BitcoinFeePriority) async throws -> UInt64 {
+        guard let url = URL(string: "\(litecoinspaceBaseURL)/fee-estimates") else { throw URLError(.badURL) }
+        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            throw LitecoinWalletEngineError.networkFailure("Failed to fetch Litecoin fee estimates.")
+        }
+        let estimates = try JSONDecoder().decode([String: Double].self, from: data)
+        let picked: Double
+        switch priority {
+        case .economy:
+            picked = estimates["6"] ?? estimates["10"] ?? 5
+        case .normal:
+            picked = estimates["3"] ?? estimates["6"] ?? 8
+        case .priority:
+            picked = estimates["1"] ?? estimates["2"] ?? 12
+        }
+        return max(1, UInt64(ceil(picked)))
+    }
+
+    /// Handles "fetchFeeRateViaBlockcypher" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fetchFeeRateViaBlockcypher(priority: BitcoinFeePriority) async throws -> UInt64 {
+        guard let url = URL(string: blockcypherBaseURL) else { throw URLError(.badURL) }
+        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            throw LitecoinWalletEngineError.networkFailure("Failed to fetch Litecoin fee estimates.")
+        }
+        let decoded = try JSONDecoder().decode(BlockCypherFeesResponse.self, from: data)
+        let feePerKB: Int64
+        switch priority {
+        case .economy:
+            feePerKB = decoded.lowFeePerKB ?? decoded.mediumFeePerKB ?? 5_000
+        case .normal:
+            feePerKB = decoded.mediumFeePerKB ?? decoded.lowFeePerKB ?? 8_000
+        case .priority:
+            feePerKB = decoded.highFeePerKB ?? decoded.mediumFeePerKB ?? 12_000
+        }
+        return max(1, UInt64(ceil(Double(feePerKB) / 1_000.0)))
+    }
+
+    /// Handles "fallbackFeeRate" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func fallbackFeeRate(priority: BitcoinFeePriority) -> UInt64 {
+        switch priority {
+        case .economy: return 5
+        case .normal: return 8
+        case .priority: return 12
+        }
+    }
+
+    /// Handles "broadcast" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func broadcast(rawTransactionHex: String) async throws -> String {
+        try await runWithFallback(candidates: [.litecoinspace, .blockcypher]) { provider in
+            switch provider {
+            case .litecoinspace:
+                return try await broadcastViaLitecoinspace(rawTransactionHex: rawTransactionHex)
+            case .blockcypher:
+                return try await broadcastViaBlockcypher(rawTransactionHex: rawTransactionHex)
+            }
+        }
+    }
+
+    /// Handles "broadcastViaLitecoinspace" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func broadcastViaLitecoinspace(rawTransactionHex: String) async throws -> String {
+        guard let url = URL(string: "\(litecoinspaceBaseURL)/tx") else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("text/plain", forHTTPHeaderField: "Content-Type")
+        request.httpBody = rawTransactionHex.data(using: .utf8)
+        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .litecoinWrite)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Unknown broadcast failure."
+            throw LitecoinWalletEngineError.networkFailure("Litecoin broadcast failed: \(message)")
+        }
+        let txid = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if txid.isEmpty {
+            throw LitecoinWalletEngineError.networkFailure("Litecoin broadcast succeeded but no txid returned.")
+        }
+        return txid
+    }
+
+    /// Handles "broadcastViaBlockcypher" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func broadcastViaBlockcypher(rawTransactionHex: String) async throws -> String {
+        guard let url = URL(string: "\(blockcypherBaseURL)/txs/push") else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["tx": rawTransactionHex], options: [])
+        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .litecoinWrite)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Unknown broadcast failure."
+            throw LitecoinWalletEngineError.networkFailure("Litecoin broadcast failed: \(message)")
+        }
+        if let decoded = try? JSONDecoder().decode(BlockCypherBroadcastResponse.self, from: data),
+           let txid = decoded.tx?.hash,
+           !txid.isEmpty {
+            return txid
+        }
+        throw LitecoinWalletEngineError.networkFailure("Litecoin broadcast succeeded but no txid returned.")
+    }
+
+    private static func runWithFallback<T>(
+        candidates: [Provider],
+        operation: @escaping (Provider) async throws -> T
+    ) async throws -> T {
+        var lastError: Error?
+        for provider in candidates {
+            do {
+                return try await operation(provider)
+            } catch {
+                lastError = error
+                // Space provider failovers to avoid immediate repeat hits on throttled endpoints.
+                try? await Task.sleep(nanoseconds: 180_000_000)
+            }
+        }
+        throw lastError ?? LitecoinWalletEngineError.networkFailure("All Litecoin providers failed.")
+    }
+
+    private static func verifyBroadcastedTransactionIfAvailable(txid: String) async -> SendBroadcastVerificationStatus {
+        let attempts = 3
+        var lastError: Error?
+
+        for attempt in 0 ..< attempts {
+            do {
+                if try await verifyPresenceOnlyIfAvailable(txid: txid) {
+                    return .verified
+                }
+            } catch {
+                lastError = error
+            }
+
+            if attempt < attempts - 1 {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+        }
+
+        if let lastError {
+            return .failed(lastError.localizedDescription)
+        }
+        return .deferred
+    }
+
+    private static func verifyPresenceOnlyIfAvailable(txid: String) async throws -> Bool {
+        let trimmed = txid.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        return try await runWithFallback(candidates: [.litecoinspace, .blockcypher]) { provider in
+            switch provider {
+            case .litecoinspace:
+                guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                      let url = URL(string: "\(litecoinspaceBaseURL)/tx/\(encoded)") else {
+                    throw URLError(.badURL)
+                }
+                let (_, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
+                guard let http = response as? HTTPURLResponse else {
+                    throw LitecoinWalletEngineError.networkFailure("Invalid Litecoin verification response.")
+                }
+                if (200 ..< 300).contains(http.statusCode) {
+                    return true
+                }
+                if http.statusCode == 404 {
+                    return false
+                }
+                throw LitecoinWalletEngineError.networkFailure("Litecoin verification failed with status \(http.statusCode).")
+            case .blockcypher:
+                guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                      let url = URL(string: "\(blockcypherBaseURL)/txs/\(encoded)") else {
+                    throw URLError(.badURL)
+                }
+                let (_, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
+                guard let http = response as? HTTPURLResponse else {
+                    throw LitecoinWalletEngineError.networkFailure("Invalid Litecoin verification response.")
+                }
+                if (200 ..< 300).contains(http.statusCode) {
+                    return true
+                }
+                if http.statusCode == 404 {
+                    return false
+                }
+                throw LitecoinWalletEngineError.networkFailure("Litecoin verification failed with status \(http.statusCode).")
+            }
+        }
+    }
+
+    /// Handles "walletCoreUnspentTransaction" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func walletCoreUnspentTransaction(
+        from utxo: LitecoinUTXO,
+        sourceScript: Data,
+        sequence: UInt32
+    ) throws -> BitcoinUnspentTransaction {
+        guard let txHashData = Data(hexEncoded: utxo.txid), txHashData.count == 32 else {
+            throw LitecoinWalletEngineError.invalidUTXO
+        }
+        var outPoint = BitcoinOutPoint()
+        outPoint.hash = Data(txHashData.reversed())
+        outPoint.index = UInt32(utxo.vout)
+        outPoint.sequence = sequence
+
+        var unspent = BitcoinUnspentTransaction()
+        unspent.amount = Int64(utxo.value)
+        unspent.script = sourceScript
+        unspent.outPoint = outPoint
+        return unspent
+    }
+
+    /// Handles "selectUTXOs" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func selectUTXOs(
+        from utxos: [LitecoinUTXO],
+        sendAmountLitoshi: UInt64,
+        feeRateSatVb: UInt64,
+        maxInputCount: Int?
+    ) throws -> [LitecoinUTXO] {
+        let sorted = utxos.sorted(by: { $0.value > $1.value })
+        let cap = maxInputCount.map { max(1, $0) } ?? sorted.count
+        var selected: [LitecoinUTXO] = []
+        var runningTotal: UInt64 = 0
+
+        for utxo in sorted {
+            if selected.count >= cap { break }
+            selected.append(utxo)
+            runningTotal += utxo.value
+            let estimatedBytes = UInt64(10 + (148 * selected.count) + 68)
+            let estimatedFee = max(UInt64(1_000), UInt64(Double(estimatedBytes) * Double(feeRateSatVb)))
+            if runningTotal >= sendAmountLitoshi + estimatedFee {
+                return selected
+            }
+        }
+
+        throw LitecoinWalletEngineError.insufficientFunds
+    }
+
+    /// Handles "scriptPubKey" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func scriptPubKey(for address: String) -> Data? {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let decoded = base58CheckDecode(trimmed), !decoded.isEmpty {
+            let prefix = decoded[0]
+            let hash160 = decoded.dropFirst()
+            guard hash160.count == 20 else { return nil }
+            switch prefix {
+            case 0x30, 0x6f: // P2PKH mainnet/testnet
+                return Data([0x76, 0xa9, 0x14]) + hash160 + Data([0x88, 0xac])
+            case 0x32, 0x3a, 0xc4: // P2SH variants
+                return Data([0xa9, 0x14]) + hash160 + Data([0x87])
+            default:
+                break
+            }
+        }
+
+        if let program = decodeBech32WitnessProgram(address: trimmed) {
+            let versionByte = program.version == 0 ? UInt8(0x00) : UInt8(0x50 + program.version)
+            return Data([versionByte, UInt8(program.program.count)]) + program.program
+        }
+
+        return nil
+    }
+
+    /// Handles "decodeBech32WitnessProgram" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func decodeBech32WitnessProgram(address: String) -> (version: UInt8, program: Data)? {
+        let lower = address.lowercased()
+        guard lower.hasPrefix("ltc1") || lower.hasPrefix("tltc1") else { return nil }
+        guard let separatorIndex = lower.lastIndex(of: "1") else { return nil }
+        let hrp = String(lower[..<separatorIndex])
+        guard hrp == "ltc" || hrp == "tltc" else { return nil }
+        let dataPart = String(lower[lower.index(after: separatorIndex)...])
+        guard dataPart.count >= 6 else { return nil }
+        let charset = Array("qpzry9x8gf2tvdw0s3jn54khce6mua7l")
+        var charsetMap: [Character: Int] = [:]
+        for (i, c) in charset.enumerated() {
+            charsetMap[c] = i
+        }
+        let values: [UInt8] = dataPart.compactMap { ch in
+            guard let v = charsetMap[ch] else { return nil }
+            return UInt8(v)
+        }
+        guard values.count == dataPart.count else { return nil }
+        guard verifyBech32Checksum(hrp: hrp, data: values) else { return nil }
+        let payload = Array(values.dropLast(6))
+        guard let version = payload.first, version <= 16 else { return nil }
+        let program5Bit = Array(payload.dropFirst())
+        guard let program = convertBits(program5Bit, fromBits: 5, toBits: 8, pad: false),
+              !program.isEmpty, program.count >= 2, program.count <= 40 else {
+            return nil
+        }
+        if version == 0 && !(program.count == 20 || program.count == 32) {
+            return nil
+        }
+        return (version, Data(program))
+    }
+
+    /// Handles "verifyBech32Checksum" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func verifyBech32Checksum(hrp: String, data: [UInt8]) -> Bool {
+        polymod(hrpExpand(hrp) + data) == 1
+    }
+
+    /// Handles "hrpExpand" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func hrpExpand(_ hrp: String) -> [UInt8] {
+        let bytes = hrp.utf8.map { UInt8($0) }
+        let high = bytes.map { $0 >> 5 }
+        let low = bytes.map { $0 & 0x1f }
+        return high + [0] + low
+    }
+
+    /// Handles "polymod" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func polymod(_ values: [UInt8]) -> UInt32 {
+        let generators: [UInt32] = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
+        var chk: UInt32 = 1
+        for value in values {
+            let top = chk >> 25
+            chk = ((chk & 0x1ffffff) << 5) ^ UInt32(value)
+            for i in 0 ..< 5 where ((top >> i) & 1) != 0 {
+                chk ^= generators[i]
+            }
+        }
+        return chk
+    }
+
+    /// Handles "convertBits" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func convertBits(_ data: [UInt8], fromBits: Int, toBits: Int, pad: Bool) -> [UInt8]? {
+        var acc = 0
+        var bits = 0
+        var result: [UInt8] = []
+        let maxv = (1 << toBits) - 1
+        for value in data {
+            let v = Int(value)
+            if (v >> fromBits) != 0 { return nil }
+            acc = (acc << fromBits) | v
+            bits += fromBits
+            while bits >= toBits {
+                bits -= toBits
+                result.append(UInt8((acc >> bits) & maxv))
+            }
+        }
+        if pad {
+            if bits > 0 {
+                result.append(UInt8((acc << (toBits - bits)) & maxv))
+            }
+        } else if bits >= fromBits || ((acc << (toBits - bits)) & maxv) != 0 {
+            return nil
+        }
+        return result
+    }
+
+    /// Handles "base58CheckDecode" for this module.
+    /// Keeps behavior deterministic and aligned with app state expectations.
+    private static func base58CheckDecode(_ string: String) -> Data? {
+        let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+        var indexes: [Character: Int] = [:]
+        for (index, character) in alphabet.enumerated() {
+            indexes[character] = index
+        }
+
+        var bytes: [UInt8] = [0]
+        for character in string {
+            guard let value = indexes[character] else { return nil }
+            var carry = value
+            for idx in bytes.indices {
+                let x = Int(bytes[idx]) * 58 + carry
+                bytes[idx] = UInt8(x & 0xff)
+                carry = x >> 8
+            }
+            while carry > 0 {
+                bytes.append(UInt8(carry & 0xff))
+                carry >>= 8
+            }
+        }
+
+        var leadingZeroCount = 0
+        for character in string where character == "1" {
+            leadingZeroCount += 1
+        }
+
+        let decoded = Data(repeating: 0, count: leadingZeroCount) + Data(bytes.reversed())
+        guard decoded.count >= 5 else { return nil }
+
+        let payload = decoded.dropLast(4)
+        let checksum = decoded.suffix(4)
+        let firstHash = SHA256.hash(data: payload)
+        let secondHash = SHA256.hash(data: Data(firstHash))
+        let computedChecksum = Data(secondHash.prefix(4))
+        guard checksum.elementsEqual(computedChecksum) else { return nil }
+
+        return Data(payload)
+    }
+}
