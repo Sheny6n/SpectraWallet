@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Tron signing and transaction engine used for TRX/TRC20 send flows.
-//
-// Responsibilities:
-// - Handles Tron address and transaction format details behind stable APIs.
-// - Supports fee/bandwidth-energy considerations in transaction construction.
-
 import Foundation
 import CryptoKit
 import WalletCore
@@ -54,8 +47,6 @@ enum TronWalletEngine {
     static let tronGridBaseURL = ChainBackendRegistry.TronRuntimeEndpoints.tronGridBaseURL
     private static let usdtDecimals: Int64 = 6
 
-    /// Handles "isSupportedUSDTContract" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func isSupportedUSDTContract(_ contractAddress: String) -> Bool {
         contractAddress.caseInsensitiveCompare(TronBalanceService.usdtTronContract) == .orderedSame
     }
@@ -64,8 +55,6 @@ enum TronWalletEngine {
     private static let defaultEnergyPriceSun = 420.0
     private static let defaultBandwidthFeeTRX = 0.30
 
-    /// Handles "estimateSendPreview" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func estimateSendPreview(
         from ownerAddress: String,
         to destinationAddress: String,
@@ -131,8 +120,6 @@ enum TronWalletEngine {
         return material.address
     }
 
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(
         seedPhrase: String,
         ownerAddress: String,
@@ -376,8 +363,6 @@ enum TronWalletEngine {
         let feeLimitSun: Int64
     }
 
-    /// Handles "createTRXTransferTransaction" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func createTRXTransferTransaction(
         ownerAddress: String,
         destinationAddress: String,
@@ -398,8 +383,6 @@ enum TronWalletEngine {
         )
     }
 
-    /// Handles "createTRC20TransferTransaction" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func createTRC20TransferTransaction(
         ownerAddress: String,
         contractAddress: String,
@@ -438,8 +421,6 @@ enum TronWalletEngine {
         return transaction
     }
 
-    /// Handles "simulateTRC20Transfer" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func simulateTRC20Transfer(
         ownerAddress: String,
         contractAddress: String,
@@ -475,8 +456,6 @@ enum TronWalletEngine {
         return TRC20SimulationResult(energyUsed: nil, feeLimitSun: feeLimitSun)
     }
 
-    /// Handles "signRawTransaction" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func signRawTransaction(_ transaction: [String: Any], privateKey: Data) throws -> [String: Any] {
         guard let txID = transaction["txID"] as? String, !txID.isEmpty else {
             throw TronWalletEngineError.signFailed("Unsigned Tron transaction is missing txID.")
@@ -500,8 +479,6 @@ enum TronWalletEngine {
         return signed
     }
 
-    /// Handles "broadcastSignedTransaction" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func broadcastSignedTransaction(_ signedTransaction: [String: Any]) async throws -> String {
         let response = try await postJSON(
             path: "/wallet/broadcasttransaction",
@@ -527,8 +504,6 @@ enum TronWalletEngine {
         throw TronWalletEngineError.broadcastFailed("Tron broadcast failed with unknown provider response.")
     }
 
-    /// Handles "postJSON" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func postJSON(
         path: String,
         payload: [String: Any],
@@ -569,8 +544,6 @@ enum TronWalletEngine {
         return object
     }
 
-    /// Handles "bestProviderMessage" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func bestProviderMessage(from object: [String: Any]) -> String? {
         if let message = normalizedProviderMessage(object["message"]) {
             return message
@@ -592,8 +565,6 @@ enum TronWalletEngine {
         return nil
     }
 
-    /// Handles "normalizedProviderMessage" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func normalizedProviderMessage(_ value: Any?) -> String? {
         guard let value else { return nil }
 
@@ -620,8 +591,6 @@ enum TronWalletEngine {
         return nil
     }
 
-    /// Handles "decodeHexASCIIIfNeeded" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func decodeHexASCIIIfNeeded(_ string: String) -> String? {
         let candidate = string.hasPrefix("0x") ? String(string.dropFirst(2)) : string
         guard candidate.count >= 2, candidate.count % 2 == 0,
@@ -649,8 +618,6 @@ enum TronWalletEngine {
         return decoded
     }
 
-    /// Handles "makeTRC20TransferParameter" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func makeTRC20TransferParameter(to destinationAddress: String, amountRaw: Int64) throws -> String {
         guard let tronAddressPayload = base58CheckDecode(destinationAddress), tronAddressPayload.count == 21 else {
             throw TronWalletEngineError.invalidAddress
@@ -673,8 +640,6 @@ enum TronWalletEngine {
         return (addressSlot + amountSlot).hexEncodedString()
     }
 
-    /// Handles "base58CheckDecode" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func base58CheckDecode(_ string: String) -> Data? {
         let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
         var indexes: [Character: Int] = [:]
@@ -715,8 +680,6 @@ enum TronWalletEngine {
         return Data(payload)
     }
 
-    /// Handles "scaledSignedAmount" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func scaledSignedAmount(_ amount: Double, decimals: Int) throws -> Int64 {
         guard amount.isFinite, amount > 0, decimals >= 0 else {
             throw TronWalletEngineError.invalidAmount
@@ -741,8 +704,6 @@ enum TronWalletEngine {
         return value
     }
 
-    /// Handles "decimalPowerOfTen" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func decimalPowerOfTen(_ exponent: Int) -> Decimal {
         guard exponent > 0 else { return 1 }
         var result = Decimal(1)
@@ -754,8 +715,6 @@ enum TronWalletEngine {
 }
 
 private extension Data {
-    /// Handles "hexEncodedString" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func hexEncodedString() -> String {
         map { String(format: "%02x", $0) }.joined()
     }

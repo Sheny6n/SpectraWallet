@@ -1,15 +1,6 @@
-// MARK: - File Overview
-// Shared UTXO helper primitives reused by Bitcoin/Litecoin/Dogecoin-related workflows.
-//
-// Responsibilities:
-// - Contains common parsing, validation, and transaction-support utilities.
-// - Reduces duplicated UTXO-specific logic across chain engines/services.
-
 import Foundation
 
 enum UTXOEngineSupport {
-    /// Handles "performSynchronousRequest" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func performSynchronousRequest(
         _ request: URLRequest,
         timeout: TimeInterval,

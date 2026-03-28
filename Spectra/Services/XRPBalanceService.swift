@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// XRP Ledger service responsible for account balance/history endpoint interactions.
-//
-// Responsibilities:
-// - Fetches XRPL account state and transaction history.
-// - Transforms provider responses into store-consumable structures.
-
 import Foundation
 
 enum XRPBalanceServiceError: LocalizedError {
@@ -118,8 +111,6 @@ enum XRPBalanceService {
         case string(String)
         case object([String: String])
 
-        /// Initializes and configures this component for use in the wallet app.
-        /// Ensures deterministic setup so runtime state remains consistent.
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             if let value = try? container.decode(String.self) {
@@ -137,14 +128,10 @@ enum XRPBalanceService {
         }
     }
 
-    /// Handles "isValidAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidAddress(_ address: String) -> Bool {
         AddressValidation.isValidXRPAddress(address)
     }
 
-    /// Handles "fetchBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalance(for address: String) async throws -> Double {
         let normalized = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidAddress(normalized) else {
@@ -160,8 +147,6 @@ enum XRPBalanceService {
         }
     }
 
-    /// Handles "fetchRecentHistoryWithDiagnostics" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchRecentHistoryWithDiagnostics(for address: String, limit: Int = 50) async -> (snapshots: [XRPHistorySnapshot], diagnostics: XRPHistoryDiagnostics) {
         let normalized = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidAddress(normalized) else {
@@ -213,14 +198,10 @@ enum XRPBalanceService {
         )
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
@@ -241,8 +222,6 @@ enum XRPBalanceService {
         throw lastError ?? URLError(.cannotLoadFromNetwork)
     }
 
-    /// Handles "fetchBalanceViaXRPSCAN" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBalanceViaXRPSCAN(address: String) async throws -> Double {
         var lastError: Error?
         for base in xrpScanAccountBases {
@@ -271,8 +250,6 @@ enum XRPBalanceService {
         throw lastError ?? XRPBalanceServiceError.invalidResponse
     }
 
-    /// Handles "fetchBalanceViaXRPLRPC" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBalanceViaXRPLRPC(address: String, endpoint: URL) async throws -> Double {
         let payload: [String: Any] = [
             "method": "account_info",
@@ -293,8 +270,6 @@ enum XRPBalanceService {
         return drops / 1_000_000.0
     }
 
-    /// Handles "fetchHistoryViaXRPSCAN" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchHistoryViaXRPSCAN(address: String, limit: Int) async throws -> [XRPHistorySnapshot] {
         var lastError: Error?
         for base in xrpScanAccountBases {
@@ -368,8 +343,6 @@ enum XRPBalanceService {
         return envelope.transactions ?? envelope.data ?? envelope.rows ?? []
     }
 
-    /// Handles "fetchHistoryViaXRPLRPC" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchHistoryViaXRPLRPC(address: String, limit: Int, endpoint: URL) async throws -> [XRPHistorySnapshot] {
         let payload: [String: Any] = [
             "method": "account_tx",
@@ -423,8 +396,6 @@ enum XRPBalanceService {
         }
     }
 
-    /// Handles "parseXRPLAmount" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func parseXRPLAmount(_ value: Any?) -> Double {
         if let text = value as? String, let drops = Double(text), drops.isFinite {
             return max(0, drops / 1_000_000.0)
@@ -438,8 +409,6 @@ enum XRPBalanceService {
         return 0
     }
 
-    /// Handles "postXRPLRPC" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func postXRPLRPC(payload: [String: Any], endpoint: URL) async throws -> [String: Any] {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"

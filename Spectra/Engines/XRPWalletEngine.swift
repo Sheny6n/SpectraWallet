@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// XRP Ledger engine for address derivation, signing, and transaction serialization.
-//
-// Responsibilities:
-// - Implements XRPL-specific send operation primitives.
-// - Surfaces deterministic chain behavior for WalletStore integration.
-
 import Foundation
 import WalletCore
 import SwiftProtobuf
@@ -111,8 +104,6 @@ enum XRPWalletEngine {
         }
     }
 
-    /// Handles "estimateSendPreview" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func estimateSendPreview(
         from ownerAddress: String,
         to destinationAddress: String,
@@ -140,8 +131,6 @@ enum XRPWalletEngine {
         )
     }
 
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(
         seedPhrase: String,
         ownerAddress: String,
@@ -375,8 +364,6 @@ enum XRPWalletEngine {
         throw XRPWalletEngineError.networkError(lastError?.localizedDescription ?? "Unknown XRP RPC error.")
     }
 
-    /// Handles "fetchFeeDrops" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchFeeDrops() async throws -> Int64 {
         let payload: [String: Any] = [
             "method": "fee",
@@ -390,8 +377,6 @@ enum XRPWalletEngine {
         return fee
     }
 
-    /// Handles "fetchAccountInfo" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchAccountInfo(address: String) async throws -> AccountInfoResult {
         let payload: [String: Any] = [
             "method": "account_info",
@@ -405,8 +390,6 @@ enum XRPWalletEngine {
         return result
     }
 
-    /// Handles "submitTransaction" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func submitTransaction(txBlobHex: String) async throws -> SubmitResult {
         let payload: [String: Any] = [
             "method": "submit",
@@ -450,8 +433,6 @@ enum XRPWalletEngine {
         throw XRPWalletEngineError.networkError(lastError?.localizedDescription ?? "Unknown XRP RPC error.")
     }
 
-    /// Handles "derivedAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
             seedPhrase: seedPhrase,

@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Monero balance/history service for backend integrations used by the app store.
-//
-// Responsibilities:
-// - Retrieves XMR account state from configured backend endpoints.
-// - Maps backend payloads into wallet-friendly summary objects.
-
 import Foundation
 
 enum MoneroBalanceServiceError: LocalizedError {
@@ -90,14 +83,10 @@ enum MoneroBalanceService {
         let status: String?
     }
 
-    /// Handles "isValidAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidAddress(_ address: String) -> Bool {
         AddressValidation.isValidMoneroAddress(address)
     }
 
-    /// Handles "configuredBackendBaseURL" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func configuredBackendBaseURL() -> URL? {
         if let value = UserDefaults.standard.string(forKey: backendBaseURLDefaultsKey) {
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -108,8 +97,6 @@ enum MoneroBalanceService {
         return URL(string: defaultPublicBackend.baseURL)
     }
 
-    /// Handles "candidateBackendBaseURLs" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func candidateBackendBaseURLs() -> [URL] {
         var urls: [URL] = []
         if let primary = configuredBackendBaseURL() {
@@ -124,22 +111,16 @@ enum MoneroBalanceService {
         return Array(urls.prefix(3))
     }
 
-    /// Handles "shouldFallback" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func shouldFallback(for statusCode: Int) -> Bool {
         [404, 405, 429, 500, 501, 502, 503, 504].contains(statusCode)
     }
 
-    /// Handles "configuredBackendAPIKey" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func configuredBackendAPIKey() -> String? {
         let value = UserDefaults.standard.string(forKey: backendAPIKeyDefaultsKey) ?? ""
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// Handles "fetchBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalance(for address: String) async throws -> Double {
         let normalized = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidAddress(normalized) else {
@@ -190,8 +171,6 @@ enum MoneroBalanceService {
         throw lastError
     }
 
-    /// Handles "fetchRecentHistoryWithDiagnostics" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchRecentHistoryWithDiagnostics(for address: String, limit: Int = 80) async -> (snapshots: [MoneroHistorySnapshot], diagnostics: MoneroHistoryDiagnostics) {
         let normalized = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidAddress(normalized) else {
@@ -288,8 +267,6 @@ enum MoneroBalanceService {
         )
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }

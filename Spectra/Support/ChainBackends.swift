@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Registry and capability metadata for chain backends/provider support in this app build.
-//
-// Responsibilities:
-// - Defines which chains/features are available for refresh and history flows.
-// - Helps centralize backend policy and avoid scattered feature toggles.
-
 import Foundation
 
 enum ChainIntegrationState: String {
@@ -834,26 +827,18 @@ enum ChainBackendRegistry {
         AppChainDescriptor(id: .polkadot, chainName: polkadotChainName, title: "Polkadot Diagnostics", shortLabel: "DOT", nativeSymbol: "DOT", searchKeywords: ["Polkadot", "DOT"], supportsDiagnostics: true, supportsEndpointCatalog: true, isEVM: false)
     ]
 
-    /// Handles "backend" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func backend(for chainName: String) -> (any ChainWalletBackend)? {
         allBackends.first { $0.chainName == chainName }
     }
 
-    /// Handles "supportsBalanceRefresh" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func supportsBalanceRefresh(for chainName: String) -> Bool {
         backend(for: chainName)?.supportsBalanceRefresh ?? false
     }
 
-    /// Handles "supportsReceiveAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func supportsReceiveAddress(for chainName: String) -> Bool {
         backend(for: chainName)?.supportsReceiveAddress ?? false
     }
 
-    /// Handles "supportsSend" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func supportsSend(for chainName: String) -> Bool {
         backend(for: chainName)?.supportsSend ?? false
     }

@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Donation feature UI for displaying contribution options and related information.
-//
-// Responsibilities:
-// - Presents donation destinations and action controls.
-// - Integrates with shared app styling/state where required.
-
 import Foundation
 import SwiftUI
 import CoreImage
@@ -61,8 +54,6 @@ struct DonationsView: View {
     }
     
     @ViewBuilder
-    /// Handles "donationRow" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private func donationRow(chainName: String, title: String, address: String) -> some View {
         let badge = Coin.nativeChainBadge(chainName: chainName) ?? (assetIdentifier: nil, mark: String(title.prefix(2)).uppercased(), color: Color.mint)
 

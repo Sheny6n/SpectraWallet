@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// TON wallet engine for local key derivation, transfer construction, signing, and submission.
-//
-// Responsibilities:
-// - Derives TON wallet addresses from seed material and private keys.
-// - Builds, signs, broadcasts, and verifies TON send transactions.
-
 import Foundation
 import SwiftProtobuf
 import WalletCore

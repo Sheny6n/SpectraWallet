@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Primary on-chain history interface for listing normalized transactions and load-more behavior.
-//
-// Responsibilities:
-// - Renders filtered/sorted transaction history state from WalletStore.
-// - Handles refresh/pagination and navigation to transaction details.
-
 import SwiftUI
 import Combine
 
@@ -412,8 +405,6 @@ struct HistoryView: View {
     }
     
     @ViewBuilder
-    /// Handles "transactionRow" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private func transactionRow(_ transaction: TransactionRecord) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {

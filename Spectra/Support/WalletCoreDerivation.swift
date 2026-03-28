@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// WalletCore-based derivation helpers for deterministic chain address/public key generation.
-//
-// Responsibilities:
-// - Encapsulates derivation path usage and key conversion logic.
-// - Provides a single trusted derivation surface used by engines/store.
-
 import Foundation
 import WalletCore
 
@@ -14,8 +7,6 @@ enum WalletDerivationBranch: Int {
 }
 
 enum WalletDerivationPath {
-    /// Handles "bip44" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func bip44(
         slip44CoinType: UInt32,
         account: UInt32 = 0,
@@ -25,8 +16,6 @@ enum WalletDerivationPath {
         "m/44'/\(slip44CoinType)'/\(account)'/\(branch.rawValue)/\(index)"
     }
 
-    /// Handles "dogecoin" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func dogecoin(
         account: UInt32 = 0,
         branch: WalletDerivationBranch = .external,
@@ -35,20 +24,14 @@ enum WalletDerivationPath {
         bip44(slip44CoinType: 3, account: account, branch: branch, index: index)
     }
 
-    /// Handles "dogecoinExternalPrefix" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func dogecoinExternalPrefix(account: UInt32 = 0) -> String {
         "m/44'/3'/\(account)'/\(WalletDerivationBranch.external.rawValue)/"
     }
 
-    /// Handles "dogecoinChangePrefix" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func dogecoinChangePrefix(account: UInt32 = 0) -> String {
         "m/44'/3'/\(account)'/\(WalletDerivationBranch.change.rawValue)/"
     }
 
-    /// Handles "litecoin" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func litecoin(
         account: UInt32 = 0,
         branch: WalletDerivationBranch = .external,
@@ -243,8 +226,6 @@ struct WalletCoreDerivationMaterial {
 }
 
 enum WalletCoreDerivation {
-    /// Handles "normalizedMnemonic" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func normalizedMnemonic(_ seedPhrase: String) -> String {
         seedPhrase
             .lowercased()
@@ -289,8 +270,6 @@ enum WalletCoreDerivation {
         return Data(bytes)
     }
 
-    /// Handles "derivationPath" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func derivationPath(
         for coin: WalletCoreSupportedCoin,
         account: UInt32,
@@ -309,8 +288,6 @@ enum WalletCoreDerivation {
         derivationPath(for: coin, account: 0, branch: .external, index: 0)
     }
 
-    /// Handles "deriveMaterial" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func deriveMaterial(
         seedPhrase: String,
         coin: WalletCoreSupportedCoin,

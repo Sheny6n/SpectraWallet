@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Internet Computer balance and history service backed by Rosetta-style APIs.
-//
-// Responsibilities:
-// - Fetches ICP account balances and recent transfer history.
-// - Normalizes Rosetta responses into app-facing snapshots and diagnostics.
-
 import Foundation
 
 enum ICPBalanceServiceError: LocalizedError {

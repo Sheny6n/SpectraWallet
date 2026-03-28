@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Litecoin balance/history service for provider calls and response normalization.
-//
-// Responsibilities:
-// - Fetches LTC chain data for wallet refresh operations.
-// - Supports diagnostics and robust provider error handling.
-
 import Foundation
 
 struct LitecoinAddressResponse: Decodable {
@@ -223,8 +216,6 @@ enum LitecoinBalanceService {
         }
     }
 
-    /// Handles "fetchBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalance(for address: String) async throws -> Double {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty else {
@@ -242,8 +233,6 @@ enum LitecoinBalanceService {
         }
     }
 
-    /// Handles "hasTransactionHistory" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func hasTransactionHistory(for address: String) async throws -> Bool {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty else {
@@ -261,8 +250,6 @@ enum LitecoinBalanceService {
         }
     }
 
-    /// Handles "fetchTransactionStatus" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchTransactionStatus(txid: String) async throws -> LitecoinTransactionStatus {
         let trimmedTXID = txid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTXID.isEmpty else {
@@ -280,8 +267,6 @@ enum LitecoinBalanceService {
         }
     }
 
-    /// Handles "fetchTransactionPage" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchTransactionPage(
         for address: String,
         limit: Int = 25,
@@ -333,8 +318,6 @@ enum LitecoinBalanceService {
         }
     }
 
-    /// Handles "mapAddressTransactions" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func mapAddressTransactions(
         _ transactions: [LitecoinAddressTransaction],
         normalizedAddress: String,
@@ -389,14 +372,10 @@ enum LitecoinBalanceService {
         }
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
     }
 
-    /// Handles "fetchBalanceViaLitecoinspace" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBalanceViaLitecoinspace(_ address: String) async throws -> Double {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(litecoinspaceBaseURL)/address/\(encodedAddress)") else {
@@ -413,8 +392,6 @@ enum LitecoinBalanceService {
         return Double(litoshis) / 100_000_000
     }
 
-    /// Handles "fetchBalanceViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBalanceViaBlockcypher(_ address: String) async throws -> Double {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(blockcypherBaseURL)/addrs/\(encodedAddress)/balance") else {
@@ -429,8 +406,6 @@ enum LitecoinBalanceService {
         return Double(litoshis) / 100_000_000
     }
 
-    /// Handles "fetchBalanceViaSochain" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBalanceViaSochain(_ address: String) async throws -> Double {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(sochainBaseURL)/get_address_balance/LTC/\(encodedAddress)") else {
@@ -448,8 +423,6 @@ enum LitecoinBalanceService {
         return max(0, balance)
     }
 
-    /// Handles "hasHistoryViaLitecoinspace" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func hasHistoryViaLitecoinspace(_ address: String) async throws -> Bool {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(litecoinspaceBaseURL)/address/\(encodedAddress)") else {
@@ -463,8 +436,6 @@ enum LitecoinBalanceService {
         return decoded.chainStats.txCount > 0 || decoded.mempoolStats.txCount > 0
     }
 
-    /// Handles "hasHistoryViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func hasHistoryViaBlockcypher(_ address: String) async throws -> Bool {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(blockcypherBaseURL)/addrs/\(encodedAddress)?limit=1") else {
@@ -478,8 +449,6 @@ enum LitecoinBalanceService {
         return (decoded.finalNTx ?? decoded.nTx ?? 0) > 0
     }
 
-    /// Handles "hasHistoryViaSochain" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func hasHistoryViaSochain(_ address: String) async throws -> Bool {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(sochainBaseURL)/get_tx_received/LTC/\(encodedAddress)") else {
@@ -493,8 +462,6 @@ enum LitecoinBalanceService {
         return !(decoded.data?.txs ?? []).isEmpty
     }
 
-    /// Handles "fetchStatusViaLitecoinspace" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchStatusViaLitecoinspace(_ txid: String) async throws -> LitecoinTransactionStatus {
         guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(litecoinspaceBaseURL)/tx/\(encodedTXID)/status") else {
@@ -507,8 +474,6 @@ enum LitecoinBalanceService {
         return try JSONDecoder().decode(LitecoinTransactionStatus.self, from: data)
     }
 
-    /// Handles "fetchStatusViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchStatusViaBlockcypher(_ txid: String) async throws -> LitecoinTransactionStatus {
         guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(blockcypherBaseURL)/txs/\(encodedTXID)") else {
@@ -525,8 +490,6 @@ enum LitecoinBalanceService {
         )
     }
 
-    /// Handles "fetchStatusViaSochain" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchStatusViaSochain(_ txid: String) async throws -> LitecoinTransactionStatus {
         guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(sochainBaseURL)/get_tx/LTC/\(encodedTXID)") else {
@@ -544,8 +507,6 @@ enum LitecoinBalanceService {
         )
     }
 
-    /// Handles "fetchTransactionPageViaLitecoinspace" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchTransactionPageViaLitecoinspace(
         address: String,
         limit: Int,
@@ -578,8 +539,6 @@ enum LitecoinBalanceService {
         )
     }
 
-    /// Handles "fetchTransactionPageViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchTransactionPageViaBlockcypher(
         address: String,
         limit: Int,
@@ -605,8 +564,6 @@ enum LitecoinBalanceService {
         )
     }
 
-    /// Handles "mapBlockCypherTransactions" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func mapBlockCypherTransactions(
         _ transactions: [BlockCypherAddressTransactionsResponse.Transaction],
         normalizedAddress: String,

@@ -1,17 +1,34 @@
 import Foundation
 
 private struct WalletChainRefreshDescriptor {
-    let chainName: String
+    let chainID: WalletChainID
     let executeRefresh: (WalletStore, Bool) async -> Void
     let executeBalancesOnly: (WalletStore) async -> Void
     let executeHistoryOnly: ((WalletStore) async -> Void)?
+
+    var chainName: String { chainID.displayName }
 }
 
 extension WalletStore {
+    private var lastHistoryRefreshAtByChainID: [WalletChainID: Date] {
+        get {
+            Dictionary(
+                uniqueKeysWithValues: lastHistoryRefreshAtByChain.compactMap { key, value in
+                    WalletChainID(key).map { ($0, value) }
+                }
+            )
+        }
+        set {
+            lastHistoryRefreshAtByChain = Dictionary(
+                uniqueKeysWithValues: newValue.map { ($0.key.displayName, $0.value) }
+            )
+        }
+    }
+
     private var plannedChainRefreshDescriptors: [WalletChainRefreshDescriptor] {
         [
             WalletChainRefreshDescriptor(
-                chainName: "Bitcoin",
+                chainID: WalletChainID("Bitcoin")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshBitcoinBalances()
                     if refreshHistory {
@@ -25,7 +42,7 @@ extension WalletStore {
                 executeHistoryOnly: nil
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Bitcoin Cash",
+                chainID: WalletChainID("Bitcoin Cash")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshBitcoinCashBalances()
                     if refreshHistory {
@@ -39,7 +56,7 @@ extension WalletStore {
                 executeHistoryOnly: nil
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Bitcoin SV",
+                chainID: WalletChainID("Bitcoin SV")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshBitcoinSVBalances()
                     if refreshHistory {
@@ -53,7 +70,7 @@ extension WalletStore {
                 executeHistoryOnly: nil
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Litecoin",
+                chainID: WalletChainID("Litecoin")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshLitecoinBalances()
                     if refreshHistory {
@@ -67,7 +84,7 @@ extension WalletStore {
                 executeHistoryOnly: nil
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Dogecoin",
+                chainID: WalletChainID("Dogecoin")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshDogecoinAddressDiscovery()
                     await store.refreshDogecoinReceiveReservationState()
@@ -83,7 +100,7 @@ extension WalletStore {
                 executeHistoryOnly: nil
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Ethereum",
+                chainID: WalletChainID("Ethereum")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshEthereumBalances()
                     if refreshHistory {
@@ -99,7 +116,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Arbitrum",
+                chainID: WalletChainID("Arbitrum")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshArbitrumBalances()
                     if refreshHistory {
@@ -115,7 +132,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Optimism",
+                chainID: WalletChainID("Optimism")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshOptimismBalances()
                     if refreshHistory {
@@ -131,7 +148,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Ethereum Classic",
+                chainID: WalletChainID("Ethereum Classic")!,
                 executeRefresh: { store, _ in
                     await store.refreshETCBalances()
                     await store.refreshPendingETCTransactions()
@@ -142,7 +159,7 @@ extension WalletStore {
                 executeHistoryOnly: nil
             ),
             WalletChainRefreshDescriptor(
-                chainName: "BNB Chain",
+                chainID: WalletChainID("BNB Chain")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshBNBBalances()
                     if refreshHistory {
@@ -158,7 +175,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Avalanche",
+                chainID: WalletChainID("Avalanche")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshAvalancheBalances()
                     if refreshHistory {
@@ -172,7 +189,7 @@ extension WalletStore {
                 executeHistoryOnly: nil
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Hyperliquid",
+                chainID: WalletChainID("Hyperliquid")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshHyperliquidBalances()
                     if refreshHistory {
@@ -188,7 +205,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Tron",
+                chainID: WalletChainID("Tron")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshTronBalances()
                     if refreshHistory {
@@ -203,7 +220,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Solana",
+                chainID: WalletChainID("Solana")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshSolanaBalances()
                     if refreshHistory {
@@ -218,7 +235,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Cardano",
+                chainID: WalletChainID("Cardano")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshCardanoBalances()
                     if refreshHistory {
@@ -233,7 +250,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "XRP Ledger",
+                chainID: WalletChainID("XRP Ledger")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshXRPBalances()
                     if refreshHistory {
@@ -248,7 +265,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Stellar",
+                chainID: WalletChainID("Stellar")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshStellarBalances()
                     if refreshHistory {
@@ -263,7 +280,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Monero",
+                chainID: WalletChainID("Monero")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshMoneroBalances()
                     if refreshHistory {
@@ -278,7 +295,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Sui",
+                chainID: WalletChainID("Sui")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshSuiBalances()
                     if refreshHistory {
@@ -293,7 +310,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "NEAR",
+                chainID: WalletChainID("NEAR")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshNearBalances()
                     if refreshHistory {
@@ -308,7 +325,7 @@ extension WalletStore {
                 }
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Polkadot",
+                chainID: WalletChainID("Polkadot")!,
                 executeRefresh: { store, refreshHistory in
                     await store.refreshPolkadotBalances()
                     if refreshHistory {
@@ -326,7 +343,7 @@ extension WalletStore {
     private var importedWalletRefreshDescriptors: [WalletChainRefreshDescriptor] {
         plannedChainRefreshDescriptors + [
             WalletChainRefreshDescriptor(
-                chainName: "Aptos",
+                chainID: WalletChainID("Aptos")!,
                 executeRefresh: { store, _ in
                     await store.refreshAptosBalances()
                 },
@@ -336,7 +353,7 @@ extension WalletStore {
                 executeHistoryOnly: nil
             ),
             WalletChainRefreshDescriptor(
-                chainName: "Internet Computer",
+                chainID: WalletChainID("Internet Computer")!,
                 executeRefresh: { store, _ in
                     await store.refreshICPBalances()
                 },
@@ -349,13 +366,13 @@ extension WalletStore {
     }
 
     func runPlannedChainRefreshes(
-        using refreshPlanByChain: [String: Bool],
+        using refreshPlanByChain: [WalletChainID: Bool],
         timeout: Double
     ) async {
         for descriptor in plannedChainRefreshDescriptors {
-            guard let refreshHistory = refreshPlanByChain[descriptor.chainName] else { continue }
+            guard let refreshHistory = refreshPlanByChain[descriptor.chainID] else { continue }
             await runTimedChainRefresh(
-                descriptor.chainName,
+                descriptor.chainID,
                 refreshHistory: refreshHistory,
                 timeout: timeout
             ) {
@@ -371,21 +388,22 @@ extension WalletStore {
     }
 
     func runPendingTransactionHistoryRefreshes(
-        for trackedChains: Set<String>,
+        for trackedChains: Set<WalletChainID>,
         interval: TimeInterval
     ) async {
         let plannedHistoryChains = Set(
             WalletRefreshPlanner.historyPlans(
                 for: trackedChains,
+                now: Date(),
                 interval: interval,
-                lastHistoryRefreshAtByChain: lastHistoryRefreshAtByChain
+                lastHistoryRefreshAtByChainID: lastHistoryRefreshAtByChainID
             )
         )
         guard !plannedHistoryChains.isEmpty else { return }
 
         await withTaskGroup(of: Void.self) { group in
             for descriptor in plannedChainRefreshDescriptors {
-                guard plannedHistoryChains.contains(descriptor.chainName),
+                guard plannedHistoryChains.contains(descriptor.chainID),
                       let executeHistoryOnly = descriptor.executeHistoryOnly else {
                     continue
                 }
@@ -398,18 +416,19 @@ extension WalletStore {
     }
 
     private func runTimedChainRefresh(
-        _ chainName: String,
+        _ chainID: WalletChainID,
         refreshHistory: Bool,
         timeout: Double,
         operation: @escaping () async -> Void
     ) async {
+        let chainName = chainID.displayName
         do {
             try await withTimeout(seconds: timeout) {
                 await operation()
                 return ()
             }
             if refreshHistory {
-                lastHistoryRefreshAtByChain[chainName] = Date()
+                lastHistoryRefreshAtByChainID[chainID] = Date()
             }
         } catch {
             markChainDegraded(chainName, detail: "\(chainName) refresh timed out. Using cached balances and history.")

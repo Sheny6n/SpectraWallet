@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Dogecoin network service handling balances/history/status checks across provider backends.
-//
-// Responsibilities:
-// - Implements DOGE provider querying, fallback behavior, and parsing.
-// - Exposes stable async APIs used by refresh and diagnostics flows.
-
 import Foundation
 import CryptoKit
 
@@ -219,8 +212,6 @@ enum DogecoinBalanceService {
         let sourceUsed: String
     }
 
-    /// Handles "isValidDogecoinAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidDogecoinAddress(_ address: String, allowTestnet: Bool = false) -> Bool {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (25 ... 40).contains(trimmedAddress.count) else {
@@ -245,8 +236,6 @@ enum DogecoinBalanceService {
         return version == 0x1e || version == 0x16
     }
 
-    /// Handles "fetchBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalance(for address: String) async throws -> Double {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidDogecoinAddress(trimmedAddress) else {
@@ -268,8 +257,6 @@ enum DogecoinBalanceService {
         }
     }
 
-    /// Handles "fetchBalanceViaDogechain" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBalanceViaDogechain(for address: String) async throws -> Double {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = dogechainURL(path: "/address/balance/\(encodedAddress)") else {
@@ -287,8 +274,6 @@ enum DogecoinBalanceService {
         return max(0, balance)
     }
 
-    /// Handles "fetchBalanceViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBalanceViaBlockcypher(for address: String) async throws -> Double {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = blockcypherURL(path: "/addrs/\(encodedAddress)/balance") else {
@@ -303,14 +288,10 @@ enum DogecoinBalanceService {
         return Double(balanceKoinu) / 100_000_000
     }
 
-    /// Handles "fetchRecentTransactions" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchRecentTransactions(for address: String, limit: Int = 15) async throws -> [AddressTransactionSnapshot] {
         try await fetchTransactionPage(for: address, limit: limit, cursor: nil).snapshots
     }
 
-    /// Handles "fetchTransactionPage" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchTransactionPage(for address: String, limit: Int = 15, cursor: String? = nil) async throws -> DogecoinHistoryPage {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidDogecoinAddress(trimmedAddress) else {
@@ -361,8 +342,6 @@ enum DogecoinBalanceService {
         return DogecoinHistoryPage(snapshots: paged, nextCursor: nextCursor, sourceUsed: "dogecoin.providers")
     }
 
-    /// Handles "fetchRecentTransactionsViaBlockchair" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchRecentTransactionsViaBlockchair(for address: String, limit: Int) async throws -> [AddressTransactionSnapshot] {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             throw URLError(.badURL)
@@ -421,8 +400,6 @@ enum DogecoinBalanceService {
         }
     }
 
-    /// Handles "fetchRecentTransactionsViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchRecentTransactionsViaBlockcypher(for address: String, limit: Int) async throws -> [AddressTransactionSnapshot] {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let addressURL = blockcypherURL(path: "/addrs/\(encodedAddress)?limit=\(limit)&unspentOnly=false&includeScript=false") else {
@@ -474,8 +451,6 @@ enum DogecoinBalanceService {
         return snapshots
     }
 
-    /// Handles "mapTransactionSnapshot" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func mapTransactionSnapshot(
         txHash: String,
         timestamp: Date?,
@@ -528,15 +503,11 @@ enum DogecoinBalanceService {
     }
 
     #if DEBUG
-    /// Handles "reconcileSnapshotsForTesting" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func reconcileSnapshotsForTesting(_ providerSnapshots: [[AddressTransactionSnapshot]]) -> [AddressTransactionSnapshot] {
         reconcileTransactionSnapshots(providerSnapshots)
     }
     #endif
 
-    /// Handles "reconcileTransactionSnapshots" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func reconcileTransactionSnapshots(_ providerSnapshots: [[AddressTransactionSnapshot]]) -> [AddressTransactionSnapshot] {
         var groupedByHash: [String: [AddressTransactionSnapshot]] = [:]
         for snapshots in providerSnapshots {
@@ -587,8 +558,6 @@ enum DogecoinBalanceService {
         }
     }
 
-    /// Handles "fetchTransactionStatus" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchTransactionStatus(txid: String) async throws -> DogecoinTransactionStatus {
         var capturedError: Error?
         let statusCandidates = enabledStatusProviders().map { provider -> ProviderEndpoint in
@@ -625,8 +594,6 @@ enum DogecoinBalanceService {
         throw URLError(.cannotLoadFromNetwork)
     }
 
-    /// Handles "providerReliabilitySnapshot" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func providerReliabilitySnapshot() -> [ProviderReliability] {
         let counters = loadProviderReliabilityCounters()
         let now = Date().timeIntervalSince1970
@@ -668,8 +635,6 @@ enum DogecoinBalanceService {
         }
     }
 
-    /// Handles "resetProviderReliability" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func resetProviderReliability() {
         providerReliabilityLock.lock()
         defer { providerReliabilityLock.unlock() }
@@ -698,8 +663,6 @@ enum DogecoinBalanceService {
         throw URLError(.cannotLoadFromNetwork)
     }
 
-    /// Handles "configureStatusProviders" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func configureStatusProviders(useBlockchair: Bool, useBlockCypher: Bool) {
         statusProviderSelectionLock.lock()
         defer { statusProviderSelectionLock.unlock() }
@@ -714,8 +677,6 @@ enum DogecoinBalanceService {
         UserDefaults.standard.set(enabledProviderIDs, forKey: statusProviderSelectionDefaultsKey)
     }
 
-    /// Handles "resetStatusProviderSelection" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func resetStatusProviderSelection() {
         statusProviderSelectionLock.lock()
         defer { statusProviderSelectionLock.unlock() }
@@ -730,8 +691,6 @@ enum DogecoinBalanceService {
         ]
     }
 
-    /// Handles "checkProviderHealth" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func checkProviderHealth() async -> [ProviderHealth] {
         let checks: [(String, URL?, String)] = [
             ("blockchair", blockchairURL(path: "/stats"), currentBlockchairEndpoint()),
@@ -787,8 +746,6 @@ enum DogecoinBalanceService {
         return results
     }
 
-    /// Handles "enabledStatusProviders" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func enabledStatusProviders() -> [StatusProvider] {
         statusProviderSelectionLock.lock()
         defer { statusProviderSelectionLock.unlock() }
@@ -800,8 +757,6 @@ enum DogecoinBalanceService {
         return providers.isEmpty ? StatusProvider.allCases : providers
     }
 
-    /// Handles "orderedProviders" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func orderedProviders(
         for operation: ProviderOperation,
         candidates: [ProviderEndpoint]
@@ -830,8 +785,6 @@ enum DogecoinBalanceService {
         }
     }
 
-    /// Handles "providerScore" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func providerScore(_ counter: ProviderReliabilityCounter?) -> Double {
         guard let counter else { return 1_000 }
         let attempts = max(1, counter.successCount + counter.failureCount)
@@ -840,8 +793,6 @@ enum DogecoinBalanceService {
         return successRate - failurePenalty
     }
 
-    /// Handles "providerReliabilityKey" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func providerReliabilityKey(
         operation: ProviderOperation,
         provider: ProviderEndpoint
@@ -849,8 +800,6 @@ enum DogecoinBalanceService {
         "\(operation.rawValue):\(provider.rawValue)"
     }
 
-    /// Handles "loadProviderReliabilityCounters" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func loadProviderReliabilityCounters() -> [String: ProviderReliabilityCounter] {
         providerReliabilityLock.lock()
         defer { providerReliabilityLock.unlock() }
@@ -861,8 +810,6 @@ enum DogecoinBalanceService {
         return decoded
     }
 
-    /// Handles "saveProviderReliabilityCounters" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func saveProviderReliabilityCounters(_ counters: [String: ProviderReliabilityCounter]) {
         providerReliabilityLock.lock()
         defer { providerReliabilityLock.unlock() }
@@ -870,8 +817,6 @@ enum DogecoinBalanceService {
         UserDefaults.standard.set(data, forKey: providerReliabilityDefaultsKey)
     }
 
-    /// Handles "recordProviderAttempt" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func recordProviderAttempt(
         operation: ProviderOperation,
         provider: ProviderEndpoint,
@@ -913,44 +858,30 @@ enum DogecoinBalanceService {
         saveProviderReliabilityCounters(counters)
     }
 
-    /// Handles "blockchairURL" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func blockchairURL(path: String) -> URL? {
         URL(string: blockchairAPIBaseURLString + path)
     }
 
-    /// Handles "blockcypherURL" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func blockcypherURL(path: String) -> URL? {
         URL(string: blockcypherAPIBaseURLString + path)
     }
 
-    /// Handles "dogechainURL" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func dogechainURL(path: String) -> URL? {
         URL(string: dogechainAPIBaseURLString + path)
     }
 
-    /// Handles "currentBlockchairEndpoint" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func currentBlockchairEndpoint() -> String {
         return blockchairAPIBaseURLString
     }
 
-    /// Handles "currentBlockcypherEndpoint" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func currentBlockcypherEndpoint() -> String {
         return blockcypherAPIBaseURLString
     }
 
-    /// Handles "currentDogechainEndpoint" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func currentDogechainEndpoint() -> String {
         return dogechainAPIBaseURLString
     }
 
-    /// Handles "fetchTransactionStatusViaBlockchair" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchTransactionStatusViaBlockchair(txid: String) async throws -> DogecoinTransactionStatus {
         let trimmedTXID = txid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTXID.isEmpty,
@@ -995,8 +926,6 @@ enum DogecoinBalanceService {
         )
     }
 
-    /// Handles "fetchTransactionStatusViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchTransactionStatusViaBlockcypher(txid: String) async throws -> DogecoinTransactionStatus {
         let trimmedTXID = txid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTXID.isEmpty,
@@ -1028,8 +957,6 @@ enum DogecoinBalanceService {
         )
     }
 
-    /// Handles "parseBlockchairTimestamp" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func parseBlockchairTimestamp(_ timestamp: String?) -> Date? {
         guard let timestamp else { return nil }
         if let unix = TimeInterval(timestamp) {
@@ -1051,16 +978,12 @@ enum DogecoinBalanceService {
         return blockchairTimestampFormatter.date(from: normalized)
     }
 
-    /// Handles "parseBlockcypherTimestamp" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func parseBlockcypherTimestamp(_ timestamp: String?) -> Date? {
         guard let timestamp else { return nil }
         let formatter = ISO8601DateFormatter()
         return formatter.date(from: timestamp)
     }
 
-    /// Handles "fetchDogecoinChainTipHeight" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchDogecoinChainTipHeight() async throws -> Int {
         guard let url = blockcypherURL(path: "") else {
             throw URLError(.badURL)
@@ -1076,20 +999,14 @@ enum DogecoinBalanceService {
         return height
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
 
-    /// Handles "base58Decode" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func base58Decode(_ string: String) -> Data? {
         let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
         var alphabetMap: [Character: Int] = [:]

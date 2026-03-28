@@ -1,16 +1,7 @@
-// MARK: - File Overview
-// Cross-chain address validation utilities used by import/send/address-book workflows.
-//
-// Responsibilities:
-// - Implements format/prefix/rule checks for supported chain addresses.
-// - Prevents invalid user input from reaching network/signing layers.
-
 import Foundation
 import WalletCore
 
 enum AddressValidation {
-    /// Handles "isValidBitcoinAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidBitcoinAddress(_ address: String, networkMode: BitcoinNetworkMode) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -56,8 +47,6 @@ enum AddressValidation {
             || lowered.hasPrefix("bc1")
     }
 
-    /// Handles "isValidLitecoinAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidLitecoinAddress(_ address: String) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -74,8 +63,6 @@ enum AddressValidation {
             || trimmed.hasPrefix("3")
     }
 
-    /// Handles "isValidDogecoinAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidDogecoinAddress(_ address: String, allowTestnet: Bool = false) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -87,8 +74,6 @@ enum AddressValidation {
         return DogecoinBalanceService.isValidDogecoinAddress(trimmed, allowTestnet: allowTestnet)
     }
 
-    /// Handles "isValidEthereumAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidEthereumAddress(_ address: String) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -100,8 +85,6 @@ enum AddressValidation {
         return EthereumWalletEngine.isValidAddress(trimmed)
     }
 
-    /// Handles "isValidTronAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidTronAddress(_ address: String) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -116,8 +99,6 @@ enum AddressValidation {
             && trimmed.allSatisfy { allowed.contains($0) }
     }
 
-    /// Handles "isValidSolanaAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidSolanaAddress(_ address: String) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -145,8 +126,6 @@ enum AddressValidation {
             && trimmed.allSatisfy { allowed.contains($0) }
     }
 
-    /// Handles "isValidXRPAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidXRPAddress(_ address: String) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -161,8 +140,6 @@ enum AddressValidation {
             && trimmed.allSatisfy { allowed.contains($0) }
     }
 
-    /// Handles "isValidSuiAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidSuiAddress(_ address: String) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -294,8 +271,6 @@ enum AddressValidation {
             && trimmed.allSatisfy { allowed.contains($0) }
     }
 
-    /// Handles "isValidMoneroAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidMoneroAddress(_ address: String) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -313,8 +288,6 @@ enum AddressValidation {
         return trimmed.hasPrefix("4") || trimmed.hasPrefix("8")
     }
 
-    /// Handles "isValidCardanoAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidCardanoAddress(_ address: String) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }

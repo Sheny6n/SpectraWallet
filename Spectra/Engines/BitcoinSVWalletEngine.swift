@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Bitcoin SV transaction/signing engine built on WalletCore and Blockchair UTXO data.
-//
-// Responsibilities:
-// - Derives BSV addresses from seed material.
-// - Estimates and signs BSV transactions, then broadcasts them.
-
 import Foundation
 import WalletCore
 

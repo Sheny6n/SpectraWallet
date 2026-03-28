@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Chain self-test harnesses used to validate critical chain-specific assumptions in-app.
-//
-// Responsibilities:
-// - Runs deterministic checks for DOGE signing/serialization/provider behavior.
-// - Produces test output consumable by diagnostics surfaces.
-
 import Foundation
 
 struct ChainSelfTestResult {
@@ -14,8 +7,6 @@ struct ChainSelfTestResult {
 }
 
 enum DogecoinChainSelfTestSuite {
-    /// Handles "runAll" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func runAll() -> [ChainSelfTestResult] {
         [
             testAddressValidationMainnet(),
@@ -27,8 +18,6 @@ enum DogecoinChainSelfTestSuite {
         ]
     }
 
-    /// Handles "testAddressValidationMainnet" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testAddressValidationMainnet() -> ChainSelfTestResult {
         let validMainnet = "DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC"
         let passed = AddressValidation.isValidDogecoinAddress(validMainnet, allowTestnet: false)
@@ -40,8 +29,6 @@ enum DogecoinChainSelfTestSuite {
         )
     }
 
-    /// Handles "testAddressValidationRejectsGarbage" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testAddressValidationRejectsGarbage() -> ChainSelfTestResult {
         let passed = !AddressValidation.isValidDogecoinAddress("not_a_real_address", allowTestnet: true)
         return ChainSelfTestResult(
@@ -51,8 +38,6 @@ enum DogecoinChainSelfTestSuite {
         )
     }
 
-    /// Handles "testAddressValidationRejectsChecksumMutation" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testAddressValidationRejectsChecksumMutation() -> ChainSelfTestResult {
         let mutatedAddress = "DA7Q2K7f1k3wX6sVzP8fCBxNf31xHn3v7H"
         let passed = !AddressValidation.isValidDogecoinAddress(mutatedAddress, allowTestnet: true)
@@ -63,8 +48,6 @@ enum DogecoinChainSelfTestSuite {
         )
     }
 
-    /// Handles "testReconciliationConservativePendingOnConflict" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testReconciliationConservativePendingOnConflict() -> ChainSelfTestResult {
         #if DEBUG
         let now = Date()
@@ -103,8 +86,6 @@ enum DogecoinChainSelfTestSuite {
         #endif
     }
 
-    /// Handles "testReconciliationDeduplicatesConsistentSnapshots" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testReconciliationDeduplicatesConsistentSnapshots() -> ChainSelfTestResult {
         #if DEBUG
         let now = Date()
@@ -143,8 +124,6 @@ enum DogecoinChainSelfTestSuite {
         #endif
     }
 
-    /// Handles "testReconciliationUsesNewestTimestamp" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testReconciliationUsesNewestTimestamp() -> ChainSelfTestResult {
         #if DEBUG
         let now = Date()
@@ -185,8 +164,6 @@ enum DogecoinChainSelfTestSuite {
 }
 
 enum EthereumChainSelfTestSuite {
-    /// Handles "runAll" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func runAll() -> [ChainSelfTestResult] {
         [
             testAddressValidationAcceptsValidAddress(),
@@ -198,8 +175,6 @@ enum EthereumChainSelfTestSuite {
         ]
     }
 
-    /// Handles "testAddressValidationAcceptsValidAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testAddressValidationAcceptsValidAddress() -> ChainSelfTestResult {
         let address = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
         let passed = AddressValidation.isValidEthereumAddress(address)
@@ -210,8 +185,6 @@ enum EthereumChainSelfTestSuite {
         )
     }
 
-    /// Handles "testAddressValidationRejectsGarbage" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testAddressValidationRejectsGarbage() -> ChainSelfTestResult {
         let passed = !AddressValidation.isValidEthereumAddress("0x_not_valid")
         return ChainSelfTestResult(
@@ -221,8 +194,6 @@ enum EthereumChainSelfTestSuite {
         )
     }
 
-    /// Handles "testReceiveAddressNormalization" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testReceiveAddressNormalization() -> ChainSelfTestResult {
         let mixedCaseAddress = "0x52908400098527886E0F7030069857D2E4169EE7"
         let passed = (try? EthereumWalletEngine.receiveAddress(for: mixedCaseAddress)) == mixedCaseAddress.lowercased()
@@ -233,8 +204,6 @@ enum EthereumChainSelfTestSuite {
         )
     }
 
-    /// Handles "testSeedDerivationProducesValidAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testSeedDerivationProducesValidAddress() -> ChainSelfTestResult {
         let mnemonic = "test test test test test test test test test test test junk"
         guard let derivedAddress = try? EthereumWalletEngine.derivedAddress(for: mnemonic) else {
@@ -252,8 +221,6 @@ enum EthereumChainSelfTestSuite {
         )
     }
 
-    /// Handles "testTransferPaginationWindow" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testTransferPaginationWindow() -> ChainSelfTestResult {
         #if DEBUG
         let snapshots = sampleTransferSnapshots(count: 7)
@@ -275,8 +242,6 @@ enum EthereumChainSelfTestSuite {
         #endif
     }
 
-    /// Handles "testTransferPaginationOutOfRange" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func testTransferPaginationOutOfRange() -> ChainSelfTestResult {
         #if DEBUG
         let snapshots = sampleTransferSnapshots(count: 5)
@@ -296,8 +261,6 @@ enum EthereumChainSelfTestSuite {
         #endif
     }
 
-    /// Handles "sampleTransferSnapshots" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func sampleTransferSnapshots(count: Int) -> [EthereumTokenTransferSnapshot] {
         (0..<count).map { index in
             EthereumTokenTransferSnapshot(

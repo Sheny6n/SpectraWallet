@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Tron service for TRX/TRC20 balance and transaction data acquisition.
-//
-// Responsibilities:
-// - Interfaces with Tron APIs and adapts results for app transaction history.
-// - Provides error context for diagnostics and UI messaging.
-
 import Foundation
 
 enum TronBalanceServiceError: LocalizedError {
@@ -117,14 +110,10 @@ enum TronBalanceService {
         let address: String?
     }
 
-    /// Handles "normalizedAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func normalizedAddress(_ address: String) -> String {
         address.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Handles "normalizedTokenAmount" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func normalizedTokenAmount(_ raw: String?, decimals: Int) -> Double? {
         guard let raw else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -138,20 +127,14 @@ enum TronBalanceService {
         return value
     }
 
-    /// Handles "isValidAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidAddress(_ address: String) -> Bool {
         AddressValidation.isValidTronAddress(address)
     }
 
-    /// Handles "fetchBalances" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalances(for address: String) async throws -> (trxBalance: Double, tokenBalances: [TronTokenBalanceSnapshot]) {
         try await fetchBalances(for: address, trackedTokens: defaultTrackedTRC20Tokens)
     }
 
-    /// Handles "fetchBalances" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalances(
         for address: String,
         trackedTokens: [TrackedTRC20Token]
@@ -168,8 +151,6 @@ enum TronBalanceService {
         }
     }
 
-    /// Handles "fetchBalancesFromTronScan" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBalancesFromTronScan(
         for address: String,
         trackedTokens: [TrackedTRC20Token]
@@ -220,8 +201,6 @@ enum TronBalanceService {
         throw lastError
     }
 
-    /// Handles "fetchBalancesFromTronGrid" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBalancesFromTronGrid(
         for address: String,
         trackedTokens: [TrackedTRC20Token]
@@ -278,8 +257,6 @@ enum TronBalanceService {
         throw lastError
     }
 
-    /// Handles "fetchRecentHistoryWithDiagnostics" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchRecentHistoryWithDiagnostics(for address: String, limit: Int = 50) async -> (snapshots: [TronHistorySnapshot], diagnostics: TronHistoryDiagnostics) {
         let normalized = normalizedAddress(address)
         guard isValidAddress(normalized) else {
@@ -312,8 +289,6 @@ enum TronBalanceService {
         )
     }
 
-    /// Handles "fetchNativeTransfers" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchNativeTransfers(address: String, limit: Int) async -> (items: [TronHistorySnapshot], error: String?) {
         for base in tronGridAccountsBases {
             guard let url = URL(string: "\(base)/\(address)/transactions?limit=\(max(1, min(limit, 200)))&only_confirmed=false&order_by=block_timestamp,desc&visible=true") else {
@@ -394,14 +369,10 @@ enum TronBalanceService {
         )
     }
 
-    /// Handles "fetchUSDTTRC20Transfers" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchUSDTTRC20Transfers(address: String, limit: Int) async -> (items: [TronHistorySnapshot], error: String?) {
         await fetchUSDTTRC20TransfersFromTronGrid(address: address, limit: limit)
     }
 
-    /// Handles "fetchUSDTTRC20TransfersFromTronGrid" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchUSDTTRC20TransfersFromTronGrid(address: String, limit: Int) async -> (items: [TronHistorySnapshot], error: String?) {
         for base in tronGridAccountsBases {
             guard let url = URL(string: "\(base)/\(address)/transactions/trc20?limit=\(max(1, min(limit, 200)))&contract_address=\(usdtTronContract)") else {
@@ -449,8 +420,6 @@ enum TronBalanceService {
         return ([], TronBalanceServiceError.invalidResponse.localizedDescription)
     }
 
-    /// Handles "dedupeAndSort" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func dedupeAndSort(native: (items: [TronHistorySnapshot], error: String?), usdt: (items: [TronHistorySnapshot], error: String?)) -> [TronHistorySnapshot] {
         var map: [String: TronHistorySnapshot] = [:]
         for item in native.items + usdt.items {
@@ -466,8 +435,6 @@ enum TronBalanceService {
         return map.values.sorted { $0.createdAt > $1.createdAt }
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }

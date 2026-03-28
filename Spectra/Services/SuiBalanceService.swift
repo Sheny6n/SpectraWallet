@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Sui chain data service for balances/history queries used in refresh workflows.
-//
-// Responsibilities:
-// - Queries Sui RPC/provider data and maps it to app models.
-// - Supports health diagnostics and degraded-mode handling.
-
 import Foundation
 
 enum SuiBalanceServiceError: LocalizedError {
@@ -148,14 +141,10 @@ enum SuiBalanceService {
         }
     }
 
-    /// Handles "isValidAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidAddress(_ address: String) -> Bool {
         AddressValidation.isValidSuiAddress(address)
     }
 
-    /// Handles "fetchBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalance(for address: String) async throws -> Double {
         let normalized = normalizeAddress(address)
         guard isValidAddress(normalized) else {
@@ -245,8 +234,6 @@ enum SuiBalanceService {
         return SuiPortfolioSnapshot(nativeBalance: nativeBalance, tokenBalances: tokenBalances)
     }
 
-    /// Handles "fetchRecentHistoryWithDiagnostics" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchRecentHistoryWithDiagnostics(for address: String, limit: Int = 40) async -> (snapshots: [SuiHistorySnapshot], diagnostics: SuiHistoryDiagnostics) {
         let normalized = normalizeAddress(address)
         guard isValidAddress(normalized) else {
@@ -318,8 +305,6 @@ enum SuiBalanceService {
         )
     }
 
-    /// Handles "fetchTransactionBlocks" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchTransactionBlocks(address: String, filterKey: String, limit: Int) async throws -> [TransactionBlock] {
         let payload: [String: Any] = [
             "jsonrpc": "2.0",
@@ -344,8 +329,6 @@ enum SuiBalanceService {
         return response.data ?? []
     }
 
-    /// Handles "snapshotFromTransaction" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func snapshotFromTransaction(_ tx: TransactionBlock, ownerAddress: String) -> SuiHistorySnapshot? {
         guard let digest = tx.digest, !digest.isEmpty else { return nil }
 
@@ -399,8 +382,6 @@ enum SuiBalanceService {
         )
     }
 
-    /// Handles "normalizeAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func normalizeAddress(_ address: String) -> String {
         address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }

@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Bitcoin Cash transaction/signing engine built on WalletCore and Blockchair UTXO data.
-//
-// Responsibilities:
-// - Derives BCH addresses from seed material.
-// - Estimates and signs BCH transactions, then broadcasts them.
-
 import Foundation
 import WalletCore
 

@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Cardano network balance/history service abstraction used by WalletStore refresh logic.
-//
-// Responsibilities:
-// - Fetches ADA chain data from provider endpoints.
-// - Normalizes provider responses for app-level merge/application.
-
 import Foundation
 
 enum CardanoBalanceServiceError: LocalizedError {
@@ -50,8 +43,6 @@ enum CardanoBalanceService {
         case koiosHappyStaking
     }
 
-    /// Handles "baseURL" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func baseURL(for provider: Provider) -> String {
         switch provider {
         case .koiosV1:
@@ -70,14 +61,10 @@ enum CardanoBalanceService {
         }
     }
 
-    /// Handles "isValidAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidAddress(_ address: String) -> Bool {
         AddressValidation.isValidCardanoAddress(address)
     }
 
-    /// Handles "fetchBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalance(for address: String) async throws -> Double {
         let normalized = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidAddress(normalized) else {
@@ -101,8 +88,6 @@ enum CardanoBalanceService {
         }
     }
 
-    /// Handles "fetchRecentHistoryWithDiagnostics" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchRecentHistoryWithDiagnostics(for address: String, limit: Int = 80) async -> (snapshots: [CardanoHistorySnapshot], diagnostics: CardanoHistoryDiagnostics) {
         let normalized = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidAddress(normalized) else {
@@ -201,14 +186,10 @@ enum CardanoBalanceService {
         )
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
 
-    /// Handles "fetchAddressInfoRows" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchAddressInfoRows(for normalizedAddress: String, baseURL: String) async throws -> [[String: Any]] {
         guard let postURL = URL(string: "\(baseURL)/address_info") else {
             throw CardanoBalanceServiceError.invalidResponse
@@ -570,8 +551,6 @@ enum CardanoBalanceService {
         return encodeBech32(hrp: hrp, payload: rewardData)
     }
 
-    /// Handles "parseLovelaceValue" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     nonisolated private static func parseLovelaceValue(_ raw: Any?) -> Double? {
         if let text = raw as? String {
             return Double(text)

@@ -23550,6 +23550,236 @@
           }
         }
       }
+    },
+    "%@ Degraded Mode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ Degraded Mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 降级模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 降級模式"
+          }
+        }
+      }
+    },
+    "%@ history loaded with partial provider failures." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ history loaded with partial provider failures."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 历史记录已加载，但部分提供方失败。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 歷史記錄已載入，但部分提供方失敗。"
+          }
+        }
+      }
+    },
+    "%@ history refresh failed. Using cached history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ history refresh failed. Using cached history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 历史记录刷新失败。正在使用缓存历史记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 歷史記錄刷新失敗。正在使用快取歷史記錄。"
+          }
+        }
+      }
+    },
+    "%@ providers are partially reachable. Showing the latest available balances." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ providers are partially reachable. Showing the latest available balances."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方部分可达。正在显示最新可用余额。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方部分可達。正在顯示最新可用餘額。"
+          }
+        }
+      }
+    },
+    "%@ providers are partially reachable. Some balances are estimated from confirmed on-chain history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ providers are partially reachable. Some balances are estimated from confirmed on-chain history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方部分可达。部分余额根据已确认链上历史估算。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方部分可達。部分餘額根據已確認鏈上歷史估算。"
+          }
+        }
+      }
+    },
+    "%@ providers are unavailable. Using balance estimated from confirmed on-chain history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ providers are unavailable. Using balance estimated from confirmed on-chain history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方不可用。正在使用根据已确认链上历史估算的余额。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方不可用。正在使用根據已確認鏈上歷史估算的餘額。"
+          }
+        }
+      }
+    },
+    "%@ providers are unavailable. Using cached balances and history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ providers are unavailable. Using cached balances and history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方不可用。正在使用缓存余额和历史记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方不可用。正在使用快取餘額與歷史記錄。"
+          }
+        }
+      }
+    },
+    "%@ refresh timed out. Using cached balances and history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ refresh timed out. Using cached balances and history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 刷新超时。正在使用缓存余额和历史记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 刷新逾時。正在使用快取餘額與歷史記錄。"
+          }
+        }
+      }
+    },
+    "Fiat Rates Degraded Mode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fiat Rates Degraded Mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "法币汇率降级模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "法幣匯率降級模式"
+          }
+        }
+      }
+    },
+    "Pricing Notice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pricing Notice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价格通知"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "價格通知"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

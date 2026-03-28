@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Dogecoin engine implementing transaction creation, UTXO handling, broadcasting strategy hooks, and chain-specific signing behavior.
-//
-// Responsibilities:
-// - Builds/signs DOGE transactions with chain policy and fee controls.
-// - Integrates with provider selection and operational telemetry paths.
-
 import Foundation
 import CryptoKit
 import WalletCore
@@ -209,8 +202,6 @@ struct DogecoinWalletEngine {
         var id: String { providerID }
     }
 
-    /// Dogecoin engine operation: Broadcast provider reliability snapshot.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func broadcastProviderReliabilitySnapshot() -> [BroadcastProviderReliability] {
         let counters = loadBroadcastReliabilityCounters()
         return orderedBroadcastProviders(counters: counters).map { provider in
@@ -229,8 +220,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Configure broadcast providers.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func configureBroadcastProviders(useBlockchair: Bool, useBlockCypher: Bool) {
         broadcastProviderSelectionLock.lock()
         defer { broadcastProviderSelectionLock.unlock() }
@@ -245,22 +234,16 @@ struct DogecoinWalletEngine {
         UserDefaults.standard.set(enabledProviderIDs, forKey: broadcastProviderSelectionDefaultsKey)
     }
 
-    /// Dogecoin engine operation: Reset broadcast provider reliability.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func resetBroadcastProviderReliability() {
         UserDefaults.standard.removeObject(forKey: broadcastReliabilityDefaultsKey)
     }
 
-    /// Dogecoin engine operation: Reset broadcast provider selection.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func resetBroadcastProviderSelection() {
         broadcastProviderSelectionLock.lock()
         defer { broadcastProviderSelectionLock.unlock() }
         UserDefaults.standard.removeObject(forKey: broadcastProviderSelectionDefaultsKey)
     }
 
-    /// Dogecoin engine operation: Reset utxocache.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func resetUTXOCache() {
         utxoCacheLock.lock()
         defer { utxoCacheLock.unlock() }
@@ -268,8 +251,6 @@ struct DogecoinWalletEngine {
     }
 
     @discardableResult
-    /// Dogecoin engine operation: Send in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func sendInBackground(
         from importedWallet: ImportedWallet,
         seedPhrase: String,
@@ -301,8 +282,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Rebroadcast signed transaction in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func rebroadcastSignedTransactionInBackground(
         rawTransactionHex: String,
         expectedTransactionHash: String? = nil
@@ -322,20 +301,14 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Derived address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func derivedAddress(for seedPhrase: String, account: Int = 0) throws -> String {
         try walletCoreDerivedAddress(seedPhrase: seedPhrase, isChange: false, index: 0, account: account)
     }
 
-    /// Dogecoin engine operation: Derived address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func derivedAddress(for seedPhrase: String, isChange: Bool, index: Int, account: Int = 0) throws -> String {
         try walletCoreDerivedAddress(seedPhrase: seedPhrase, isChange: isChange, index: index, account: account)
     }
 
-    /// Dogecoin engine operation: Fetch send preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func fetchSendPreview(
         from importedWallet: ImportedWallet,
         seedPhrase: String,
@@ -386,8 +359,6 @@ struct DogecoinWalletEngine {
         )
     }
 
-    /// Dogecoin engine operation: Fetch send preview in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func fetchSendPreviewInBackground(
         from importedWallet: ImportedWallet,
         seedPhrase: String,
@@ -416,8 +387,6 @@ struct DogecoinWalletEngine {
     }
 
     @discardableResult
-    /// Dogecoin engine operation: Send.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func send(
         from importedWallet: ImportedWallet,
         seedPhrase: String,
@@ -496,8 +465,6 @@ struct DogecoinWalletEngine {
         )
     }
 
-    /// Dogecoin engine operation: Rebroadcast signed transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func rebroadcastSignedTransaction(
         rawTransactionHex: String,
         expectedTransactionHash: String? = nil
@@ -529,8 +496,6 @@ struct DogecoinWalletEngine {
         )
     }
 
-    /// Dogecoin engine operation: Resolve change address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func resolveChangeAddress(
         seedPhrase: String,
         keyMaterial: SigningKeyMaterial,
@@ -557,8 +522,6 @@ struct DogecoinWalletEngine {
         )
     }
 
-    /// Dogecoin engine operation: Derive signing key material.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func deriveSigningKeyMaterial(
         seedPhrase: String,
         expectedAddress: String?,
@@ -571,8 +534,6 @@ struct DogecoinWalletEngine {
         )
     }
 
-    /// Dogecoin engine operation: Derive signing key material with wallet core.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func deriveSigningKeyMaterialWithWalletCore(
         seedPhrase: String,
         expectedAddress: String?,
@@ -615,8 +576,6 @@ struct DogecoinWalletEngine {
         throw DogecoinWalletEngineError.walletAddressNotDerivedFromSeed
     }
 
-    /// Dogecoin engine operation: Wallet core sign transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func walletCoreSignTransaction(
         keyMaterial: SigningKeyMaterial,
         utxos: [DogecoinUTXO],
@@ -637,8 +596,6 @@ struct DogecoinWalletEngine {
         return try signWithWalletCore(input: signingInput)
     }
 
-    /// Dogecoin engine operation: Build wallet core signing input.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func buildWalletCoreSigningInput(
         from request: DogecoinWalletCoreSigningRequest
     ) throws -> BitcoinSigningInput {
@@ -660,8 +617,6 @@ struct DogecoinWalletEngine {
         return signingInput
     }
 
-    /// Dogecoin engine operation: Wallet core unspent transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func walletCoreUnspentTransaction(
         from utxo: DogecoinUTXO,
         sourceScript: Data
@@ -681,8 +636,6 @@ struct DogecoinWalletEngine {
         return unspent
     }
 
-    /// Dogecoin engine operation: Sign with wallet core.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func signWithWalletCore(input: BitcoinSigningInput) throws -> DogecoinWalletCoreSigningResult {
         let output: BitcoinSigningOutput = AnySigner.sign(input: input, coin: .dogecoin)
         if !output.errorMessage.isEmpty {
@@ -697,8 +650,6 @@ struct DogecoinWalletEngine {
         )
     }
 
-    /// Dogecoin engine operation: Wallet core derived address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func walletCoreDerivedAddress(
         seedPhrase: String,
         isChange: Bool,
@@ -726,8 +677,6 @@ struct DogecoinWalletEngine {
         return material.address
     }
 
-    /// Dogecoin engine operation: Fetch spendable utxos.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchSpendableUTXOs(for address: String) throws -> [DogecoinUTXO] {
         var providerErrors: [String] = []
         var providerResults: [UTXOProvider: [DogecoinUTXO]] = [:]
@@ -778,8 +727,6 @@ struct DogecoinWalletEngine {
         return []
     }
 
-    /// Dogecoin engine operation: Sanitize utxos.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func sanitizeUTXOs(_ utxos: [DogecoinUTXO]) -> [DogecoinUTXO] {
         var deduped: [String: DogecoinUTXO] = [:]
         for utxo in utxos where utxo.value > 0 {
@@ -802,8 +749,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Merge consistent utxos.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func mergeConsistentUTXOs(
         blockchairUTXOs: [DogecoinUTXO],
         blockcypherUTXOs: [DogecoinUTXO]
@@ -832,34 +777,22 @@ struct DogecoinWalletEngine {
         return sanitizeUTXOs(merged)
     }
 
-    /// Dogecoin engine operation: Outpoint key.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func outpointKey(hash: String, index: Int) -> String {
         "\(hash.lowercased()):\(index)"
     }
 
-    /// Dogecoin engine operation: Normalized base urlstring.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
-    /// Dogecoin engine operation: Blockchair url.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func blockchairURL(path: String) -> URL? {
         URL(string: blockchairAPIBaseURLString + path)
     }
 
-    /// Dogecoin engine operation: Blockcypher url.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func blockcypherURL(path: String) -> URL? {
         URL(string: blockcypherAPIBaseURLString + path)
     }
 
-    /// Dogecoin engine operation: Normalized address cache key.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func normalizedAddressCacheKey(_ address: String) -> String {
         address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    /// Dogecoin engine operation: Cache utxos.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func cacheUTXOs(_ utxos: [DogecoinUTXO], for address: String) {
         let key = normalizedAddressCacheKey(address)
         utxoCacheLock.lock()
@@ -867,8 +800,6 @@ struct DogecoinWalletEngine {
         utxoCacheByAddress[key] = CachedUTXOSet(utxos: utxos, updatedAt: Date())
     }
 
-    /// Dogecoin engine operation: Cached utxos.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func cachedUTXOs(for address: String) -> [DogecoinUTXO]? {
         let key = normalizedAddressCacheKey(address)
         utxoCacheLock.lock()
@@ -881,8 +812,6 @@ struct DogecoinWalletEngine {
         return cached.utxos
     }
 
-    /// Dogecoin engine operation: Fetch blockchair utxos.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchBlockchairUTXOs(for address: String) throws -> [DogecoinUTXO] {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let baseURL = blockchairURL(path: "/dashboards/address/\(encodedAddress)"),
@@ -908,8 +837,6 @@ struct DogecoinWalletEngine {
         return entry.utxo
     }
 
-    /// Dogecoin engine operation: Fetch block cypher utxos.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchBlockCypherUTXOs(for address: String) throws -> [DogecoinUTXO] {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let baseURL = blockcypherURL(path: "/addrs/\(encodedAddress)"),
@@ -940,8 +867,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Build spend plan.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func buildSpendPlan(
         from utxos: [DogecoinUTXO],
         amountDOGE: Double,
@@ -1000,8 +925,6 @@ struct DogecoinWalletEngine {
         return bestPlan
     }
 
-    /// Dogecoin engine operation: Evaluate candidate.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func evaluateCandidate(
         _ utxos: [DogecoinUTXO],
         amountDOGE: Double,
@@ -1047,8 +970,6 @@ struct DogecoinWalletEngine {
         )
     }
 
-    /// Dogecoin engine operation: Is better spend plan.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func isBetterSpendPlan(_ lhs: DogecoinSpendPlan, than rhs: DogecoinSpendPlan) -> Bool {
         if lhs.usesChangeOutput != rhs.usesChangeOutput {
             return lhs.usesChangeOutput && !rhs.usesChangeOutput
@@ -1062,22 +983,16 @@ struct DogecoinWalletEngine {
         return lhs.changeDOGE < rhs.changeDOGE
     }
 
-    /// Dogecoin engine operation: Estimate transaction bytes.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func estimateTransactionBytes(inputCount: Int, outputCount: Int) -> Int {
         // Conservative P2PKH approximation for Dogecoin.
         10 + (148 * inputCount) + (34 * outputCount)
     }
 
-    /// Dogecoin engine operation: Estimate network fee doge.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func estimateNetworkFeeDOGE(estimatedBytes: Int, feeRateDOGEPerKB: Double) -> Double {
         let kb = max(1, Int(ceil(Double(estimatedBytes) / 1000)))
         return Double(kb) * max(minRelayFeePerKB, feeRateDOGEPerKB)
     }
 
-    /// Dogecoin engine operation: Resolve network fee rate dogeper kb.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func resolveNetworkFeeRateDOGEPerKB(feePriority: FeePriority) -> Double {
         let candidates = (try? fetchBlockCypherFeeRateCandidatesDOGEPerKB()) ?? []
         let deterministicFallback: Double
@@ -1100,8 +1015,6 @@ struct DogecoinWalletEngine {
         return adjustedFeeRateDOGEPerKB(baseRate: boundedRate, feePriority: feePriority)
     }
 
-    /// Dogecoin engine operation: Adjusted fee rate dogeper kb.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func adjustedFeeRateDOGEPerKB(baseRate: Double, feePriority: FeePriority) -> Double {
         let multiplier: Double
         switch feePriority {
@@ -1116,8 +1029,6 @@ struct DogecoinWalletEngine {
         return max(minRelayFeePerKB, min(adjusted, 25))
     }
 
-    /// Dogecoin engine operation: Fetch block cypher fee rate candidates dogeper kb.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchBlockCypherFeeRateCandidatesDOGEPerKB() throws -> [Double] {
         guard let url = blockcypherURL(path: "") else {
             throw DogecoinWalletEngineError.networkFailure("Invalid Dogecoin network fee endpoint.")
@@ -1145,8 +1056,6 @@ struct DogecoinWalletEngine {
         return candidates
     }
 
-    /// Dogecoin engine operation: Perform synchronous request.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func performSynchronousRequest(
         _ request: URLRequest,
         timeout: TimeInterval = networkTimeoutSeconds,
@@ -1163,8 +1072,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Broadcast raw transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func broadcastRawTransaction(_ rawHex: String) throws {
         let providerOrder = orderedBroadcastProviders(counters: loadBroadcastReliabilityCounters())
         var providerErrors: [String] = []
@@ -1202,8 +1109,6 @@ struct DogecoinWalletEngine {
         throw DogecoinWalletEngineError.broadcastFailed(message)
     }
 
-    /// Dogecoin engine operation: Broadcast raw transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func broadcastRawTransaction(_ rawHex: String, via provider: BroadcastProvider) throws {
         switch provider {
         case .blockchair:
@@ -1213,8 +1118,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Broadcast raw transaction via blockchair.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func broadcastRawTransactionViaBlockchair(_ rawHex: String) throws {
         guard let url = blockchairURL(path: "/push/transaction") else {
             throw DogecoinWalletEngineError.broadcastFailed("Invalid Dogecoin broadcast endpoint.")
@@ -1241,8 +1144,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Broadcast raw transaction via block cypher.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func broadcastRawTransactionViaBlockCypher(_ rawHex: String) throws {
         guard let url = blockcypherURL(path: "/txs/push") else {
             throw DogecoinWalletEngineError.broadcastFailed("Invalid BlockCypher broadcast endpoint.")
@@ -1272,8 +1173,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Is already broadcasted error.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func isAlreadyBroadcastedError(_ message: String) -> Bool {
         let normalized = message.lowercased()
         return normalized.contains("already known")
@@ -1285,8 +1184,6 @@ struct DogecoinWalletEngine {
             || normalized.contains("already spent")
     }
 
-    /// Dogecoin engine operation: Is retryable broadcast error.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func isRetryableBroadcastError(_ message: String) -> Bool {
         let normalized = message.lowercased()
         return normalized.contains("timed out")
@@ -1304,8 +1201,6 @@ struct DogecoinWalletEngine {
             || normalized.contains("504")
     }
 
-    /// Dogecoin engine operation: Ordered broadcast providers.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func orderedBroadcastProviders(
         counters: [String: BroadcastProviderReliabilityCounter]
     ) -> [BroadcastProvider] {
@@ -1328,8 +1223,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Enabled broadcast providers.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func enabledBroadcastProviders() -> [BroadcastProvider] {
         broadcastProviderSelectionLock.lock()
         defer { broadcastProviderSelectionLock.unlock() }
@@ -1342,8 +1235,6 @@ struct DogecoinWalletEngine {
         return providers.isEmpty ? BroadcastProvider.allCases : providers
     }
 
-    /// Dogecoin engine operation: Load broadcast reliability counters.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func loadBroadcastReliabilityCounters() -> [String: BroadcastProviderReliabilityCounter] {
         guard let data = UserDefaults.standard.data(forKey: broadcastReliabilityDefaultsKey),
               let decoded = try? JSONDecoder().decode([String: BroadcastProviderReliabilityCounter].self, from: data) else {
@@ -1352,15 +1243,11 @@ struct DogecoinWalletEngine {
         return decoded
     }
 
-    /// Dogecoin engine operation: Save broadcast reliability counters.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func saveBroadcastReliabilityCounters(_ counters: [String: BroadcastProviderReliabilityCounter]) {
         guard let data = try? JSONEncoder().encode(counters) else { return }
         UserDefaults.standard.set(data, forKey: broadcastReliabilityDefaultsKey)
     }
 
-    /// Dogecoin engine operation: Record broadcast attempt.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func recordBroadcastAttempt(provider: BroadcastProvider, success: Bool) {
         var counters = loadBroadcastReliabilityCounters()
         var counter = counters[provider.rawValue] ?? BroadcastProviderReliabilityCounter(
@@ -1378,8 +1265,6 @@ struct DogecoinWalletEngine {
         saveBroadcastReliabilityCounters(counters)
     }
 
-    /// Dogecoin engine operation: Verify broadcasted transaction if available.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func verifyBroadcastedTransactionIfAvailable(
         txid: String
     ) -> PostBroadcastVerificationStatus {
@@ -1398,8 +1283,6 @@ struct DogecoinWalletEngine {
         return .deferred
     }
 
-    /// Dogecoin engine operation: Verify presence only if available.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func verifyPresenceOnlyIfAvailable(txid: String) -> PostBroadcastVerificationStatus {
         if (try? fetchBlockchairTransactionHash(txid: txid)) != nil {
             return .verified
@@ -1413,8 +1296,6 @@ struct DogecoinWalletEngine {
         return .deferred
     }
 
-    /// Dogecoin engine operation: Fetch blockchair transaction hash.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchBlockchairTransactionHash(txid: String) throws -> String? {
         guard let entry = try fetchBlockchairTransaction(txid: txid),
               let txHash = entry.transaction.hash,
@@ -1424,8 +1305,6 @@ struct DogecoinWalletEngine {
         return txHash
     }
 
-    /// Dogecoin engine operation: Fetch block cypher transaction hash.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchBlockCypherTransactionHash(txid: String) throws -> String? {
         guard let payload = try fetchBlockCypherTransaction(txid: txid),
               let txHash = payload.hash,
@@ -1435,8 +1314,6 @@ struct DogecoinWalletEngine {
         return txHash
     }
 
-    /// Dogecoin engine operation: Fetch so chain transaction hash.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchSoChainTransactionHash(txid: String) throws -> String? {
         guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(ChainBackendRegistry.DogecoinRuntimeEndpoints.sochainBaseURL)/get_tx/DOGE/\(encodedTXID)") else {
@@ -1463,8 +1340,6 @@ struct DogecoinWalletEngine {
         return txHash
     }
 
-    /// Dogecoin engine operation: Fetch blockchair transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchBlockchairTransaction(txid: String) throws -> BlockchairTransactionDashboardEntry? {
         guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = blockchairURL(path: "/dashboards/transactions/\(encodedTXID)") else {
@@ -1482,8 +1357,6 @@ struct DogecoinWalletEngine {
         return payload.data.values.first
     }
 
-    /// Dogecoin engine operation: Fetch block cypher transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchBlockCypherTransaction(txid: String) throws -> BlockCypherTransactionResponse? {
         guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = blockcypherURL(path: "/txs/\(encodedTXID)") else {
@@ -1511,8 +1384,6 @@ struct DogecoinWalletEngine {
         return try JSONDecoder().decode(BlockCypherTransactionResponse.self, from: data)
     }
 
-    /// Dogecoin engine operation: Standard script pub key.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func standardScriptPubKey(for address: String) -> Data? {
         guard let decoded = base58CheckDecode(address),
               !decoded.isEmpty else {
@@ -1533,8 +1404,6 @@ struct DogecoinWalletEngine {
         }
     }
 
-    /// Dogecoin engine operation: Base58 check decode.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func base58CheckDecode(_ string: String) -> Data? {
         let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
         var indexes: [Character: Int] = [:]
@@ -1576,8 +1445,6 @@ struct DogecoinWalletEngine {
         return Data(payload)
     }
 
-    /// Dogecoin engine operation: Compute txid.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func computeTXID(fromRawHex rawHex: String) -> String {
         guard let rawData = Data(hexEncoded: rawHex) else {
             return ""

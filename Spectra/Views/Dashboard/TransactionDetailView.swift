@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Detailed transaction screen showing per-record metadata, status, and diagnostics context.
-//
-// Responsibilities:
-// - Displays chain-specific transaction fields in a structured layout.
-// - Supports user troubleshooting with source/confirmation details.
-
 import Foundation
 import SwiftUI
 import UIKit
@@ -290,8 +283,6 @@ struct HistoryDetailView: View {
     }
 
     @ViewBuilder
-    /// Handles "detailCard" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private func detailCard(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(NSLocalizedString(title, comment: ""))
@@ -305,8 +296,6 @@ struct HistoryDetailView: View {
     }
     
     @ViewBuilder
-    /// Handles "detailRow" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private func detailRow(label: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 16) {
             Text(NSLocalizedString(label, comment: ""))

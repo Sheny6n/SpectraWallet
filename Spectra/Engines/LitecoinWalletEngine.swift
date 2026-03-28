@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Litecoin transaction/signing engine providing chain-specific derivation and send primitives.
-//
-// Responsibilities:
-// - Prepares and signs LTC transactions against wallet key material.
-// - Presents Litecoin behavior via async interfaces used by WalletStore.
-
 import Foundation
 import CryptoKit
 import WalletCore
@@ -123,8 +116,6 @@ enum LitecoinWalletEngine {
         let tx: Transaction?
     }
 
-    /// Handles "derivedAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
         try derivedAddress(
             for: seedPhrase,
@@ -144,8 +135,6 @@ enum LitecoinWalletEngine {
         return material.address
     }
 
-    /// Handles "estimateSendPreview" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func estimateSendPreview(
         seedPhrase: String,
         sourceAddress: String,
@@ -173,8 +162,6 @@ enum LitecoinWalletEngine {
         )
     }
 
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(
         seedPhrase: String,
         sourceAddress: String,
@@ -273,8 +260,6 @@ enum LitecoinWalletEngine {
         )
     }
 
-    /// Handles "fetchUTXOs" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchUTXOs(for address: String) async throws -> [LitecoinUTXO] {
         try await runWithFallback(candidates: [.litecoinspace, .blockcypher]) { provider in
             switch provider {
@@ -286,8 +271,6 @@ enum LitecoinWalletEngine {
         }
     }
 
-    /// Handles "fetchUTXOsViaLitecoinspace" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchUTXOsViaLitecoinspace(for address: String) async throws -> [LitecoinUTXO] {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
@@ -302,8 +285,6 @@ enum LitecoinWalletEngine {
         return try JSONDecoder().decode([LitecoinUTXO].self, from: data)
     }
 
-    /// Handles "fetchUTXOsViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchUTXOsViaBlockcypher(for address: String) async throws -> [LitecoinUTXO] {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
@@ -320,8 +301,6 @@ enum LitecoinWalletEngine {
         return refs.map { LitecoinUTXO(txid: $0.txHash, vout: $0.txOutputN, value: $0.value) }
     }
 
-    /// Handles "fetchFeeRate" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchFeeRate(priority: BitcoinFeePriority) async throws -> UInt64 {
         do {
             return try await runWithFallback(candidates: [.litecoinspace, .blockcypher]) { provider in
@@ -337,8 +316,6 @@ enum LitecoinWalletEngine {
         }
     }
 
-    /// Handles "fetchFeeRateViaLitecoinspace" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchFeeRateViaLitecoinspace(priority: BitcoinFeePriority) async throws -> UInt64 {
         guard let url = URL(string: "\(litecoinspaceBaseURL)/fee-estimates") else { throw URLError(.badURL) }
         let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
@@ -358,8 +335,6 @@ enum LitecoinWalletEngine {
         return max(1, UInt64(ceil(picked)))
     }
 
-    /// Handles "fetchFeeRateViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchFeeRateViaBlockcypher(priority: BitcoinFeePriority) async throws -> UInt64 {
         guard let url = URL(string: blockcypherBaseURL) else { throw URLError(.badURL) }
         let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
@@ -379,8 +354,6 @@ enum LitecoinWalletEngine {
         return max(1, UInt64(ceil(Double(feePerKB) / 1_000.0)))
     }
 
-    /// Handles "fallbackFeeRate" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fallbackFeeRate(priority: BitcoinFeePriority) -> UInt64 {
         switch priority {
         case .economy: return 5
@@ -389,8 +362,6 @@ enum LitecoinWalletEngine {
         }
     }
 
-    /// Handles "broadcast" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func broadcast(rawTransactionHex: String) async throws -> String {
         try await runWithFallback(candidates: [.litecoinspace, .blockcypher]) { provider in
             switch provider {
@@ -402,8 +373,6 @@ enum LitecoinWalletEngine {
         }
     }
 
-    /// Handles "broadcastViaLitecoinspace" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func broadcastViaLitecoinspace(rawTransactionHex: String) async throws -> String {
         guard let url = URL(string: "\(litecoinspaceBaseURL)/tx") else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
@@ -423,8 +392,6 @@ enum LitecoinWalletEngine {
         return txid
     }
 
-    /// Handles "broadcastViaBlockcypher" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func broadcastViaBlockcypher(rawTransactionHex: String) async throws -> String {
         guard let url = URL(string: "\(blockcypherBaseURL)/txs/push") else { throw URLError(.badURL) }
         var request = URLRequest(url: url)
@@ -527,8 +494,6 @@ enum LitecoinWalletEngine {
         }
     }
 
-    /// Handles "walletCoreUnspentTransaction" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func walletCoreUnspentTransaction(
         from utxo: LitecoinUTXO,
         sourceScript: Data,
@@ -549,8 +514,6 @@ enum LitecoinWalletEngine {
         return unspent
     }
 
-    /// Handles "selectUTXOs" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func selectUTXOs(
         from utxos: [LitecoinUTXO],
         sendAmountLitoshi: UInt64,
@@ -576,8 +539,6 @@ enum LitecoinWalletEngine {
         throw LitecoinWalletEngineError.insufficientFunds
     }
 
-    /// Handles "scriptPubKey" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func scriptPubKey(for address: String) -> Data? {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         if let decoded = base58CheckDecode(trimmed), !decoded.isEmpty {
@@ -602,8 +563,6 @@ enum LitecoinWalletEngine {
         return nil
     }
 
-    /// Handles "decodeBech32WitnessProgram" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func decodeBech32WitnessProgram(address: String) -> (version: UInt8, program: Data)? {
         let lower = address.lowercased()
         guard lower.hasPrefix("ltc1") || lower.hasPrefix("tltc1") else { return nil }
@@ -636,14 +595,10 @@ enum LitecoinWalletEngine {
         return (version, Data(program))
     }
 
-    /// Handles "verifyBech32Checksum" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func verifyBech32Checksum(hrp: String, data: [UInt8]) -> Bool {
         polymod(hrpExpand(hrp) + data) == 1
     }
 
-    /// Handles "hrpExpand" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func hrpExpand(_ hrp: String) -> [UInt8] {
         let bytes = hrp.utf8.map { UInt8($0) }
         let high = bytes.map { $0 >> 5 }
@@ -651,8 +606,6 @@ enum LitecoinWalletEngine {
         return high + [0] + low
     }
 
-    /// Handles "polymod" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func polymod(_ values: [UInt8]) -> UInt32 {
         let generators: [UInt32] = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
         var chk: UInt32 = 1
@@ -666,8 +619,6 @@ enum LitecoinWalletEngine {
         return chk
     }
 
-    /// Handles "convertBits" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func convertBits(_ data: [UInt8], fromBits: Int, toBits: Int, pad: Bool) -> [UInt8]? {
         var acc = 0
         var bits = 0
@@ -693,8 +644,6 @@ enum LitecoinWalletEngine {
         return result
     }
 
-    /// Handles "base58CheckDecode" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func base58CheckDecode(_ string: String) -> Data? {
         let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
         var indexes: [Character: Int] = [:]

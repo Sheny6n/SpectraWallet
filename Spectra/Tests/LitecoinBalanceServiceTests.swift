@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Unit tests for Litecoin service parsing, balances, and error handling behavior.
-//
-// Responsibilities:
-// - Asserts LTC provider mapping correctness and resilience paths.
-// - Prevents regressions in service-level data normalization logic.
-
 import Foundation
 import XCTest
 @testable import Spectra

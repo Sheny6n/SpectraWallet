@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Test client behavior using deterministic queued responses.
-//
-// Responsibilities:
-// - Ensures request/response processing remains stable across refactors.
-// - Improves confidence in transport-layer behavior without live endpoint dependency.
-
 import Foundation
 import XCTest
 @testable import Spectra

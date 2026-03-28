@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// TON balance and history service backed by TON RPC/provider endpoints.
-//
-// Responsibilities:
-// - Fetches TON account balances and recent transfer history.
-// - Normalizes TON provider responses into app-facing snapshots and diagnostics.
-
 import Foundation
 import WalletCore
 

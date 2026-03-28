@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Shared HTTP/network client utilities and request execution helpers.
-//
-// Responsibilities:
-// - Consolidates transport behavior, decoding patterns, and common request setup.
-// - Provides consistent error semantics to higher-level services.
-
 import Foundation
 
 enum NetworkRetryProfile {
@@ -42,8 +35,6 @@ struct NetworkRetryPolicy {
 }
 
 enum NetworkResilience {
-    /// Handles "data" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func data(
         for request: URLRequest,
         profile: NetworkRetryProfile,
@@ -78,8 +69,6 @@ enum NetworkResilience {
         throw lastError ?? URLError(.unknown)
     }
 
-    /// Handles "data" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func data(
         from url: URL,
         profile: NetworkRetryProfile,
@@ -96,8 +85,6 @@ enum NetworkResilience {
         )
     }
 
-    /// Handles "shouldRetry" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func shouldRetry(error: Error) -> Bool {
         guard let urlError = error as? URLError else { return false }
         switch urlError.code {
@@ -117,8 +104,6 @@ enum NetworkResilience {
         }
     }
 
-    /// Handles "sleepWithJitter" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func sleepWithJitter(base: TimeInterval) async throws {
         let jitter = Double.random(in: 0 ... 0.15)
         let total = max(0.05, base + jitter)
@@ -127,14 +112,10 @@ enum NetworkResilience {
 }
 
 protocol SpectraNetworkClient {
-    /// Handles "data" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func data(for request: URLRequest, profile: NetworkRetryProfile) async throws -> (Data, URLResponse)
 }
 
 extension SpectraNetworkClient {
-    /// Handles "data" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func data(from url: URL, profile: NetworkRetryProfile) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -145,8 +126,6 @@ extension SpectraNetworkClient {
 struct LiveSpectraNetworkClient: SpectraNetworkClient {
     nonisolated init() {}
 
-    /// Handles "data" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func data(for request: URLRequest, profile: NetworkRetryProfile) async throws -> (Data, URLResponse) {
         try await NetworkResilience.data(for: request, profile: profile)
     }
@@ -157,32 +136,22 @@ actor SpectraNetworkRouter {
 
     private var client: any SpectraNetworkClient
 
-    /// Initializes and configures this component for use in the wallet app.
-    /// Ensures deterministic setup so runtime state remains consistent.
     init() {
         self.client = LiveSpectraNetworkClient()
     }
 
-    /// Handles "install" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func install(client: any SpectraNetworkClient) {
         self.client = client
     }
 
-    /// Handles "resetToDefault" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func resetToDefault() {
         client = LiveSpectraNetworkClient()
     }
 
-    /// Handles "data" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func data(for request: URLRequest, profile: NetworkRetryProfile) async throws -> (Data, URLResponse) {
         try await client.data(for: request, profile: profile)
     }
 
-    /// Handles "data" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func data(from url: URL, profile: NetworkRetryProfile) async throws -> (Data, URLResponse) {
         try await client.data(from: url, profile: profile)
     }
@@ -201,8 +170,6 @@ actor TestSpectraNetworkClient: SpectraNetworkClient {
 
     private var queues: [RequestKey: [Event]] = [:]
 
-    /// Handles "enqueueResponse" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func enqueueResponse(
         method: String = "GET",
         url: String,
@@ -214,8 +181,6 @@ actor TestSpectraNetworkClient: SpectraNetworkClient {
         queues[key, default: []].append(.response(statusCode: statusCode, headers: headers, body: body))
     }
 
-    /// Handles "enqueueJSONResponse" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func enqueueJSONResponse(
         method: String = "GET",
         url: String,
@@ -237,15 +202,11 @@ actor TestSpectraNetworkClient: SpectraNetworkClient {
         )
     }
 
-    /// Handles "enqueueFailure" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func enqueueFailure(method: String = "GET", url: String, code: URLError.Code) {
         let key = RequestKey(method: method.uppercased(), url: url)
         queues[key, default: []].append(.failure(code))
     }
 
-    /// Handles "data" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func data(for request: URLRequest, profile _: NetworkRetryProfile) async throws -> (Data, URLResponse) {
         let method = (request.httpMethod ?? "GET").uppercased()
         let urlString = request.url?.absoluteString ?? ""

@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Internet Computer wallet engine for account derivation, transaction assembly, signing, and broadcast.
-//
-// Responsibilities:
-// - Derives ICP account identifiers from local wallet secrets.
-// - Builds, signs, submits, and verifies ICP transfer operations.
-
 import Foundation
 import SwiftProtobuf
 import WalletCore

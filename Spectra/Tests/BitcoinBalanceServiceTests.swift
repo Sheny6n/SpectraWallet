@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Unit tests for Bitcoin balance/history service behavior and edge-case parsing.
-//
-// Responsibilities:
-// - Verifies provider response mapping and fallback behavior.
-// - Guards regressions in BTC-specific service logic.
-
 import Foundation
 import XCTest
 @testable import Spectra

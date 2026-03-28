@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Aptos wallet engine for mnemonic/private-key derivation, transaction building, signing, and broadcast.
-//
-// Responsibilities:
-// - Derives Aptos addresses and signing keys from local wallet secrets.
-// - Builds, signs, and submits Aptos transfers while surfacing verification state.
-
 import Foundation
 import SwiftProtobuf
 import WalletCore

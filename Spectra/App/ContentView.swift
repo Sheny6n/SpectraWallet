@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Root app container that wires top-level tabs/navigation and global wallet UI state presentation.
-//
-// Responsibilities:
-// - Composes primary app surfaces and routes to feature views.
-// - Binds top-level view lifecycle to WalletStore observable state.
-
 import SwiftUI
 
 private struct SpectraInputFieldChrome: ViewModifier {
@@ -33,8 +26,6 @@ private struct SpectraInputFieldChrome: ViewModifier {
 }
 
 extension View {
-    /// Handles "spectraBubbleFill" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func spectraBubbleFill(alignment: Alignment = .leading) -> some View {
         frame(maxWidth: .infinity, alignment: alignment)
     }

@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Aptos balance and history service backed by Aptos RPC/indexer endpoints.
-//
-// Responsibilities:
-// - Fetches Aptos coin balances and account transaction history.
-// - Normalizes Aptos responses into app-facing snapshots and diagnostics.
-
 import Foundation
 
 enum AptosBalanceServiceError: LocalizedError {

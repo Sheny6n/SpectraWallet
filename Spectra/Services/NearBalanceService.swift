@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// NEAR balance and history service backed by RPC and indexer-style endpoints.
-//
-// Responsibilities:
-// - Fetches NEAR account balances and recent transaction history.
-// - Normalizes provider responses into app-facing balance and history snapshots.
-
 import Foundation
 
 enum NearBalanceServiceError: LocalizedError {

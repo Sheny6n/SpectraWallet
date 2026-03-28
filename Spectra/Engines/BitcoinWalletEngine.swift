@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Bitcoin-specific signing/derivation/sync engine abstractions used by WalletStore send and balance workflows.
-//
-// Responsibilities:
-// - Handles Bitcoin transaction preparation and key-derived address logic.
-// - Exposes deterministic chain-specific behavior with app-friendly async APIs.
-
 import Foundation
 import BitcoinDevKit
 
@@ -99,8 +92,6 @@ struct BitcoinWalletEngine {
         let persister: Persister
     }
 
-    /// Handles "configureRuntime" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func configureRuntime(
         networkMode: BitcoinNetworkMode,
         esploraEndpoints: [String],
@@ -113,14 +104,10 @@ struct BitcoinWalletEngine {
         self.stopGap = UInt64(max(1, min(stopGap, 200)))
     }
 
-    /// Handles "isValidAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isValidAddress(_ address: String, networkMode: BitcoinNetworkMode) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
 
-        /// Handles "canParse" for this module.
-        /// Keeps behavior deterministic and aligned with app state expectations.
         func canParse(on network: Network) -> Bool {
             (try? Address(address: trimmed, network: network)) != nil
         }
@@ -135,16 +122,12 @@ struct BitcoinWalletEngine {
         }
     }
 
-    /// Handles "isLikelyExtendedPublicKey" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func isLikelyExtendedPublicKey(_ value: String) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         let prefixes = ["xpub", "ypub", "zpub", "tpub", "upub", "vpub"]
         return prefixes.contains(where: { trimmed.lowercased().hasPrefix($0) }) && trimmed.count > 100
     }
 
-    /// Handles "normalizedMnemonicWords" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func normalizedMnemonicWords(from seedPhrase: String) -> [String] {
         seedPhrase
             .lowercased()
@@ -152,14 +135,10 @@ struct BitcoinWalletEngine {
             .map(String.init)
     }
 
-    /// Handles "normalizedMnemonicPhrase" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func normalizedMnemonicPhrase(from seedPhrase: String) -> String {
         normalizedMnemonicWords(from: seedPhrase).joined(separator: " ")
     }
 
-    /// Handles "invalidEnglishWords" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func invalidEnglishWords(in seedPhrase: String) -> [String] {
         var seen: Set<String> = []
         return normalizedMnemonicWords(from: seedPhrase).reduce(into: [String]()) { result, word in
@@ -169,8 +148,6 @@ struct BitcoinWalletEngine {
         }
     }
 
-    /// Handles "validateMnemonic" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func validateMnemonic(_ seedPhrase: String, expectedWordCount: Int? = nil) -> String? {
         let trimmedPhrase = seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPhrase.isEmpty else {
@@ -206,8 +183,6 @@ struct BitcoinWalletEngine {
         validateMnemonic(seedPhrase, expectedWordCount: expectedWordCount) == nil
     }
 
-    /// Handles "generateMnemonic" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func generateMnemonic(wordCount: Int) throws -> String {
         let targetWordCount = validMnemonicWordCounts.contains(wordCount) ? wordCount : 12
         let mnemonicWordCount: WordCount
@@ -229,16 +204,12 @@ struct BitcoinWalletEngine {
         return normalizedMnemonicPhrase(from: String(describing: mnemonic))
     }
 
-    /// Handles "syncBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func syncBalance(for importedWallet: ImportedWallet, seedPhrase: String) throws -> Double {
         let session = try makeSession(for: importedWallet, seedPhrase: seedPhrase)
         try sync(session: session)
         return session.wallet.balance().total.toBtc()
     }
 
-    /// Handles "syncBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func syncBalance(for walletID: UUID, seedPhrase: String) throws -> Double {
         let session = try makeSession(
             for: walletID,
@@ -249,8 +220,6 @@ struct BitcoinWalletEngine {
         return session.wallet.balance().total.toBtc()
     }
 
-    /// Handles "syncBalanceInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func syncBalanceInBackground(for importedWallet: ImportedWallet, seedPhrase: String) async throws -> Double {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -264,8 +233,6 @@ struct BitcoinWalletEngine {
         }
     }
 
-    /// Handles "syncBalanceInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func syncBalanceInBackground(for walletID: UUID, seedPhrase: String) async throws -> Double {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -279,8 +246,6 @@ struct BitcoinWalletEngine {
         }
     }
 
-    /// Handles "nextReceiveAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func nextReceiveAddress(for importedWallet: ImportedWallet, seedPhrase: String) throws -> String {
         let session = try makeSession(for: importedWallet, seedPhrase: seedPhrase)
         let nextIndex = session.wallet.nextDerivationIndex(keychain: .external)
@@ -288,8 +253,6 @@ struct BitcoinWalletEngine {
         return String(describing: addressInfo.address)
     }
 
-    /// Handles "nextReceiveAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func nextReceiveAddress(for walletID: UUID, seedPhrase: String) throws -> String {
         try nextReceiveAddress(
             for: walletID,
@@ -309,8 +272,6 @@ struct BitcoinWalletEngine {
         return String(describing: addressInfo.address)
     }
 
-    /// Handles "nextReceiveAddressInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func nextReceiveAddressInBackground(for importedWallet: ImportedWallet, seedPhrase: String) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -324,8 +285,6 @@ struct BitcoinWalletEngine {
         }
     }
 
-    /// Handles "nextReceiveAddressInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func nextReceiveAddressInBackground(for walletID: UUID, seedPhrase: String) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -340,8 +299,6 @@ struct BitcoinWalletEngine {
     }
 
     @discardableResult
-    /// Handles "send" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func send(from importedWallet: ImportedWallet, seedPhrase: String, to recipientAddress: String, amountBTC: Double) throws -> String {
         try send(
             from: importedWallet,
@@ -352,8 +309,6 @@ struct BitcoinWalletEngine {
         )
     }
 
-    /// Handles "send" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func send(from walletID: UUID, seedPhrase: String, to recipientAddress: String, amountBTC: Double) throws -> String {
         try send(
             from: walletID,
@@ -364,8 +319,6 @@ struct BitcoinWalletEngine {
         )
     }
 
-    /// Handles "send" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func send(
         from importedWallet: ImportedWallet,
         seedPhrase: String,
@@ -406,8 +359,6 @@ struct BitcoinWalletEngine {
         return String(describing: transaction.computeTxid())
     }
 
-    /// Handles "send" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func send(
         from walletID: UUID,
         seedPhrase: String,
@@ -449,8 +400,6 @@ struct BitcoinWalletEngine {
     }
 
     @discardableResult
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(from importedWallet: ImportedWallet, seedPhrase: String, to recipientAddress: String, amountBTC: Double) async throws -> BitcoinSendResult {
         try await sendInBackground(
             from: importedWallet,
@@ -462,8 +411,6 @@ struct BitcoinWalletEngine {
     }
 
     @discardableResult
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(
         from importedWallet: ImportedWallet,
         seedPhrase: String,
@@ -492,8 +439,6 @@ struct BitcoinWalletEngine {
         }
     }
 
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(
         from walletID: UUID,
         seedPhrase: String,
@@ -522,8 +467,6 @@ struct BitcoinWalletEngine {
         }
     }
 
-    /// Handles "estimateSendPreview" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func estimateSendPreview(
         for importedWallet: ImportedWallet,
         seedPhrase: String,
@@ -546,8 +489,6 @@ struct BitcoinWalletEngine {
         )
     }
 
-    /// Handles "estimateSendPreview" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func estimateSendPreview(
         for walletID: UUID,
         seedPhrase: String,
@@ -570,8 +511,6 @@ struct BitcoinWalletEngine {
         )
     }
 
-    /// Handles "makeSession" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func makeSession(for importedWallet: ImportedWallet, seedPhrase: String) throws -> Session {
         try makeSession(
             for: importedWallet.id,
@@ -580,8 +519,6 @@ struct BitcoinWalletEngine {
         )
     }
 
-    /// Handles "makeSession" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func makeSession(for walletID: UUID, seedPhrase: String) throws -> Session {
         try makeSession(
             for: walletID,
@@ -622,8 +559,6 @@ struct BitcoinWalletEngine {
         return Session(wallet: wallet, persister: persister)
     }
 
-    /// Handles "sync" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func sync(session: Session) throws {
         let request = try session.wallet.startFullScan().build()
         let update = try performWithClientFallback { client in
@@ -637,8 +572,6 @@ struct BitcoinWalletEngine {
         _ = try session.wallet.persist(persister: session.persister)
     }
 
-    /// Handles "databasePath" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func databasePath(for walletID: UUID) -> String {
         let baseDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
@@ -647,8 +580,6 @@ struct BitcoinWalletEngine {
         return directory.appendingPathComponent("\(walletID.uuidString).sqlite").path
     }
 
-    /// Handles "feeEstimate" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func feeEstimate(for priority: BitcoinFeePriority, from estimates: [UInt16: Double]) -> Double {
         let deterministicFallback: Double
         switch priority {
@@ -660,8 +591,6 @@ struct BitcoinWalletEngine {
             deterministicFallback = 10.0
         }
 
-        /// Handles "firstValid" for this module.
-        /// Keeps behavior deterministic and aligned with app state expectations.
         func firstValid(_ targets: [UInt16]) -> Double? {
             for target in targets {
                 if let estimate = estimates[target], estimate > 0 {
@@ -681,8 +610,6 @@ struct BitcoinWalletEngine {
         }
     }
 
-    /// Handles "currentNetwork" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func currentNetwork() -> Network {
         networkMode.bdkNetwork
     }
@@ -772,14 +699,10 @@ struct BitcoinWalletEngine {
         }
     }
 
-    /// Handles "defaultEsploraEndpoints" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func defaultEsploraEndpoints(for mode: BitcoinNetworkMode) -> [String] {
         ChainBackendRegistry.BitcoinRuntimeEndpoints.esploraBaseURLs(for: mode)
     }
 
-    /// Handles "resolvedEsploraEndpoints" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func resolvedEsploraEndpoints() -> [String] {
         if !customEsploraEndpoints.isEmpty {
             return customEsploraEndpoints

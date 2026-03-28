@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Persistent transaction history database layer used for full/delta transaction snapshot storage.
-//
-// Responsibilities:
-// - Manages local history persistence and retrieval primitives.
-// - Supports reset/hard-wipe operations for security and reproducibility.
-
 import Foundation
 import SQLite3
 
@@ -33,8 +26,6 @@ final class HistoryDatabaseStore {
     private let decoder = JSONDecoder()
     private let queue = DispatchQueue(label: "app.spectra.history-database")
 
-    /// Initializes and configures this component for use in the wallet app.
-    /// Ensures deterministic setup so runtime state remains consistent.
     private init() {
         var configuredHandle: OpaquePointer?
         do {
@@ -96,8 +87,6 @@ final class HistoryDatabaseStore {
         }
     }
 
-    /// Handles "replaceAll" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func replaceAll(with records: [PersistedTransactionRecord]) throws {
         guard let databaseHandle else { return }
         try queue.sync {
@@ -113,8 +102,6 @@ final class HistoryDatabaseStore {
         }
     }
 
-    /// Handles "upsert" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func upsert(records: [PersistedTransactionRecord]) throws {
         guard let databaseHandle, !records.isEmpty else { return }
         try queue.sync {
@@ -129,8 +116,6 @@ final class HistoryDatabaseStore {
         }
     }
 
-    /// Handles "delete" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func delete(ids: [UUID]) throws {
         guard let databaseHandle, !ids.isEmpty else { return }
         let normalizedIDs = ids.map { $0.uuidString.lowercased() }
@@ -155,8 +140,6 @@ final class HistoryDatabaseStore {
         }
     }
 
-    /// Handles "clearAll" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func clearAll() throws {
         guard let databaseHandle else { return }
         try queue.sync {
@@ -166,14 +149,10 @@ final class HistoryDatabaseStore {
         }
     }
 
-    /// Handles "hardResetStorage" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func hardResetStorage() {
         try? clearAll()
     }
 
-    /// Handles "fetchAll" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func fetchAll() throws -> [PersistedTransactionRecord] {
         guard let databaseHandle else { return [] }
         return try queue.sync {
@@ -209,8 +188,6 @@ final class HistoryDatabaseStore {
         }
     }
 
-    /// Handles "upsert" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private func upsert(records: [PersistedTransactionRecord], on databaseHandle: OpaquePointer) throws {
         let sql = """
             INSERT INTO history_records (
@@ -246,8 +223,6 @@ final class HistoryDatabaseStore {
         }
     }
 
-    /// Handles "databaseURL" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func databaseURL() throws -> URL {
         let appSupportDirectory = try FileManager.default.url(
             for: .applicationSupportDirectory,
@@ -260,8 +235,6 @@ final class HistoryDatabaseStore {
         return spectraDirectory.appendingPathComponent("history.sqlite", isDirectory: false)
     }
 
-    /// Handles "deleteStorageFiles" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func deleteStorageFiles() {
         guard let baseURL = try? databaseURL() else { return }
         let fileManager = FileManager.default

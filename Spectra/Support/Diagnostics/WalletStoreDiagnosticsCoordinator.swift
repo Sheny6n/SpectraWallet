@@ -6,9 +6,19 @@ extension WalletStore {
         set { diagnostics.chainDegradedMessages = newValue }
     }
 
+    var chainDegradedMessagesByChainID: [WalletChainID: String] {
+        get { diagnostics.chainDegradedMessagesByChainID }
+        set { diagnostics.chainDegradedMessagesByChainID = newValue }
+    }
+
     var lastGoodChainSyncByName: [String: Date] {
         get { diagnostics.lastGoodChainSyncByName }
         set { diagnostics.lastGoodChainSyncByName = newValue }
+    }
+
+    var lastGoodChainSyncByChainID: [WalletChainID: Date] {
+        get { diagnostics.lastGoodChainSyncByChainID }
+        set { diagnostics.lastGoodChainSyncByChainID = newValue }
     }
 
     var operationalLogs: [OperationalLogEvent] {

@@ -1,8 +1,10 @@
 import Foundation
 
 struct WalletRefreshChainPlan: Hashable {
-    let chainName: String
+    let chainID: WalletChainID
     let refreshHistory: Bool
+
+    var chainName: String { chainID.displayName }
 }
 
 struct WalletActiveMaintenancePlan {
@@ -56,86 +58,93 @@ struct WalletRefreshPlanner {
     }
 
     static func chainPlans(
-        for chainNames: Set<String>,
+        for chainIDs: Set<WalletChainID>,
+        now: Date,
         forceChainRefresh: Bool,
         includeHistoryRefreshes: Bool,
         historyRefreshInterval: TimeInterval,
-        pendingTransactionMaintenanceChains: Set<String>,
-        degradedChains: Set<String>,
-        lastGoodChainSyncByName: [String: Date],
-        lastHistoryRefreshAtByChain: [String: Date],
+        pendingTransactionMaintenanceChains: Set<WalletChainID>,
+        degradedChains: Set<WalletChainID>,
+        lastGoodChainSyncByID: [WalletChainID: Date],
+        lastHistoryRefreshAtByChainID: [WalletChainID: Date],
         automaticChainRefreshStalenessInterval: TimeInterval
     ) -> [WalletRefreshChainPlan] {
-        chainNames
+        chainIDs
             .sorted()
-            .compactMap { chainName in
+            .compactMap { chainID in
                 guard shouldRefreshChainData(
-                    chainName,
+                    chainID,
+                    now: now,
                     force: forceChainRefresh,
                     pendingTransactionMaintenanceChains: pendingTransactionMaintenanceChains,
                     degradedChains: degradedChains,
-                    lastGoodChainSyncByName: lastGoodChainSyncByName,
+                    lastGoodChainSyncByID: lastGoodChainSyncByID,
                     automaticChainRefreshStalenessInterval: automaticChainRefreshStalenessInterval
                 ) else {
                     return nil
                 }
 
                 let refreshHistory = includeHistoryRefreshes && shouldRefreshOnChainHistory(
-                    for: chainName,
+                    for: chainID,
+                    now: now,
                     interval: historyRefreshInterval,
-                    lastHistoryRefreshAtByChain: lastHistoryRefreshAtByChain
+                    lastHistoryRefreshAtByChainID: lastHistoryRefreshAtByChainID
                 )
-                return WalletRefreshChainPlan(chainName: chainName, refreshHistory: refreshHistory)
+                return WalletRefreshChainPlan(chainID: chainID, refreshHistory: refreshHistory)
             }
     }
 
     static func historyPlans(
-        for chainNames: Set<String>,
+        for chainIDs: Set<WalletChainID>,
+        now: Date,
         interval: TimeInterval,
-        lastHistoryRefreshAtByChain: [String: Date]
-    ) -> [String] {
-        chainNames
+        lastHistoryRefreshAtByChainID: [WalletChainID: Date]
+    ) -> [WalletChainID] {
+        chainIDs
             .sorted()
             .filter {
                 shouldRefreshOnChainHistory(
                     for: $0,
+                    now: now,
                     interval: interval,
-                    lastHistoryRefreshAtByChain: lastHistoryRefreshAtByChain
+                    lastHistoryRefreshAtByChainID: lastHistoryRefreshAtByChainID
                 )
             }
     }
 
     private static func shouldRefreshChainData(
-        _ chainName: String,
+        _ chainID: WalletChainID,
+        now: Date,
         force: Bool,
-        pendingTransactionMaintenanceChains: Set<String>,
-        degradedChains: Set<String>,
-        lastGoodChainSyncByName: [String: Date],
+        pendingTransactionMaintenanceChains: Set<WalletChainID>,
+        degradedChains: Set<WalletChainID>,
+        lastGoodChainSyncByID: [WalletChainID: Date],
         automaticChainRefreshStalenessInterval: TimeInterval
     ) -> Bool {
         if force {
             return true
         }
-        if pendingTransactionMaintenanceChains.contains(chainName) {
+        if pendingTransactionMaintenanceChains.contains(chainID) {
             return true
         }
-        if degradedChains.contains(chainName) {
+        if degradedChains.contains(chainID) {
             return true
         }
-        guard let lastGoodSyncAt = lastGoodChainSyncByName[chainName] else {
+        guard let lastGoodSyncAt = lastGoodChainSyncByID[chainID] else {
             return true
         }
-        return Date().timeIntervalSince(lastGoodSyncAt) >= automaticChainRefreshStalenessInterval
+        return now.timeIntervalSince(lastGoodSyncAt) >= automaticChainRefreshStalenessInterval
     }
 
     private static func shouldRefreshOnChainHistory(
-        for chainName: String,
+        for chainID: WalletChainID,
+        now: Date,
         interval: TimeInterval,
-        lastHistoryRefreshAtByChain: [String: Date]
+        lastHistoryRefreshAtByChainID: [WalletChainID: Date]
     ) -> Bool {
-        guard let lastRefreshAt = lastHistoryRefreshAtByChain[chainName] else {
+        guard let lastRefreshAt = lastHistoryRefreshAtByChainID[chainID] else {
             return true
         }
-        return Date().timeIntervalSince(lastRefreshAt) >= interval
+        return now.timeIntervalSince(lastRefreshAt) >= interval
     }
 }

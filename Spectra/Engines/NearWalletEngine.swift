@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// NEAR wallet engine for address derivation, access-key handling, signing, and transaction submission.
-//
-// Responsibilities:
-// - Derives NEAR addresses and signing keys from local wallet material.
-// - Builds, signs, broadcasts, and verifies NEAR transfers using live chain state.
-
 import Foundation
 import CryptoKit
 import WalletCore

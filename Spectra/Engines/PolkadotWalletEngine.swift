@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Polkadot wallet engine for address derivation, transaction construction, signing, and broadcast.
-//
-// Responsibilities:
-// - Derives Polkadot addresses from seed material and private keys.
-// - Builds, signs, submits, and verifies Polkadot transfers.
-
 import Foundation
 import SwiftProtobuf
 import WalletCore

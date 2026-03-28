@@ -370,7 +370,7 @@ extension WalletStore {
            !quoteRefreshError.isEmpty {
             notices.append(
                 AppNoticeItem(
-                    title: "Pricing Notice",
+                    title: localizedStoreString("Pricing Notice"),
                     message: quoteRefreshError,
                     severity: .warning,
                     systemImage: "dollarsign.circle"
@@ -382,7 +382,7 @@ extension WalletStore {
            !fiatRatesRefreshError.isEmpty {
             notices.append(
                 AppNoticeItem(
-                    title: "Fiat Rates Degraded Mode",
+                    title: localizedStoreString("Fiat Rates Degraded Mode"),
                     message: fiatRatesRefreshError,
                     severity: .warning,
                     systemImage: "antenna.radiowaves.left.and.right.slash"
@@ -392,7 +392,7 @@ extension WalletStore {
 
         notices.append(contentsOf: chainDegradedBanners.map { banner in
             AppNoticeItem(
-                title: "\(banner.chainName) Degraded Mode",
+                title: localizedStoreFormat("%@ Degraded Mode", banner.chainName),
                 message: banner.message,
                 severity: .warning,
                 systemImage: "antenna.radiowaves.left.and.right.slash",

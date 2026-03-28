@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Network service for fetching Bitcoin balance/history/address data from configured providers.
-//
-// Responsibilities:
-// - Calls Bitcoin APIs and maps responses into app-domain primitives.
-// - Supports fallback paths and diagnostics-friendly error reporting.
-
 import Foundation
 
 struct BitcoinAddressResponse: Decodable {
@@ -181,8 +174,6 @@ enum BitcoinBalanceService {
         case mempoolEmzy
     }
 
-    /// Handles "baseURL" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func baseURL(for provider: EsploraProvider, networkMode: BitcoinNetworkMode) -> String {
         let endpoints = ChainBackendRegistry.BitcoinRuntimeEndpoints.esploraBaseURLs(for: networkMode)
         switch provider {
@@ -195,8 +186,6 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "fetchBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalance(for address: String, networkMode: BitcoinNetworkMode = .mainnet) async throws -> Double {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty,
@@ -220,8 +209,6 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "fetchTransactionStatus" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchTransactionStatus(txid: String, networkMode: BitcoinNetworkMode = .mainnet) async throws -> BitcoinTransactionStatus {
         let trimmedTXID = txid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTXID.isEmpty,
@@ -240,8 +227,6 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "hasTransactionHistory" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func hasTransactionHistory(for address: String, networkMode: BitcoinNetworkMode = .mainnet) async throws -> Bool {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty,
@@ -263,8 +248,6 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "fetchTransactionPage" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchTransactionPage(
         for address: String,
         networkMode: BitcoinNetworkMode = .mainnet,
@@ -305,8 +288,6 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "fetchRecentTransactions" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchRecentTransactions(
         for address: String,
         networkMode: BitcoinNetworkMode = .mainnet,
@@ -315,8 +296,6 @@ enum BitcoinBalanceService {
         try await fetchTransactionPage(for: address, networkMode: networkMode, limit: limit, cursor: nil).snapshots
     }
 
-    /// Handles "fetchBalance" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchBalance(forExtendedPublicKey xpub: String) async throws -> Double {
         do {
             let response = try await fetchXPubMultiAddress(xpub, limit: 1, offset: 0)
@@ -330,8 +309,6 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "hasTransactionHistory" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func hasTransactionHistory(forExtendedPublicKey xpub: String) async throws -> Bool {
         do {
             let response = try await fetchXPubMultiAddress(xpub, limit: 1, offset: 0)
@@ -342,8 +319,6 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "fetchTransactionPage" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchTransactionPage(
         forExtendedPublicKey xpub: String,
         limit: Int = 25,
@@ -399,14 +374,10 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "fetchRecentTransactions" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchRecentTransactions(forExtendedPublicKey xpub: String, limit: Int = 25) async throws -> [BitcoinHistorySnapshot] {
         try await fetchTransactionPage(forExtendedPublicKey: xpub, limit: limit, cursor: nil).snapshots
     }
 
-    /// Handles "fetchReceiveAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func fetchReceiveAddress(forExtendedPublicKey xpub: String) async throws -> String? {
         do {
             let response = try await fetchXPubMultiAddress(xpub, limit: 50, offset: 0)
@@ -422,8 +393,6 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "mapAddressTransactions" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func mapAddressTransactions(
         _ transactions: [BitcoinAddressTransaction],
         normalizedAddress: String,
@@ -478,8 +447,6 @@ enum BitcoinBalanceService {
         }
     }
 
-    /// Handles "fetchXPubMultiAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchXPubMultiAddress(_ xpub: String, limit: Int, offset: Int) async throws -> BlockchainInfoMultiAddressResponse {
         let trimmedXPub = xpub.trimmingCharacters(in: .whitespacesAndNewlines)
         let boundedLimit = max(1, min(limit, 100))
@@ -506,8 +473,6 @@ enum BitcoinBalanceService {
         return try JSONDecoder().decode(BlockchainInfoMultiAddressResponse.self, from: data)
     }
 
-    /// Handles "fetchBlockchairXPubDashboard" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchBlockchairXPubDashboard(_ xpub: String, limit: Int = 100, offset: Int = 0) async throws -> BlockchairXPubData {
         let trimmedXPub = xpub.trimmingCharacters(in: .whitespacesAndNewlines)
         let boundedLimit = max(1, min(limit, 100))
@@ -533,14 +498,10 @@ enum BitcoinBalanceService {
         return payload
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
     }
 
-    /// Handles "fetchData" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }

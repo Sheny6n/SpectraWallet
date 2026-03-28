@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Bitcoin SV balance/history service backed by Blockchair address and transaction APIs.
-//
-// Responsibilities:
-// - Fetches BSV balances, history pages, UTXOs, and transaction status.
-// - Normalizes BSV provider responses into app-domain models.
-
 import Foundation
 
 struct BitcoinSVHistorySnapshot: Equatable {

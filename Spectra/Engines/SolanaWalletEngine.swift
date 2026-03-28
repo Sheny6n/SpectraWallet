@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Solana engine responsible for derivation/signing behavior and transaction preparation hooks.
-//
-// Responsibilities:
-// - Implements SOL-specific account/key and transaction primitives.
-// - Supports WalletStore send/receive and refresh orchestration paths.
-
 import Foundation
 import SolanaSwift
 import WalletCore
@@ -60,8 +53,6 @@ enum SolanaWalletEngine {
 
     private static let solanaRPCBases = ChainBackendRegistry.SolanaRuntimeEndpoints.sendRPCBaseURLs
 
-    /// Handles "rpcClient" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func rpcClient(baseURL: String) -> SolanaAPIClient {
         JSONRPCAPIClient(endpoint: APIEndPoint(address: baseURL, network: .mainnetBeta))
     }
@@ -78,8 +69,6 @@ enum SolanaWalletEngine {
         throw lastError ?? SolanaWalletEngineError.rpcFailed("No Solana RPC endpoint was reachable.")
     }
 
-    /// Handles "derivedAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func derivedAddress(
         for seedPhrase: String,
         preference: DerivationPreference = .standard,
@@ -99,8 +88,6 @@ enum SolanaWalletEngine {
         return address
     }
 
-    /// Handles "estimateSendPreview" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) throws -> SolanaSendPreview {
         guard AddressValidation.isValidSolanaAddress(ownerAddress), AddressValidation.isValidSolanaAddress(destinationAddress) else {
             throw SolanaWalletEngineError.invalidAddress
@@ -111,8 +98,6 @@ enum SolanaWalletEngine {
         return SolanaSendPreview(estimatedNetworkFeeSOL: estimatedFeeSOL)
     }
 
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(
         seedPhrase: String,
         ownerAddress: String,
@@ -177,8 +162,6 @@ enum SolanaWalletEngine {
         )
     }
 
-    /// Handles "sendTokenInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendTokenInBackground(
         seedPhrase: String,
         ownerAddress: String,
@@ -337,8 +320,6 @@ enum SolanaWalletEngine {
         return .deferred
     }
 
-    /// Handles "fetchLatestBlockhash" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchLatestBlockhash() async throws -> String {
         let hash = try await withRPCClient { client in
             try await client.getRecentBlockhash(commitment: "confirmed")
@@ -349,8 +330,6 @@ enum SolanaWalletEngine {
         return hash
     }
 
-    /// Handles "broadcastSignedTransaction" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func broadcastSignedTransaction(_ encodedTransactionBase64: String) async throws -> String {
         guard let config = RequestConfiguration(
             commitment: "confirmed",
@@ -373,8 +352,6 @@ enum SolanaWalletEngine {
         return txHash
     }
 
-    /// Handles "scaledUnsignedAmount" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func scaledUnsignedAmount(_ amount: Double, decimals: Int) throws -> UInt64 {
         guard amount.isFinite, amount > 0, decimals >= 0 else {
             throw SolanaWalletEngineError.invalidAmount
@@ -397,8 +374,6 @@ enum SolanaWalletEngine {
         return value
     }
 
-    /// Handles "decimalPowerOfTen" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func decimalPowerOfTen(_ exponent: Int) -> Decimal {
         guard exponent > 0 else { return 1 }
         var result = Decimal(1)
@@ -414,8 +389,6 @@ enum SolanaWalletEngine {
         let derivationPath: String
     }
 
-    /// Handles "resolvedSolanaKeyMaterial" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func resolvedSolanaKeyMaterial(
         seedPhrase: String,
         ownerAddress: String?,

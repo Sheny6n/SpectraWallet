@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Chain wiki content and presentation for the Settings area.
-//
-// Responsibilities:
-// - Keeps protocol reference content separate from the main settings layout.
-// - Exposes editable per-chain technical summaries and derivation references.
-
 import SwiftUI
 
 private func localizedChainWikiString(_ key: String) -> String {

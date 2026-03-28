@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Polkadot balance and history service backed by provider APIs for account state and transfers.
-//
-// Responsibilities:
-// - Fetches Polkadot balances and recent account history.
-// - Normalizes provider responses into app-facing snapshots and diagnostics.
-
 import Foundation
 
 enum PolkadotBalanceServiceError: LocalizedError {

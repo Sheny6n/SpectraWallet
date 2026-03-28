@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Monero engine wrapper for address derivation and transaction workflow integration.
-//
-// Responsibilities:
-// - Encapsulates Monero-specific wallet operations for app-level usage.
-// - Bridges chain semantics into shared app transaction state models.
-
 import Foundation
 
 enum MoneroWalletEngineError: LocalizedError {
@@ -64,8 +57,6 @@ enum MoneroWalletEngine {
         let feeXMR: Double?
     }
 
-    /// Handles "estimateSendPreview" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func estimateSendPreview(
         from ownerAddress: String,
         to destinationAddress: String,
@@ -128,8 +119,6 @@ enum MoneroWalletEngine {
         throw lastError
     }
 
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(
         ownerAddress: String,
         destinationAddress: String,

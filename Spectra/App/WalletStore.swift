@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Central state coordinator for wallet lifecycle, balances/history refresh, send/receive flows, diagnostics, and persistence.
-//
-// Responsibilities:
-// - Orchestrates all chain services/engines and merges results into UI-ready state.
-// - Owns security-sensitive flows: seed storage, reset behavior, and operational diagnostics.
-
 import Foundation
 import SwiftUI
 import Combine
@@ -277,8 +270,6 @@ class WalletStore: ObservableObject {
         var consecutiveFailures: Int
         var reachedFinality: Bool
 
-        /// WalletStore workflow: Initial.
-        /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
         static func initial(now: Date = Date()) -> DogecoinStatusTrackingState {
             DogecoinStatusTrackingState(
                 lastCheckedAt: nil,
@@ -1066,8 +1057,6 @@ class WalletStore: ObservableObject {
         return nil
     }
 
-    /// WalletStore workflow: Parse dogecoin amount input.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func parseDogecoinAmountInput(_ amountText: String) -> Double? {
         let trimmed = amountText.trimmingCharacters(in: .whitespacesAndNewlines)
         let pattern = #"^(\d+(\.\d{1,8})?|\.\d{1,8})$"#
@@ -1418,8 +1407,6 @@ class WalletStore: ObservableObject {
         }
     }
 
-    /// WalletStore workflow: Clear persisted secure data on fresh install if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func clearPersistedSecureDataOnFreshInstallIfNeeded() {
         if UserDefaults.standard.bool(forKey: Self.installMarkerDefaultsKey) {
             return
@@ -1694,8 +1681,6 @@ class WalletStore: ObservableObject {
         return "0x" + canonicalHex
     }
 
-    /// WalletStore workflow: Enabled ethereum tracked tokens.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func enabledEthereumTrackedTokens() -> [EthereumSupportedToken] {
         enabledTokenPreferences(for: .ethereum).map { entry in
             EthereumSupportedToken(
@@ -1774,8 +1759,6 @@ class WalletStore: ObservableObject {
         }
     }
 
-    /// WalletStore workflow: Enabled tron tracked tokens.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func enabledTronTrackedTokens() -> [TronBalanceService.TrackedTRC20Token] {
         enabledTokenPreferences(for: .tron).map { entry in
             TronBalanceService.TrackedTRC20Token(
@@ -1786,8 +1769,6 @@ class WalletStore: ObservableObject {
         }
     }
 
-    /// WalletStore workflow: Solana tracked tokens.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func solanaTrackedTokens(includeDisabled: Bool = false) -> [String: SolanaBalanceService.KnownTokenMetadata] {
         var result: [String: SolanaBalanceService.KnownTokenMetadata] = [:]
         let entries = includeDisabled ? tokenPreferences.filter { $0.chain == .solana } : enabledTokenPreferences(for: .solana)
@@ -1803,8 +1784,6 @@ class WalletStore: ObservableObject {
         return result
     }
 
-    /// WalletStore workflow: Enabled solana tracked tokens.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func enabledSolanaTrackedTokens() -> [String: SolanaBalanceService.KnownTokenMetadata] {
         let configured = solanaTrackedTokens(includeDisabled: false)
         if configured.isEmpty {
@@ -1893,8 +1872,6 @@ class WalletStore: ObservableObject {
         )
     }
 
-    /// WalletStore workflow: Is supported solana send coin.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func isSupportedSolanaSendCoin(_ coin: Coin) -> Bool {
         guard coin.chainName == "Solana" else { return false }
         if coin.symbol == "SOL" {
@@ -1967,8 +1944,6 @@ func resetImportForm() {
         isShowingWalletImporter = true
     }
 
-    /// WalletStore workflow: Cancel wallet import.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func cancelWalletImport() {
         importDraft.configureForNewWallet()
         importError = nil
@@ -1991,8 +1966,6 @@ func resetImportForm() {
         isShowingWalletImporter = true
     }
     
-    /// WalletStore workflow: Confirm delete wallet.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func confirmDeleteWallet(_ wallet: ImportedWallet) {
         walletPendingDeletion = wallet
     }
@@ -2041,8 +2014,6 @@ func resetImportForm() {
         }
     }
     
-    /// WalletStore workflow: Wallet.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func wallet(for walletID: String) -> ImportedWallet? {
         cachedWalletByIDString[walletID]
     }
@@ -2107,8 +2078,6 @@ func resetImportForm() {
         return ordered
     }
 
-    /// WalletStore workflow: Can reveal seed phrase.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func canRevealSeedPhrase(for walletID: UUID) -> Bool {
         storedSeedPhrase(for: walletID) != nil
     }
@@ -2118,8 +2087,6 @@ func resetImportForm() {
         return SecureSeedPasswordStore.verify(password, for: account)
     }
 
-    /// WalletStore workflow: Watch-only wallet check.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func isWatchOnlyWallet(_ wallet: ImportedWallet) -> Bool {
         !walletHasSigningMaterial(wallet.id)
     }
@@ -2128,8 +2095,6 @@ func resetImportForm() {
         isPrivateKeyBackedWallet(wallet.id)
     }
 
-    /// WalletStore workflow: Reveal seed phrase.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func revealSeedPhrase(for wallet: ImportedWallet, password: String? = nil) async throws -> String {
         let authenticated = await authenticateForSeedPhraseReveal(reason: "Authenticate to view seed phrase for \(wallet.name)")
         guard authenticated else {
@@ -2158,20 +2123,14 @@ func resetImportForm() {
         cachedAvailableSendCoinsByWalletID[walletID] ?? []
     }
     
-    /// WalletStore workflow: Available receive coins.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func availableReceiveCoins(for walletID: String) -> [Coin] {
         cachedAvailableReceiveCoinsByWalletID[walletID] ?? []
     }
 
-    /// WalletStore workflow: Available receive chains.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func availableReceiveChains(for walletID: String) -> [String] {
         cachedAvailableReceiveChainsByWalletID[walletID] ?? []
     }
 
-    /// WalletStore workflow: Selected receive coin.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func selectedReceiveCoin(for walletID: String) -> Coin? {
         let resolvedChainName = resolvedReceiveChainName(for: walletID)
         guard !resolvedChainName.isEmpty else { return nil }
@@ -2437,8 +2396,6 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Custom ethereum fee configuration.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func customEthereumFeeConfiguration() -> EthereumCustomFeeConfiguration? {
         guard useCustomEthereumFees else { return nil }
         guard customEthereumFeeValidationError == nil else { return nil }
@@ -2467,22 +2424,16 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Explicit ethereum nonce.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func explicitEthereumNonce() -> Int? {
         guard ethereumManualNonceEnabled else { return nil }
         guard customEthereumNonceValidationError == nil else { return nil }
         return Int(ethereumManualNonce.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    /// WalletStore workflow: Selected wallet for send.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func selectedWalletForSend() -> ImportedWallet? {
         wallet(for: sendWalletID)
     }
 
-    /// WalletStore workflow: Selected pending ethereum send transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func selectedPendingEthereumSendTransaction() -> TransactionRecord? {
         guard let wallet = selectedWalletForSend() else { return nil }
         return transactions.first { record in
@@ -2494,8 +2445,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Pending ethereum send transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func pendingEthereumSendTransaction(with transactionID: UUID) -> TransactionRecord? {
         transactions.first { record in
             record.id == transactionID
@@ -2506,8 +2455,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Prepare ethereum replacement context.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func prepareEthereumReplacementContext(cancel: Bool) async {
         guard let pendingTransaction = selectedPendingEthereumSendTransaction() else {
             sendError = localizedStoreString("No pending Ethereum transaction found for this wallet.")
@@ -2516,8 +2463,6 @@ func resetImportForm() {
         await prepareEthereumReplacementContext(pendingTransaction: pendingTransaction, cancel: cancel)
     }
 
-    /// WalletStore workflow: Open ethereum replacement composer.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func openEthereumReplacementComposer(for transactionID: UUID, cancel: Bool) async -> String? {
         guard let pendingTransaction = pendingEthereumSendTransaction(with: transactionID) else {
             let message = localizedStoreString("This Ethereum transaction is no longer pending, so replacement/cancel is unavailable.")
@@ -2544,8 +2489,6 @@ func resetImportForm() {
         return sendError
     }
 
-    /// WalletStore workflow: Prepare ethereum replacement context.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func prepareEthereumReplacementContext(pendingTransaction: TransactionRecord, cancel: Bool) async {
         guard let txHash = pendingTransaction.transactionHash else {
             sendError = localizedStoreString("No pending Ethereum transaction found for this wallet.")
@@ -2588,28 +2531,20 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Prepare ethereum speed up context.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func prepareEthereumSpeedUpContext() async {
         await prepareEthereumReplacementContext(cancel: false)
     }
 
-    /// WalletStore workflow: Prepare ethereum cancel context.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func prepareEthereumCancelContext() async {
         await prepareEthereumReplacementContext(cancel: true)
     }
 
-    /// WalletStore workflow: Is cancelled request.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func isCancelledRequest(_ error: Error) -> Bool {
         if error is CancellationError { return true }
         if let urlError = error as? URLError, urlError.code == .cancelled { return true }
         return false
     }
 
-    /// WalletStore workflow: Map ethereum send error.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func mapEthereumSendError(_ error: Error) -> String {
         let message = error.localizedDescription.lowercased()
 
@@ -2634,8 +2569,6 @@ func resetImportForm() {
         return error.localizedDescription
     }
 
-    /// WalletStore workflow: Evm chain context.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func evmChainContext(for chainName: String) -> EVMChainContext? {
         switch chainName {
         case "Ethereum":
@@ -2657,14 +2590,10 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Is evmchain.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func isEVMChain(_ chainName: String) -> Bool {
         evmChainContext(for: chainName) != nil
     }
 
-    /// WalletStore workflow: Configured evmrpcendpoint url.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func configuredEVMRPCEndpointURL(for chainName: String) -> URL? {
         switch chainName {
         case "Ethereum":
@@ -2682,8 +2611,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Supported evmtoken.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func supportedEVMToken(for coin: Coin) -> EthereumSupportedToken? {
         guard let chain = evmChainContext(for: coin.chainName) else {
             return nil
@@ -2729,8 +2656,6 @@ func resetImportForm() {
         return chainTokens.first { $0.symbol == coin.symbol }
     }
 
-    /// WalletStore workflow: Is valid dogecoin address for policy.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func isValidDogecoinAddressForPolicy(_ address: String) -> Bool {
         AddressValidation.isValidDogecoinAddress(
             address,
@@ -2738,8 +2663,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Is valid address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func isValidAddress(_ address: String, for chainName: String) -> Bool {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty else { return false }
@@ -2786,8 +2709,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Normalized address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func normalizedAddress(_ address: String, for chainName: String) -> String {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         switch chainName {
@@ -2815,8 +2736,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Is ensname candidate.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func isENSNameCandidate(_ value: String) -> Bool {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return normalized.hasSuffix(".eth")
@@ -2854,8 +2773,6 @@ func resetImportForm() {
         return (resolved, true)
     }
 
-    /// WalletStore workflow: Evm recipient preflight reasons.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func evmRecipientPreflightReasons(
         holding: Coin,
         chain: EVMChainContext,
@@ -2991,16 +2908,12 @@ func resetImportForm() {
         isShowingHighRiskSendConfirmation = false
     }
 
-    /// WalletStore workflow: Confirm high risk send and submit.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func confirmHighRiskSendAndSubmit() async {
         bypassHighRiskSendConfirmation = true
         isShowingHighRiskSendConfirmation = false
         await submitSend()
     }
 
-    /// WalletStore workflow: Address book address validation message.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func addressBookAddressValidationMessage(for address: String, chainName: String) -> String {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -3075,8 +2988,6 @@ func resetImportForm() {
             }()
     }
 
-    /// WalletStore workflow: Is duplicate address book address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func isDuplicateAddressBookAddress(_ address: String, chainName: String, excluding entryID: UUID? = nil) -> Bool {
         let normalizedAddress = normalizedAddress(address, for: chainName)
         guard !normalizedAddress.isEmpty else { return false }
@@ -3112,8 +3023,6 @@ func resetImportForm() {
         addressBook.insert(entry, at: 0)
     }
 
-    /// WalletStore workflow: Can save last sent recipient to address book.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func canSaveLastSentRecipientToAddressBook() -> Bool {
         guard let lastSentTransaction,
               lastSentTransaction.kind == .send else {
@@ -3127,8 +3036,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Save last sent recipient to address book.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func saveLastSentRecipientToAddressBook() {
         guard let lastSentTransaction,
               lastSentTransaction.kind == .send else {
@@ -3143,8 +3050,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Rename address book entry.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func renameAddressBookEntry(id: UUID, to newName: String) {
         let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty,
@@ -3162,8 +3067,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Remove address book entry.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func removeAddressBookEntry(id: UUID) {
         addressBook.removeAll { $0.id == id }
     }
@@ -3571,8 +3474,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Run dogecoin self tests.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runDogecoinSelfTests() {
         guard !isRunningDogecoinSelfTests else { return }
         isRunningDogecoinSelfTests = true
@@ -3587,8 +3488,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Run ethereum self tests.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runEthereumSelfTests() async {
         guard !isRunningEthereumSelfTests else { return }
         isRunningEthereumSelfTests = true
@@ -3691,22 +3590,16 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh dogecoin broadcast provider reliability.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshDogecoinBroadcastProviderReliability() {
         dogecoinBroadcastProviderReliability = DogecoinWalletEngine.broadcastProviderReliabilitySnapshot()
     }
 
-    /// WalletStore workflow: Reset dogecoin broadcast provider reliability.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func resetDogecoinBroadcastProviderReliability() {
         DogecoinWalletEngine.resetBroadcastProviderReliability()
         DogecoinBalanceService.resetProviderReliability()
         refreshDogecoinBroadcastProviderReliability()
     }
 
-    /// WalletStore workflow: Run dogecoin rescan.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runDogecoinRescan() async {
         guard !isRunningDogecoinRescan else { return }
         isRunningDogecoinRescan = true
@@ -3808,15 +3701,11 @@ func resetImportForm() {
 #endif
     }
 
-    /// WalletStore workflow: Current battery level.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func currentBatteryLevel() -> Float {
         let level = UIDevice.current.batteryLevel
         return level < 0 ? 1.0 : level
     }
 
-    /// WalletStore workflow: Active pending refresh interval for profile.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func activePendingRefreshIntervalForProfile() -> TimeInterval {
         switch backgroundSyncProfile {
         case .conservative: return 30
@@ -3825,20 +3714,14 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Active price refresh interval for profile.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func activePriceRefreshIntervalForProfile() -> TimeInterval {
         TimeInterval(automaticRefreshFrequencyMinutes * 60)
     }
 
-    /// WalletStore workflow: Base background maintenance interval.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func baseBackgroundMaintenanceInterval() -> TimeInterval {
         TimeInterval(backgroundBalanceRefreshFrequencyMinutes * 60)
     }
 
-    /// WalletStore workflow: Background maintenance interval.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func backgroundMaintenanceInterval(now _: Date = Date()) -> TimeInterval {
         var interval = baseBackgroundMaintenanceInterval()
         if isConstrainedNetwork || isExpensiveNetwork {
@@ -4073,8 +3956,6 @@ func resetImportForm() {
         await refreshFiatExchangeRatesIfNeeded()
     }
 
-    /// WalletStore workflow: Run active scheduled maintenance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func runActiveScheduledMaintenance(now: Date) async {
         let plan = WalletRefreshPlanner.activeMaintenancePlan(
             now: now,
@@ -4096,8 +3977,6 @@ func resetImportForm() {
         await refreshFiatExchangeRatesIfNeeded()
     }
 
-    /// WalletStore workflow: Set app is active.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func setAppIsActive(_ isActive: Bool) {
         appIsActive = isActive
         if !isActive, useFaceID, useAutoLock {
@@ -4113,8 +3992,6 @@ func resetImportForm() {
         startMaintenanceLoopIfNeeded()
     }
 
-    /// WalletStore workflow: Unlock app.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func unlockApp() async {
         guard useFaceID else {
             isAppLocked = false
@@ -4128,8 +4005,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Start maintenance loop if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func startMaintenanceLoopIfNeeded() {
         guard maintenanceTask == nil else { return }
         maintenanceTask = Task { @MainActor [weak self] in
@@ -4165,8 +4040,6 @@ func resetImportForm() {
         await performBackgroundMaintenanceTick()
     }
 
-    /// WalletStore workflow: Authenticate for sensitive action.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func authenticateForSensitiveAction(
         reason: String,
         allowWhenAuthenticationUnavailable: Bool = false
@@ -4200,8 +4073,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Authenticate for seed phrase reveal.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func authenticateForSeedPhraseReveal(reason: String) async -> Bool {
         let context = LAContext()
         var authError: NSError?
@@ -4216,8 +4087,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Retry dogecoin transaction status.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func retryDogecoinTransactionStatus(for transactionID: UUID) async -> String {
         guard let transaction = transactions.first(where: { $0.id == transactionID }) else {
             return "Transaction not found."
@@ -4252,8 +4121,6 @@ func resetImportForm() {
         return "Transaction is confirmed."
     }
 
-    /// WalletStore workflow: Rebroadcast dogecoin transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func rebroadcastDogecoinTransaction(for transactionID: UUID) async -> String {
         guard let transaction = transactions.first(where: { $0.id == transactionID }) else {
             return "Transaction not found."
@@ -4346,14 +4213,10 @@ func resetImportForm() {
         derivationResolution(for: wallet, chain: .solana).flavor == .legacy ? .legacy : .standard
     }
 
-    /// WalletStore workflow: Resolved ethereum address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedEthereumAddress(for wallet: ImportedWallet) -> String? {
         resolvedEVMAddress(for: wallet, chainName: "Ethereum")
     }
 
-    /// WalletStore workflow: Resolved evmaddress.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedEVMAddress(for wallet: ImportedWallet, chainName: String) -> String? {
         guard isEVMChain(chainName) else { return nil }
         guard let chain = evmChainContext(for: chainName) else { return nil }
@@ -4393,8 +4256,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Resolved tron address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedTronAddress(for wallet: ImportedWallet) -> String? {
         if let seedPhrase = storedSeedPhrase(for: wallet.id),
            let derivedAddress = try? Self.deriveTronAddress(seedPhrase: seedPhrase, wallet: wallet),
@@ -4409,8 +4270,6 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Resolved solana address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedSolanaAddress(for wallet: ImportedWallet) -> String? {
         if let seedPhrase = storedSeedPhrase(for: wallet.id),
            let derivedAddress = try? SolanaWalletEngine.derivedAddress(
@@ -4429,8 +4288,6 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Resolved sui address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedSuiAddress(for wallet: ImportedWallet) -> String? {
         if let seedPhrase = storedSeedPhrase(for: wallet.id),
            let derivedAddress = try? SuiWalletEngine.derivedAddress(
@@ -4553,8 +4410,6 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Resolved cardano address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedCardanoAddress(for wallet: ImportedWallet) -> String? {
         if let cardanoAddress = wallet.cardanoAddress,
            AddressValidation.isValidCardanoAddress(cardanoAddress) {
@@ -4571,8 +4426,6 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Resolved xrpaddress.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedXRPAddress(for wallet: ImportedWallet) -> String? {
         if let seedPhrase = storedSeedPhrase(for: wallet.id),
            let derivedAddress = try? XRPWalletEngine.derivedAddress(
@@ -4590,8 +4443,6 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Resolved monero address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedMoneroAddress(for wallet: ImportedWallet) -> String? {
         if let moneroAddress = wallet.moneroAddress,
            AddressValidation.isValidMoneroAddress(moneroAddress) {
@@ -4600,8 +4451,6 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Resolved dogecoin address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedDogecoinAddress(for wallet: ImportedWallet) -> String? {
         if let seedPhrase = storedSeedPhrase(for: wallet.id),
            let derivedAddress = try? DogecoinWalletEngine.derivedAddress(
@@ -4618,8 +4467,6 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Resolved litecoin address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func resolvedLitecoinAddress(for wallet: ImportedWallet) -> String? {
         if let seedPhrase = storedSeedPhrase(for: wallet.id) {
             if let derivedAddress = try? LitecoinWalletEngine.derivedAddress(
@@ -4671,8 +4518,6 @@ func resetImportForm() {
         return nil
     }
 
-    /// WalletStore workflow: Wallet with resolved dogecoin address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func walletWithResolvedDogecoinAddress(_ wallet: ImportedWallet) -> ImportedWallet {
         let resolvedAddress = resolvedDogecoinAddress(for: wallet) ?? wallet.dogecoinAddress
         return ImportedWallet(
@@ -4703,14 +4548,10 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Known dogecoin addresses.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func knownDogecoinAddresses(for wallet: ImportedWallet) -> [String] {
         var ordered: [String] = []
         var seen: Set<String> = []
 
-        /// WalletStore workflow: Add if valid.
-        /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
         func addIfValid(_ candidate: String?) {
             guard let candidate else { return }
             let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -4745,22 +4586,16 @@ func resetImportForm() {
         return ordered
     }
 
-    /// WalletStore workflow: Parse dogecoin derivation index.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func parseDogecoinDerivationIndex(path: String?, expectedPrefix: String) -> Int? {
         guard let path, path.hasPrefix(expectedPrefix) else { return nil }
         let suffix = String(path.dropFirst(expectedPrefix.count))
         return Int(suffix)
     }
 
-    /// WalletStore workflow: Normalized dogecoin address key.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func normalizedDogecoinAddressKey(_ address: String) -> String {
         address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    /// WalletStore workflow: Register dogecoin owned address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func registerDogecoinOwnedAddress(
         address: String?,
         walletID: UUID?,
@@ -4788,8 +4623,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Owned dogecoin addresses.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func ownedDogecoinAddresses(for walletID: UUID) -> [String] {
         dogecoinOwnedAddressMap.compactMap { key, value in
             guard value.walletID == walletID else { return nil }
@@ -4798,8 +4631,6 @@ func resetImportForm() {
     }
 
 
-    /// WalletStore workflow: Baseline dogecoin keypool state.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func baselineDogecoinKeypoolState(for wallet: ImportedWallet) -> DogecoinKeypoolState {
         let dogecoinTransactions = transactions.filter {
             $0.chainName == "Dogecoin"
@@ -4838,8 +4669,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Keypool state.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func keypoolState(for wallet: ImportedWallet) -> DogecoinKeypoolState {
         let baseline = baselineDogecoinKeypoolState(for: wallet)
         if var existing = dogecoinKeypoolByWalletID[wallet.id] {
@@ -4855,8 +4684,6 @@ func resetImportForm() {
         return baseline
     }
 
-    /// WalletStore workflow: Reserve dogecoin receive index.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func reserveDogecoinReceiveIndex(for wallet: ImportedWallet) -> Int {
         var state = keypoolState(for: wallet)
         if let reserved = state.reservedReceiveIndex {
@@ -4869,8 +4696,6 @@ func resetImportForm() {
         return reserved
     }
 
-    /// WalletStore workflow: Reserve dogecoin change index.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func reserveDogecoinChangeIndex(for wallet: ImportedWallet) -> Int {
         var state = keypoolState(for: wallet)
         let reserved = max(state.nextChangeIndex, 0)
@@ -4879,8 +4704,6 @@ func resetImportForm() {
         return reserved
     }
 
-    /// WalletStore workflow: Dogecoin reserved receive address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func dogecoinReservedReceiveAddress(for wallet: ImportedWallet, reserveIfMissing: Bool) -> String? {
         var state = keypoolState(for: wallet)
         if state.reservedReceiveIndex == nil, reserveIfMissing {
@@ -4913,8 +4736,6 @@ func resetImportForm() {
         return resolvedDogecoinAddress(for: wallet)
     }
 
-    /// WalletStore workflow: Refresh dogecoin receive reservation state.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshDogecoinReceiveReservationState() async {
         let dogecoinWallets = wallets.filter { $0.selectedChain == "Dogecoin" }
         guard !dogecoinWallets.isEmpty else { return }
@@ -4966,8 +4787,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Has dogecoin on chain activity.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func hasDogecoinOnChainActivity(address: String) async -> Bool {
         if let snapshots = try? await DogecoinBalanceService.fetchRecentTransactions(for: address, limit: 1),
            !snapshots.isEmpty {
@@ -4980,14 +4799,10 @@ func resetImportForm() {
         return false
     }
 
-    /// WalletStore workflow: Discover dogecoin addresses.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func discoverDogecoinAddresses(for wallet: ImportedWallet) async -> [String] {
         var ordered: [String] = []
         var seen: Set<String> = []
 
-        /// WalletStore workflow: Append address.
-        /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
         func appendAddress(_ candidate: String?) {
             guard let candidate else { return }
             let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -5037,8 +4852,6 @@ func resetImportForm() {
         return ordered
     }
 
-    /// WalletStore workflow: Derive dogecoin address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func deriveDogecoinAddress(for wallet: ImportedWallet, isChange: Bool, index: Int) -> String? {
         guard let seedPhrase = storedSeedPhrase(for: wallet.id) else { return nil }
         return try? DogecoinWalletEngine.derivedAddress(
@@ -5049,8 +4862,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Refresh dogecoin address discovery.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshDogecoinAddressDiscovery() async {
         let dogecoinWallets = wallets.filter { $0.selectedChain == "Dogecoin" }
         guard !dogecoinWallets.isEmpty else {
@@ -5179,8 +4990,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh dogecoin send preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshDogecoinSendPreview() async {
         guard let wallet = wallet(for: sendWalletID),
               let selectedSendCoin,
@@ -5239,8 +5048,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh bitcoin send preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshBitcoinSendPreview() async {
         guard let wallet = wallet(for: sendWalletID),
               let selectedSendCoin,
@@ -5346,8 +5153,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh litecoin send preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshLitecoinSendPreview() async {
         guard let wallet = wallet(for: sendWalletID),
               let selectedSendCoin,
@@ -5383,8 +5188,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh tron send preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshTronSendPreview() async {
         guard let wallet = wallet(for: sendWalletID),
               let selectedSendCoin,
@@ -5428,8 +5231,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh solana send preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshSolanaSendPreview() async {
         guard let wallet = wallet(for: sendWalletID),
               let selectedSendCoin,
@@ -5468,8 +5269,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh xrpsend preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshXRPSendPreview() async {
         guard let wallet = wallet(for: sendWalletID),
               let selectedSendCoin,
@@ -5548,8 +5347,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh monero send preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshMoneroSendPreview() async {
         guard let wallet = wallet(for: sendWalletID),
               let selectedSendCoin,
@@ -5592,8 +5389,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh cardano send preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshCardanoSendPreview() async {
         guard let wallet = wallet(for: sendWalletID),
               let selectedSendCoin,
@@ -5636,8 +5431,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh sui send preview.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshSuiSendPreview() async {
         guard let wallet = wallet(for: sendWalletID),
               let selectedSendCoin,
@@ -6341,8 +6134,6 @@ func resetImportForm() {
         isPreparingNearSend = false
     }
 
-    /// WalletStore workflow: Refresh send destination risk warning.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func refreshSendDestinationRiskWarning(for coin: Coin) async {
         let probeID = "\(sendWalletID)|\(sendHoldingKey)|\(sendAddress)"
         let trimmedDestination = sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -6578,8 +6369,6 @@ func resetImportForm() {
         }
     }
     
-    /// WalletStore workflow: User facing tron send error.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func userFacingTronSendError(_ error: Error, symbol: String) -> String {
         if let tronError = error as? TronWalletEngineError {
             switch tronError {
@@ -6611,8 +6400,6 @@ func resetImportForm() {
         return message
     }
 
-    /// WalletStore workflow: Record tron send diagnostic error.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func recordTronSendDiagnosticError(_ message: String) {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -6620,8 +6407,6 @@ func resetImportForm() {
         tronLastSendErrorAt = Date()
     }
 
-    /// WalletStore workflow: User facing xrpsend error.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func userFacingXRPSendError(_ error: Error) -> String {
         if let xrpError = error as? XRPWalletEngineError {
             switch xrpError {
@@ -6664,8 +6449,6 @@ func resetImportForm() {
         return error.localizedDescription
     }
 
-    /// WalletStore workflow: User facing monero send error.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func userFacingMoneroSendError(_ error: Error) -> String {
         if let moneroError = error as? MoneroWalletEngineError {
             switch moneroError {
@@ -6684,8 +6467,6 @@ func resetImportForm() {
         return error.localizedDescription
     }
 
-    /// WalletStore workflow: User facing cardano send error.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func userFacingCardanoSendError(_ error: Error) -> String {
         if let cardanoError = error as? CardanoWalletEngineError {
             switch cardanoError {
@@ -6706,8 +6487,6 @@ func resetImportForm() {
         return error.localizedDescription
     }
 
-    /// WalletStore workflow: User facing sui send error.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func userFacingSuiSendError(_ error: Error) -> String {
         if let suiError = error as? SuiWalletEngineError {
             switch suiError {
@@ -8250,8 +8029,6 @@ func resetImportForm() {
         isShowingReceiveSheet = true
     }
     
-    /// WalletStore workflow: Sync receive asset selection.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func syncReceiveAssetSelection() {
         let availableChains = availableReceiveChains(for: receiveWalletID)
         if !availableChains.contains(receiveChainName) {
@@ -8262,53 +8039,49 @@ func resetImportForm() {
         isResolvingReceiveAddress = false
     }
     
-    /// WalletStore workflow: Cancel receive.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func cancelReceive() {
         isShowingReceiveSheet = false
         receiveResolvedAddress = ""
         isResolvingReceiveAddress = false
     }
     
-    /// WalletStore workflow: Refresh pending transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshPendingTransactions(
         includeHistoryRefreshes: Bool = true,
         historyRefreshInterval: TimeInterval = 120
     ) async {
         guard !isRefreshingPendingTransactions else { return }
-        let trackedChains = pendingTransactionMaintenanceChains
+        let trackedChains = pendingTransactionMaintenanceChainIDs
         guard !trackedChains.isEmpty else { return }
         isRefreshingPendingTransactions = true
         defer { isRefreshingPendingTransactions = false }
 
         lastPendingTransactionRefreshAt = Date()
         await withTaskGroup(of: Void.self) { group in
-            if trackedChains.contains("Bitcoin") {
+            if trackedChains.contains(WalletChainID("Bitcoin")!) {
                 group.addTask { await self.refreshPendingBitcoinTransactions() }
             }
-            if trackedChains.contains("Bitcoin Cash") {
+            if trackedChains.contains(WalletChainID("Bitcoin Cash")!) {
                 group.addTask { await self.refreshPendingBitcoinCashTransactions() }
             }
-            if trackedChains.contains("Litecoin") {
+            if trackedChains.contains(WalletChainID("Litecoin")!) {
                 group.addTask { await self.refreshPendingLitecoinTransactions() }
             }
-            if trackedChains.contains("Ethereum") {
+            if trackedChains.contains(WalletChainID("Ethereum")!) {
                 group.addTask { await self.refreshPendingEthereumTransactions() }
             }
-            if trackedChains.contains("Arbitrum") {
+            if trackedChains.contains(WalletChainID("Arbitrum")!) {
                 group.addTask { await self.refreshPendingArbitrumTransactions() }
             }
-            if trackedChains.contains("Optimism") {
+            if trackedChains.contains(WalletChainID("Optimism")!) {
                 group.addTask { await self.refreshPendingOptimismTransactions() }
             }
-            if trackedChains.contains("Ethereum Classic") {
+            if trackedChains.contains(WalletChainID("Ethereum Classic")!) {
                 group.addTask { await self.refreshPendingETCTransactions() }
             }
-            if trackedChains.contains("BNB Chain") {
+            if trackedChains.contains(WalletChainID("BNB Chain")!) {
                 group.addTask { await self.refreshPendingBNBTransactions() }
             }
-            if trackedChains.contains("Dogecoin") {
+            if trackedChains.contains(WalletChainID("Dogecoin")!) {
                 group.addTask { await self.refreshPendingDogecoinTransactions() }
             }
             await group.waitForAll()
@@ -9944,8 +9717,6 @@ func resetImportForm() {
         let polkadot: String?
     }
 
-    /// WalletStore workflow: Derive ethereum address in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func deriveEthereumAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -10062,8 +9833,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Derive tron address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func deriveTronAddress(seedPhrase: String, wallet: ImportedWallet) throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
             seedPhrase: seedPhrase,
@@ -10073,8 +9842,6 @@ func resetImportForm() {
         return material.address
     }
 
-    /// WalletStore workflow: Derive tron address in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func deriveTronAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
             seedPhrase: seedPhrase,
@@ -10084,8 +9851,6 @@ func resetImportForm() {
         return material.address
     }
 
-    /// WalletStore workflow: Derive solana address in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func deriveSolanaAddressInBackground(
         seedPhrase: String,
         derivationPath: String
@@ -10097,8 +9862,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Derive xrpaddress in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func deriveXRPAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
         try XRPWalletEngine.derivedAddress(for: seedPhrase, account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0)
     }
@@ -10107,8 +9870,6 @@ func resetImportForm() {
         try StellarWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
     }
 
-    /// WalletStore workflow: Derive sui address in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func deriveSuiAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
         try SuiWalletEngine.derivedAddress(for: seedPhrase, account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0)
     }
@@ -10125,8 +9886,6 @@ func resetImportForm() {
         try ICPWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
     }
 
-    /// WalletStore workflow: Derive cardano address in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func deriveCardanoAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
         try CardanoWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
     }
@@ -10139,14 +9898,10 @@ func resetImportForm() {
         try PolkadotWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
     }
 
-    /// WalletStore workflow: Derive dogecoin address in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func deriveDogecoinAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
         try DogecoinWalletEngine.derivedAddress(for: seedPhrase, account: Int(DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0))
     }
 
-    /// WalletStore workflow: Derive litecoin address in background.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func deriveLitecoinAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
         try LitecoinWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
     }
@@ -10473,8 +10228,6 @@ func resetImportForm() {
         return walletByReplacingHoldings(wallet, with: updatedHoldings)
     }
 
-    /// WalletStore workflow: Fetch bitcoin import balance if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchBitcoinImportBalanceIfNeeded(
         _ shouldFetch: Bool,
         wallet: ImportedWallet,
@@ -10506,8 +10259,6 @@ func resetImportForm() {
         return try await BitcoinSVBalanceService.fetchBalance(for: address)
     }
 
-    /// WalletStore workflow: Wallet by replacing holdings.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func walletByReplacingHoldings(_ wallet: ImportedWallet, with holdings: [Coin]) -> ImportedWallet {
         ImportedWallet(
             id: wallet.id,
@@ -10538,8 +10289,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Fetch dogecoin import balance if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchDogecoinImportBalanceIfNeeded(
         _ shouldFetch: Bool,
         address: String?
@@ -10551,8 +10300,6 @@ func resetImportForm() {
         return try await DogecoinBalanceService.fetchBalance(for: address)
     }
 
-    /// WalletStore workflow: Fetch litecoin import balance if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchLitecoinImportBalanceIfNeeded(
         _ shouldFetch: Bool,
         address: String?
@@ -10564,8 +10311,6 @@ func resetImportForm() {
         return try await LitecoinBalanceService.fetchBalance(for: address)
     }
 
-    /// WalletStore workflow: Fetch ethereum import portfolio if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchEthereumImportPortfolioIfNeeded(
         _ shouldFetch: Bool,
         address: String?
@@ -10589,8 +10334,6 @@ func resetImportForm() {
         return (portfolio.nativeBalance, portfolio.tokenBalances)
     }
 
-    /// WalletStore workflow: Fetch bnbimport balance if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchBNBImportBalanceIfNeeded(
         _ shouldFetch: Bool,
         address: String?
@@ -10603,8 +10346,6 @@ func resetImportForm() {
         return (portfolio.nativeBalance, portfolio.tokenBalances)
     }
 
-    /// WalletStore workflow: Fetch tron import balance if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchTronImportBalanceIfNeeded(
         _ shouldFetch: Bool,
         address: String?
@@ -10620,8 +10361,6 @@ func resetImportForm() {
         return (balances.trxBalance, balances.tokenBalances)
     }
 
-    /// WalletStore workflow: Fetch cardano import balance if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchCardanoImportBalanceIfNeeded(
         _ shouldFetch: Bool,
         address: String?
@@ -10631,8 +10370,6 @@ func resetImportForm() {
         return try await CardanoBalanceService.fetchBalance(for: address)
     }
 
-    /// WalletStore workflow: Fetch xrpimport balance if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchXRPImportBalanceIfNeeded(
         _ shouldFetch: Bool,
         address: String?
@@ -10652,8 +10389,6 @@ func resetImportForm() {
         return try await StellarBalanceService.fetchBalance(for: address)
     }
 
-    /// WalletStore workflow: Fetch monero import balance if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchMoneroImportBalanceIfNeeded(
         _ shouldFetch: Bool,
         address: String?
@@ -10687,8 +10422,6 @@ func resetImportForm() {
         return try await PolkadotBalanceService.fetchBalance(for: address)
     }
 
-    /// WalletStore workflow: Fetch solana import portfolio if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchSolanaImportPortfolioIfNeeded(
         _ shouldFetch: Bool,
         address: String?
@@ -10761,8 +10494,16 @@ func resetImportForm() {
         )
     }
 
+    private var pendingTransactionMaintenanceChainIDs: Set<WalletChainID> {
+        Set(pendingTransactionMaintenanceChains.compactMap(WalletChainID.init))
+    }
+
     private var refreshableChainNames: Set<String> {
         cachedRefreshableChainNames
+    }
+
+    private var refreshableChainIDs: Set<WalletChainID> {
+        Set(refreshableChainNames.compactMap(WalletChainID.init))
     }
 
     var backgroundBalanceRefreshFrequencyMinutes: Int {
@@ -10784,8 +10525,6 @@ func resetImportForm() {
         cachedIncludedPortfolioWallets
     }
 
-    /// WalletStore workflow: Current price.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func currentPriceIfAvailable(for coin: Coin) -> Double? {
         livePrices[activePriceKey(for: coin)]
     }
@@ -10794,8 +10533,6 @@ func resetImportForm() {
         currentPriceIfAvailable(for: coin) ?? 0
     }
     
-    /// WalletStore workflow: Fiat rate.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func fiatRateIfAvailable(for currency: FiatCurrency) -> Double? {
         if currency == .usd {
             return 1.0
@@ -10880,8 +10617,6 @@ func resetImportForm() {
         await refreshFiatExchangeRates()
     }
 
-    /// WalletStore workflow: Refresh fiat exchange rates.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func refreshFiatExchangeRates() async {
         do {
             var rates: [String: Double] = [FiatCurrency.usd.rawValue: 1.0]
@@ -10907,8 +10642,6 @@ func resetImportForm() {
         }
     }
     
-    /// WalletStore workflow: Active price key.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func activePriceKey(for coin: Coin) -> String {
         coin.holdingKey
     }
@@ -11098,8 +10831,6 @@ func resetImportForm() {
         hasMoreHistoryPages(for: "Litecoin", exhaustedWalletIDs: exhaustedLitecoinHistoryWalletIDs)
     }
 
-    /// WalletStore workflow: Has more history pages.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func hasMoreHistoryPages(for chainName: String, exhaustedWalletIDs: Set<UUID>) -> Bool {
         let trackedWalletIDs = Set(wallets.filter { $0.selectedChain == chainName }.map(\.id))
         let exhausted = exhaustedWalletIDs.intersection(trackedWalletIDs)
@@ -11207,20 +10938,25 @@ func resetImportForm() {
         // Run chain refreshes sequentially to avoid last-writer-wins wallet snapshot overwrites.
         // Each chain is time-bounded so one stalled provider cannot freeze pull-to-refresh.
         let chainRefreshTimeout: Double = 35
-        let chainNames = refreshableChainNames
-        guard !chainNames.isEmpty else { return }
+        let chainIDs = refreshableChainIDs
+        guard !chainIDs.isEmpty else { return }
         let refreshPlanByChain = Dictionary(
             uniqueKeysWithValues: WalletRefreshPlanner.chainPlans(
-                for: chainNames,
+                for: chainIDs,
+                now: Date(),
                 forceChainRefresh: forceChainRefresh,
                 includeHistoryRefreshes: includeHistoryRefreshes,
                 historyRefreshInterval: historyRefreshInterval,
-                pendingTransactionMaintenanceChains: pendingTransactionMaintenanceChains,
-                degradedChains: Set(chainDegradedMessages.keys),
-                lastGoodChainSyncByName: lastGoodChainSyncByName,
-                lastHistoryRefreshAtByChain: lastHistoryRefreshAtByChain,
+                pendingTransactionMaintenanceChains: pendingTransactionMaintenanceChainIDs,
+                degradedChains: Set(chainDegradedMessagesByChainID.keys),
+                lastGoodChainSyncByID: lastGoodChainSyncByChainID,
+                lastHistoryRefreshAtByChainID: Dictionary(
+                    uniqueKeysWithValues: lastHistoryRefreshAtByChain.compactMap { key, value in
+                        WalletChainID(key).map { ($0, value) }
+                    }
+                ),
                 automaticChainRefreshStalenessInterval: Self.automaticChainRefreshStalenessInterval
-            ).map { ($0.chainName, $0.refreshHistory) }
+            ).map { ($0.chainID, $0.refreshHistory) }
         )
         guard !refreshPlanByChain.isEmpty else { return }
 
@@ -11277,12 +11013,12 @@ func resetImportForm() {
             return
         }
 
-        let importedChains = Set(createdWallets.map(\.selectedChain))
+        let importedChains = Set(createdWallets.compactMap { WalletChainID($0.selectedChain) })
         importRefreshTask?.cancel()
         importRefreshTask = Task { [weak self] in
             guard let self else { return }
             await self.withBalanceRefreshWindow {
-                await self.refreshImportedWalletBalances(forChains: importedChains)
+                await self.refreshImportedWalletBalances(forChains: Set(importedChains.map(\.displayName)))
                 _ = await self.refreshLivePrices()
             }
             await MainActor.run {
@@ -11292,8 +11028,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Should refresh chain balances.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func shouldRefreshChainBalances(now: Date = Date()) -> Bool {
         guard !isRefreshingChainBalances else { return false }
         guard let lastChainBalanceRefreshAt else { return true }
@@ -11301,8 +11035,6 @@ func resetImportForm() {
     }
 
 #if DEBUG
-    /// WalletStore workflow: Log balance telemetry.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func logBalanceTelemetry(
         source: String,
         chainName: String,
@@ -11419,8 +11151,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh bitcoin transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshBitcoinTransactions(limit: Int? = nil, loadMore: Bool = false) async {
         let walletSnapshot = wallets
         let bitcoinWallets = walletSnapshot.filter { $0.selectedChain == "Bitcoin" }
@@ -11858,8 +11588,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh litecoin transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshLitecoinTransactions(limit: Int? = nil, loadMore: Bool = false) async {
         let walletSnapshot = wallets
         let litecoinWallets = walletSnapshot.filter { wallet in
@@ -12012,14 +11740,10 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Ledger derived dogecoin balance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func ledgerDerivedDogecoinBalance(for walletID: UUID) -> Double? {
         ledgerDerivedNativeBalanceIfAvailable(for: walletID, chainName: "Dogecoin", symbol: "DOGE")
     }
 
-    /// WalletStore workflow: Ledger derived native balance if available.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func ledgerDerivedNativeBalanceIfAvailable(
         for walletID: UUID,
         chainName: String,
@@ -12176,8 +11900,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Refresh bnbbalances.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshBNBBalances() async {
         await refreshEVMBalances(
             chainName: "BNB Chain",
@@ -12280,8 +12002,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Refresh tron balances.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshTronBalances() async {
         guard allowsBalanceNetworkRefresh else { return }
         let walletSnapshot = wallets
@@ -12350,8 +12070,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh tron transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshTronTransactions(loadMore: Bool = false) async {
         let walletSnapshot = wallets
         let tronWallets = walletSnapshot.filter { wallet in
@@ -12503,8 +12221,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh solana transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshSolanaTransactions(loadMore: Bool = false) async {
         let walletSnapshot = wallets
         let solanaWallets = walletSnapshot.filter { wallet in
@@ -12626,8 +12342,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh cardano transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshCardanoTransactions(loadMore: Bool = false) async {
         _ = loadMore
         let walletSnapshot = wallets
@@ -12736,8 +12450,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh xrptransactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshXRPTransactions(loadMore: Bool = false) async {
         _ = loadMore
         let walletSnapshot = wallets
@@ -12950,8 +12662,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh monero transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshMoneroTransactions(loadMore: Bool = false) async {
         let walletSnapshot = wallets
         let moneroWallets = walletSnapshot.filter { wallet in
@@ -13068,8 +12778,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh sui transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshSuiTransactions(loadMore: Bool = false) async {
         _ = loadMore
         let walletSnapshot = wallets
@@ -13648,8 +13356,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Apply bitcoin balance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyBitcoinBalance(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -13716,8 +13422,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Apply litecoin balance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyLitecoinBalance(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -13740,8 +13444,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Apply dogecoin balance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyDogecoinBalance(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -13764,8 +13466,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Apply ethereum native balance only.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyEthereumNativeBalanceOnly(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -13810,8 +13510,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Apply bnbnative balance only.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyBNBNativeBalanceOnly(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -14156,8 +13854,6 @@ func resetImportForm() {
         return updatedHoldings
     }
 
-    /// WalletStore workflow: Apply tron native balance only.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyTronNativeBalanceOnly(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -14180,8 +13876,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Apply solana native balance only.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applySolanaNativeBalanceOnly(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -14204,8 +13898,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Apply ethereum balances.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyEthereumBalances(
         nativeBalance: Double,
         tokenBalances: [EthereumTokenBalanceSnapshot],
@@ -14277,8 +13969,6 @@ func resetImportForm() {
         return updatedHoldings
     }
 
-    /// WalletStore workflow: Apply bnbbalances.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyBNBBalances(
         nativeBalance: Double,
         tokenBalances: [EthereumTokenBalanceSnapshot],
@@ -14353,8 +14043,6 @@ func resetImportForm() {
         return updatedHoldings
     }
 
-    /// WalletStore workflow: Apply tron balances.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyTronBalances(
         nativeBalance: Double,
         tokenBalances: [TronTokenBalanceSnapshot],
@@ -14427,8 +14115,6 @@ func resetImportForm() {
         return updatedHoldings
     }
 
-    /// WalletStore workflow: Apply cardano balance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyCardanoBalance(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -14451,8 +14137,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Apply xrpbalance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyXRPBalance(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -14497,8 +14181,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Apply monero balance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applyMoneroBalance(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -14521,8 +14203,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Apply sui balance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func applySuiBalance(_ balance: Double, to holdings: [Coin]) -> [Coin] {
         upsertNativeHolding(
             in: holdings,
@@ -14839,8 +14519,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Upsert native holding.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertNativeHolding(
         in holdings: [Coin],
         symbol: String,
@@ -15009,8 +14687,6 @@ func resetImportForm() {
         return updatedHoldings
     }
 
-    /// WalletStore workflow: Configured ethereum rpcendpoint url.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func configuredEthereumRPCEndpointURL() -> URL? {
         guard ethereumRPCEndpointValidationError == nil else { return nil }
         let trimmedEndpoint = ethereumRPCEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -15018,15 +14694,11 @@ func resetImportForm() {
         return URL(string: trimmedEndpoint)
     }
 
-    /// WalletStore workflow: Normalized etherscan apikey.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func normalizedEtherscanAPIKey() -> String? {
         let trimmed = etherscanAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// WalletStore workflow: Fetch ethereum portfolio.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchEthereumPortfolio(for address: String) async throws -> (nativeBalance: Double, tokenBalances: [EthereumTokenBalanceSnapshot]) {
         // If a custom endpoint is invalid, fall back to built-in provider rotation instead of hard-failing ETH.
         let useFallbackEndpoint = ethereumRPCEndpointValidationError != nil
@@ -15049,8 +14721,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Fetch evmnative portfolio.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func fetchEVMNativePortfolio(
         for address: String,
         chainName: String
@@ -15141,8 +14811,6 @@ func resetImportForm() {
         await refreshPendingEVMTransactions(chainName: "Ethereum Classic")
     }
 
-    /// WalletStore workflow: Refresh pending bnbtransactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshPendingBNBTransactions() async {
         await refreshPendingEVMTransactions(chainName: "BNB Chain")
     }
@@ -15691,8 +15359,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Run bitcoin history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runBitcoinHistoryDiagnostics(for walletID: UUID) async {
         guard !isRunningBitcoinHistoryDiagnostics else { return }
         guard let wallet = wallets.first(where: { $0.id == walletID }),
@@ -15759,8 +15425,6 @@ func resetImportForm() {
         bitcoinHistoryDiagnosticsLastUpdatedAt = Date()
     }
 
-    /// WalletStore workflow: Run bitcoin endpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runBitcoinEndpointReachabilityDiagnostics() async {
         guard !isCheckingBitcoinEndpointHealth else { return }
         isCheckingBitcoinEndpointHealth = true
@@ -15796,8 +15460,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Run litecoin history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runLitecoinHistoryDiagnostics() async {
         guard !isRunningLitecoinHistoryDiagnostics else { return }
         isRunningLitecoinHistoryDiagnostics = true
@@ -15852,8 +15514,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Run litecoin history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runLitecoinHistoryDiagnostics(for walletID: UUID) async {
         guard !isRunningLitecoinHistoryDiagnostics else { return }
         guard let wallet = wallets.first(where: { $0.id == walletID }),
@@ -15891,8 +15551,6 @@ func resetImportForm() {
         litecoinHistoryDiagnosticsLastUpdatedAt = Date()
     }
 
-    /// WalletStore workflow: Run litecoin endpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runLitecoinEndpointReachabilityDiagnostics() async {
         guard !isCheckingLitecoinEndpointHealth else { return }
         isCheckingLitecoinEndpointHealth = true
@@ -15977,8 +15635,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run tron history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runTronHistoryDiagnostics() async {
         await runAddressHistoryDiagnosticsForAllWallets(
             isRunning: { self.isRunningTronHistoryDiagnostics },
@@ -15996,8 +15652,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run tron history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runTronHistoryDiagnostics(for walletID: UUID) async {
         await runAddressHistoryDiagnosticsForWallet(
             walletID: walletID,
@@ -16016,8 +15670,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run tron endpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runTronEndpointReachabilityDiagnostics() async {
         guard !isCheckingTronEndpointHealth else { return }
         isCheckingTronEndpointHealth = true
@@ -16031,8 +15683,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run solana history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runSolanaHistoryDiagnostics() async {
         await runAddressHistoryDiagnosticsForAllWallets(
             isRunning: { self.isRunningSolanaHistoryDiagnostics },
@@ -16050,8 +15700,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run solana history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runSolanaHistoryDiagnostics(for walletID: UUID) async {
         await runAddressHistoryDiagnosticsForWallet(
             walletID: walletID,
@@ -16070,8 +15718,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run solana endpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runSolanaEndpointReachabilityDiagnostics() async {
         guard !isCheckingSolanaEndpointHealth else { return }
         isCheckingSolanaEndpointHealth = true
@@ -16085,8 +15731,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run cardano history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runCardanoHistoryDiagnostics() async {
         await runAddressHistoryDiagnosticsForAllWallets(
             isRunning: { self.isRunningCardanoHistoryDiagnostics },
@@ -16104,8 +15748,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run cardano history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runCardanoHistoryDiagnostics(for walletID: UUID) async {
         await runAddressHistoryDiagnosticsForWallet(
             walletID: walletID,
@@ -16124,8 +15766,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run cardano endpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runCardanoEndpointReachabilityDiagnostics() async {
         guard !isCheckingCardanoEndpointHealth else { return }
         isCheckingCardanoEndpointHealth = true
@@ -16139,8 +15779,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run xrphistory diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runXRPHistoryDiagnostics() async {
         await runAddressHistoryDiagnosticsForAllWallets(
             isRunning: { self.isRunningXRPHistoryDiagnostics },
@@ -16158,8 +15796,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run xrphistory diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runXRPHistoryDiagnostics(for walletID: UUID) async {
         await runAddressHistoryDiagnosticsForWallet(
             walletID: walletID,
@@ -16178,8 +15814,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run xrpendpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runXRPEndpointReachabilityDiagnostics() async {
         guard !isCheckingXRPEndpointHealth else { return }
         isCheckingXRPEndpointHealth = true
@@ -16241,8 +15875,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run monero history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runMoneroHistoryDiagnostics() async {
         await runAddressHistoryDiagnosticsForAllWallets(
             isRunning: { self.isRunningMoneroHistoryDiagnostics },
@@ -16260,8 +15892,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run monero history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runMoneroHistoryDiagnostics(for walletID: UUID) async {
         await runAddressHistoryDiagnosticsForWallet(
             walletID: walletID,
@@ -16280,8 +15910,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run monero endpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runMoneroEndpointReachabilityDiagnostics() async {
         guard !isCheckingMoneroEndpointHealth else { return }
         isCheckingMoneroEndpointHealth = true
@@ -16313,8 +15941,6 @@ func resetImportForm() {
         moneroEndpointHealthLastUpdatedAt = Date()
     }
 
-    /// WalletStore workflow: Run sui history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runSuiHistoryDiagnostics() async {
         await runAddressHistoryDiagnosticsForAllWallets(
             isRunning: { self.isRunningSuiHistoryDiagnostics },
@@ -16332,8 +15958,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run sui history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runSuiHistoryDiagnostics(for walletID: UUID) async {
         await runAddressHistoryDiagnosticsForWallet(
             walletID: walletID,
@@ -16582,8 +16206,6 @@ func resetImportForm() {
         markUpdated()
     }
 
-    /// WalletStore workflow: Run sui endpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runSuiEndpointReachabilityDiagnostics() async {
         guard !isCheckingSuiEndpointHealth else { return }
         isCheckingSuiEndpointHealth = true
@@ -16704,8 +16326,6 @@ func resetImportForm() {
         polkadotEndpointHealthLastUpdatedAt = Date()
     }
 
-    /// WalletStore workflow: Run ethereum history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runEthereumHistoryDiagnostics() async {
         guard !isRunningEthereumHistoryDiagnostics else { return }
         isRunningEthereumHistoryDiagnostics = true
@@ -16768,8 +16388,6 @@ func resetImportForm() {
         ethereumHistoryDiagnosticsLastUpdatedAt = Date()
     }
 
-    /// WalletStore workflow: Run ethereum history diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runEthereumHistoryDiagnostics(for walletID: UUID) async {
         guard !isRunningEthereumHistoryDiagnostics else { return }
         guard let wallet = wallets.first(where: { $0.id == walletID }),
@@ -16884,8 +16502,6 @@ func resetImportForm() {
         etcHistoryDiagnosticsLastUpdatedAt = Date()
     }
 
-    /// WalletStore workflow: Run bnbhistory diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runBNBHistoryDiagnostics() async {
         guard !isRunningBNBHistoryDiagnostics else { return }
         isRunningBNBHistoryDiagnostics = true
@@ -17204,8 +16820,6 @@ func resetImportForm() {
         hyperliquidHistoryDiagnosticsLastUpdatedAt = Date()
     }
 
-    /// WalletStore workflow: Run bnbhistory diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runBNBHistoryDiagnostics(for walletID: UUID) async {
         guard !isRunningBNBHistoryDiagnostics else { return }
         guard let wallet = wallets.first(where: { $0.id == walletID }),
@@ -17258,8 +16872,6 @@ func resetImportForm() {
         bnbHistoryDiagnosticsLastUpdatedAt = Date()
     }
 
-    /// WalletStore workflow: Pretty jsonstring.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func prettyJSONString(from object: Any) -> String? {
         guard JSONSerialization.isValidJSONObject(object),
               let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
@@ -17269,8 +16881,6 @@ func resetImportForm() {
         return sanitizeDiagnosticsString(string)
     }
 
-    /// WalletStore workflow: Sanitize diagnostics string.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func sanitizeDiagnosticsString(_ input: String) -> String {
         let knownWords = Set(BIP39EnglishWordList.words.map { $0.lowercased() })
         let mutable = NSMutableString(string: input)
@@ -17321,8 +16931,6 @@ func resetImportForm() {
         return mutable as String
     }
 
-    /// WalletStore workflow: Bitcoin diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func bitcoinDiagnosticsJSON() -> String? {
         let history = bitcoinHistoryDiagnosticsByWallet.values.map { item in
             [
@@ -17352,8 +16960,6 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
-    /// WalletStore workflow: Tron diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func tronDiagnosticsJSON() -> String? {
         let history = tronHistoryDiagnosticsByWallet.map { (walletID, item) in
             [
@@ -17384,8 +16990,6 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
-    /// WalletStore workflow: Solana diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func solanaDiagnosticsJSON() -> String? {
         let history = solanaHistoryDiagnosticsByWallet.map { (walletID, item) in
             [
@@ -17413,8 +17017,6 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
-    /// WalletStore workflow: Litecoin diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func litecoinDiagnosticsJSON() -> String? {
         let history = litecoinHistoryDiagnosticsByWallet.values.map { item in
             [
@@ -17499,8 +17101,6 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
-    /// WalletStore workflow: Ethereum diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func ethereumDiagnosticsJSON() -> String? {
         let history = ethereumHistoryDiagnosticsByWallet.map { (walletID, item) in
             [
@@ -17539,8 +17139,6 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
-    /// WalletStore workflow: Bnb diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func bnbDiagnosticsJSON() -> String? {
         let history = bnbHistoryDiagnosticsByWallet.map { (walletID, item) in
             [
@@ -17769,8 +17367,6 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
-    /// WalletStore workflow: Cardano diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func cardanoDiagnosticsJSON() -> String? {
         let history = cardanoHistoryDiagnosticsByWallet.map { (walletID, item) in
             [
@@ -17798,8 +17394,6 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
-    /// WalletStore workflow: Xrp diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func xrpDiagnosticsJSON() -> String? {
         let history = xrpHistoryDiagnosticsByWallet.map { (walletID, item) in
             [
@@ -17854,8 +17448,6 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
-    /// WalletStore workflow: Monero diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func moneroDiagnosticsJSON() -> String? {
         let history = moneroHistoryDiagnosticsByWallet.map { (walletID, item) in
             [
@@ -17883,8 +17475,6 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
-    /// WalletStore workflow: Sui diagnostics json.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func suiDiagnosticsJSON() -> String? {
         let history = suiHistoryDiagnosticsByWallet.map { (walletID, item) in
             [
@@ -18100,8 +17690,6 @@ func resetImportForm() {
         return payload
     }
 
-    /// WalletStore workflow: Build diagnostics bundle payload.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func buildDiagnosticsBundlePayload() -> DiagnosticsBundlePayload {
         let info = Bundle.main.infoDictionary ?? [:]
         let appVersion = (info["CFBundleShortVersionString"] as? String) ?? "unknown"
@@ -18139,8 +17727,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Diagnostics history source confidence summary.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func diagnosticsHistorySourceConfidenceSummary() -> [String: Int] {
         var counts: [String: Int] = [:]
         for entry in normalizedHistoryIndex {
@@ -18150,8 +17736,6 @@ func resetImportForm() {
         return counts
     }
 
-    /// WalletStore workflow: Run ethereum endpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runEthereumEndpointReachabilityDiagnostics() async {
         guard !isCheckingEthereumEndpointHealth else { return }
         isCheckingEthereumEndpointHealth = true
@@ -18181,8 +17765,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Run bnbendpoint reachability diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func runBNBEndpointReachabilityDiagnostics() async {
         guard !isCheckingBNBEndpointHealth else { return }
         isCheckingBNBEndpointHealth = true
@@ -18352,8 +17934,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Probe http.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func probeHTTP(
         _ url: URL,
         profile: NetworkRetryProfile = .diagnostics
@@ -18375,8 +17955,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Probe ethereum rpc.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func probeEthereumRPC(_ url: URL) async -> (reachable: Bool, statusCode: Int?, detail: String) {
         do {
             return try await withTimeout(seconds: 10) {
@@ -18402,8 +17980,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh pending bitcoin transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshPendingBitcoinTransactions() async {
         let pendingTransactions = transactions.filter { transaction in
             transaction.kind == .send
@@ -18578,8 +18154,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Refresh pending litecoin transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshPendingLitecoinTransactions() async {
         let pendingTransactions = transactions.filter { transaction in
             transaction.chainName == "Litecoin"
@@ -18828,8 +18402,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Append dogecoin operational event.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func appendDogecoinOperationalEvent(
         _ level: DogecoinOperationalEvent.Level,
         message: String,
@@ -18888,8 +18460,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Register pending dogecoin self send confirmation.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func registerPendingDogecoinSelfSendConfirmation(
         walletID: UUID,
         destinationAddress: String,
@@ -18903,8 +18473,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Consume pending dogecoin self send confirmation.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func consumePendingDogecoinSelfSendConfirmation(
         walletID: UUID,
         destinationAddress: String,
@@ -18930,8 +18498,6 @@ func resetImportForm() {
         return true
     }
 
-    /// WalletStore workflow: Load dogecoin operational events.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func loadDogecoinOperationalEvents() -> [DogecoinOperationalEvent] {
         guard let data = UserDefaults.standard.data(forKey: Self.dogecoinOperationalEventsDefaultsKey),
               let decoded = try? JSONDecoder().decode([DogecoinOperationalEvent].self, from: data) else {
@@ -18940,17 +18506,11 @@ func resetImportForm() {
         return decoded.sorted { $0.timestamp > $1.timestamp }
     }
 
-    /// WalletStore workflow: Persist dogecoin operational events.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func persistDogecoinOperationalEvents() {
         guard let data = try? JSONEncoder().encode(dogecoinOperationalEvents) else { return }
         UserDefaults.standard.set(data, forKey: Self.dogecoinOperationalEventsDefaultsKey)
     }
 
-    /// WalletStore workflow: Load operational logs.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
-    /// WalletStore workflow: Should poll dogecoin status.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func shouldPollDogecoinStatus(for transaction: TransactionRecord, now: Date) -> Bool {
         let tracker = dogecoinStatusTrackingByTransactionID[transaction.id] ?? DogecoinStatusTrackingState.initial(now: now)
         if tracker.reachedFinality {
@@ -18959,8 +18519,6 @@ func resetImportForm() {
         return now >= tracker.nextCheckAt
     }
 
-    /// WalletStore workflow: Mark dogecoin status poll success.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func markDogecoinStatusPollSuccess(
         for transaction: TransactionRecord,
         status: DogecoinTransactionStatus,
@@ -18983,8 +18541,6 @@ func resetImportForm() {
         dogecoinStatusTrackingByTransactionID[transaction.id] = tracker
     }
 
-    /// WalletStore workflow: Mark dogecoin status poll failure.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func markDogecoinStatusPollFailure(for transaction: TransactionRecord, now: Date) {
         var tracker = dogecoinStatusTrackingByTransactionID[transaction.id] ?? DogecoinStatusTrackingState.initial(now: now)
         tracker.lastCheckedAt = now
@@ -18999,8 +18555,6 @@ func resetImportForm() {
         dogecoinStatusTrackingByTransactionID[transaction.id] = tracker
     }
 
-    /// WalletStore workflow: Refresh dogecoin transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func refreshDogecoinTransactions(limit: Int? = nil, loadMore: Bool = false) async {
         let walletSnapshot = wallets
         let walletsToRefresh = walletSnapshot.compactMap { wallet -> (ImportedWallet, [String])? in
@@ -19239,14 +18793,10 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Append transaction.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func appendTransaction(_ transaction: TransactionRecord) {
         transactions.insert(transaction, at: 0)
     }
 
-    /// WalletStore workflow: Upsert bitcoin transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertBitcoinTransactions(_ newTransactions: [TransactionRecord]) {
         upsertStandardUTXOTransactions(newTransactions, chainName: "Bitcoin")
     }
@@ -19259,8 +18809,6 @@ func resetImportForm() {
         upsertStandardUTXOTransactions(newTransactions, chainName: "Bitcoin SV")
     }
 
-    /// WalletStore workflow: Upsert litecoin transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertLitecoinTransactions(_ newTransactions: [TransactionRecord]) {
         upsertStandardUTXOTransactions(newTransactions, chainName: "Litecoin")
     }
@@ -19320,8 +18868,6 @@ func resetImportForm() {
         transactions = mergedTransactions.sorted(by: { $0.createdAt > $1.createdAt })
     }
 
-    /// WalletStore workflow: Upsert dogecoin transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertDogecoinTransactions(_ newTransactions: [TransactionRecord]) {
         var mergedTransactions = transactions
 
@@ -19381,8 +18927,6 @@ func resetImportForm() {
         transactions = mergedTransactions
     }
 
-    /// WalletStore workflow: Upsert ethereum transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertEthereumTransactions(_ newTransactions: [TransactionRecord]) {
         upsertEVMTransactions(newTransactions, chainName: "Ethereum")
     }
@@ -19395,8 +18939,6 @@ func resetImportForm() {
         upsertEVMTransactions(newTransactions, chainName: "Optimism")
     }
 
-    /// WalletStore workflow: Upsert bnbtransactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertBNBTransactions(_ newTransactions: [TransactionRecord]) {
         upsertEVMTransactions(newTransactions, chainName: "BNB Chain")
     }
@@ -19413,26 +18955,18 @@ func resetImportForm() {
         upsertEVMTransactions(newTransactions, chainName: "Hyperliquid")
     }
 
-    /// WalletStore workflow: Upsert tron transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertTronTransactions(_ newTransactions: [TransactionRecord]) {
         upsertAccountBasedTransactions(newTransactions, chainName: "Tron", includeSymbolInIdentity: true)
     }
 
-    /// WalletStore workflow: Upsert solana transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertSolanaTransactions(_ newTransactions: [TransactionRecord]) {
         upsertAccountBasedTransactions(newTransactions, chainName: "Solana")
     }
 
-    /// WalletStore workflow: Upsert cardano transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertCardanoTransactions(_ newTransactions: [TransactionRecord]) {
         upsertAccountBasedTransactions(newTransactions, chainName: "Cardano")
     }
 
-    /// WalletStore workflow: Upsert xrptransactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertXRPTransactions(_ newTransactions: [TransactionRecord]) {
         upsertAccountBasedTransactions(newTransactions, chainName: "XRP Ledger")
     }
@@ -19441,14 +18975,10 @@ func resetImportForm() {
         upsertAccountBasedTransactions(newTransactions, chainName: "Stellar")
     }
 
-    /// WalletStore workflow: Upsert monero transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertMoneroTransactions(_ newTransactions: [TransactionRecord]) {
         upsertAccountBasedTransactions(newTransactions, chainName: "Monero")
     }
 
-    /// WalletStore workflow: Upsert sui transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertSuiTransactions(_ newTransactions: [TransactionRecord]) {
         upsertAccountBasedTransactions(newTransactions, chainName: "Sui")
     }
@@ -19539,8 +19069,6 @@ func resetImportForm() {
         transactions = mergedTransactions
     }
 
-    /// WalletStore workflow: Upsert evmtransactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func upsertEVMTransactions(_ newTransactions: [TransactionRecord], chainName: String) {
         var mergedTransactions = transactions
 
@@ -19603,8 +19131,6 @@ func resetImportForm() {
         transactions = mergedTransactions
     }
     
-    /// WalletStore workflow: Update transaction status.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func updateTransactionStatus(id: UUID, to status: TransactionStatus) {
         guard let index = transactions.firstIndex(where: { $0.id == id }) else { return }
         let transaction = transactions[index]
@@ -19643,8 +19169,6 @@ func resetImportForm() {
         )
     }
     
-    /// WalletStore workflow: Add price alert.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func addPriceAlert(for coin: Coin, targetPrice: Double, condition: PriceAlertCondition) {
         let normalizedTargetPrice = (targetPrice * 100).rounded() / 100
         let isDuplicate = priceAlerts.contains { alert in
@@ -19667,8 +19191,6 @@ func resetImportForm() {
         requestPriceAlertNotificationPermission()
     }
     
-    /// WalletStore workflow: Toggle price alert enabled.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func togglePriceAlertEnabled(id: UUID) {
         guard let index = priceAlerts.firstIndex(where: { $0.id == id }) else { return }
         priceAlerts[index].isEnabled.toggle()
@@ -19677,22 +19199,16 @@ func resetImportForm() {
         }
     }
     
-    /// WalletStore workflow: Remove price alert.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func removePriceAlert(id: UUID) {
         priceAlerts.removeAll { $0.id == id }
     }
 
-    /// WalletStore workflow: Mark chain healthy.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func markChainHealthy(_ chainName: String) {
         diagnostics.markChainHealthy(chainName)
     }
 
     // Full history persistence path.
     // Writes normalized transaction snapshots to the local history database in one replacement pass.
-    /// WalletStore workflow: Clear history tracking.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func clearHistoryTracking(for walletID: UUID) {
         bitcoinHistoryCursorByWallet[walletID] = nil
         bitcoinCashHistoryCursorByWallet[walletID] = nil
@@ -19741,8 +19257,6 @@ func resetImportForm() {
         }
     }
     
-    /// WalletStore workflow: Load persisted transactions.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func loadPersistedTransactions() -> [TransactionRecord] {
         do {
             let persistedFromDatabase = try HistoryDatabaseStore.shared.fetchAll()
@@ -19752,8 +19266,6 @@ func resetImportForm() {
         }
     }
 
-    /// WalletStore workflow: Persist dogecoin keypool state.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func persistDogecoinKeypoolState() {
         let payload = PersistedDogecoinKeypoolStore(
             version: PersistedDogecoinKeypoolStore.currentVersion,
@@ -19762,8 +19274,6 @@ func resetImportForm() {
         persistCodableToUserDefaults(payload, key: Self.dogecoinKeypoolDefaultsKey)
     }
 
-    /// WalletStore workflow: Load dogecoin keypool state.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func loadDogecoinKeypoolState() -> [UUID: DogecoinKeypoolState] {
         guard let payload = loadCodableFromUserDefaults(
             PersistedDogecoinKeypoolStore.self,
@@ -19777,8 +19287,6 @@ func resetImportForm() {
         return payload.keypoolByWalletID
     }
 
-    /// WalletStore workflow: Persist dogecoin owned address map.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func persistDogecoinOwnedAddressMap() {
         let payload = PersistedDogecoinOwnedAddressStore(
             version: PersistedDogecoinOwnedAddressStore.currentVersion,
@@ -19787,8 +19295,6 @@ func resetImportForm() {
         persistCodableToUserDefaults(payload, key: Self.dogecoinOwnedAddressMapDefaultsKey)
     }
 
-    /// WalletStore workflow: Load dogecoin owned address map.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func loadDogecoinOwnedAddressMap() -> [String: DogecoinOwnedAddressRecord] {
         guard let payload = loadCodableFromUserDefaults(
             PersistedDogecoinOwnedAddressStore.self,
@@ -19802,8 +19308,6 @@ func resetImportForm() {
         return payload.addressMap
     }
     
-    /// WalletStore workflow: Merge built in token preferences.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     func mergeBuiltInTokenPreferences(with persisted: [TokenPreferenceEntry]) -> [TokenPreferenceEntry] {
         let builtIns = ChainTokenRegistryEntry.builtIn.map(\.tokenPreferenceEntry)
         let custom = persisted.filter { !$0.isBuiltIn }
@@ -19836,11 +19340,7 @@ func resetImportForm() {
         return merged
     }
 
-    /// WalletStore workflow: Default token preferences.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     
-    /// WalletStore workflow: Evaluate price alerts.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func evaluatePriceAlerts() {
         guard usePriceAlerts, !priceAlerts.isEmpty else { return }
         
@@ -19893,20 +19393,14 @@ func resetImportForm() {
         UNUserNotificationCenter.current().add(request)
     }
     
-    /// WalletStore workflow: Request price alert notification permission.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func requestPriceAlertNotificationPermission() {
         requestStandardNotificationPermission()
     }
 
-    /// WalletStore workflow: Request notification permission if needed.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func requestNotificationPermissionIfNeeded() {
         requestStandardNotificationPermission()
     }
 
-    /// WalletStore workflow: Request transaction status notification permission.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func requestTransactionStatusNotificationPermission() {
         guard useTransactionStatusNotifications || useLargeMovementNotifications else { return }
         requestNotificationPermissionIfNeeded()
@@ -19936,8 +19430,6 @@ func resetImportForm() {
         return false
     }
     
-    /// WalletStore workflow: Send price alert notification.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func sendPriceAlertNotification(for alert: PriceAlertRule, livePrice: Double) {
         postNotification(
             identifier: "price-alert-\(alert.id.uuidString)-\(UUID().uuidString)",
@@ -19953,8 +19445,6 @@ func resetImportForm() {
         )
     }
 
-    /// WalletStore workflow: Send transaction status notification.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private func sendTransactionStatusNotification(for transaction: TransactionRecord, newStatus: TransactionStatus) {
         guard useTransactionStatusNotifications else { return }
         let title: String

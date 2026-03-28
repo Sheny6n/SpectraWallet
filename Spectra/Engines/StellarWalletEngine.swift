@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Stellar wallet engine for key derivation, payment assembly, signing, and submission.
-//
-// Responsibilities:
-// - Derives Stellar keypairs and addresses from local wallet secrets.
-// - Builds, signs, broadcasts, and verifies Stellar payment transactions.
-
 import Foundation
 import WalletCore
 import SwiftProtobuf

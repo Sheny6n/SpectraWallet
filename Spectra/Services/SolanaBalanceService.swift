@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Solana balance/portfolio/history service including token account lookups and mint metadata mapping.
-//
-// Responsibilities:
-// - Fetches SOL and SPL token balances for tracked wallet addresses.
-// - Normalizes token/account results for deterministic asset presentation.
-
 import Foundation
 import SolanaSwift
 
@@ -77,8 +70,6 @@ enum SolanaBalanceService {
         }
     }
 
-    /// Solana provider operation: Rpc client.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func rpcClient(baseURL: String) -> SolanaAPIClient {
         JSONRPCAPIClient(endpoint: APIEndPoint(address: baseURL, network: .mainnetBeta))
     }
@@ -179,8 +170,6 @@ enum SolanaBalanceService {
         )
     ]
 
-    /// Solana provider operation: Mint address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func mintAddress(for symbol: String) -> String? {
         switch symbol.uppercased() {
         case "USDT":
@@ -206,14 +195,10 @@ enum SolanaBalanceService {
         }
     }
 
-    /// Solana provider operation: Is valid address.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func isValidAddress(_ address: String) -> Bool {
         AddressValidation.isValidSolanaAddress(address)
     }
 
-    /// Solana provider operation: Fetch balance.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func fetchBalance(for address: String) async throws -> Double {
         let normalized = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidAddress(normalized) else {
@@ -225,14 +210,10 @@ enum SolanaBalanceService {
         return Double(lamports) / 1_000_000_000.0
     }
 
-    /// Solana provider operation: Fetch portfolio.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func fetchPortfolio(for address: String) async throws -> SolanaPortfolioSnapshot {
         try await fetchPortfolio(for: address, trackedTokenMetadataByMint: knownTokenMetadataByMint)
     }
 
-    /// Solana provider operation: Fetch portfolio.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func fetchPortfolio(
         for address: String,
         trackedTokenMetadataByMint: [String: KnownTokenMetadata]
@@ -272,14 +253,10 @@ enum SolanaBalanceService {
         throw tokenError as? SolanaBalanceServiceError ?? nativeError ?? SolanaBalanceServiceError.invalidResponse
     }
 
-    /// Solana provider operation: Fetch spltoken balances.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func fetchSPLTokenBalances(for address: String) async throws -> [SolanaSPLTokenBalanceSnapshot] {
         try await fetchSPLTokenBalances(for: address, trackedTokenMetadataByMint: knownTokenMetadataByMint)
     }
 
-    /// Solana provider operation: Fetch spltoken balances.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func fetchSPLTokenBalances(
         for address: String,
         trackedTokenMetadataByMint: [String: KnownTokenMetadata]
@@ -376,8 +353,6 @@ enum SolanaBalanceService {
         }
     }
 
-    /// Solana provider operation: Resolve owned token account.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func resolveOwnedTokenAccount(for ownerAddress: String, mintAddress: String) async throws -> String? {
         let normalizedOwner = ownerAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedMint = mintAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -434,8 +409,6 @@ enum SolanaBalanceService {
         }
     }
 
-    /// Solana provider operation: Fetch recent history with diagnostics.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     static func fetchRecentHistoryWithDiagnostics(for address: String, limit: Int = 40) async -> (snapshots: [SolanaHistorySnapshot], diagnostics: SolanaHistoryDiagnostics) {
         let normalized = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isValidAddress(normalized) else {
@@ -516,8 +489,6 @@ enum SolanaBalanceService {
         }
     }
 
-    /// Solana provider operation: Build history snapshot.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func buildHistorySnapshot(
         address: String,
         signature: SignatureInfo,
@@ -601,8 +572,6 @@ enum SolanaBalanceService {
         let deltaAmount: Double
     }
 
-    /// Solana provider operation: Compute token delta.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func computeTokenDelta(
         transaction: TransactionInfo,
         accountKeys: [String],
@@ -658,14 +627,10 @@ enum SolanaBalanceService {
         return best
     }
 
-    /// Solana provider operation: First counterparty.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func firstCounterparty(from accountKeys: [String], excluding address: String) -> String {
         accountKeys.first(where: { $0.caseInsensitiveCompare(address) != .orderedSame }) ?? address
     }
 
-    /// Solana provider operation: Fetch owned token accounts.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchOwnedTokenAccounts(for ownerAddress: String) async throws -> [TokenAccount<TokenAccountState>] {
         try await withRPCClient { client in
             let legacyAccounts = try await client.getTokenAccountsByOwner(
@@ -682,8 +647,6 @@ enum SolanaBalanceService {
         }
     }
 
-    /// Solana provider operation: Fetch spltoken balances via parsed rpc.
-    /// Ensures predictable behavior for refresh, persistence, and diagnostics flows.
     private static func fetchSPLTokenBalancesViaParsedRPC(
         for ownerAddress: String,
         trackedTokenMetadataByMint: [String: KnownTokenMetadata]

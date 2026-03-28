@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Stellar balance and history service backed by Horizon-style provider APIs.
-//
-// Responsibilities:
-// - Fetches Stellar account balances and transaction history snapshots.
-// - Normalizes provider responses into app-facing balance and history models.
-
 import Foundation
 
 enum StellarBalanceServiceError: LocalizedError {

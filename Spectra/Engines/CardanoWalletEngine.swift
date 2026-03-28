@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Cardano-specific signing and address/transaction engine layer consumed by the app state coordinator.
-//
-// Responsibilities:
-// - Implements Cardano derivation and transaction-building entry points.
-// - Provides consistent error surfaces for wallet UX and diagnostics.
-
 import Foundation
 import WalletCore
 
@@ -61,8 +54,6 @@ enum CardanoWalletEngine {
         let absSlot: UInt64
     }
 
-    /// Handles "derivedAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
         try derivedAddress(
             for: seedPhrase,
@@ -82,8 +73,6 @@ enum CardanoWalletEngine {
         return material.address
     }
 
-    /// Handles "estimateSendPreview" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func estimateSendPreview(
         from ownerAddress: String,
         to destinationAddress: String,
@@ -105,8 +94,6 @@ enum CardanoWalletEngine {
         )
     }
 
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(
         seedPhrase: String,
         ownerAddress: String,
@@ -216,8 +203,6 @@ enum CardanoWalletEngine {
         return .deferred
     }
 
-    /// Handles "fetchTip" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchTip() async throws -> TipResult {
         let url = koiosBaseURL.appendingPathComponent("tip")
         var request = URLRequest(url: url)
@@ -253,8 +238,6 @@ enum CardanoWalletEngine {
         throw CardanoWalletEngineError.networkError("Missing abs_slot in /tip response.")
     }
 
-    /// Handles "fetchAddressUTXOs" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchAddressUTXOs(address: String) async throws -> [RPCAddressUTXO] {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "\(koiosBaseURL.absoluteString)/address_utxos?_address=eq.\(encodedAddress)") else {
@@ -304,8 +287,6 @@ enum CardanoWalletEngine {
         }
     }
 
-    /// Handles "submitTransactionCBOR" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func submitTransactionCBOR(cbor: Data) async throws {
         let url = koiosBaseURL.appendingPathComponent("submittx")
         var request = URLRequest(url: url)
@@ -331,8 +312,6 @@ enum CardanoWalletEngine {
         }
     }
 
-    /// Handles "scaledSignedAmount" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func scaledSignedAmount(_ amount: Double, decimals: Int) throws -> Int64 {
         guard amount.isFinite, amount > 0, decimals >= 0 else {
             throw CardanoWalletEngineError.invalidAmount
@@ -358,8 +337,6 @@ enum CardanoWalletEngine {
         return value
     }
 
-    /// Handles "decimalPowerOfTen" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func decimalPowerOfTen(_ exponent: Int) -> Decimal {
         guard exponent > 0 else { return 1 }
         var result = Decimal(1)
@@ -388,8 +365,6 @@ private extension Data {
         self = data
     }
 
-    /// Handles "hexEncodedString" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func hexEncodedString() -> String {
         map { String(format: "%02x", $0) }.joined()
     }

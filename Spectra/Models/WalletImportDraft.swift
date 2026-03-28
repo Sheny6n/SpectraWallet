@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Transient import/create draft model used by wallet onboarding and edit flows.
-//
-// Responsibilities:
-// - Captures user-entered wallet metadata, chain selections, and form state.
-// - Centralizes validation-related flags to keep UI logic declarative.
-
 import SwiftUI
 import Combine
 
@@ -424,16 +417,12 @@ final class WalletImportDraft: ObservableObject {
         selectedChainNames.filter { !ChainBackendRegistry.supportsBalanceRefresh(for: $0) }
     }
 
-    /// Handles "configureForNewWallet" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func configureForNewWallet() {
         mode = .importExisting
         isEditingWallet = false
         reset()
     }
 
-    /// Handles "configureForWatchAddressesImport" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func configureForWatchAddressesImport() {
         mode = .importExisting
         isEditingWallet = false
@@ -441,8 +430,6 @@ final class WalletImportDraft: ObservableObject {
         isWatchOnlyMode = true
     }
 
-    /// Handles "configureForCreatedWallet" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func configureForCreatedWallet() {
         // Force reset in import mode to avoid regenerating words during reset.
         mode = .importExisting
@@ -453,8 +440,6 @@ final class WalletImportDraft: ObservableObject {
         regenerateSeedPhrase()
     }
 
-    /// Handles "configureForEditing" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func configureForEditing(wallet: ImportedWallet, seedWordCount: Int) {
         // Force reset in import mode to avoid create-mode seed regeneration side effects.
         mode = .importExisting
@@ -490,8 +475,6 @@ final class WalletImportDraft: ObservableObject {
         selectedChainNamesStorage = [wallet.selectedChain]
     }
 
-    /// Handles "reset" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func reset() {
         walletName = ""
         seedPhrase = ""
@@ -538,8 +521,6 @@ final class WalletImportDraft: ObservableObject {
         backupVerificationEntries = Array(repeating: "", count: backupVerificationWordIndices.count)
     }
 
-    /// Handles "applySelectedChains" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func bindingForChainSelection(_ chainName: String) -> Binding<Bool> {
         Binding(
             get: { self.isSelectedChain(chainName) },
@@ -634,8 +615,6 @@ final class WalletImportDraft: ObservableObject {
         }
     }
 
-    /// Handles "regenerateSeedPhrase" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func regenerateSeedPhrase() {
         guard isCreateMode else { return }
         let generatedPhrase = (try? BitcoinWalletEngine.generateMnemonic(wordCount: selectedSeedPhraseWordCount)) ?? ""
@@ -650,15 +629,11 @@ final class WalletImportDraft: ObservableObject {
         backupVerificationEntries = []
     }
 
-    /// Handles "seedPhraseEntry" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func seedPhraseEntry(at index: Int) -> String {
         guard seedPhraseEntries.indices.contains(index) else { return "" }
         return seedPhraseEntries[index]
     }
 
-    /// Handles "updateSeedPhraseEntry" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func updateSeedPhraseEntry(at index: Int, with newValue: String) {
         guard seedPhraseEntries.indices.contains(index) else { return }
 
@@ -683,8 +658,6 @@ final class WalletImportDraft: ObservableObject {
         syncSeedPhraseFromEntries()
     }
 
-    /// Handles "prepareBackupVerificationChallenge" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func prepareBackupVerificationChallenge() {
         guard requiresBackupVerification else {
             backupVerificationWordIndices = []
@@ -707,8 +680,6 @@ final class WalletImportDraft: ObservableObject {
         backupVerificationEntries = Array(repeating: "", count: sortedIndices.count)
     }
 
-    /// Handles "updateBackupVerificationEntry" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     func updateBackupVerificationEntry(at index: Int, with value: String) {
         guard backupVerificationEntries.indices.contains(index) else { return }
         backupVerificationEntries[index] = value
@@ -716,8 +687,6 @@ final class WalletImportDraft: ObservableObject {
             .lowercased()
     }
 
-    /// Handles "resizeSeedPhraseEntries" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private func resizeSeedPhraseEntries(to count: Int) {
         guard count > 0 else { return }
         if seedPhraseEntries.count > count {
@@ -736,8 +705,6 @@ final class WalletImportDraft: ObservableObject {
         syncSeedPhraseFromEntries()
     }
 
-    /// Handles "syncSeedPhraseFromEntries" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private func syncSeedPhraseFromEntries() {
         let normalizedEntries = seedPhraseEntries.map {
             $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -758,8 +725,6 @@ final class WalletImportDraft: ObservableObject {
         }
     }
 
-    /// Handles "isLikelyValidBitcoinAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private func isLikelyValidBitcoinAddress(_ address: String) -> Bool {
         AddressValidation.isValidBitcoinAddress(address, networkMode: .mainnet)
             || AddressValidation.isValidBitcoinAddress(address, networkMode: .testnet)

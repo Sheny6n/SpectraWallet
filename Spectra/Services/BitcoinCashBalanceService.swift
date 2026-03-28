@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Bitcoin Cash balance/history service backed by Blockchair address and transaction APIs.
-//
-// Responsibilities:
-// - Fetches BCH balances, history pages, UTXOs, and transaction status.
-// - Normalizes BCH provider responses into app-domain models.
-
 import Foundation
 
 struct BitcoinCashHistorySnapshot: Equatable {

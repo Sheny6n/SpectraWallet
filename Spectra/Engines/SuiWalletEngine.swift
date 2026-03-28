@@ -1,10 +1,3 @@
-// MARK: - File Overview
-// Sui chain engine encapsulating address derivation and signing pipeline behavior.
-//
-// Responsibilities:
-// - Defines Sui-specific transaction creation/signing entry points.
-// - Provides app-consumable async APIs and typed error propagation.
-
 import Foundation
 
 import WalletCore
@@ -87,8 +80,6 @@ enum SuiWalletEngine {
     private struct ReferenceGasPriceResult: Decodable {
         let value: String?
 
-        /// Initializes and configures this component for use in the wallet app.
-        /// Ensures deterministic setup so runtime state remains consistent.
         init(from decoder: Swift.Decoder) throws {
             let container = try decoder.singleValueContainer()
             if let number = try? container.decode(UInt64.self) {
@@ -123,8 +114,6 @@ enum SuiWalletEngine {
         let objectDigest: String
     }
 
-    /// Handles "derivedAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
             seedPhrase: seedPhrase,
@@ -137,8 +126,6 @@ enum SuiWalletEngine {
         return material.address
     }
 
-    /// Handles "estimateSendPreview" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) async throws -> SuiSendPreview {
         let normalizedOwner = normalizeAddress(ownerAddress)
         let normalizedDestination = normalizeAddress(destinationAddress)
@@ -158,8 +145,6 @@ enum SuiWalletEngine {
         )
     }
 
-    /// Handles "sendInBackground" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     static func sendInBackground(
         seedPhrase: String,
         ownerAddress: String,
@@ -244,8 +229,6 @@ enum SuiWalletEngine {
         )
     }
 
-    /// Handles "selectCoins" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func selectCoins(address: String, requiredMist: UInt64) async throws -> [SuiObjectRefForSigning] {
         var cursor: String?
         var selected: [SuiObjectRefForSigning] = []
@@ -293,8 +276,6 @@ enum SuiWalletEngine {
         throw SuiWalletEngineError.insufficientBalance
     }
 
-    /// Handles "fetchCoins" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchCoins(address: String, cursor: String?) async throws -> CoinPage {
         let payload: [String: Any] = [
             "jsonrpc": "2.0",
@@ -305,8 +286,6 @@ enum SuiWalletEngine {
         return try await postRPC(payload: payload, profile: .chainRead)
     }
 
-    /// Handles "fetchReferenceGasPrice" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func fetchReferenceGasPrice() async throws -> UInt64 {
         let payload: [String: Any] = [
             "jsonrpc": "2.0",
@@ -321,8 +300,6 @@ enum SuiWalletEngine {
         return parsed
     }
 
-    /// Handles "executeTransactionBlock" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func executeTransactionBlock(txBytesBase64: String, signatureBase64: String) async throws -> String {
         let payload: [String: Any] = [
             "jsonrpc": "2.0",
@@ -381,14 +358,10 @@ enum SuiWalletEngine {
         throw SuiWalletEngineError.networkError(message)
     }
 
-    /// Handles "normalizeAddress" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func normalizeAddress(_ address: String) -> String {
         address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    /// Handles "scaledUnsignedAmount" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func scaledUnsignedAmount(_ amount: Double, decimals: Int) throws -> UInt64 {
         guard amount.isFinite, amount > 0, decimals >= 0 else {
             throw SuiWalletEngineError.invalidAmount
@@ -411,8 +384,6 @@ enum SuiWalletEngine {
         return value
     }
 
-    /// Handles "decimalPowerOfTen" for this module.
-    /// Keeps behavior deterministic and aligned with app state expectations.
     private static func decimalPowerOfTen(_ exponent: Int) -> Decimal {
         guard exponent > 0 else { return 1 }
         var result = Decimal(1)
