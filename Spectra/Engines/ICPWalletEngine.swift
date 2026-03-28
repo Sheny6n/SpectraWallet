@@ -17,22 +17,19 @@ enum ICPWalletEngineError: LocalizedError {
         case .invalidAddress:
             return NSLocalizedString("The ICP account identifier is not valid.", comment: "")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this ICP transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("ICP")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The ICP seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("ICP")
         case .invalidResponse:
-            return NSLocalizedString("The ICP provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("ICP")
         case .insufficientBalance:
             return NSLocalizedString("Insufficient ICP to cover amount and network fee.", comment: "")
         case .signingFailed(let message):
-            let format = NSLocalizedString("Failed to sign ICP transaction: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("ICP", message: message)
         case .networkError(let message):
-            let format = NSLocalizedString("ICP network request failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkRequestFailed("ICP", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("ICP broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("ICP", message: message)
         }
     }
 }

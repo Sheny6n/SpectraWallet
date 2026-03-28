@@ -1,0 +1,70 @@
+{
+  "canonicalEnglishTerms": [
+    "Bitcoin",
+    "Bitcoin Cash",
+    "Bitcoin SV",
+    "Dogecoin",
+    "Ethereum",
+    "Ethereum Classic",
+    "Solana",
+    "Cardano",
+    "Tron",
+    "XRP Ledger",
+    "Monero",
+    "Sui",
+    "Aptos",
+    "Internet Computer",
+    "NEAR",
+    "Polkadot",
+    "Stellar",
+    "TON",
+    "USDT",
+    "USDC",
+    "ERC-20",
+    "TRC-20",
+    "RPC",
+    "EVM",
+    "URL",
+    "HTTP",
+    "JSON",
+    "nonce"
+  ],
+  "approvedTranslations": {
+    "self-custodial": {
+      "zh-Hans": "自托管",
+      "zh-Hant": "自託管"
+    },
+    "seed phrase": {
+      "zh-Hans": "助记词",
+      "zh-Hant": "助記詞"
+    },
+    "private key": {
+      "zh-Hans": "私钥",
+      "zh-Hant": "私鑰"
+    },
+    "watch-only": {
+      "zh-Hans": "仅观察",
+      "zh-Hant": "僅觀察"
+    },
+    "address book": {
+      "zh-Hans": "地址簿",
+      "zh-Hant": "地址簿"
+    },
+    "diagnostics": {
+      "zh-Hans": "诊断",
+      "zh-Hant": "診斷"
+    },
+    "endpoint": {
+      "zh-Hans": "端点",
+      "zh-Hant": "端點"
+    },
+    "broadcast": {
+      "zh-Hans": "广播",
+      "zh-Hant": "廣播"
+    },
+    "sync": {
+      "zh-Hans": "同步",
+      "zh-Hant": "同步"
+    }
+  }
+}

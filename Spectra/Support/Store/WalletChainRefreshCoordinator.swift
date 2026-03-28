@@ -387,7 +387,7 @@ extension WalletStore {
         }
     }
 
-    func runPendingTransactionHistoryRefreshes(
+    func runHistoryRefreshes(
         for trackedChains: Set<WalletChainID>,
         interval: TimeInterval
     ) async {
@@ -413,6 +413,13 @@ extension WalletStore {
             }
             await group.waitForAll()
         }
+    }
+
+    func runPendingTransactionHistoryRefreshes(
+        for trackedChains: Set<WalletChainID>,
+        interval: TimeInterval
+    ) async {
+        await runHistoryRefreshes(for: trackedChains, interval: interval)
     }
 
     private func runTimedChainRefresh(

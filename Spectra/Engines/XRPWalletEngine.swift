@@ -13,20 +13,17 @@ enum XRPWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The XRP address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("XRP")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this XRP transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("XRP")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The XRP seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("XRP")
         case .signingFailed(let message):
-            let format = NSLocalizedString("Failed to sign XRP transaction: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("XRP", message: message)
         case .networkError(let message):
-            let format = NSLocalizedString("XRP network request failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkRequestFailed("XRP", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("XRP broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("XRP", message: message)
         }
     }
 }

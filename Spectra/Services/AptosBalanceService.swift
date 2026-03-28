@@ -8,12 +8,11 @@ enum AptosBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Aptos address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Aptos")
         case .invalidResponse:
-            return NSLocalizedString("The Aptos provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Aptos")
         case .rpcError(let message):
-            let format = NSLocalizedString("Aptos RPC error: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.rpcError("Aptos", message: message)
         }
     }
 }

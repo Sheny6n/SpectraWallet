@@ -12,20 +12,17 @@ enum CardanoWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Cardano address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Cardano")
         case .invalidAmount:
-            return NSLocalizedString("The Cardano amount is not valid.", comment: "")
+            return CommonLocalization.invalidAmount("Cardano")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Cardano seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Cardano")
         case .signingFailed(let message):
-            let format = NSLocalizedString("Cardano signing failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("Cardano", message: message)
         case .networkError(let message):
-            let format = NSLocalizedString("Cardano network request failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkRequestFailed("Cardano", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("Cardano broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("Cardano", message: message)
         }
     }
 }

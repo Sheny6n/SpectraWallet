@@ -1,6 +1,25 @@
 import SwiftUI
 import Combine
 
+private struct HistoryRowPresentation: Identifiable {
+    let transaction: TransactionRecord
+    let amountText: String?
+    let titleText: String
+    let subtitleText: String
+    let statusText: String
+    let fullTimestampText: String
+    let dogecoinFeeText: String?
+
+    var id: UUID { transaction.id }
+}
+
+private struct HistoryPresentationSection: Identifiable {
+    let title: String
+    let rows: [HistoryRowPresentation]
+
+    var id: String { title }
+}
+
 struct HistoryView: View {
     @ObservedObject var store: WalletStore
     @State private var selectedFilter: HistoryFilter = .all
@@ -10,6 +29,7 @@ struct HistoryView: View {
     @State private var currentPageIndex: Int = 0
     @State private var pendingScrollToTopToken = UUID()
     @State private var visibleTransactions: [TransactionRecord] = []
+    @State private var visibleRows: [HistoryRowPresentation] = []
 
     private let entriesPerPage = 20
     
@@ -40,37 +60,37 @@ struct HistoryView: View {
                                 .spectraBubbleFill()
                                 .glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
                             } else {
-                                ForEach(groupedTransactions) { section in
+                                ForEach(groupedSections) { section in
                                     VStack(alignment: .leading, spacing: 12) {
-                                        Text(localizedFormat("history.section.titleCount", section.title, section.transactions.count))
+                                        Text(localizedFormat("history.section.titleCount", section.title, section.rows.count))
                                             .font(.headline)
                                             .foregroundStyle(Color.primary.opacity(0.88))
 
-                                        ForEach(section.transactions) { transaction in
+                                        ForEach(section.rows) { row in
                                             VStack(alignment: .leading, spacing: 10) {
                                                 NavigationLink {
-                                                    HistoryDetailView(store: store, transaction: transaction)
+                                                    HistoryDetailView(store: store, transaction: row.transaction)
                                                 } label: {
-                                                    transactionRow(transaction)
+                                                    transactionRow(row)
                                                 }
                                                 .buttonStyle(.plain)
                                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                                    if transaction.kind == .send,
-                                                       transaction.chainName == "Dogecoin",
-                                                              transaction.status == .pending || transaction.status == .failed {
+                                                    if row.transaction.kind == .send,
+                                                       row.transaction.chainName == "Dogecoin",
+                                                              row.transaction.status == .pending || row.transaction.status == .failed {
                                                         Button {
                                                             Task {
-                                                                _ = await store.retryDogecoinTransactionStatus(for: transaction.id)
+                                                                _ = await store.retryDogecoinTransactionStatus(for: row.transaction.id)
                                                             }
                                                         } label: {
                                                             Label("Recheck", systemImage: "arrow.clockwise")
                                                         }
                                                         .tint(.blue)
 
-                                                        if transaction.dogecoinRawTransactionHex != nil {
+                                                        if row.transaction.dogecoinRawTransactionHex != nil {
                                                             Button {
                                                                 Task {
-                                                                    _ = await store.rebroadcastDogecoinTransaction(for: transaction.id)
+                                                                    _ = await store.rebroadcastDogecoinTransaction(for: row.transaction.id)
                                                                 }
                                                             } label: {
                                                                 Label("Rebroadcast", systemImage: "dot.radiowaves.up.forward")
@@ -227,22 +247,22 @@ struct HistoryView: View {
     }
 
     private var shouldShowPagingControls: Bool {
-        !visibleTransactions.isEmpty && (clampedPageIndex > 0 || hasNextLoadedPage || store.canLoadMoreOnChainHistory || store.isLoadingMoreOnChainHistory)
+        !visibleRows.isEmpty && (clampedPageIndex > 0 || hasNextLoadedPage || store.canLoadMoreOnChainHistory || store.isLoadingMoreOnChainHistory)
     }
 
-    private var pagedTransactions: [TransactionRecord] {
+    private var pagedRows: [HistoryRowPresentation] {
         let startIndex = clampedPageIndex * entriesPerPage
-        return Array(visibleTransactions.dropFirst(startIndex).prefix(entriesPerPage))
+        return Array(visibleRows.dropFirst(startIndex).prefix(entriesPerPage))
     }
     
-    private var groupedTransactions: [HistorySection] {
+    private var groupedSections: [HistoryPresentationSection] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: pagedTransactions) { transaction in
-            if calendar.isDateInToday(transaction.createdAt) {
+        let grouped = Dictionary(grouping: pagedRows) { row in
+            if calendar.isDateInToday(row.transaction.createdAt) {
                 return NSLocalizedString("Today", comment: "")
             }
             
-            if calendar.isDateInYesterday(transaction.createdAt) {
+            if calendar.isDateInYesterday(row.transaction.createdAt) {
                 return NSLocalizedString("Yesterday", comment: "")
             }
             
@@ -266,10 +286,10 @@ struct HistoryView: View {
         }
         
         return order.compactMap { title in
-            guard let transactions = grouped[title], !transactions.isEmpty else {
+            guard let rows = grouped[title], !rows.isEmpty else {
                 return nil
             }
-            return HistorySection(title: title, transactions: transactions)
+            return HistoryPresentationSection(title: title, rows: rows)
         }
     }
 
@@ -316,6 +336,7 @@ struct HistoryView: View {
         }
 
         visibleTransactions = rebuiltTransactions
+        visibleRows = rebuiltTransactions.map(historyRowPresentation)
 
         if resetPaging {
             currentPageIndex = 0
@@ -405,16 +426,16 @@ struct HistoryView: View {
     }
     
     @ViewBuilder
-    private func transactionRow(_ transaction: TransactionRecord) -> some View {
+    private func transactionRow(_ row: HistoryRowPresentation) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                CoinBadge(assetIdentifier: transaction.assetIdentifier, fallbackText: transaction.symbol, color: transaction.badgeColor, size: 40)
+                CoinBadge(assetIdentifier: row.transaction.assetIdentifier, fallbackText: row.transaction.symbol, color: row.transaction.badgeColor, size: 40)
                 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(transaction.titleText)
+                    Text(row.titleText)
                         .font(.headline)
                         .foregroundStyle(Color.primary)
-                    Text(transaction.subtitleText)
+                    Text(row.subtitleText)
                         .font(.caption)
                         .foregroundStyle(Color.primary.opacity(0.72))
                 }
@@ -422,13 +443,13 @@ struct HistoryView: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 6) {
-                    Text(transaction.statusText)
+                    Text(row.statusText)
                         .font(.caption2.bold())
                         .foregroundStyle(Color.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 5)
-                        .background(transaction.statusColor.opacity(0.85), in: Capsule())
-                    Text(transaction.fullTimestampText)
+                        .background(row.transaction.statusColor.opacity(0.85), in: Capsule())
+                    Text(row.fullTimestampText)
                         .font(.caption2)
                         .foregroundStyle(Color.primary.opacity(0.6))
                         .multilineTextAlignment(.trailing)
@@ -439,32 +460,15 @@ struct HistoryView: View {
                     .foregroundStyle(Color.primary.opacity(0.35))
             }
             
-            if let amountText = store.formattedTransactionAmount(transaction) {
+            if let amountText = row.amountText {
                 Text(amountText)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.primary)
                     .spectraNumericTextLayout()
             }
 
-            if transaction.chainName == "Dogecoin",
-               transaction.kind == .send,
-               let dogecoinFeePriorityRaw = transaction.dogecoinFeePriorityRaw,
-               let dogecoinEstimatedFeeRateDOGEPerKB = transaction.dogecoinEstimatedFeeRateDOGEPerKB {
-                let changeOutputSuffix = (transaction.dogecoinUsedChangeOutput == false) ? " • no change output" : ""
-                let confirmedFeeSuffix = transaction.dogecoinConfirmedNetworkFeeDOGE
-                    .map { String(format: " • confirmed %.6f", $0) } ?? ""
-                let confirmationsSuffix = transaction.dogecoinConfirmations
-                    .map { " • \($0) conf" } ?? ""
-                Text(
-                    String(
-                        format: "DOGE fee: %@ • %.4f DOGE/KB%@%@%@",
-                        dogecoinFeePriorityRaw.capitalized,
-                        dogecoinEstimatedFeeRateDOGEPerKB,
-                        changeOutputSuffix,
-                        confirmedFeeSuffix,
-                        confirmationsSuffix
-                    )
-                )
+            if let dogecoinFeeText = row.dogecoinFeeText {
+                Text(dogecoinFeeText)
                 .font(.caption2)
                 .foregroundStyle(Color.primary.opacity(0.62))
                 .lineLimit(1)
@@ -496,6 +500,41 @@ struct HistoryView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .spectraInputFieldStyle(cornerRadius: 16)
+    }
+
+    private func historyRowPresentation(for transaction: TransactionRecord) -> HistoryRowPresentation {
+        HistoryRowPresentation(
+            transaction: transaction,
+            amountText: store.formattedTransactionAmount(transaction),
+            titleText: transaction.titleText,
+            subtitleText: transaction.subtitleText,
+            statusText: transaction.statusText,
+            fullTimestampText: transaction.fullTimestampText,
+            dogecoinFeeText: dogecoinFeeText(for: transaction)
+        )
+    }
+
+    private func dogecoinFeeText(for transaction: TransactionRecord) -> String? {
+        guard transaction.chainName == "Dogecoin",
+              transaction.kind == .send,
+              let dogecoinFeePriorityRaw = transaction.dogecoinFeePriorityRaw,
+              let dogecoinEstimatedFeeRateDOGEPerKB = transaction.dogecoinEstimatedFeeRateDOGEPerKB else {
+            return nil
+        }
+
+        let changeOutputSuffix = (transaction.dogecoinUsedChangeOutput == false) ? " • no change output" : ""
+        let confirmedFeeSuffix = transaction.dogecoinConfirmedNetworkFeeDOGE
+            .map { String(format: " • confirmed %.6f", $0) } ?? ""
+        let confirmationsSuffix = transaction.dogecoinConfirmations
+            .map { " • \($0) conf" } ?? ""
+        return String(
+            format: "DOGE fee: %@ • %.4f DOGE/KB%@%@%@",
+            dogecoinFeePriorityRaw.capitalized,
+            dogecoinEstimatedFeeRateDOGEPerKB,
+            changeOutputSuffix,
+            confirmedFeeSuffix,
+            confirmationsSuffix
+        )
     }
 }
 

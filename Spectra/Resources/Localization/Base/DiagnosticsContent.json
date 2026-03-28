@@ -24,5 +24,9 @@
   "noBroadcastReliabilityYet": "No broadcast reliability data yet.",
   "broadcastReliabilityFormat": "Success: %@, Failures: %@, Rate: %@",
   "totalNormalizedEntriesFormat": "Total normalized entries: %@",
-  "noNormalizedHistoryYet": "No normalized history entries yet."
+  "noNormalizedHistoryYet": "No normalized history entries yet.",
+  "historySourcesSectionTitleFormat": "%@ History Sources",
+  "endpointReachabilitySectionTitleFormat": "%@ Endpoint Reachability",
+  "degradedLastGoodSyncFormat": "Last good sync: %@.",
+  "degradedNoPriorSuccessfulSyncYet": "No prior successful sync yet."
 }

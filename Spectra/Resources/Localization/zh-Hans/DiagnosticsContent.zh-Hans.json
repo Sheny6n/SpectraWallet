@@ -24,5 +24,9 @@
   "noBroadcastReliabilityYet": "尚无广播可靠性数据。",
   "broadcastReliabilityFormat": "成功：%@，失败：%@，比率：%@",
   "totalNormalizedEntriesFormat": "规范化总条目数：%@",
-  "noNormalizedHistoryYet": "尚无规范化历史条目。"
+  "noNormalizedHistoryYet": "尚无规范化历史条目。",
+  "historySourcesSectionTitleFormat": "%@ 历史来源",
+  "endpointReachabilitySectionTitleFormat": "%@ 端点可达性",
+  "degradedLastGoodSyncFormat": "上次成功同步：%@。",
+  "degradedNoPriorSuccessfulSyncYet": "尚无成功同步记录。"
 }

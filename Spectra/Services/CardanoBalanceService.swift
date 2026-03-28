@@ -8,9 +8,9 @@ enum CardanoBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Cardano address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Cardano")
         case .invalidResponse:
-            return NSLocalizedString("The Cardano provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Cardano")
         case .httpError(let code):
             let format = NSLocalizedString("The Cardano provider returned HTTP %d.", comment: "")
             return String(format: format, locale: .current, code)

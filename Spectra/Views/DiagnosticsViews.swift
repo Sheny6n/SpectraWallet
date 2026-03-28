@@ -281,7 +281,7 @@ struct StandardChainDiagnosticsView: View {
                 }
             }
 
-            Section(localizedFormat("%@ History Sources", chain.shortLabel)) {
+            Section(String(format: copy.historySourcesSectionTitleFormat, chain.shortLabel)) {
                 if historySourceRows.isEmpty {
                     Text(copy.noHistoryTelemetryYet)
                         .font(.caption)
@@ -300,7 +300,7 @@ struct StandardChainDiagnosticsView: View {
                 }
             }
 
-            Section(localizedFormat("%@ Endpoint Reachability", chain.shortLabel)) {
+            Section(String(format: copy.endpointReachabilitySectionTitleFormat, chain.shortLabel)) {
                 if endpointRows.isEmpty {
                     Text(copy.noEndpointChecksYet)
                         .font(.caption)
@@ -542,57 +542,57 @@ struct StandardChainDiagnosticsView: View {
 
     private var historyDiagnosticsChangePublisher: AnyPublisher<Void, Never> {
         switch chain {
-        case .dogecoin: return store.$dogecoinHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .bitcoin: return store.$bitcoinHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .bitcoinCash: return store.$bitcoinCashHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .litecoin: return store.$litecoinHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .ethereum: return store.$ethereumHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .ethereumClassic: return store.$etcHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .arbitrum: return store.$arbitrumHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .optimism: return store.$optimismHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .bnb: return store.$bnbHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .avalanche: return store.$avalancheHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .hyperliquid: return store.$hyperliquidHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .tron: return store.$tronHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .solana: return store.$solanaHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .cardano: return store.$cardanoHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .xrp: return store.$xrpHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .stellar: return store.$stellarHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .monero: return store.$moneroHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .sui: return store.$suiHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .aptos: return store.$aptosHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .ton: return store.$tonHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .icp: return store.$icpHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .near: return store.$nearHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .polkadot: return store.$polkadotHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .dogecoin: return store.chainDiagnosticsState.$dogecoinHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .bitcoin: return store.chainDiagnosticsState.$bitcoinHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .bitcoinCash: return store.chainDiagnosticsState.$bitcoinCashHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .litecoin: return store.chainDiagnosticsState.$litecoinHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .ethereum: return store.chainDiagnosticsState.$ethereumHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .ethereumClassic: return store.chainDiagnosticsState.$etcHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .arbitrum: return store.chainDiagnosticsState.$arbitrumHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .optimism: return store.chainDiagnosticsState.$optimismHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .bnb: return store.chainDiagnosticsState.$bnbHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .avalanche: return store.chainDiagnosticsState.$avalancheHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .hyperliquid: return store.chainDiagnosticsState.$hyperliquidHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .tron: return store.chainDiagnosticsState.$tronHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .solana: return store.chainDiagnosticsState.$solanaHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .cardano: return store.chainDiagnosticsState.$cardanoHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .xrp: return store.chainDiagnosticsState.$xrpHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .stellar: return store.chainDiagnosticsState.$stellarHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .monero: return store.chainDiagnosticsState.$moneroHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .sui: return store.chainDiagnosticsState.$suiHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .aptos: return store.chainDiagnosticsState.$aptosHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .ton: return store.chainDiagnosticsState.$tonHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .icp: return store.chainDiagnosticsState.$icpHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .near: return store.chainDiagnosticsState.$nearHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
+        case .polkadot: return store.chainDiagnosticsState.$polkadotHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
         }
     }
 
     private var endpointDiagnosticsChangePublisher: AnyPublisher<Void, Never> {
         switch chain {
-        case .dogecoin: return store.$dogecoinEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .bitcoin: return store.$bitcoinEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .bitcoinCash: return store.$bitcoinCashEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .litecoin: return store.$litecoinEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .ethereum: return store.$ethereumEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .ethereumClassic: return store.$etcEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .arbitrum: return store.$arbitrumEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .optimism: return store.$optimismEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .bnb: return store.$bnbEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .avalanche: return store.$avalancheEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .hyperliquid: return store.$hyperliquidEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .tron: return store.$tronEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .solana: return store.$solanaEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .cardano: return store.$cardanoEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .xrp: return store.$xrpEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .stellar: return store.$stellarEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .monero: return store.$moneroEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .sui: return store.$suiEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .aptos: return store.$aptosEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .ton: return store.$tonEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .icp: return store.$icpEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .near: return store.$nearEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .polkadot: return store.$polkadotEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .dogecoin: return store.chainDiagnosticsState.$dogecoinEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .bitcoin: return store.chainDiagnosticsState.$bitcoinEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .bitcoinCash: return store.chainDiagnosticsState.$bitcoinCashEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .litecoin: return store.chainDiagnosticsState.$litecoinEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .ethereum: return store.chainDiagnosticsState.$ethereumEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .ethereumClassic: return store.chainDiagnosticsState.$etcEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .arbitrum: return store.chainDiagnosticsState.$arbitrumEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .optimism: return store.chainDiagnosticsState.$optimismEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .bnb: return store.chainDiagnosticsState.$bnbEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .avalanche: return store.chainDiagnosticsState.$avalancheEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .hyperliquid: return store.chainDiagnosticsState.$hyperliquidEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .tron: return store.chainDiagnosticsState.$tronEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .solana: return store.chainDiagnosticsState.$solanaEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .cardano: return store.chainDiagnosticsState.$cardanoEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .xrp: return store.chainDiagnosticsState.$xrpEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .stellar: return store.chainDiagnosticsState.$stellarEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .monero: return store.chainDiagnosticsState.$moneroEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .sui: return store.chainDiagnosticsState.$suiEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .aptos: return store.chainDiagnosticsState.$aptosEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .ton: return store.chainDiagnosticsState.$tonEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .icp: return store.chainDiagnosticsState.$icpEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .near: return store.chainDiagnosticsState.$nearEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
+        case .polkadot: return store.chainDiagnosticsState.$polkadotEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
         }
     }
 

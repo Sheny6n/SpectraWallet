@@ -16,7 +16,7 @@ enum EthereumWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Ethereum address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Ethereum")
         case .invalidSeedPhrase:
             return NSLocalizedString("The Ethereum seed phrase could not derive a valid account.", comment: "")
         case .missingRPCEndpoint:

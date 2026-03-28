@@ -23,6 +23,7 @@ final class WalletDiagnosticsStateTests: XCTestCase {
         let state = WalletDiagnosticsState()
 
         state.markChainDegraded("Ethereum", detail: "Ethereum refresh timed out. Using cached balances and history.")
+        state.flushPendingPersistence()
 
         XCTAssertEqual(state.chainDegradedBanners.count, 1)
         XCTAssertEqual(state.chainDegradedBanners.first?.chainName, "Ethereum")
@@ -42,6 +43,7 @@ final class WalletDiagnosticsStateTests: XCTestCase {
         state.markChainDegraded("Solana", detail: "Solana history refresh failed. Using cached history.")
 
         state.markChainHealthy("Solana")
+        state.flushPendingPersistence()
 
         XCTAssertTrue(state.chainDegradedMessages["Solana"] == nil)
         XCTAssertNotNil(state.lastGoodChainSyncByName["Solana"])
@@ -72,6 +74,7 @@ final class WalletDiagnosticsStateTests: XCTestCase {
         for index in 0..<810 {
             state.appendOperationalLog(.info, category: "Load", message: "Event \(index)")
         }
+        state.flushPendingPersistence()
 
         XCTAssertEqual(state.operationalLogs.count, 800)
     }
@@ -90,6 +93,7 @@ final class WalletDiagnosticsStateTests: XCTestCase {
             source: "network",
             metadata: "cached"
         )
+        state.flushPendingPersistence()
 
         let text = state.exportOperationalLogsText(networkSyncStatusText: "Network Status: Healthy")
 

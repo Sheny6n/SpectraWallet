@@ -2,6 +2,9 @@ import Foundation
 import Combine
 
 final class WalletRuntimeState: ObservableObject {
+    @Published var selectedMainTab: MainAppTab = .home
+    @Published var isAppLocked: Bool = false
+    @Published var appLockError: String?
     @Published var isPreparingEthereumReplacementContext: Bool = false
     @Published var isPreparingEthereumSend: Bool = false
     @Published var isPreparingDogecoinSend: Bool = false

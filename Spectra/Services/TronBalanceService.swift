@@ -8,9 +8,9 @@ enum TronBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Tron address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Tron")
         case .invalidResponse:
-            return NSLocalizedString("The Tron provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Tron")
         case .httpError(let status):
             let format = NSLocalizedString("The Tron provider returned HTTP %d.", comment: "")
             return String(format: format, locale: .current, status)

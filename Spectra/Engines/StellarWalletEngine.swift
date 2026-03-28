@@ -14,22 +14,19 @@ enum StellarWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Stellar address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Stellar")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this Stellar transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("Stellar")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Stellar seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Stellar")
         case .invalidResponse:
-            return NSLocalizedString("The Stellar provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Stellar")
         case .signingFailed(let message):
-            let format = NSLocalizedString("Failed to sign Stellar transaction: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("Stellar", message: message)
         case .networkError(let message):
-            let format = NSLocalizedString("Stellar network request failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkRequestFailed("Stellar", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("Stellar broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("Stellar", message: message)
         }
     }
 }

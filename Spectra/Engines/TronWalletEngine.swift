@@ -14,11 +14,11 @@ enum TronWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Tron address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Tron")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this Tron transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("Tron")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Tron seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Tron")
         case .unsupportedTokenContract:
             return NSLocalizedString("Only official USDT (TRC-20) on Tron is supported.", comment: "")
         case .createTransactionFailed(let message):

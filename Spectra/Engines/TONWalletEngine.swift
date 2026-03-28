@@ -15,24 +15,21 @@ enum TONWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The TON address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("TON")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this TON transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("TON")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The TON seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("TON")
         case .invalidResponse:
-            return NSLocalizedString("The TON provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("TON")
         case .insufficientBalance:
             return NSLocalizedString("Insufficient TON balance to cover amount and network fee.", comment: "")
         case .signingFailed(let message):
-            let format = NSLocalizedString("Failed to sign TON transaction: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("TON", message: message)
         case .networkError(let message):
-            let format = NSLocalizedString("TON network request failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkRequestFailed("TON", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("TON broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("TON", message: message)
         }
     }
 }

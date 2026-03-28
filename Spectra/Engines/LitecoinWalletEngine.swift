@@ -14,19 +14,19 @@ enum LitecoinWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Litecoin seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Litecoin")
         case .invalidAddress:
-            return NSLocalizedString("The Litecoin destination address is invalid.", comment: "")
+            return CommonLocalization.invalidDestinationAddressPrompt("Litecoin")
         case .signingFailed:
-            return NSLocalizedString("Failed to sign Litecoin transaction.", comment: "")
+            return CommonLocalization.signingTransactionFailed("Litecoin")
         case .insufficientFunds:
-            return NSLocalizedString("Insufficient Litecoin balance for amount plus fee.", comment: "")
+            return CommonLocalization.insufficientBalanceForAmountPlusNetworkFee("Litecoin")
         case let .networkFailure(message):
             return NSLocalizedString(message, comment: "")
         case .invalidUTXO:
-            return NSLocalizedString("Received invalid Litecoin UTXO data.", comment: "")
+            return CommonLocalization.invalidUTXOData("Litecoin")
         case .sourceAddressDoesNotMatchSeed:
-            return NSLocalizedString("The source Litecoin address does not match the provided seed phrase.", comment: "")
+            return CommonLocalization.sourceAddressDoesNotMatchSeed("Litecoin")
         }
     }
 }

@@ -8,9 +8,9 @@ enum XRPBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The XRP address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("XRP")
         case .invalidResponse:
-            return NSLocalizedString("The XRP provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("XRP")
         case .httpError(let code):
             let format = NSLocalizedString("The XRP provider returned HTTP %d.", comment: "")
             return String(format: format, locale: .current, code)

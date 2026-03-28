@@ -7,22 +7,27 @@ final class WalletDiagnosticsState: ObservableObject {
     private static let persistenceEncoder = JSONEncoder()
     private static let persistenceDecoder = JSONDecoder()
     private static let operationalLogTimestampFormatter = ISO8601DateFormatter()
+    private static let chainSyncPersistenceDelay: TimeInterval = 0.15
+    private static let operationalLogsPersistenceDelay: TimeInterval = 0.35
+
+    private var pendingChainSyncPersistence: DispatchWorkItem?
+    private var pendingOperationalLogsPersistence: DispatchWorkItem?
 
     @Published private var chainDegradedMessagesByID: [WalletChainID: String] = [:] {
         didSet {
-            persistChainSyncState()
+            scheduleChainSyncPersistence()
         }
     }
 
     @Published private var lastGoodChainSyncByID: [WalletChainID: Date] = [:] {
         didSet {
-            persistChainSyncState()
+            scheduleChainSyncPersistence()
         }
     }
 
     @Published var operationalLogs: [WalletStore.OperationalLogEvent] = [] {
         didSet {
-            persistOperationalLogs()
+            scheduleOperationalLogsPersistence()
         }
     }
 
@@ -31,6 +36,11 @@ final class WalletDiagnosticsState: ObservableObject {
         let persistedChainSync = loadChainSyncState()
         chainDegradedMessagesByID = persistedChainSync.degradedMessages
         lastGoodChainSyncByID = persistedChainSync.lastGoodSyncByID
+    }
+
+    deinit {
+        pendingChainSyncPersistence?.cancel()
+        pendingOperationalLogsPersistence?.cancel()
     }
 
     var chainDegradedMessages: [String: String] {
@@ -78,7 +88,7 @@ final class WalletDiagnosticsState: ObservableObject {
                     chainName: chainID.displayName,
                     message: localizedDegradedMessage(
                         chainDegradedMessagesByID[chainID] ?? "",
-                        chainName: chainID.displayName
+                        chainID: chainID
                     ),
                     lastGoodSyncAt: lastGoodChainSyncByID[chainID]
                 )
@@ -176,49 +186,30 @@ final class WalletDiagnosticsState: ObservableObject {
     func markChainDegraded(_ chainName: String, detail: String) {
         guard let chainID = WalletChainID(chainName) else { return }
         let chainName = chainID.displayName
-        let suffix: String
-        if let lastGood = lastGoodChainSyncByID[chainID] {
-            suffix = localizedStoreFormat(" Last good sync: %@.", lastGood.formatted(date: .abbreviated, time: .shortened))
-        } else {
-            suffix = localizedStoreString(" No prior successful sync yet.")
-        }
         let localizedDetail = localizedDegradedDetail(detail, chainName: chainName)
-        chainDegradedMessagesByID[chainID] = "\(localizedDetail)\(suffix)"
+        let metadata = degradedSyncSuffix(for: chainID)
+        chainDegradedMessagesByID[chainID] = localizedDetail
         appendOperationalLog(
             .warning,
             category: "Chain Sync",
             message: localizedDetail,
             chainName: chainName,
             source: "network",
-            metadata: suffix.trimmingCharacters(in: .whitespacesAndNewlines)
+            metadata: metadata
         )
     }
 
-    private func localizedDegradedMessage(_ message: String, chainName: String) -> String {
+    private func localizedDegradedMessage(_ message: String, chainID: WalletChainID) -> String {
         if message.isEmpty {
             return message
         }
-
-        let detail: String
-        let suffix: String
-
-        if let range = message.range(of: " Last good sync: ") {
-            let detailPart = String(message[..<range.lowerBound])
-            let timestamp = String(message[range.upperBound...]).trimmingCharacters(in: CharacterSet(charactersIn: ". "))
-            detail = localizedDegradedDetail(detailPart, chainName: chainName)
-            suffix = localizedStoreFormat(" Last good sync: %@.", timestamp)
-        } else if message.hasSuffix(" No prior successful sync yet.") {
-            detail = localizedDegradedDetail(
-                String(message.dropLast(" No prior successful sync yet.".count)),
-                chainName: chainName
-            )
-            suffix = localizedStoreString(" No prior successful sync yet.")
-        } else {
-            detail = localizedDegradedDetail(message, chainName: chainName)
-            suffix = ""
-        }
-
-        return "\(detail)\(suffix)"
+        let detail = localizedDegradedDetail(
+            normalizedDegradedDetail(message),
+            chainName: chainID.displayName
+        )
+        return [detail, degradedSyncSuffix(for: chainID)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     private func localizedDegradedDetail(_ detail: String, chainName: String) -> String {
@@ -262,12 +253,63 @@ final class WalletDiagnosticsState: ObservableObject {
         return localizedStoreString(detail)
     }
 
+    private func degradedSyncSuffix(for chainID: WalletChainID) -> String {
+        let copy = DiagnosticsContentCopy.current
+        if let lastGood = lastGoodChainSyncByID[chainID] {
+            return String(
+                format: copy.degradedLastGoodSyncFormat,
+                lastGood.formatted(date: .abbreviated, time: .shortened)
+            )
+        }
+        return copy.degradedNoPriorSuccessfulSyncYet
+    }
+
+    private func normalizedDegradedDetail(_ message: String) -> String {
+        if let range = message.range(of: " Last good sync: ") {
+            return String(message[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if message.hasSuffix(" No prior successful sync yet.") {
+            return String(message.dropLast(" No prior successful sync yet.".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return message.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func loadOperationalLogs() -> [WalletStore.OperationalLogEvent] {
         guard let data = UserDefaults.standard.data(forKey: Self.operationalLogsDefaultsKey),
               let decoded = try? JSONDecoder().decode([WalletStore.OperationalLogEvent].self, from: data) else {
             return []
         }
         return decoded.sorted { $0.timestamp > $1.timestamp }
+    }
+
+    func flushPendingPersistence() {
+        pendingChainSyncPersistence?.cancel()
+        pendingOperationalLogsPersistence?.cancel()
+        pendingChainSyncPersistence = nil
+        pendingOperationalLogsPersistence = nil
+        persistChainSyncState()
+        persistOperationalLogs()
+    }
+
+    private func scheduleChainSyncPersistence() {
+        pendingChainSyncPersistence?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.persistChainSyncState()
+            self?.pendingChainSyncPersistence = nil
+        }
+        pendingChainSyncPersistence = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.chainSyncPersistenceDelay, execute: workItem)
+    }
+
+    private func scheduleOperationalLogsPersistence() {
+        pendingOperationalLogsPersistence?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.persistOperationalLogs()
+            self?.pendingOperationalLogsPersistence = nil
+        }
+        pendingOperationalLogsPersistence = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.operationalLogsPersistenceDelay, execute: workItem)
     }
 
     private func persistOperationalLogs() {

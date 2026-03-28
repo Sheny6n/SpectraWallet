@@ -1477,9 +1477,9 @@ enum DogecoinWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidRecipientAddress:
-            return NSLocalizedString("Enter a valid Dogecoin destination address.", comment: "")
+            return CommonLocalization.invalidDestinationAddressPrompt("Dogecoin")
         case .invalidAmount:
-            return NSLocalizedString("Enter a valid Dogecoin amount.", comment: "")
+            return CommonLocalization.invalidAssetAmountPrompt("DOGE")
         case .invalidSeedPhrase:
             return NSLocalizedString("Unable to derive Dogecoin keys from this seed phrase.", comment: "")
         case .walletAddressNotDerivedFromSeed:
@@ -1489,11 +1489,11 @@ enum DogecoinWalletEngineError: LocalizedError {
         case .noSpendableUTXOs:
             return NSLocalizedString("No spendable Dogecoin UTXOs were found for this wallet.", comment: "")
         case .insufficientFunds:
-            return NSLocalizedString("Insufficient DOGE to cover amount plus network fee.", comment: "")
+            return CommonLocalization.insufficientBalanceForAmountPlusNetworkFee("DOGE")
         case .transactionBuildFailed(let message):
             return NSLocalizedString(message, comment: "")
         case .transactionSignFailed:
-            return NSLocalizedString("Failed to sign the Dogecoin transaction.", comment: "")
+            return CommonLocalization.signingTransactionFailed("Dogecoin")
         case .amountBelowDustThreshold:
             return NSLocalizedString("Amount is below Dogecoin dust threshold.", comment: "")
         case .changeBelowDustThreshold:
@@ -1501,11 +1501,9 @@ enum DogecoinWalletEngineError: LocalizedError {
         case .transactionTooLarge:
             return NSLocalizedString("Dogecoin transaction is too large for standard relay policy.", comment: "")
         case .networkFailure(let message):
-            let format = NSLocalizedString("Dogecoin network error: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkError("Dogecoin", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("Dogecoin broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("Dogecoin", message: message)
         case .preBroadcastValidationFailed(let message):
             let format = NSLocalizedString("Dogecoin pre-broadcast validation failed: %@", comment: "")
             return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))

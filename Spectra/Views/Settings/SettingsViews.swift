@@ -2508,9 +2508,13 @@ struct TokenIconSettingsView: View {
 
 struct MainTabView: View {
     @ObservedObject var store: WalletStore
+
+    private var selectedMainTabBinding: Binding<MainAppTab> {
+        Binding(get: { store.selectedMainTab }, set: { store.selectedMainTab = $0 })
+    }
     
     var body: some View {
-        TabView(selection: $store.selectedMainTab) {
+        TabView(selection: selectedMainTabBinding) {
             DashboardView(store: store)
                 .tabItem {
                     Label(localizedSettingsString("Home"), systemImage: "chart.pie.fill")

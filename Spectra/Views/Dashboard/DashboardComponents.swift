@@ -1,5 +1,15 @@
 import SwiftUI
 
+struct DashboardAssetRowPresentation: Identifiable {
+    let assetGroup: DashboardAssetGroup
+    let amountText: String
+    let totalValueText: String
+    let priceText: String
+    let chainSummaryText: String
+
+    var id: String { assetGroup.id }
+}
+
 @ViewBuilder
 func dashboardDetailRow(label: String, value: String) -> some View {
     HStack(alignment: .top) {
@@ -13,52 +23,20 @@ func dashboardDetailRow(label: String, value: String) -> some View {
 }
 
 struct DashboardAssetRowView: View {
-    @ObservedObject var store: WalletStore
-    let assetGroup: DashboardAssetGroup
-
-    private var priceText: String {
-        guard let price = store.currentPriceIfAvailable(for: assetGroup.representativeCoin) else {
-            return store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: nil)
-        }
-        return store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: price)
-    }
-
-    private var amountText: String {
-        store.formattedAssetAmount(
-            assetGroup.totalAmount,
-            symbol: assetGroup.symbol,
-            chainName: assetGroup.representativeCoin.chainName
-        )
-    }
-
-    private var chainSummaryText: String {
-        if assetGroup.chainEntries.isEmpty {
-            return NSLocalizedString("No chain balances yet", comment: "")
-        }
-        if assetGroup.chainEntries.count == 1, let chainName = assetGroup.chainEntries.first?.coin.chainName {
-            return dashboardComponentsLocalizedFormat("dashboard.asset.onChain", chainName)
-        }
-        let names = assetGroup.chainEntries.map(\.coin.chainName)
-        let preview = names.prefix(2).joined(separator: ", ")
-        let remainder = names.count - min(names.count, 2)
-        if remainder > 0 {
-            return dashboardComponentsLocalizedFormat("On %@ +%lld more", preview, remainder)
-        }
-        return dashboardComponentsLocalizedFormat("dashboard.asset.onChain", preview)
-    }
+    let presentation: DashboardAssetRowPresentation
 
     var body: some View {
         HStack(spacing: 14) {
             CoinBadge(
-                assetIdentifier: assetGroup.iconIdentifier,
-                fallbackText: assetGroup.mark,
-                color: assetGroup.color,
+                assetIdentifier: presentation.assetGroup.iconIdentifier,
+                fallbackText: presentation.assetGroup.mark,
+                color: presentation.assetGroup.color,
                 size: 40
             )
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    if assetGroup.isPinned {
+                    if presentation.assetGroup.isPinned {
                         Image(systemName: "pin.fill")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Color.red.opacity(0.82))
@@ -66,19 +44,19 @@ struct DashboardAssetRowView: View {
                             .background(Color.red.opacity(0.1), in: Capsule())
                             .clipped()
                     }
-                    Text(assetGroup.name)
+                    Text(presentation.assetGroup.name)
                         .font(.headline)
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
 
-                Text(amountText)
+                Text(presentation.amountText)
                     .font(.caption)
                     .foregroundStyle(Color.primary.opacity(0.72))
                     .spectraNumericTextLayout()
 
-                Text(chainSummaryText)
+                Text(presentation.chainSummaryText)
                     .font(.caption2)
                     .foregroundStyle(Color.primary.opacity(0.58))
             }
@@ -86,11 +64,11 @@ struct DashboardAssetRowView: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: assetGroup.totalValueUSD))
+                Text(presentation.totalValueText)
                     .font(.headline)
                     .foregroundStyle(Color.primary)
                     .spectraNumericTextLayout()
-                Text(priceText)
+                Text(presentation.priceText)
                     .font(.caption)
                     .foregroundStyle(Color.primary.opacity(0.68))
                     .spectraNumericTextLayout()

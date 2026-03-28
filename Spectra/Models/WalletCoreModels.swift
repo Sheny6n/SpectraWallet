@@ -821,8 +821,7 @@ struct PriceAlertRule: Identifiable {
     }
     
     var titleText: String {
-        let format = NSLocalizedString("%@ on %@", comment: "")
-        return String(format: format, locale: Locale.current, assetName, chainName)
+        String(format: CommonLocalizationContent.current.priceAlertTitleFormat, assetName, chainName)
     }
     
     var conditionText: String {
@@ -871,8 +870,7 @@ struct AddressBookEntry: Identifiable {
 
     var subtitleText: String {
         guard !note.isEmpty else { return chainName }
-        let format = NSLocalizedString("%@ • %@", comment: "")
-        return String(format: format, locale: Locale.current, chainName, note)
+        return String(format: CommonLocalizationContent.current.addressBookSubtitleFormat, chainName, note)
     }
 }
 
@@ -1140,16 +1138,17 @@ extension TransactionRecord {
     }
     
     var titleText: String {
+        let copy = CommonLocalizationContent.current
         switch kind {
         case .send:
-            return "Sent \(symbol)"
+            return String(format: copy.transactionSentTitleFormat, symbol)
         case .receive:
-            return "Receive"
+            return String(format: copy.transactionReceivedTitleFormat, symbol)
         }
     }
     
     var subtitleText: String {
-        "\(assetName) on \(chainName) • \(walletName)"
+        String(format: CommonLocalizationContent.current.transactionSubtitleFormat, assetName, chainName, walletName)
     }
 
     var historySourceText: String? {

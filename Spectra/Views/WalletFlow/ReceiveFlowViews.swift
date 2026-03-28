@@ -13,18 +13,51 @@ struct ReceiveView: View {
     @State private var isShowingReceiveQRShareSheet: Bool = false
     @State private var receiveQRExportMessage: String?
     @State private var receiveQRImageSaver: PhotoLibraryImageSaver?
+
+    private struct Presentation {
+        let resolvedAddress: String
+        let canUseAddress: Bool
+        let qrImage: UIImage?
+        let receiveWallets: [ImportedWallet]
+        let selectedCoin: Coin?
+        let sameChainSymbolsText: String?
+    }
+
+    private var presentation: Presentation {
+        let resolvedAddress = store.receiveAddress()
+        let trimmedAddress = resolvedAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        let selectedCoin = store.selectedReceiveCoin(for: store.receiveWalletID)
+        let sameChainSymbolsText = selectedCoin.map { coin in
+            let chainSymbols = Array(
+                Set(
+                    store.availableReceiveCoins(for: store.receiveWalletID)
+                        .filter { $0.chainName == coin.chainName }
+                        .map(\.symbol)
+                )
+            )
+            .sorted()
+            .joined(separator: ", ")
+            return chainSymbols.isEmpty ? nil : chainSymbols
+        } ?? nil
+
+        return Presentation(
+            resolvedAddress: resolvedAddress,
+            canUseAddress: !trimmedAddress.isEmpty,
+            qrImage: trimmedAddress.isEmpty ? nil : QRCodeRenderer.makeImage(from: resolvedAddress),
+            receiveWallets: store.receiveEnabledWallets,
+            selectedCoin: selectedCoin,
+            sameChainSymbolsText: sameChainSymbolsText
+        )
+    }
     
     var body: some View {
-        let resolvedReceiveAddress = store.receiveAddress()
-        let canUseReceiveAddress = !resolvedReceiveAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-
         ZStack {
             SpectraBackdrop()
 
             Form {
                 Section("Wallet") {
                     Picker("Wallet", selection: store.receiveWalletIDBinding) {
-                        ForEach(store.receiveEnabledWallets) { wallet in
+                        ForEach(presentation.receiveWallets) { wallet in
                             Text(wallet.name).tag(wallet.id.uuidString)
                         }
                     }
@@ -40,7 +73,7 @@ struct ReceiveView: View {
                 await store.refreshReceiveAddress()
             }
             .sheet(isPresented: $isShowingReceiveQRShareSheet) {
-                if let receiveQRImage = QRCodeRenderer.makeImage(from: store.receiveAddress()) {
+                if let receiveQRImage = presentation.qrImage {
                     ActivityItemSheet(activityItems: [receiveQRImage])
                 }
             }
@@ -63,7 +96,7 @@ struct ReceiveView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        UIPasteboard.general.string = resolvedReceiveAddress
+                        UIPasteboard.general.string = presentation.resolvedAddress
                         didCopyReceiveAddress = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
                             didCopyReceiveAddress = false
@@ -71,7 +104,7 @@ struct ReceiveView: View {
                     } label: {
                         Label("Copy", systemImage: didCopyReceiveAddress ? "checkmark" : "doc.on.doc")
                     }
-                    .disabled(!canUseReceiveAddress || store.isResolvingReceiveAddress)
+                    .disabled(!presentation.canUseAddress || store.isResolvingReceiveAddress)
                 }
             }
         }
@@ -79,13 +112,10 @@ struct ReceiveView: View {
 
     @ViewBuilder
     private var receiveAddressSections: some View {
-        let resolvedReceiveAddress = store.receiveAddress()
-        let canUseReceiveAddress = !resolvedReceiveAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let receiveQRImage = QRCodeRenderer.makeImage(from: resolvedReceiveAddress)
         Section("QR Code") {
             VStack(alignment: .center, spacing: 12) {
-                if canUseReceiveAddress {
-                    QRCodeImage(address: resolvedReceiveAddress)
+                if presentation.canUseAddress {
+                    QRCodeImage(address: presentation.resolvedAddress)
                         .frame(width: 184, height: 184)
                         .padding(14)
                         .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -98,7 +128,7 @@ struct ReceiveView: View {
                         .multilineTextAlignment(.center)
 
                     Button {
-                        guard let receiveQRImage else { return }
+                        guard let receiveQRImage = presentation.qrImage else { return }
                         let saver = PhotoLibraryImageSaver { result in
                             DispatchQueue.main.async {
                                 switch result {
@@ -119,7 +149,7 @@ struct ReceiveView: View {
                             .padding(.vertical, 10)
                     }
                     .buttonStyle(.glass)
-                    .disabled(receiveQRImage == nil)
+                    .disabled(presentation.qrImage == nil)
                 } else {
                     ProgressView()
                     Text("Preparing receive address...")
@@ -135,7 +165,7 @@ struct ReceiveView: View {
         }
 
         Section("Address") {
-            Text(resolvedReceiveAddress)
+            Text(presentation.resolvedAddress)
                 .font(.body.monospaced())
                 .textSelection(.enabled)
                 .padding(14)
@@ -149,7 +179,7 @@ struct ReceiveView: View {
             }
         }
 
-        if let receiveCoin = store.selectedReceiveCoin(for: store.receiveWalletID) {
+        if let receiveCoin = presentation.selectedCoin {
             Section("Asset Details") {
                 HStack(spacing: 12) {
                     CoinBadge(
@@ -173,10 +203,8 @@ struct ReceiveView: View {
 
                 LabeledContent("Network", value: receiveCoin.chainName)
                 LabeledContent("Standard", value: receiveCoin.tokenStandard)
-                let chainAssets = store.availableReceiveCoins(for: store.receiveWalletID)
-                    .filter { $0.chainName == receiveCoin.chainName }
-                if chainAssets.count > 1 {
-                    let chainSymbols = Array(Set(chainAssets.map(\.symbol))).sorted().joined(separator: ", ")
+                if let chainSymbols = presentation.sameChainSymbolsText,
+                   chainSymbols.contains(",") {
                     LabeledContent("Also Receives") {
                         Text(chainSymbols)
                             .multilineTextAlignment(.trailing)

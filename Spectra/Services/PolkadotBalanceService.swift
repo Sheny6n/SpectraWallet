@@ -8,9 +8,9 @@ enum PolkadotBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Polkadot address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Polkadot")
         case .invalidResponse:
-            return NSLocalizedString("The Polkadot provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Polkadot")
         case .httpError(let code):
             let format = NSLocalizedString("The Polkadot provider returned HTTP %d.", comment: "")
             return String(format: format, locale: .current, code)

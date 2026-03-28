@@ -6,4 +6,5 @@ final class WalletDashboardState {
     var availablePinOptions: [DashboardPinOption] = []
     var assetGroups: [DashboardAssetGroup] = []
     var relevantPriceKeys: Set<String> = []
+    var supportedTokenEntriesBySymbol: [String: [TokenPreferenceEntry]] = [:]
 }

@@ -1,6 +1,26 @@
 import Foundation
+import SwiftUI
 
 extension WalletStore {
+    var selectedMainTab: MainAppTab {
+        get { runtimeState.selectedMainTab }
+        set { runtimeState.selectedMainTab = newValue }
+    }
+
+    var selectedMainTabBinding: Binding<MainAppTab> {
+        Binding(get: { self.runtimeState.selectedMainTab }, set: { self.runtimeState.selectedMainTab = $0 })
+    }
+
+    var isAppLocked: Bool {
+        get { runtimeState.isAppLocked }
+        set { runtimeState.isAppLocked = newValue }
+    }
+
+    var appLockError: String? {
+        get { runtimeState.appLockError }
+        set { runtimeState.appLockError = newValue }
+    }
+
     var isPreparingEthereumReplacementContext: Bool {
         get { runtimeState.isPreparingEthereumReplacementContext }
         set { runtimeState.isPreparingEthereumReplacementContext = newValue }

@@ -2,6 +2,16 @@ import Foundation
 import SwiftUI
 
 extension WalletStore {
+    var walletPendingDeletion: ImportedWallet? {
+        get { flowState.walletPendingDeletion }
+        set { flowState.walletPendingDeletion = newValue }
+    }
+
+    var editingWalletID: UUID? {
+        get { flowState.editingWalletID }
+        set { flowState.editingWalletID = newValue }
+    }
+
     var importError: String? {
         get { flowState.importError }
         set { flowState.importError = newValue }

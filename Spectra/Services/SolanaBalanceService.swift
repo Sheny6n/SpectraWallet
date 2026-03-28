@@ -9,9 +9,9 @@ enum SolanaBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Solana address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Solana")
         case .invalidResponse:
-            return NSLocalizedString("The Solana provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Solana")
         case .httpError(let statusCode):
             let format = NSLocalizedString("The Solana provider returned HTTP %d.", comment: "")
             return String(format: format, locale: .current, statusCode)

@@ -13,17 +13,17 @@ enum BitcoinCashWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Bitcoin Cash seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Bitcoin Cash")
         case .invalidAddress:
-            return NSLocalizedString("The Bitcoin Cash destination address is invalid.", comment: "")
+            return CommonLocalization.invalidDestinationAddressPrompt("Bitcoin Cash")
         case .signingFailed(let message):
             return NSLocalizedString(message, comment: "")
         case .insufficientFunds:
-            return NSLocalizedString("Insufficient Bitcoin Cash balance for amount plus network fee.", comment: "")
+            return CommonLocalization.insufficientBalanceForAmountPlusNetworkFee("Bitcoin Cash")
         case .invalidUTXO:
-            return NSLocalizedString("Received invalid Bitcoin Cash UTXO data.", comment: "")
+            return CommonLocalization.invalidUTXOData("Bitcoin Cash")
         case .sourceAddressDoesNotMatchSeed:
-            return NSLocalizedString("The source Bitcoin Cash address does not match the provided seed phrase.", comment: "")
+            return CommonLocalization.sourceAddressDoesNotMatchSeed("Bitcoin Cash")
         case .broadcastFailed(let message):
             return NSLocalizedString(message, comment: "")
         }

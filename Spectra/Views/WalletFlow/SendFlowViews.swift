@@ -21,6 +21,16 @@ struct SendView: View {
         let destinationAddress: String
     }
 
+    private struct PrimaryPresentation {
+        let sendWallets: [ImportedWallet]
+        let selectedWallet: ImportedWallet?
+        let availableSendCoins: [Coin]
+        let selectedCoin: Coin?
+        let selectedCoinAmountText: String?
+        let selectedCoinApproximateFiatText: String?
+        let addressBookEntries: [AddressBookEntry]
+    }
+
     private var sendPreviewTaskID: String {
         [
             store.sendWalletID,
@@ -58,9 +68,36 @@ struct SendView: View {
             || store.isPreparingNearSend
     }
 
+    private var primaryPresentation: PrimaryPresentation {
+        let sendWallets = store.sendEnabledWallets
+        let selectedWallet = sendWallets.first(where: { $0.id.uuidString == store.sendWalletID })
+        let availableSendCoins = store.availableSendCoins(for: store.sendWalletID)
+        let selectedCoin = availableSendCoins.first(where: { $0.holdingKey == store.sendHoldingKey })
+        let selectedCoinAmountText = selectedCoin.map {
+            store.formattedAssetAmount($0.amount, symbol: $0.symbol, chainName: $0.chainName)
+        }
+        let sendAmount = Double(store.sendAmount) ?? 0
+        let selectedCoinApproximateFiatText: String?
+        if let selectedCoin, !sendAmount.isZero {
+            selectedCoinApproximateFiatText = store.formattedFiatAmount(fromNative: sendAmount, symbol: selectedCoin.symbol)
+        } else {
+            selectedCoinApproximateFiatText = nil
+        }
+
+        return PrimaryPresentation(
+            sendWallets: sendWallets,
+            selectedWallet: selectedWallet,
+            availableSendCoins: availableSendCoins,
+            selectedCoin: selectedCoin,
+            selectedCoinAmountText: selectedCoinAmountText,
+            selectedCoinApproximateFiatText: selectedCoinApproximateFiatText,
+            addressBookEntries: store.sendAddressBookEntries
+        )
+    }
+
     private var sendLiveActivitySnapshot: SendLiveActivitySnapshot? {
-        guard let selectedCoin = store.selectedSendCoin else { return nil }
-        guard let selectedWallet = store.sendEnabledWallets.first(where: { $0.id.uuidString == store.sendWalletID }) else { return nil }
+        guard let selectedCoin = primaryPresentation.selectedCoin else { return nil }
+        guard let selectedWallet = primaryPresentation.selectedWallet else { return nil }
         let trimmedAmount = store.sendAmount.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedAddress = store.sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAmount.isEmpty, !trimmedAddress.isEmpty else { return nil }
@@ -75,13 +112,12 @@ struct SendView: View {
 
     @ViewBuilder
     private var primarySendSections: some View {
-        let availableSendCoins = store.availableSendCoins(for: store.sendWalletID)
-        let selectedCoin = availableSendCoins.first(where: { $0.holdingKey == store.sendHoldingKey })
+        let presentation = primaryPresentation
 
         Section {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 12) {
-                    if let selectedCoin {
+                    if let selectedCoin = presentation.selectedCoin {
                         CoinBadge(
                             assetIdentifier: selectedCoin.iconIdentifier,
                             fallbackText: selectedCoin.mark,
@@ -97,7 +133,7 @@ struct SendView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Send")
                             .font(.title3.weight(.bold))
-                        if let wallet = store.sendEnabledWallets.first(where: { $0.id.uuidString == store.sendWalletID }) {
+                        if let wallet = presentation.selectedWallet {
                             Text(wallet.name)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -106,7 +142,7 @@ struct SendView: View {
 
                     Spacer()
 
-                    if let selectedCoin {
+                    if let selectedCoin = presentation.selectedCoin {
                         Text(selectedCoin.symbol)
                             .font(.caption.weight(.bold))
                             .padding(.horizontal, 10)
@@ -116,13 +152,13 @@ struct SendView: View {
                     }
                 }
 
-                if let selectedCoin {
+                if let selectedCoin = presentation.selectedCoin {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Available")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text(store.formattedAssetAmount(selectedCoin.amount, symbol: selectedCoin.symbol, chainName: selectedCoin.chainName))
+                            Text(presentation.selectedCoinAmountText ?? "")
                                 .font(.headline.weight(.semibold))
                                 .spectraNumericTextLayout()
                         }
@@ -149,7 +185,7 @@ struct SendView: View {
 
         Section("Wallet & Asset") {
             Picker("Wallet", selection: store.sendWalletIDBinding) {
-                ForEach(store.sendEnabledWallets) { wallet in
+                ForEach(presentation.sendWallets) { wallet in
                     Text(wallet.name).tag(wallet.id.uuidString)
                 }
             }
@@ -158,24 +194,24 @@ struct SendView: View {
             }
 
             Picker("Asset", selection: store.sendHoldingKeyBinding) {
-                ForEach(availableSendCoins, id: \.holdingKey) { coin in
+                ForEach(presentation.availableSendCoins, id: \.holdingKey) { coin in
                     Text("\(coin.name) on \(coin.chainName)").tag(coin.holdingKey)
                 }
             }
 
-            sendAssetSummary(selectedCoin)
+            sendAssetSummary(presentation.selectedCoin)
         }
 
         Section("Recipient") {
-            if !store.sendAddressBookEntries.isEmpty {
+            if !presentation.addressBookEntries.isEmpty {
                 Picker("Saved Recipient", selection: $selectedAddressBookEntryID) {
                     Text("None").tag("")
-                    ForEach(store.sendAddressBookEntries) { entry in
+                    ForEach(presentation.addressBookEntries) { entry in
                         Text("\(entry.name) • \(entry.chainName)").tag(entry.id.uuidString)
                     }
                 }
                 .onChange(of: selectedAddressBookEntryID) { _, newValue in
-                    guard let selectedEntry = store.sendAddressBookEntries.first(where: { $0.id.uuidString == newValue }) else {
+                    guard let selectedEntry = primaryPresentation.addressBookEntries.first(where: { $0.id.uuidString == newValue }) else {
                         return
                     }
                     store.sendAddress = selectedEntry.address
@@ -244,7 +280,7 @@ struct SendView: View {
                 .padding(.vertical, 10)
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            if let selectedCoin {
+            if let selectedCoin = presentation.selectedCoin {
                 HStack {
                     Text("Using")
                         .foregroundStyle(.secondary)
@@ -253,8 +289,7 @@ struct SendView: View {
                         .font(.subheadline.weight(.semibold))
                 }
 
-                if let fiatAmount = store.formattedFiatAmount(fromNative: Double(store.sendAmount) ?? 0, symbol: selectedCoin.symbol),
-                   !(Double(store.sendAmount) ?? 0).isZero {
+                if let fiatAmount = presentation.selectedCoinApproximateFiatText {
                     HStack {
                         Text("Approx. Value")
                             .foregroundStyle(.secondary)

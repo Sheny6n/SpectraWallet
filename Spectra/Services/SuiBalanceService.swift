@@ -8,12 +8,11 @@ enum SuiBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Sui address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Sui")
         case .invalidResponse:
-            return NSLocalizedString("The Sui provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Sui")
         case .rpcError(let message):
-            let format = NSLocalizedString("Sui RPC error: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.rpcError("Sui", message: message)
         }
     }
 }

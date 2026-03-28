@@ -160,6 +160,29 @@
         }
       }
     },
+    "%@ Degraded Mode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ Degraded Mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 降级模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 降級模式"
+          }
+        }
+      }
+    },
     "%@ Details" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -271,6 +294,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 法幣匯率不可用。正在使用上次成功的匯率。"
+          }
+        }
+      }
+    },
+    "%@ history loaded with partial provider failures." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ history loaded with partial provider failures."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 历史记录已加载，但部分提供方失败。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 歷史記錄已載入，但部分提供方失敗。"
+          }
+        }
+      }
+    },
+    "%@ history refresh failed. Using cached history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ history refresh failed. Using cached history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 历史记录刷新失败。正在使用缓存历史记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 歷史記錄刷新失敗。正在使用快取歷史記錄。"
           }
         }
       }
@@ -412,6 +481,98 @@
         }
       }
     },
+    "%@ providers are partially reachable. Showing the latest available balances." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ providers are partially reachable. Showing the latest available balances."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方部分可达。正在显示最新可用余额。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方部分可達。正在顯示最新可用餘額。"
+          }
+        }
+      }
+    },
+    "%@ providers are partially reachable. Some balances are estimated from confirmed on-chain history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ providers are partially reachable. Some balances are estimated from confirmed on-chain history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方部分可达。部分余额根据已确认链上历史估算。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方部分可達。部分餘額根據已確認鏈上歷史估算。"
+          }
+        }
+      }
+    },
+    "%@ providers are unavailable. Using balance estimated from confirmed on-chain history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ providers are unavailable. Using balance estimated from confirmed on-chain history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方不可用。正在使用根据已确认链上历史估算的余额。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方不可用。正在使用根據已確認鏈上歷史估算的餘額。"
+          }
+        }
+      }
+    },
+    "%@ providers are unavailable. Using cached balances and history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ providers are unavailable. Using cached balances and history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方不可用。正在使用缓存余额和历史记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 提供方不可用。正在使用快取餘額與歷史記錄。"
+          }
+        }
+      }
+    },
     "%@ refresh completed." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -431,6 +592,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 重新整理已完成。"
+          }
+        }
+      }
+    },
+    "%@ refresh timed out. Using cached balances and history." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ refresh timed out. Using cached balances and history."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 刷新超时。正在使用缓存余额和历史记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 刷新逾時。正在使用快取餘額與歷史記錄。"
           }
         }
       }
@@ -1549,6 +1733,7 @@
       }
     },
     "Aptos broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1571,6 +1756,7 @@
       }
     },
     "Aptos network request failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1593,6 +1779,7 @@
       }
     },
     "Aptos RPC error: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2748,6 +2935,7 @@
       }
     },
     "Cardano broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2792,6 +2980,7 @@
       }
     },
     "Cardano network request failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2814,6 +3003,7 @@
       }
     },
     "Cardano signing failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4291,27 +4481,24 @@
       }
     },
     "Customize Assets" : {
-
-    },
-    "Customize pinned assets" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Customize pinned assets"
+            "value" : "Customize Assets"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自定义固定资产"
+            "value" : "自定义资产"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自定義固定資產"
+            "value" : "自定義資產"
           }
         }
       }
@@ -5181,6 +5368,7 @@
       }
     },
     "Dogecoin broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5249,6 +5437,7 @@
       }
     },
     "Dogecoin network error: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6019,6 +6208,7 @@
       }
     },
     "Enter a valid Dogecoin amount." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6041,6 +6231,7 @@
       }
     },
     "Enter a valid Dogecoin destination address." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7836,6 +8027,7 @@
       }
     },
     "Failed to sign Aptos transaction: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7858,6 +8050,7 @@
       }
     },
     "Failed to sign ICP transaction: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7880,6 +8073,7 @@
       }
     },
     "Failed to sign Litecoin transaction." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7902,6 +8096,7 @@
       }
     },
     "Failed to sign NEAR transaction: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7924,6 +8119,7 @@
       }
     },
     "Failed to sign Polkadot transaction: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7946,6 +8142,7 @@
       }
     },
     "Failed to sign Solana transaction: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7968,6 +8165,7 @@
       }
     },
     "Failed to sign Stellar transaction: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7990,6 +8188,7 @@
       }
     },
     "Failed to sign Sui transaction: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8012,6 +8211,7 @@
       }
     },
     "Failed to sign the Dogecoin transaction." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8034,6 +8234,7 @@
       }
     },
     "Failed to sign TON transaction: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8056,6 +8257,7 @@
       }
     },
     "Failed to sign XRP transaction: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8233,6 +8435,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "法幣匯率提供商"
+          }
+        }
+      }
+    },
+    "Fiat Rates Degraded Mode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fiat Rates Degraded Mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "法币汇率降级模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "法幣匯率降級模式"
           }
         }
       }
@@ -8804,6 +9029,7 @@
       }
     },
     "ICP broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8826,6 +9052,7 @@
       }
     },
     "ICP network request failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9901,6 +10128,7 @@
       }
     },
     "Insufficient Bitcoin Cash balance for amount plus network fee." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9923,6 +10151,7 @@
       }
     },
     "Insufficient Bitcoin SV balance for amount plus network fee." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9945,6 +10174,7 @@
       }
     },
     "Insufficient DOGE to cover amount plus network fee." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10012,6 +10242,7 @@
       }
     },
     "Insufficient Litecoin balance for amount plus fee." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12099,6 +12330,7 @@
       }
     },
     "NEAR broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12143,6 +12375,7 @@
       }
     },
     "NEAR network request failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12165,6 +12398,7 @@
       }
     },
     "NEAR RPC error: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13814,6 +14048,7 @@
       }
     },
     "Polkadot broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13858,6 +14093,7 @@
       }
     },
     "Polkadot network request failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14056,6 +14292,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "價格"
+          }
+        }
+      }
+    },
+    "Pricing Notice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pricing Notice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价格通知"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "價格通知"
           }
         }
       }
@@ -14580,6 +14839,7 @@
       }
     },
     "Received invalid Bitcoin Cash UTXO data." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14602,6 +14862,7 @@
       }
     },
     "Received invalid Bitcoin SV UTXO data." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14624,6 +14885,7 @@
       }
     },
     "Received invalid Litecoin UTXO data." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -17719,6 +17981,7 @@
       }
     },
     "Solana broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18568,6 +18831,7 @@
       }
     },
     "Stellar broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18612,6 +18876,7 @@
       }
     },
     "Stellar network request failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18680,6 +18945,7 @@
       }
     },
     "Sui broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18702,6 +18968,7 @@
       }
     },
     "Sui network request failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18724,6 +18991,7 @@
       }
     },
     "Sui RPC error: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18997,6 +19265,7 @@
       }
     },
     "The amount is not valid for this Aptos transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19019,6 +19288,7 @@
       }
     },
     "The amount is not valid for this ICP transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19041,6 +19311,7 @@
       }
     },
     "The amount is not valid for this NEAR transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19063,6 +19334,7 @@
       }
     },
     "The amount is not valid for this Polkadot transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19085,6 +19357,7 @@
       }
     },
     "The amount is not valid for this Solana transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19107,6 +19380,7 @@
       }
     },
     "The amount is not valid for this Stellar transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19129,6 +19403,7 @@
       }
     },
     "The amount is not valid for this Sui transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19151,6 +19426,7 @@
       }
     },
     "The amount is not valid for this TON transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19173,6 +19449,7 @@
       }
     },
     "The amount is not valid for this Tron transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19195,6 +19472,7 @@
       }
     },
     "The amount is not valid for this XRP transfer." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19217,6 +19495,7 @@
       }
     },
     "The Aptos address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19239,6 +19518,7 @@
       }
     },
     "The Aptos provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19261,6 +19541,7 @@
       }
     },
     "The Aptos seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19283,6 +19564,7 @@
       }
     },
     "The Bitcoin Cash destination address is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19305,6 +19587,7 @@
       }
     },
     "The Bitcoin Cash seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19327,6 +19610,7 @@
       }
     },
     "The Bitcoin SV destination address is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19349,6 +19633,7 @@
       }
     },
     "The Bitcoin SV seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19371,6 +19656,7 @@
       }
     },
     "The Cardano address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19393,6 +19679,7 @@
       }
     },
     "The Cardano amount is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19415,6 +19702,7 @@
       }
     },
     "The Cardano provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19459,6 +19747,7 @@
       }
     },
     "The Cardano seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19526,6 +19815,7 @@
       }
     },
     "The Ethereum address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19680,6 +19970,7 @@
       }
     },
     "The ICP provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19746,6 +20037,7 @@
       }
     },
     "The ICP seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19790,6 +20082,7 @@
       }
     },
     "The Litecoin destination address is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19812,6 +20105,7 @@
       }
     },
     "The Litecoin seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19834,6 +20128,7 @@
       }
     },
     "The Monero address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19856,6 +20151,7 @@
       }
     },
     "The Monero amount is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19878,6 +20174,7 @@
       }
     },
     "The Monero backend response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19922,6 +20219,7 @@
       }
     },
     "The NEAR address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19944,6 +20242,7 @@
       }
     },
     "The NEAR provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19988,6 +20287,7 @@
       }
     },
     "The NEAR seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20010,6 +20310,7 @@
       }
     },
     "The Polkadot address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20032,6 +20333,7 @@
       }
     },
     "The Polkadot provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20076,6 +20378,7 @@
       }
     },
     "The Polkadot seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20121,6 +20424,7 @@
       }
     },
     "The Solana address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20143,6 +20447,7 @@
       }
     },
     "The Solana provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20187,6 +20492,7 @@
       }
     },
     "The Solana seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20209,6 +20515,7 @@
       }
     },
     "The source Bitcoin Cash address does not match the provided seed phrase." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20231,6 +20538,7 @@
       }
     },
     "The source Bitcoin SV address does not match the provided seed phrase." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20253,6 +20561,7 @@
       }
     },
     "The source Litecoin address does not match the provided seed phrase." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20275,6 +20584,7 @@
       }
     },
     "The Stellar address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20297,6 +20607,7 @@
       }
     },
     "The Stellar provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20341,6 +20652,7 @@
       }
     },
     "The Stellar seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20363,6 +20675,7 @@
       }
     },
     "The Sui address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20385,6 +20698,7 @@
       }
     },
     "The Sui provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20407,6 +20721,7 @@
       }
     },
     "The Sui seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20429,6 +20744,7 @@
       }
     },
     "The TON address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20451,6 +20767,7 @@
       }
     },
     "The TON provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20473,6 +20790,7 @@
       }
     },
     "The TON seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20495,6 +20813,7 @@
       }
     },
     "The Tron address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20517,6 +20836,7 @@
       }
     },
     "The Tron provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20561,6 +20881,7 @@
       }
     },
     "The Tron seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20628,6 +20949,7 @@
       }
     },
     "The XRP address is not valid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20650,6 +20972,7 @@
       }
     },
     "The XRP provider response was invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20694,6 +21017,7 @@
       }
     },
     "The XRP seed phrase is invalid." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21354,6 +21678,7 @@
       }
     },
     "TON broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21376,6 +21701,7 @@
       }
     },
     "TON network request failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21398,6 +21724,7 @@
       }
     },
     "TON RPC error: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -23259,6 +23586,7 @@
       }
     },
     "XRP broadcast failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -23349,6 +23677,7 @@
       }
     },
     "XRP network request failed: %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -23547,236 +23876,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "您從 %@ 發出的 %@ 轉賬現已在 %@ 上確認。"
-          }
-        }
-      }
-    },
-    "%@ Degraded Mode" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ Degraded Mode"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ 降级模式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ 降級模式"
-          }
-        }
-      }
-    },
-    "%@ history loaded with partial provider failures." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ history loaded with partial provider failures."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 历史记录已加载，但部分提供方失败。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 歷史記錄已載入，但部分提供方失敗。"
-          }
-        }
-      }
-    },
-    "%@ history refresh failed. Using cached history." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ history refresh failed. Using cached history."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 历史记录刷新失败。正在使用缓存历史记录。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 歷史記錄刷新失敗。正在使用快取歷史記錄。"
-          }
-        }
-      }
-    },
-    "%@ providers are partially reachable. Showing the latest available balances." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ providers are partially reachable. Showing the latest available balances."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 提供方部分可达。正在显示最新可用余额。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 提供方部分可達。正在顯示最新可用餘額。"
-          }
-        }
-      }
-    },
-    "%@ providers are partially reachable. Some balances are estimated from confirmed on-chain history." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ providers are partially reachable. Some balances are estimated from confirmed on-chain history."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 提供方部分可达。部分余额根据已确认链上历史估算。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 提供方部分可達。部分餘額根據已確認鏈上歷史估算。"
-          }
-        }
-      }
-    },
-    "%@ providers are unavailable. Using balance estimated from confirmed on-chain history." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ providers are unavailable. Using balance estimated from confirmed on-chain history."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 提供方不可用。正在使用根据已确认链上历史估算的余额。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 提供方不可用。正在使用根據已確認鏈上歷史估算的餘額。"
-          }
-        }
-      }
-    },
-    "%@ providers are unavailable. Using cached balances and history." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ providers are unavailable. Using cached balances and history."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 提供方不可用。正在使用缓存余额和历史记录。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 提供方不可用。正在使用快取餘額與歷史記錄。"
-          }
-        }
-      }
-    },
-    "%@ refresh timed out. Using cached balances and history." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ refresh timed out. Using cached balances and history."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 刷新超时。正在使用缓存余额和历史记录。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 刷新逾時。正在使用快取餘額與歷史記錄。"
-          }
-        }
-      }
-    },
-    "Fiat Rates Degraded Mode" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fiat Rates Degraded Mode"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "法币汇率降级模式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "法幣匯率降級模式"
-          }
-        }
-      }
-    },
-    "Pricing Notice" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pricing Notice"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "价格通知"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "價格通知"
           }
         }
       }

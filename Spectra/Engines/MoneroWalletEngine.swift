@@ -10,15 +10,15 @@ enum MoneroWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Monero address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Monero")
         case .invalidAmount:
-            return NSLocalizedString("The Monero amount is not valid.", comment: "")
+            return CommonLocalization.invalidAmount("Monero")
         case .backendNotConfigured:
             return NSLocalizedString("Monero backend is not configured.", comment: "")
         case .backendRejected(let message):
             return NSLocalizedString(message, comment: "")
         case .invalidResponse:
-            return NSLocalizedString("The Monero backend response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Monero")
         }
     }
 }

@@ -199,7 +199,7 @@ class WalletStore: ObservableObject {
             }
         }
     }
-    private let logger = Logger(subsystem: "com.spectra.wallet", category: "dogecoin")
+    let logger = Logger(subsystem: "com.spectra.wallet", category: "dogecoin")
     private let balanceTelemetryLogger = Logger(subsystem: "com.spectra.wallet", category: "balance.telemetry")
     let transactionState = WalletTransactionState()
     struct DogecoinOperationalEvent: Codable, Identifiable {
@@ -241,6 +241,14 @@ class WalletStore: ObservableObject {
         let destinationAddressLowercased: String
         let amountDOGE: Double
         let createdAt: Date
+    }
+
+    struct PerformanceSample: Identifiable, Codable, Equatable {
+        let id: UUID
+        let operation: String
+        let durationMS: Double
+        let timestamp: Date
+        let metadata: String?
     }
 
     private struct DogecoinKeypoolState: Codable {
@@ -315,14 +323,17 @@ class WalletStore: ObservableObject {
         var id: UUID { walletID }
     }
 
-    @Published var isOnboarded: Bool = false
     let portfolioState = WalletPortfolioState()
     let importDraft = WalletImportDraft()
     let flowState = WalletFlowState()
     let runtimeState = WalletRuntimeState()
-    @Published var selectedMainTab: MainAppTab = .home
-    @Published var walletPendingDeletion: ImportedWallet?
-    @Published var editingWalletID: UUID?
+    let sendState = WalletSendState()
+    let chainDiagnosticsState = WalletChainDiagnosticsState()
+    private(set) var recentPerformanceSamples: [PerformanceSample] = []
+
+    var isOnboarded: Bool {
+        !wallets.isEmpty
+    }
 
     var dogecoinKeypoolDiagnostics: [DogecoinKeypoolDiagnostic] {
         wallets
@@ -399,7 +410,7 @@ class WalletStore: ObservableObject {
             UserDefaults.standard.set(moneroBackendAPIKey, forKey: MoneroBalanceService.backendAPIKeyDefaultsKey)
         }
     }
-    @Published private(set) var isUserInitiatedRefreshInProgress: Bool = false
+    @Published var isUserInitiatedRefreshInProgress: Bool = false
     @Published var priceAlerts: [PriceAlertRule] = [] {
         didSet {
             persistPriceAlerts()
@@ -490,44 +501,6 @@ class WalletStore: ObservableObject {
             importDraft.allowDogecoinTestnet = dogecoinAllowTestnet
         }
     }
-    @Published var lastSentTransaction: TransactionRecord?
-    @Published var lastPendingTransactionRefreshAt: Date?
-    @Published var ethereumSendPreview: EthereumSendPreview?
-        @Published var bitcoinSendPreview: BitcoinSendPreview?
-    @Published var bitcoinCashSendPreview: BitcoinSendPreview?
-    @Published var bitcoinSVSendPreview: BitcoinSendPreview?
-    @Published var litecoinSendPreview: BitcoinSendPreview?
-    @Published var dogecoinSendPreview: DogecoinWalletEngine.DogecoinSendPreview?
-    @Published var tronSendPreview: TronSendPreview?
-    @Published var solanaSendPreview: SolanaSendPreview?
-    @Published var xrpSendPreview: XRPSendPreview?
-    @Published var stellarSendPreview: StellarSendPreview?
-    @Published var moneroSendPreview: MoneroSendPreview?
-    @Published var cardanoSendPreview: CardanoSendPreview?
-    @Published var suiSendPreview: SuiSendPreview?
-    @Published var aptosSendPreview: AptosSendPreview?
-    @Published var tonSendPreview: TONSendPreview?
-    @Published var icpSendPreview: ICPSendPreview?
-    @Published var nearSendPreview: NearSendPreview?
-    @Published var polkadotSendPreview: PolkadotSendPreview?
-    @Published var isSendingBitcoin: Bool = false
-    @Published var isSendingBitcoinCash: Bool = false
-    @Published var isSendingBitcoinSV: Bool = false
-    @Published var isSendingLitecoin: Bool = false
-    @Published var isSendingDogecoin: Bool = false
-    @Published var isSendingEthereum: Bool = false
-    @Published var isSendingTron: Bool = false
-    @Published var isSendingSolana: Bool = false
-    @Published var isSendingXRP: Bool = false
-    @Published var isSendingStellar: Bool = false
-    @Published var isSendingMonero: Bool = false
-    @Published var isSendingCardano: Bool = false
-    @Published var isSendingSui: Bool = false
-    @Published var isSendingAptos: Bool = false
-    @Published var isSendingTON: Bool = false
-    @Published var isSendingICP: Bool = false
-    @Published var isSendingNear: Bool = false
-    @Published var isSendingPolkadot: Bool = false
     // Settings states
     @Published var hideBalances: Bool = false {
         didSet {
@@ -590,8 +563,6 @@ class WalletStore: ObservableObject {
             }
         }
     }
-    @Published var isAppLocked: Bool = false
-    @Published var appLockError: String?
     @Published var automaticRefreshFrequencyMinutes: Int = 5 {
         didSet {
             let clamped = min(max(automaticRefreshFrequencyMinutes, 5), 60)
@@ -668,159 +639,6 @@ class WalletStore: ObservableObject {
     @Published var ethereumTokenHistoryFetchLimit: Int = 50
     @Published var moneroHistoryFetchLimit: Int = 80
     @Published var isLoadingMoreOnChainHistory: Bool = false
-    @Published var dogecoinSelfTestResults: [ChainSelfTestResult] = []
-    @Published var isRunningDogecoinSelfTests: Bool = false
-    @Published var dogecoinSelfTestsLastRunAt: Date?
-    @Published var dogecoinHistoryDiagnosticsByWallet: [UUID: BitcoinHistoryDiagnostics] = [:]
-    @Published var dogecoinHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningDogecoinHistoryDiagnostics: Bool = false
-    @Published var dogecoinEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var dogecoinEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingDogecoinEndpointHealth: Bool = false
-    @Published var ethereumSelfTestResults: [ChainSelfTestResult] = []
-    @Published var isRunningEthereumSelfTests: Bool = false
-    @Published var ethereumSelfTestsLastRunAt: Date?
-    @Published var ethereumHistoryDiagnosticsByWallet: [UUID: EthereumTokenTransferHistoryDiagnostics] = [:]
-    @Published var ethereumHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningEthereumHistoryDiagnostics: Bool = false
-    @Published var ethereumEndpointHealthResults: [EthereumEndpointHealthResult] = []
-    @Published var ethereumEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingEthereumEndpointHealth: Bool = false
-    @Published var etcHistoryDiagnosticsByWallet: [UUID: EthereumTokenTransferHistoryDiagnostics] = [:]
-    @Published var etcHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningETCHistoryDiagnostics: Bool = false
-    @Published var etcEndpointHealthResults: [EthereumEndpointHealthResult] = []
-    @Published var etcEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingETCEndpointHealth: Bool = false
-    @Published var arbitrumHistoryDiagnosticsByWallet: [UUID: EthereumTokenTransferHistoryDiagnostics] = [:]
-    @Published var arbitrumHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningArbitrumHistoryDiagnostics: Bool = false
-    @Published var arbitrumEndpointHealthResults: [EthereumEndpointHealthResult] = []
-    @Published var arbitrumEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingArbitrumEndpointHealth: Bool = false
-    @Published var optimismHistoryDiagnosticsByWallet: [UUID: EthereumTokenTransferHistoryDiagnostics] = [:]
-    @Published var optimismHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningOptimismHistoryDiagnostics: Bool = false
-    @Published var optimismEndpointHealthResults: [EthereumEndpointHealthResult] = []
-    @Published var optimismEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingOptimismEndpointHealth: Bool = false
-    @Published var bnbHistoryDiagnosticsByWallet: [UUID: EthereumTokenTransferHistoryDiagnostics] = [:]
-    @Published var bnbHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningBNBHistoryDiagnostics: Bool = false
-    @Published var bnbEndpointHealthResults: [EthereumEndpointHealthResult] = []
-    @Published var bnbEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingBNBEndpointHealth: Bool = false
-    @Published var avalancheHistoryDiagnosticsByWallet: [UUID: EthereumTokenTransferHistoryDiagnostics] = [:]
-    @Published var avalancheHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningAvalancheHistoryDiagnostics: Bool = false
-    @Published var avalancheEndpointHealthResults: [EthereumEndpointHealthResult] = []
-    @Published var avalancheEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingAvalancheEndpointHealth: Bool = false
-    @Published var hyperliquidHistoryDiagnosticsByWallet: [UUID: EthereumTokenTransferHistoryDiagnostics] = [:]
-    @Published var hyperliquidHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningHyperliquidHistoryDiagnostics: Bool = false
-    @Published var hyperliquidEndpointHealthResults: [EthereumEndpointHealthResult] = []
-    @Published var hyperliquidEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingHyperliquidEndpointHealth: Bool = false
-    @Published var tronHistoryDiagnosticsByWallet: [UUID: TronHistoryDiagnostics] = [:]
-    @Published var tronHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningTronHistoryDiagnostics: Bool = false
-    @Published var tronEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var tronEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingTronEndpointHealth: Bool = false
-    @Published var solanaHistoryDiagnosticsByWallet: [UUID: SolanaHistoryDiagnostics] = [:]
-    @Published var solanaHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningSolanaHistoryDiagnostics: Bool = false
-    @Published var solanaEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var solanaEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingSolanaEndpointHealth: Bool = false
-    @Published var xrpHistoryDiagnosticsByWallet: [UUID: XRPHistoryDiagnostics] = [:]
-    @Published var xrpHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningXRPHistoryDiagnostics: Bool = false
-    @Published var xrpEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var xrpEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingXRPEndpointHealth: Bool = false
-    @Published var stellarHistoryDiagnosticsByWallet: [UUID: StellarHistoryDiagnostics] = [:]
-    @Published var stellarHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningStellarHistoryDiagnostics: Bool = false
-    @Published var stellarEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var stellarEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingStellarEndpointHealth: Bool = false
-    @Published var moneroHistoryDiagnosticsByWallet: [UUID: MoneroHistoryDiagnostics] = [:]
-    @Published var moneroHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningMoneroHistoryDiagnostics: Bool = false
-    @Published var moneroEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var moneroEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingMoneroEndpointHealth: Bool = false
-    @Published var suiHistoryDiagnosticsByWallet: [UUID: SuiHistoryDiagnostics] = [:]
-    @Published var suiHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningSuiHistoryDiagnostics: Bool = false
-    @Published var suiEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var suiEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingSuiEndpointHealth: Bool = false
-    @Published var aptosHistoryDiagnosticsByWallet: [UUID: AptosHistoryDiagnostics] = [:]
-    @Published var aptosHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningAptosHistoryDiagnostics: Bool = false
-    @Published var aptosEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var aptosEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingAptosEndpointHealth: Bool = false
-    @Published var tonHistoryDiagnosticsByWallet: [UUID: TONHistoryDiagnostics] = [:]
-    @Published var tonHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningTONHistoryDiagnostics: Bool = false
-    @Published var tonEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var tonEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingTONEndpointHealth: Bool = false
-    @Published var icpHistoryDiagnosticsByWallet: [UUID: ICPHistoryDiagnostics] = [:]
-    @Published var icpHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningICPHistoryDiagnostics: Bool = false
-    @Published var icpEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var icpEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingICPEndpointHealth: Bool = false
-    @Published var nearHistoryDiagnosticsByWallet: [UUID: NearHistoryDiagnostics] = [:]
-    @Published var nearHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningNearHistoryDiagnostics: Bool = false
-    @Published var nearEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var nearEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingNearEndpointHealth: Bool = false
-    @Published var polkadotHistoryDiagnosticsByWallet: [UUID: PolkadotHistoryDiagnostics] = [:]
-    @Published var polkadotHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningPolkadotHistoryDiagnostics: Bool = false
-    @Published var polkadotEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var polkadotEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingPolkadotEndpointHealth: Bool = false
-    @Published var cardanoHistoryDiagnosticsByWallet: [UUID: CardanoHistoryDiagnostics] = [:]
-    @Published var cardanoHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningCardanoHistoryDiagnostics: Bool = false
-    @Published var cardanoEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var cardanoEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingCardanoEndpointHealth: Bool = false
-    @Published var tronLastSendErrorDetails: String?
-    @Published var tronLastSendErrorAt: Date?
-    @Published var lastImportedDiagnosticsBundle: DiagnosticsBundlePayload?
-    @Published var bitcoinHistoryDiagnosticsByWallet: [UUID: BitcoinHistoryDiagnostics] = [:]
-    @Published var bitcoinHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningBitcoinHistoryDiagnostics: Bool = false
-    @Published var bitcoinEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var bitcoinEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingBitcoinEndpointHealth: Bool = false
-    @Published var bitcoinCashHistoryDiagnosticsByWallet: [UUID: BitcoinHistoryDiagnostics] = [:]
-    @Published var bitcoinCashHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningBitcoinCashHistoryDiagnostics: Bool = false
-    @Published var bitcoinCashEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var bitcoinCashEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingBitcoinCashEndpointHealth: Bool = false
-    @Published var bitcoinSVHistoryDiagnosticsByWallet: [UUID: BitcoinHistoryDiagnostics] = [:]
-    @Published var bitcoinSVHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningBitcoinSVHistoryDiagnostics: Bool = false
-    @Published var bitcoinSVEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var bitcoinSVEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingBitcoinSVEndpointHealth: Bool = false
-    @Published var litecoinHistoryDiagnosticsByWallet: [UUID: BitcoinHistoryDiagnostics] = [:]
-    @Published var litecoinHistoryDiagnosticsLastUpdatedAt: Date?
-    @Published var isRunningLitecoinHistoryDiagnostics: Bool = false
-    @Published var litecoinEndpointHealthResults: [BitcoinEndpointHealthResult] = []
-    @Published var litecoinEndpointHealthLastUpdatedAt: Date?
-    @Published var isCheckingLitecoinEndpointHealth: Bool = false
     let diagnostics = WalletDiagnosticsState()
     @Published var dogecoinBroadcastProviderReliability: [DogecoinWalletEngine.BroadcastProviderReliability] = []
     @Published var dogecoinOperationalEvents: [DogecoinOperationalEvent] = [] {
@@ -869,7 +687,7 @@ class WalletStore: ObservableObject {
     @Published var isRunningDogecoinRescan: Bool = false
     @Published var dogecoinRescanLastRunAt: Date?
     private var suppressWalletSideEffects = false
-    private var userInitiatedRefreshTask: Task<Void, Never>?
+    var userInitiatedRefreshTask: Task<Void, Never>?
     private var importRefreshTask: Task<Void, Never>?
     private var walletSideEffectsTask: Task<Void, Never>?
     private var portfolioStateObservation: AnyCancellable?
@@ -877,13 +695,15 @@ class WalletStore: ObservableObject {
     private var flowStateObservation: AnyCancellable?
     private var runtimeStateObservation: AnyCancellable?
     private var diagnosticsObservation: AnyCancellable?
+    private var chainDiagnosticsStateObservation: AnyCancellable?
+    private var sendStateObservation: AnyCancellable?
     private var transactionStateObservation: AnyCancellable?
     private var transactionMutationObservation: AnyCancellable?
     var lastHistoryRefreshAtByChain: [String: Date] = [:]
-    private var appIsActive = true
+    var appIsActive = true
     private var maintenanceTask: Task<Void, Never>?
-    private var lastObservedPortfolioTotalUSD: Double?
-    private var lastObservedPortfolioCompositionSignature: String?
+    var lastObservedPortfolioTotalUSD: Double?
+    var lastObservedPortfolioCompositionSignature: String?
 #if canImport(Network)
     private let networkPathMonitor = NWPathMonitor()
     private let networkPathMonitorQueue = DispatchQueue(label: "spectra.network.monitor")
@@ -941,13 +761,13 @@ class WalletStore: ObservableObject {
     private static let dogecoinSelfSendConfirmationWindowSeconds: TimeInterval = 20
     private static let activeMaintenancePollSeconds: UInt64 = 30
     private static let inactiveMaintenancePollSeconds: UInt64 = 60
-    private static let activePendingRefreshInterval: TimeInterval = 60
+    static let activePendingRefreshInterval: TimeInterval = 60
     private static let activePriceRefreshInterval: TimeInterval = 300
     private static let fiatRatesRefreshInterval: TimeInterval = 6 * 60 * 60
     private static let backgroundMaintenanceInterval: TimeInterval = 15 * 60
-    private static let constrainedBackgroundMaintenanceInterval: TimeInterval = 30 * 60
-    private static let lowPowerBackgroundMaintenanceInterval: TimeInterval = 45 * 60
-    private static let lowBatteryBackgroundMaintenanceInterval: TimeInterval = 60 * 60
+    static let constrainedBackgroundMaintenanceInterval: TimeInterval = 30 * 60
+    static let lowPowerBackgroundMaintenanceInterval: TimeInterval = 45 * 60
+    static let lowBatteryBackgroundMaintenanceInterval: TimeInterval = 60 * 60
     private static let foregroundFullRefreshStalenessInterval: TimeInterval = 2 * 60
     private static let automaticChainRefreshStalenessInterval: TimeInterval = 10 * 60
     // MARK: - Seed and Endpoint Utilities
@@ -1220,7 +1040,29 @@ class WalletStore: ObservableObject {
         extraReset?()
         sendError = nil
     }
-    
+
+    func recordPerformanceSample(
+        _ operation: String,
+        startedAt: CFAbsoluteTime,
+        metadata: String? = nil
+    ) {
+        let durationMS = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
+        recentPerformanceSamples.insert(
+            PerformanceSample(
+                id: UUID(),
+                operation: operation,
+                durationMS: durationMS,
+                timestamp: Date(),
+                metadata: metadata
+            ),
+            at: 0
+        )
+        if recentPerformanceSamples.count > 120 {
+            recentPerformanceSamples = Array(recentPerformanceSamples.prefix(120))
+        }
+        balanceTelemetryLogger.info("perf \(operation, privacy: .public) \(durationMS, format: .fixed(precision: 2))ms \(metadata ?? "", privacy: .public)")
+    }
+
     // Startup restore pipeline:
     // 1) run install hygiene to prevent stale secure data reuse,
     // 2) hydrate persisted settings/wallet snapshots/transactions,
@@ -1256,7 +1098,12 @@ class WalletStore: ObservableObject {
         diagnosticsObservation = diagnostics.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
-
+        chainDiagnosticsStateObservation = chainDiagnosticsState.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        sendStateObservation = sendState.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
         if let storedProvider = UserDefaults.standard.string(forKey: Self.pricingProviderDefaultsKey),
            let pricingProvider = PricingProvider(rawValue: storedProvider) {
             self.pricingProvider = pricingProvider
@@ -1317,7 +1164,6 @@ class WalletStore: ObservableObject {
         dogecoinOperationalEvents = loadDogecoinOperationalEvents()
         refreshDogecoinBroadcastProviderReliability()
         applyBitcoinRuntimeConfiguration()
-        isOnboarded = !wallets.isEmpty
         
         if UserDefaults.standard.object(forKey: Self.hideBalancesDefaultsKey) != nil {
             hideBalances = UserDefaults.standard.bool(forKey: Self.hideBalancesDefaultsKey)
@@ -2009,7 +1855,6 @@ func resetImportForm() {
         self.walletPendingDeletion = nil
         
         if wallets.isEmpty {
-            isOnboarded = false
             cancelWalletImport()
         }
     }
@@ -2134,11 +1979,17 @@ func resetImportForm() {
     func selectedReceiveCoin(for walletID: String) -> Coin? {
         let resolvedChainName = resolvedReceiveChainName(for: walletID)
         guard !resolvedChainName.isEmpty else { return nil }
-        let chainCoins = availableReceiveCoins(for: walletID).filter { $0.chainName == resolvedChainName }
-        if let nativeCoin = chainCoins.first(where: { $0.contractAddress == nil }) {
-            return nativeCoin
+
+        var firstMatchingCoin: Coin?
+        for coin in availableReceiveCoins(for: walletID) where coin.chainName == resolvedChainName {
+            if firstMatchingCoin == nil {
+                firstMatchingCoin = coin
+            }
+            if coin.contractAddress == nil {
+                return coin
+            }
         }
-        return chainCoins.first
+        return firstMatchingCoin
     }
 
     private func resolvedReceiveChainName(for walletID: String) -> String {
@@ -3112,7 +2963,6 @@ func resetImportForm() {
         }
 
         if scopes.contains(.walletsAndSecrets) {
-            isOnboarded = false
         }
         UserDefaults.standard.set(true, forKey: Self.installMarkerDefaultsKey)
     }
@@ -3699,282 +3549,6 @@ func resetImportForm() {
         }
         networkPathMonitor.start(queue: networkPathMonitorQueue)
 #endif
-    }
-
-    private func currentBatteryLevel() -> Float {
-        let level = UIDevice.current.batteryLevel
-        return level < 0 ? 1.0 : level
-    }
-
-    private func activePendingRefreshIntervalForProfile() -> TimeInterval {
-        switch backgroundSyncProfile {
-        case .conservative: return 30
-        case .balanced: return Self.activePendingRefreshInterval
-        case .aggressive: return 10
-        }
-    }
-
-    private func activePriceRefreshIntervalForProfile() -> TimeInterval {
-        TimeInterval(automaticRefreshFrequencyMinutes * 60)
-    }
-
-    private func baseBackgroundMaintenanceInterval() -> TimeInterval {
-        TimeInterval(backgroundBalanceRefreshFrequencyMinutes * 60)
-    }
-
-    private func backgroundMaintenanceInterval(now _: Date = Date()) -> TimeInterval {
-        var interval = baseBackgroundMaintenanceInterval()
-        if isConstrainedNetwork || isExpensiveNetwork {
-            interval = max(interval, Self.constrainedBackgroundMaintenanceInterval)
-        }
-        if ProcessInfo.processInfo.isLowPowerModeEnabled {
-            interval = max(interval, Self.lowPowerBackgroundMaintenanceInterval)
-        }
-        if currentBatteryLevel() < 0.20 {
-            interval = max(interval, Self.lowBatteryBackgroundMaintenanceInterval)
-        }
-        return interval
-    }
-
-    // Device/network guardrail for heavy refresh while inactive (battery and reachability aware).
-    private func canRunHeavyBackgroundRefresh() -> Bool {
-        guard isNetworkReachable else { return false }
-        if backgroundSyncProfile == .conservative {
-            guard !isConstrainedNetwork, !isExpensiveNetwork else { return false }
-            guard !ProcessInfo.processInfo.isLowPowerModeEnabled else { return false }
-            return currentBatteryLevel() >= 0.30
-        }
-        if backgroundSyncProfile == .balanced {
-            guard !isConstrainedNetwork else { return false }
-            guard !ProcessInfo.processInfo.isLowPowerModeEnabled else { return false }
-            return currentBatteryLevel() >= 0.20
-        }
-        if ProcessInfo.processInfo.isLowPowerModeEnabled, currentBatteryLevel() < 0.15 {
-            return false
-        }
-        return currentBatteryLevel() >= 0.15
-    }
-
-    // Sends portfolio movement notifications only when thresholds + cooldown are satisfied.
-    private func maybeSendLargeMovementNotification(previousTotalUSD: Double, currentTotalUSD: Double) {
-        guard useLargeMovementNotifications else { return }
-        guard !appIsActive else { return }
-        let currentCompositionSignature = portfolioCompositionSignature()
-        guard lastObservedPortfolioCompositionSignature == currentCompositionSignature else {
-            resetLargeMovementAlertBaseline()
-            return
-        }
-        guard previousTotalUSD > 0 else { return }
-
-        let delta = currentTotalUSD - previousTotalUSD
-        let absoluteDelta = abs(delta)
-        let ratio = absoluteDelta / previousTotalUSD
-        guard absoluteDelta >= largeMovementAlertUSDThreshold,
-              ratio >= (largeMovementAlertPercentThreshold / 100.0) else {
-            return
-        }
-
-        let direction = delta >= 0 ? "up" : "down"
-        let content = UNMutableNotificationContent()
-        content.title = "Large portfolio movement detected"
-        content.body = "Your portfolio moved \(direction) by \(formattedFiatAmount(fromUSD: absoluteDelta)) (\(Int((ratio * 100).rounded()))%) since last sync."
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: "portfolio-movement-\(UUID().uuidString)",
-            content: content,
-            trigger: nil
-        )
-        UNUserNotificationCenter.current().add(request)
-    }
-
-    private func resetLargeMovementAlertBaseline() {
-        lastObservedPortfolioTotalUSD = totalBalance
-        lastObservedPortfolioCompositionSignature = portfolioCompositionSignature()
-    }
-
-    private func portfolioCompositionSignature() -> String {
-        portfolio
-            .map(\.holdingKey)
-            .sorted()
-            .joined(separator: "|")
-    }
-
-    // Lightweight maintenance entry for inactive/app background periods.
-    // It prioritizes pending transaction status updates and only runs heavy balance refreshes
-    // when network/device conditions allow it.
-    func performBackgroundMaintenanceTick() async {
-        logger.log("Running background maintenance tick")
-        await refreshPendingTransactions(includeHistoryRefreshes: true, historyRefreshInterval: 300)
-        if appIsActive {
-            if shouldRunScheduledPriceRefresh {
-                await refreshLivePrices()
-            }
-            await refreshFiatExchangeRatesIfNeeded()
-            return
-        }
-
-        guard canRunHeavyBackgroundRefresh() else { return }
-        let previousTotal = lastObservedPortfolioTotalUSD ?? totalBalance
-        await withBalanceRefreshWindow {
-            await refreshChainBalances(
-                includeHistoryRefreshes: true,
-                historyRefreshInterval: 300,
-                forceChainRefresh: false
-            )
-        }
-        let didRefreshPrices = shouldRunScheduledPriceRefresh ? await refreshLivePrices() : false
-        await refreshFiatExchangeRatesIfNeeded()
-        let currentTotal = totalBalance
-        if didRefreshPrices || currentTotal != previousTotal {
-            maybeSendLargeMovementNotification(previousTotalUSD: previousTotal, currentTotalUSD: currentTotal)
-            lastObservedPortfolioTotalUSD = currentTotal
-        }
-        lastFullRefreshAt = Date()
-    }
-
-    // Pull-to-refresh orchestration for the whole app.
-    // Order is intentional: pending/history refresh first, then balances, then pricing.
-    func performUserInitiatedRefresh(forceChainRefresh: Bool = true) async {
-        if let existingRefreshTask = userInitiatedRefreshTask {
-            await existingRefreshTask.value
-            return
-        }
-
-        let refreshTask = Task { @MainActor in
-            isUserInitiatedRefreshInProgress = true
-            defer { isUserInitiatedRefreshInProgress = false }
-
-            if appIsActive {
-                await refreshPendingTransactions(includeHistoryRefreshes: true, historyRefreshInterval: 120)
-                await withBalanceRefreshWindow {
-                    await refreshChainBalances(
-                        includeHistoryRefreshes: true,
-                        historyRefreshInterval: 120,
-                        forceChainRefresh: forceChainRefresh
-                    )
-                }
-                await refreshLivePrices()
-                await refreshFiatExchangeRatesIfNeeded()
-                self.lastFullRefreshAt = Date()
-            } else {
-                await performBackgroundMaintenanceTick()
-            }
-        }
-        userInitiatedRefreshTask = refreshTask
-        await refreshTask.value
-        userInitiatedRefreshTask = nil
-    }
-
-    // Chain-scoped manual refresh for settings diagnostics/actions.
-    // Used to isolate one chain without triggering a full global refresh.
-    func performUserInitiatedRefresh(forChain chainName: String) async {
-        if appIsActive {
-            await refreshPendingTransactions(includeHistoryRefreshes: false)
-        }
-
-        await withBalanceRefreshWindow {
-            switch chainName {
-            case "Bitcoin":
-                await refreshBitcoinBalances()
-                await refreshBitcoinTransactions(limit: max(40, bitcoinHistoryFetchLimit))
-            case "Bitcoin Cash":
-                await refreshBitcoinCashBalances()
-                await refreshBitcoinCashTransactions(limit: max(40, bitcoinHistoryFetchLimit))
-            case "Bitcoin SV":
-                await refreshBitcoinSVBalances()
-                await refreshBitcoinSVTransactions(limit: max(40, bitcoinHistoryFetchLimit))
-            case "Litecoin":
-                await refreshLitecoinBalances()
-                await refreshLitecoinTransactions(limit: max(40, litecoinHistoryFetchLimit))
-            case "Dogecoin":
-                await refreshDogecoinBalances()
-                await refreshDogecoinTransactions(limit: max(40, dogecoinHistoryFetchLimit))
-            case "Ethereum":
-                await refreshEthereumBalances()
-                await refreshEVMTokenTransactions(chainName: "Ethereum", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
-            case "Arbitrum":
-                await refreshArbitrumBalances()
-                await refreshEVMTokenTransactions(chainName: "Arbitrum", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
-            case "Optimism":
-                await refreshOptimismBalances()
-                await refreshEVMTokenTransactions(chainName: "Optimism", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
-            case "Ethereum Classic":
-                await refreshETCBalances()
-            case "BNB Chain":
-                await refreshBNBBalances()
-                await refreshEVMTokenTransactions(chainName: "BNB Chain", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
-            case "Avalanche":
-                await refreshAvalancheBalances()
-                await refreshEVMTokenTransactions(chainName: "Avalanche", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
-            case "Hyperliquid":
-                await refreshHyperliquidBalances()
-                await refreshEVMTokenTransactions(chainName: "Hyperliquid", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
-            case "Tron":
-                await refreshTronBalances()
-                await refreshTronTransactions(loadMore: false)
-            case "Solana":
-                await refreshSolanaBalances()
-                await refreshSolanaTransactions(loadMore: false)
-            case "Cardano":
-                await refreshCardanoBalances()
-                await refreshCardanoTransactions(loadMore: false)
-            case "XRP Ledger":
-                await refreshXRPBalances()
-                await refreshXRPTransactions(loadMore: false)
-            case "Stellar":
-                await refreshStellarBalances()
-                await refreshStellarTransactions(loadMore: false)
-            case "Monero":
-                await refreshMoneroBalances()
-                await refreshMoneroTransactions(loadMore: false)
-            case "Sui":
-                await refreshSuiBalances()
-                await refreshSuiTransactions(loadMore: false)
-            case "Aptos":
-                await refreshAptosBalances()
-                await refreshAptosTransactions(loadMore: false)
-            case "TON":
-                await refreshTONBalances()
-                await refreshTONTransactions(loadMore: false)
-            case "Internet Computer":
-                await refreshICPBalances()
-                await refreshICPTransactions(loadMore: false)
-            case "NEAR":
-                await refreshNearBalances()
-                await refreshNearTransactions(loadMore: false)
-            case "Polkadot":
-                await refreshPolkadotBalances()
-                await refreshPolkadotTransactions(loadMore: false)
-            default:
-                await performUserInitiatedRefresh()
-                return
-            }
-        }
-
-        await refreshLivePrices()
-        await refreshFiatExchangeRatesIfNeeded()
-    }
-
-    private func runActiveScheduledMaintenance(now: Date) async {
-        let plan = WalletRefreshPlanner.activeMaintenancePlan(
-            now: now,
-            lastPendingTransactionRefreshAt: lastPendingTransactionRefreshAt,
-            lastLivePriceRefreshAt: lastLivePriceRefreshAt,
-            hasPendingTransactionMaintenanceWork: hasPendingTransactionMaintenanceWork,
-            shouldRunScheduledPriceRefresh: shouldRunScheduledPriceRefresh,
-            pendingRefreshInterval: activePendingRefreshIntervalForProfile(),
-            priceRefreshInterval: activePriceRefreshIntervalForProfile()
-        )
-        if plan.refreshPendingTransactions {
-            await refreshPendingTransactions(includeHistoryRefreshes: false)
-        }
-
-        if plan.refreshLivePrices {
-            await refreshLivePrices()
-        }
-
-        await refreshFiatExchangeRatesIfNeeded()
     }
 
     func setAppIsActive(_ isActive: Bool) {
@@ -6375,7 +5949,7 @@ func resetImportForm() {
             case .invalidAddress:
                 return "Enter a valid Tron address (starts with T)."
             case .invalidAmount:
-                return "Enter a valid \(symbol) amount."
+                return CommonLocalization.invalidAssetAmountPrompt(symbol)
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid Tron signer."
             case .unsupportedTokenContract:
@@ -6413,7 +5987,7 @@ func resetImportForm() {
             case .invalidAddress:
                 return "Enter a valid XRP address (starts with r)."
             case .invalidAmount:
-                return "Enter a valid XRP amount."
+                return CommonLocalization.invalidAssetAmountPrompt("XRP")
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid XRP signer."
             case .signingFailed(let message):
@@ -6433,7 +6007,7 @@ func resetImportForm() {
             case .invalidAddress:
                 return "Enter a valid Stellar address (starts with G)."
             case .invalidAmount:
-                return "Enter a valid XLM amount."
+                return CommonLocalization.invalidAssetAmountPrompt("XLM")
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid Stellar signer."
             case .invalidResponse:
@@ -6455,7 +6029,7 @@ func resetImportForm() {
             case .invalidAddress:
                 return "Enter a valid Monero address (starts with 4 or 8)."
             case .invalidAmount:
-                return "Enter a valid XMR amount."
+                return CommonLocalization.invalidAssetAmountPrompt("XMR")
             case .backendNotConfigured:
                 return "Monero backend is not configured. Set monero.backend.baseURL in app defaults."
             case .backendRejected(let message):
@@ -6473,7 +6047,7 @@ func resetImportForm() {
             case .invalidAddress:
                 return "Enter a valid Cardano address (starts with addr1)."
             case .invalidAmount:
-                return "Enter a valid ADA amount."
+                return CommonLocalization.invalidAssetAmountPrompt("ADA")
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid Cardano signer."
             case .signingFailed(let message):
@@ -6493,7 +6067,7 @@ func resetImportForm() {
             case .invalidAddress:
                 return "Enter a valid Sui address (starts with 0x)."
             case .invalidAmount:
-                return "Enter a valid SUI amount."
+                return CommonLocalization.invalidAssetAmountPrompt("SUI")
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid Sui signer."
             case .insufficientBalance:
@@ -6517,7 +6091,7 @@ func resetImportForm() {
             case .invalidAddress:
                 return "Enter a valid Aptos address (starts with 0x)."
             case .invalidAmount:
-                return "Enter a valid APT amount."
+                return CommonLocalization.invalidAssetAmountPrompt("APT")
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid Aptos signer."
             case .insufficientBalance:
@@ -6539,9 +6113,9 @@ func resetImportForm() {
         if let tonError = error as? TONWalletEngineError {
             switch tonError {
             case .invalidAddress:
-                return "Enter a valid TON address."
+                return localizedStoreString("Enter a valid TON address.")
             case .invalidAmount:
-                return "Enter a valid TON amount."
+                return CommonLocalization.invalidAssetAmountPrompt("TON")
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid TON signer."
             case .invalidResponse:
@@ -6561,9 +6135,9 @@ func resetImportForm() {
         if let nearError = error as? NearWalletEngineError {
             switch nearError {
             case .invalidAddress:
-                return "Enter a valid NEAR account ID or implicit address."
+                return localizedStoreString("Enter a valid NEAR account ID or implicit address.")
             case .invalidAmount:
-                return "Enter a valid NEAR amount."
+                return CommonLocalization.invalidAssetAmountPrompt("NEAR")
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid NEAR signer."
             case .invalidResponse:
@@ -6585,9 +6159,9 @@ func resetImportForm() {
         if let polkadotError = error as? PolkadotWalletEngineError {
             switch polkadotError {
             case .invalidAddress:
-                return "Enter a valid Polkadot SS58 address."
+                return localizedStoreString("Enter a valid Polkadot SS58 address.")
             case .invalidAmount:
-                return "Enter a valid DOT amount."
+                return CommonLocalization.invalidAssetAmountPrompt("DOT")
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid Polkadot signer."
             case .invalidResponse:
@@ -6609,7 +6183,7 @@ func resetImportForm() {
             case .invalidAddress:
                 return "Enter a valid Internet Computer account identifier."
             case .invalidAmount:
-                return "Enter a valid ICP amount."
+                return CommonLocalization.invalidAssetAmountPrompt("ICP")
             case .invalidSeedPhrase:
                 return "This wallet seed phrase cannot derive a valid ICP signer."
             case .invalidResponse:
@@ -7167,7 +6741,7 @@ func resetImportForm() {
                 return
             }
             guard isValidDogecoinAddressForPolicy(destinationAddress) else {
-                sendError = "Enter a valid Dogecoin address."
+                sendError = CommonLocalization.invalidDestinationAddressPrompt("Dogecoin")
                 return
             }
             let ownAddressSet = Set(knownDogecoinAddresses(for: wallet).map { $0.lowercased() })
@@ -8052,8 +7626,16 @@ func resetImportForm() {
         guard !isRefreshingPendingTransactions else { return }
         let trackedChains = pendingTransactionMaintenanceChainIDs
         guard !trackedChains.isEmpty else { return }
+        let startedAt = CFAbsoluteTimeGetCurrent()
         isRefreshingPendingTransactions = true
-        defer { isRefreshingPendingTransactions = false }
+        defer {
+            isRefreshingPendingTransactions = false
+            recordPerformanceSample(
+                "refresh_pending_transactions",
+                startedAt: startedAt,
+                metadata: "chains=\(trackedChains.count) include_history=\(includeHistoryRefreshes)"
+            )
+        }
 
         lastPendingTransactionRefreshAt = Date()
         await withTaskGroup(of: Void.self) { group in
@@ -8724,7 +8306,7 @@ func resetImportForm() {
         }
         if wantsMoneroImport {
             if (resolvedMoneroAddress?.isEmpty ?? true) || !AddressValidation.isValidMoneroAddress(resolvedMoneroAddress ?? "") {
-                importError = "Enter a valid Monero address."
+                importError = localizedStoreString("Enter a valid Monero address.")
                 return
             }
             if isWatchOnlyImport {
@@ -8740,7 +8322,7 @@ func resetImportForm() {
         }
         if wantsCardanoImport && !isWatchOnlyImport {
             if let resolvedCardanoAddress, !resolvedCardanoAddress.isEmpty, !AddressValidation.isValidCardanoAddress(resolvedCardanoAddress) {
-                importError = "Enter a valid Cardano address."
+                importError = localizedStoreString("Enter a valid Cardano address.")
                 return
             }
         }
@@ -9671,7 +9253,6 @@ func resetImportForm() {
         isShowingWalletImporter = false
 
         withAnimation {
-            isOnboarded = true
         }
 
         scheduleImportedWalletRefresh(importedWalletsForRefresh)
@@ -10259,7 +9840,7 @@ func resetImportForm() {
         return try await BitcoinSVBalanceService.fetchBalance(for: address)
     }
 
-    private func walletByReplacingHoldings(_ wallet: ImportedWallet, with holdings: [Coin]) -> ImportedWallet {
+    func walletByReplacingHoldings(_ wallet: ImportedWallet, with holdings: [Coin]) -> ImportedWallet {
         ImportedWallet(
             id: wallet.id,
             name: wallet.name,
@@ -10461,11 +10042,11 @@ func resetImportForm() {
         !priceRequestCoins.isEmpty
     }
 
-    private var shouldRunScheduledPriceRefresh: Bool {
+    var shouldRunScheduledPriceRefresh: Bool {
         selectedMainTab == .home && hasLivePriceRefreshWork
     }
 
-    private var hasPendingTransactionMaintenanceWork: Bool {
+    var hasPendingTransactionMaintenanceWork: Bool {
         transactions.contains { transaction in
             guard transaction.kind == .send, transaction.transactionHash != nil else {
                 return false
@@ -10502,7 +10083,7 @@ func resetImportForm() {
         cachedRefreshableChainNames
     }
 
-    private var refreshableChainIDs: Set<WalletChainID> {
+    var refreshableChainIDs: Set<WalletChainID> {
         Set(refreshableChainNames.compactMap(WalletChainID.init))
     }
 
@@ -10605,7 +10186,7 @@ func resetImportForm() {
         return didUpdatePrices
     }
 
-    private func refreshFiatExchangeRatesIfNeeded(force: Bool = false) async {
+    func refreshFiatExchangeRatesIfNeeded(force: Bool = false) async {
         if !force, selectedFiatCurrency == .usd {
             return
         }
@@ -10919,13 +10500,14 @@ func resetImportForm() {
     // Core chain refresh scheduler.
     // Runs chains sequentially with per-chain timeouts to avoid shared-state races and
     // to prevent one degraded provider from freezing the entire refresh cycle.
-    private func refreshChainBalances(
+    func refreshChainBalances(
         includeHistoryRefreshes: Bool = true,
         historyRefreshInterval: TimeInterval = 120,
         forceChainRefresh: Bool = true
     ) async {
         guard allowsBalanceNetworkRefresh else { return }
         guard !isRefreshingChainBalances else { return }
+        let startedAt = CFAbsoluteTimeGetCurrent()
         isRefreshingChainBalances = true
         suppressWalletSideEffects = true
         defer {
@@ -10933,6 +10515,11 @@ func resetImportForm() {
             applyWalletCollectionSideEffects()
             isRefreshingChainBalances = false
             lastChainBalanceRefreshAt = Date()
+            recordPerformanceSample(
+                "refresh_chain_balances",
+                startedAt: startedAt,
+                metadata: "include_history=\(includeHistoryRefreshes) force=\(forceChainRefresh)"
+            )
         }
 
         // Run chain refreshes sequentially to avoid last-writer-wins wallet snapshot overwrites.
@@ -10966,7 +10553,7 @@ func resetImportForm() {
         )
     }
 
-    private func withBalanceRefreshWindow(_ operation: () async -> Void) async {
+    func withBalanceRefreshWindow(_ operation: () async -> Void) async {
         let previousState = allowsBalanceNetworkRefresh
         allowsBalanceNetworkRefresh = true
         defer { allowsBalanceNetworkRefresh = previousState }
@@ -11083,7 +10670,6 @@ func resetImportForm() {
         
         guard !walletsToRefresh.isEmpty else { return }
         
-        var updatedWallets = walletSnapshot
         let resolvedBalances = await collectLimitedConcurrentIndexedResults(from: walletsToRefresh) { (index, wallet) in
             let walletID = wallet.id
             let bitcoinAddress = wallet.bitcoinAddress
@@ -11121,18 +10707,17 @@ func resetImportForm() {
             }
         }
 
+        var updatedWalletHoldings: [(index: Int, holdings: [Coin])] = []
         for (index, balance) in effectiveBalances {
-            let wallet = updatedWallets[index]
+            let wallet = walletSnapshot[index]
             let updatedHoldings = applyBitcoinBalance(balance, to: wallet.holdings)
-            updatedWallets[index] = walletByReplacingHoldings(wallet, with: updatedHoldings)
+            updatedWalletHoldings.append((index: index, holdings: updatedHoldings))
 #if DEBUG
-            logBalanceTelemetry(source: "network", chainName: "Bitcoin", wallet: updatedWallets[index], holdings: updatedHoldings)
+            logBalanceTelemetry(source: "network", chainName: "Bitcoin", wallet: walletByReplacingHoldings(wallet, with: updatedHoldings), holdings: updatedHoldings)
 #endif
         }
-        
-        if !effectiveBalances.isEmpty {
-            wallets = updatedWallets
-        }
+
+        applyIndexedWalletHoldingUpdates(updatedWalletHoldings, to: walletSnapshot)
 
         if resolvedBalances.count == walletsToRefresh.count {
             markChainHealthy("Bitcoin")
@@ -11277,7 +10862,6 @@ func resetImportForm() {
 
         guard !walletsToRefresh.isEmpty else { return }
 
-        var updatedWallets = walletSnapshot
         let resolvedBalances = await collectLimitedConcurrentIndexedResults(from: walletsToRefresh) { (index, _, bitcoinCashAddress) in
             let balance = try? await BitcoinCashBalanceService.fetchBalance(for: bitcoinCashAddress)
             return (index, balance)
@@ -11294,15 +10878,14 @@ func resetImportForm() {
             }
         }
 
+        var updatedWalletHoldings: [(index: Int, holdings: [Coin])] = []
         for (index, balance) in effectiveBalances {
-            let wallet = updatedWallets[index]
+            let wallet = walletSnapshot[index]
             let updatedHoldings = applyBitcoinCashBalance(balance, to: wallet.holdings)
-            updatedWallets[index] = walletByReplacingHoldings(wallet, with: updatedHoldings)
+            updatedWalletHoldings.append((index: index, holdings: updatedHoldings))
         }
 
-        if !effectiveBalances.isEmpty {
-            wallets = updatedWallets
-        }
+        applyIndexedWalletHoldingUpdates(updatedWalletHoldings, to: walletSnapshot)
 
         if resolvedBalances.count == walletsToRefresh.count {
             markChainHealthy("Bitcoin Cash")
@@ -11412,21 +10995,19 @@ func resetImportForm() {
 
         guard !walletsToRefresh.isEmpty else { return }
 
-        var updatedWallets = walletSnapshot
         let resolvedBalances = await collectLimitedConcurrentIndexedResults(from: walletsToRefresh) { (index, _, bitcoinSVAddress) in
             let balance = try? await BitcoinSVBalanceService.fetchBalance(for: bitcoinSVAddress)
             return (index, balance)
         }
 
+        var updatedWalletHoldings: [(index: Int, holdings: [Coin])] = []
         for (index, balance) in resolvedBalances {
-            let wallet = updatedWallets[index]
+            let wallet = walletSnapshot[index]
             let updatedHoldings = applyBitcoinSVBalance(balance, to: wallet.holdings)
-            updatedWallets[index] = walletByReplacingHoldings(wallet, with: updatedHoldings)
+            updatedWalletHoldings.append((index: index, holdings: updatedHoldings))
         }
 
-        if !resolvedBalances.isEmpty {
-            wallets = updatedWallets
-        }
+        applyIndexedWalletHoldingUpdates(updatedWalletHoldings, to: walletSnapshot)
 
         if resolvedBalances.count == walletsToRefresh.count {
             markChainHealthy("Bitcoin SV")
@@ -11529,7 +11110,6 @@ func resetImportForm() {
 
         guard !walletsToRefresh.isEmpty else { return }
 
-        var updatedWallets = walletSnapshot
         let resolvedBalances = await collectLimitedConcurrentIndexedResults(from: walletsToRefresh) { (index, _, litecoinAddress) in
             let balance = try? await LitecoinBalanceService.fetchBalance(for: litecoinAddress)
             return (index, balance)
@@ -11546,18 +11126,17 @@ func resetImportForm() {
             }
         }
 
+        var updatedWalletHoldings: [(index: Int, holdings: [Coin])] = []
         for (index, balance) in effectiveBalances {
-            let wallet = updatedWallets[index]
+            let wallet = walletSnapshot[index]
             let updatedHoldings = applyLitecoinBalance(balance, to: wallet.holdings)
-            updatedWallets[index] = walletByReplacingHoldings(wallet, with: updatedHoldings)
+            updatedWalletHoldings.append((index: index, holdings: updatedHoldings))
 #if DEBUG
-            logBalanceTelemetry(source: "network", chainName: "Litecoin", wallet: updatedWallets[index], holdings: updatedHoldings)
+            logBalanceTelemetry(source: "network", chainName: "Litecoin", wallet: walletByReplacingHoldings(wallet, with: updatedHoldings), holdings: updatedHoldings)
 #endif
         }
 
-        if !effectiveBalances.isEmpty {
-            wallets = updatedWallets
-        }
+        applyIndexedWalletHoldingUpdates(updatedWalletHoldings, to: walletSnapshot)
 
         if resolvedBalances.count == walletsToRefresh.count {
             markChainHealthy("Litecoin")
@@ -12891,7 +12470,7 @@ func resetImportForm() {
         }
     }
 
-    private func refreshTONBalances() async {
+    func refreshTONBalances() async {
         guard allowsBalanceNetworkRefresh else { return }
         let walletSnapshot = wallets
         let trackedTokens = enabledTONTrackedTokens()
@@ -12980,7 +12559,7 @@ func resetImportForm() {
         }
     }
 
-    private func refreshICPTransactions(loadMore: Bool = false) async {
+    func refreshICPTransactions(loadMore: Bool = false) async {
         _ = loadMore
         let icpWallets = wallets.filter { wallet in
             wallet.selectedChain == "Internet Computer" && resolvedICPAddress(for: wallet) != nil
@@ -13027,7 +12606,7 @@ func resetImportForm() {
         }
     }
 
-    private func refreshAptosTransactions(loadMore: Bool = false) async {
+    func refreshAptosTransactions(loadMore: Bool = false) async {
         _ = loadMore
         let walletSnapshot = wallets
         let aptosWallets = walletSnapshot.filter { wallet in
@@ -13077,7 +12656,7 @@ func resetImportForm() {
         }
     }
 
-    private func refreshTONTransactions(loadMore: Bool = false) async {
+    func refreshTONTransactions(loadMore: Bool = false) async {
         _ = loadMore
         let tonWallets = wallets.filter { wallet in
             wallet.selectedChain == "TON" && resolvedTONAddress(for: wallet) != nil
@@ -18779,7 +18358,6 @@ func resetImportForm() {
     }
 
     private func applyWalletCollectionSideEffects() {
-        isOnboarded = !wallets.isEmpty
         rebuildWalletDerivedState()
         rebuildDashboardDerivedState()
         walletSideEffectsTask?.cancel()
@@ -18865,7 +18443,8 @@ func resetImportForm() {
             }
         }
 
-        transactions = mergedTransactions.sorted(by: { $0.createdAt > $1.createdAt })
+        let sortedTransactions = mergedTransactions.sorted(by: { $0.createdAt > $1.createdAt })
+        setTransactionsIfChanged(sortedTransactions)
     }
 
     private func upsertDogecoinTransactions(_ newTransactions: [TransactionRecord]) {
@@ -18924,7 +18503,7 @@ func resetImportForm() {
         mergedTransactions.sort { lhs, rhs in
             lhs.createdAt > rhs.createdAt
         }
-        transactions = mergedTransactions
+        setTransactionsIfChanged(mergedTransactions)
     }
 
     private func upsertEthereumTransactions(_ newTransactions: [TransactionRecord]) {
@@ -19066,7 +18645,7 @@ func resetImportForm() {
         mergedTransactions.sort { lhs, rhs in
             lhs.createdAt > rhs.createdAt
         }
-        transactions = mergedTransactions
+        setTransactionsIfChanged(mergedTransactions)
     }
 
     private func upsertEVMTransactions(_ newTransactions: [TransactionRecord], chainName: String) {
@@ -19128,7 +18707,7 @@ func resetImportForm() {
         mergedTransactions.sort { lhs, rhs in
             lhs.createdAt > rhs.createdAt
         }
-        transactions = mergedTransactions
+        setTransactionsIfChanged(mergedTransactions)
     }
     
     func updateTransactionStatus(id: UUID, to status: TransactionStatus) {
@@ -19649,10 +19228,36 @@ extension WalletStore {
         return sawQuotedCoin ? total : 0
     }
 
+    private func normalizedHistoryInputSignature(walletByID: [UUID: ImportedWallet]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(transactions.count)
+        for transaction in transactions {
+            hasher.combine(transaction.id)
+            hasher.combine(transaction.walletID)
+            hasher.combine(transaction.kind.rawValue)
+            hasher.combine(transaction.status.rawValue)
+            hasher.combine(transaction.chainName)
+            hasher.combine(transaction.symbol)
+            hasher.combine(transaction.transactionHash ?? "")
+            hasher.combine(transaction.createdAt.timeIntervalSinceReferenceDate.bitPattern)
+        }
+
+        for walletID in walletByID.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
+            guard let wallet = walletByID[walletID] else { continue }
+            hasher.combine(walletID)
+            hasher.combine(wallet.selectedChain)
+        }
+
+        return hasher.finalize()
+    }
+
     func rebuildNormalizedHistoryIndex() {
         let walletByID = cachedWalletByID.isEmpty
             ? Dictionary(uniqueKeysWithValues: wallets.map { ($0.id, $0) })
             : cachedWalletByID
+        let inputSignature = normalizedHistoryInputSignature(walletByID: walletByID)
+        guard transactionState.lastNormalizedHistorySignature != inputSignature else { return }
+        let startedAt = CFAbsoluteTimeGetCurrent()
         var groupedByDedupeKey: [String: [NormalizedHistoryEntry]] = [:]
         for transaction in transactions {
             guard let walletID = transaction.walletID,
@@ -19710,10 +19315,28 @@ extension WalletStore {
             }
             return lhs.id < rhs.id
         }
+        transactionState.lastNormalizedHistorySignature = inputSignature
+        recordPerformanceSample(
+            "rebuild_normalized_history_index",
+            startedAt: startedAt,
+            metadata: "transactions=\(transactions.count) normalized=\(normalizedHistoryIndex.count)"
+        )
     }
 
     func rebuildTransactionDerivedState() {
         cachedTransactionByID = Dictionary(uniqueKeysWithValues: transactions.map { ($0.id, $0) })
+        var earliestTransactionDateByWalletID: [UUID: Date] = [:]
+        for transaction in transactions {
+            guard let walletID = transaction.walletID else { continue }
+            if let currentEarliest = earliestTransactionDateByWalletID[walletID] {
+                if transaction.createdAt < currentEarliest {
+                    earliestTransactionDateByWalletID[walletID] = transaction.createdAt
+                }
+            } else {
+                earliestTransactionDateByWalletID[walletID] = transaction.createdAt
+            }
+        }
+        cachedFirstActivityDateByWalletID = earliestTransactionDateByWalletID
         rebuildNormalizedHistoryIndex()
     }
 

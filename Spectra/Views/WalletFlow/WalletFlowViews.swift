@@ -141,24 +141,15 @@ struct QRCodeScannerView: UIViewControllerRepresentable {
 }
 
 struct WalletCardView: View {
-    @ObservedObject var store: WalletStore
-    let wallet: ImportedWallet
-
-    private var isWatchOnly: Bool {
-        store.isWatchOnlyWallet(wallet)
+    struct Presentation {
+        let wallet: ImportedWallet
+        let totalValueText: String
+        let assetCountText: String
+        let isWatchOnly: Bool
+        let walletBadge: (assetIdentifier: String?, mark: String, color: Color)
     }
 
-    private var isPrivateKeyWallet: Bool {
-        store.isPrivateKeyWallet(wallet)
-    }
-
-    private var nonZeroAssetCount: Int {
-        wallet.holdings.filter { $0.amount > 0 }.count
-    }
-
-    private var walletBadge: (assetIdentifier: String?, mark: String, color: Color) {
-        Coin.nativeChainBadge(chainName: wallet.selectedChain) ?? (nil, "W", .mint)
-    }
+    let presentation: Presentation
 
     private var watchOnlyBadge: some View {
         Image(systemName: "eye")
@@ -172,18 +163,18 @@ struct WalletCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 14) {
-                CoinBadge(assetIdentifier: walletBadge.assetIdentifier, fallbackText: walletBadge.mark, color: walletBadge.color, size: 40)
+                CoinBadge(assetIdentifier: presentation.walletBadge.assetIdentifier, fallbackText: presentation.walletBadge.mark, color: presentation.walletBadge.color, size: 40)
                 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        if isWatchOnly {
+                        if presentation.isWatchOnly {
                             watchOnlyBadge
                         }
-                        Text(wallet.name)
+                        Text(presentation.wallet.name)
                             .font(.headline)
                             .foregroundStyle(Color.primary)
                     }
-                    Text(wallet.selectedChain)
+                    Text(presentation.wallet.selectedChain)
                         .font(.caption2)
                         .foregroundStyle(Color.primary.opacity(0.6))
                         .lineLimit(2)
@@ -192,11 +183,11 @@ struct WalletCardView: View {
                 Spacer()
                 
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.currentTotalIfAvailable(for: wallet)))
+                    Text(presentation.totalValueText)
                         .font(.headline)
                         .foregroundStyle(Color.primary)
                         .spectraNumericTextLayout()
-                    Text(walletFlowLocalizedFormat("%lld assets", nonZeroAssetCount))
+                    Text(presentation.assetCountText)
                         .font(.caption2)
                         .foregroundStyle(Color.primary.opacity(0.68))
                 }
@@ -356,6 +347,31 @@ struct WalletDetailView: View {
     @State private var didCopyWalletAddress: Bool = false
     @State private var isShowingDeleteWalletAlert: Bool = false
 
+    private struct HoldingPresentation: Identifiable {
+        let coin: Coin
+        let amountText: String
+        let valueText: String
+
+        var id: UUID { coin.id }
+    }
+
+    private struct DetailPresentation {
+        let wallet: ImportedWallet
+        let nonZeroAssetCount: Int
+        let walletAddress: String?
+        let derivationPathsText: String?
+        let walletBadge: (assetIdentifier: String?, mark: String, color: Color)
+        let visibleHoldingPresentations: [HoldingPresentation]
+        let walletTotalValueText: String
+    }
+
+    private static let firstActivityFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
     private var isWatchOnly: Bool {
         store.isWatchOnlyWallet(displayedWallet)
     }
@@ -373,95 +389,97 @@ struct WalletDetailView: View {
     }
 
     private var firstActivityDateText: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        guard let firstDate = store.transactions
-            .filter({ $0.walletID == wallet.id })
-            .map(\.createdAt)
-            .min() else {
+        guard let firstDate = store.firstActivityDate(for: wallet.id) else {
             return NSLocalizedString("No activity yet", comment: "")
         }
-        return formatter.string(from: firstDate)
+        return Self.firstActivityFormatter.string(from: firstDate)
     }
 
-    private var nonZeroAssetCount: Int {
-        displayedWallet.holdings.filter { $0.amount > 0 }.count
+    private var detailPresentation: DetailPresentation {
+        let wallet = displayedWallet
+        let visibleHoldings = wallet.holdings
+            .filter { $0.amount > 0 }
+            .map { holding in
+                (coin: holding, quotedValue: store.currentValueIfAvailable(for: holding) ?? -1)
+            }
+            .sorted {
+                if abs($0.quotedValue - $1.quotedValue) > 0.000001 {
+                    return $0.quotedValue > $1.quotedValue
+                }
+                return $0.coin.symbol.localizedCaseInsensitiveCompare($1.coin.symbol) == .orderedAscending
+            }
+
+        let holdingPresentations = visibleHoldings.map { entry in
+            HoldingPresentation(
+                coin: entry.coin,
+                amountText: store.formattedAssetAmount(entry.coin.amount, symbol: entry.coin.symbol, chainName: entry.coin.chainName),
+                valueText: store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: entry.quotedValue >= 0 ? entry.quotedValue : nil)
+            )
+        }
+
+        return DetailPresentation(
+            wallet: wallet,
+            nonZeroAssetCount: visibleHoldings.count,
+            walletAddress: [
+                wallet.bitcoinAddress,
+                wallet.bitcoinCashAddress,
+                wallet.litecoinAddress,
+                wallet.dogecoinAddress,
+                wallet.ethereumAddress,
+                wallet.tronAddress,
+                wallet.solanaAddress,
+                wallet.xrpAddress,
+                wallet.moneroAddress,
+                wallet.cardanoAddress,
+                wallet.suiAddress,
+                wallet.aptosAddress,
+                wallet.tonAddress,
+                wallet.nearAddress,
+                wallet.polkadotAddress,
+                wallet.stellarAddress,
+            ]
+            .compactMap { $0 }
+            .first,
+            derivationPathsText: derivationPathsText(for: wallet),
+            walletBadge: Coin.nativeChainBadge(chainName: wallet.selectedChain) ?? (nil, "W", .mint),
+            visibleHoldingPresentations: holdingPresentations,
+            walletTotalValueText: store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.currentTotalIfAvailable(for: wallet))
+        )
     }
 
-    private var walletAddress: String? {
-        [
-            displayedWallet.bitcoinAddress,
-            displayedWallet.bitcoinCashAddress,
-            displayedWallet.litecoinAddress,
-            displayedWallet.dogecoinAddress,
-            displayedWallet.ethereumAddress,
-            displayedWallet.tronAddress,
-            displayedWallet.solanaAddress,
-            displayedWallet.xrpAddress,
-            displayedWallet.moneroAddress,
-            displayedWallet.cardanoAddress,
-            displayedWallet.suiAddress,
-            displayedWallet.aptosAddress,
-            displayedWallet.tonAddress,
-            displayedWallet.nearAddress,
-            displayedWallet.polkadotAddress,
-            displayedWallet.stellarAddress,
-        ]
-        .compactMap { $0 }
-        .first
-    }
-
-    private var derivationPathsText: String? {
+    private func derivationPathsText(for wallet: ImportedWallet) -> String? {
         guard !isWatchOnly, !isPrivateKeyWallet else { return nil }
 
-        let chainMappings: [(String, SeedDerivationChain)] = [
-            ("Bitcoin", .bitcoin),
-            ("Bitcoin Cash", .bitcoinCash),
-            ("Bitcoin SV", .bitcoinSV),
-            ("Litecoin", .litecoin),
-            ("Dogecoin", .dogecoin),
-            ("Ethereum", .ethereum),
-            ("Ethereum Classic", .ethereumClassic),
-            ("Arbitrum", .arbitrum),
-            ("Optimism", .optimism),
-            ("BNB Chain", .ethereum),
-            ("Avalanche", .avalanche),
-            ("Hyperliquid", .hyperliquid),
-            ("Tron", .tron),
-            ("Solana", .solana),
-            ("Cardano", .cardano),
-            ("XRP Ledger", .xrp),
-            ("Sui", .sui),
-            ("Aptos", .aptos),
-            ("TON", .ton),
-            ("Internet Computer", .internetComputer),
-            ("NEAR", .near),
-            ("Polkadot", .polkadot),
-            ("Stellar", .stellar),
+        let chainMappings: [String: SeedDerivationChain] = [
+            "Bitcoin": .bitcoin,
+            "Bitcoin Cash": .bitcoinCash,
+            "Bitcoin SV": .bitcoinSV,
+            "Litecoin": .litecoin,
+            "Dogecoin": .dogecoin,
+            "Ethereum": .ethereum,
+            "Ethereum Classic": .ethereumClassic,
+            "Arbitrum": .arbitrum,
+            "Optimism": .optimism,
+            "BNB Chain": .ethereum,
+            "Avalanche": .avalanche,
+            "Hyperliquid": .hyperliquid,
+            "Tron": .tron,
+            "Solana": .solana,
+            "Cardano": .cardano,
+            "XRP Ledger": .xrp,
+            "Sui": .sui,
+            "Aptos": .aptos,
+            "TON": .ton,
+            "Internet Computer": .internetComputer,
+            "NEAR": .near,
+            "Polkadot": .polkadot,
+            "Stellar": .stellar,
         ]
 
-        guard let derivationChain = chainMappings.first(where: { $0.0 == displayedWallet.selectedChain })?.1 else {
+        guard let derivationChain = chainMappings[wallet.selectedChain] else {
             return nil
         }
-        return walletFlowLocalizedFormat("wallet.detail.chainPath", displayedWallet.selectedChain, displayedWallet.seedDerivationPaths.path(for: derivationChain))
-    }
-
-    private var walletBadge: (assetIdentifier: String?, mark: String, color: Color) {
-        Coin.nativeChainBadge(chainName: displayedWallet.selectedChain) ?? (nil, "W", .mint)
-    }
-
-    private var visibleHoldings: [Coin] {
-        displayedWallet.holdings
-            .filter { $0.amount > 0 }
-            .sorted {
-                let lhsValue = store.currentValueIfAvailable(for: $0) ?? -1
-                let rhsValue = store.currentValueIfAvailable(for: $1) ?? -1
-                if abs(lhsValue - rhsValue) > 0.000001 {
-                    return lhsValue > rhsValue
-                }
-                return $0.symbol.localizedCaseInsensitiveCompare($1.symbol) == .orderedAscending
-            }
+        return walletFlowLocalizedFormat("wallet.detail.chainPath", wallet.selectedChain, wallet.seedDerivationPaths.path(for: derivationChain))
     }
 
     private var watchOnlyBadge: some View {
@@ -491,20 +509,32 @@ struct WalletDetailView: View {
         seedPhraseErrorMessage = nil
     }
 
+    private func handleWalletPresenceChange(walletStillExists: Bool) {
+        guard !walletStillExists else { return }
+        isShowingDeleteWalletAlert = false
+        clearSeedRevealState()
+        dismiss()
+    }
+
+    private func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        guard newPhase != .active else { return }
+        clearSeedRevealState()
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 14) {
                     CoinBadge(
-                        assetIdentifier: walletBadge.assetIdentifier,
-                        fallbackText: walletBadge.mark,
-                        color: walletBadge.color,
+                        assetIdentifier: detailPresentation.walletBadge.assetIdentifier,
+                        fallbackText: detailPresentation.walletBadge.mark,
+                        color: detailPresentation.walletBadge.color,
                         size: 46
                     )
 
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(displayedWallet.name)
+                            Text(detailPresentation.wallet.name)
                                 .font(.title2.weight(.bold))
                                 .foregroundStyle(Color.primary)
 
@@ -514,7 +544,7 @@ struct WalletDetailView: View {
                                 watchOnlyBadge
                             }
                         }
-                        Text(displayedWallet.selectedChain)
+                        Text(detailPresentation.wallet.selectedChain)
                             .font(.subheadline)
                             .foregroundStyle(Color.primary.opacity(0.75))
                     }
@@ -526,13 +556,13 @@ struct WalletDetailView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     detailRow(label: "Mode", value: isWatchOnly ? "Watch Addresses" : (isPrivateKeyWallet ? "Private Key" : "Seed-Based"))
-                    if let derivationPathsText {
+                    if let derivationPathsText = detailPresentation.derivationPathsText {
                         detailRow(label: "Derivation Paths", value: derivationPathsText)
                     }
-                    detailRow(label: "Current Value", value: store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.currentTotalIfAvailable(for: displayedWallet)))
-                    detailRow(label: "Asset Count", value: "\(nonZeroAssetCount)")
+                    detailRow(label: "Current Value", value: detailPresentation.walletTotalValueText)
+                    detailRow(label: "Asset Count", value: "\(detailPresentation.nonZeroAssetCount)")
                     detailRow(label: "First Activity", value: firstActivityDateText)
-                    detailRow(label: "Wallet ID", value: displayedWallet.id.uuidString)
+                    detailRow(label: "Wallet ID", value: detailPresentation.wallet.id.uuidString)
                 }
                 .padding(16)
                 .spectraBubbleFill()
@@ -544,30 +574,30 @@ struct WalletDetailView: View {
                             .font(.headline)
                             .foregroundStyle(Color.primary)
                         Spacer()
-                        Text("\(visibleHoldings.count)")
+                        Text("\(detailPresentation.visibleHoldingPresentations.count)")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Color.primary.opacity(0.68))
                     }
 
-                    if visibleHoldings.isEmpty {
+                    if detailPresentation.visibleHoldingPresentations.isEmpty {
                         Text("No assets loaded for this wallet yet.")
                             .font(.subheadline)
                             .foregroundStyle(Color.primary.opacity(0.72))
                     } else {
-                        ForEach(visibleHoldings) { holding in
+                        ForEach(detailPresentation.visibleHoldingPresentations) { holding in
                             HStack(spacing: 12) {
                                 CoinBadge(
-                                    assetIdentifier: holding.iconIdentifier,
-                                    fallbackText: holding.mark,
-                                    color: holding.color,
+                                    assetIdentifier: holding.coin.iconIdentifier,
+                                    fallbackText: holding.coin.mark,
+                                    color: holding.coin.color,
                                     size: 34
                                 )
 
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(holding.name)
+                                    Text(holding.coin.name)
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(Color.primary)
-                                    Text("\(holding.symbol) • \(holding.tokenStandard)")
+                                    Text("\(holding.coin.symbol) • \(holding.coin.tokenStandard)")
                                         .font(.caption)
                                         .foregroundStyle(Color.primary.opacity(0.62))
                                 }
@@ -575,11 +605,11 @@ struct WalletDetailView: View {
                                 Spacer()
 
                                 VStack(alignment: .trailing, spacing: 3) {
-                                    Text(store.formattedAssetAmount(holding.amount, symbol: holding.symbol, chainName: holding.chainName))
+                                    Text(holding.amountText)
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(Color.primary)
                                         .spectraNumericTextLayout()
-                                    Text(store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.currentValueIfAvailable(for: holding)))
+                                    Text(holding.valueText)
                                         .font(.caption)
                                         .foregroundStyle(Color.primary.opacity(0.68))
                                         .spectraNumericTextLayout()
@@ -593,7 +623,7 @@ struct WalletDetailView: View {
                 .spectraBubbleFill()
                 .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
 
-                if let walletAddress {
+                if let walletAddress = detailPresentation.walletAddress {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Text("Wallet Address")
@@ -714,14 +744,10 @@ struct WalletDetailView: View {
             didCopyWalletAddress = false
         }
         .onChange(of: store.wallets.contains(where: { $0.id == wallet.id })) { _, walletStillExists in
-            guard !walletStillExists else { return }
-            isShowingDeleteWalletAlert = false
-            clearSeedRevealState()
-            dismiss()
+            handleWalletPresenceChange(walletStillExists: walletStillExists)
         }
         .onChange(of: scenePhase) { _, newPhase in
-            guard newPhase != .active else { return }
-            clearSeedRevealState()
+            handleScenePhaseChange(newPhase)
         }
         .sheet(isPresented: $isShowingSeedPhrasePasswordPrompt, onDismiss: {
             seedPhrasePasswordInput = ""
@@ -916,33 +942,39 @@ struct SeedPathSlotEditor: View {
 }
 
 struct AssetRowView: View {
-    @ObservedObject var store: WalletStore
-    let coin: Coin
+    struct Presentation {
+        let coin: Coin
+        let amountText: String
+        let valueText: String
+        let priceText: String
+    }
+
+    let presentation: Presentation
     
     var body: some View {
         HStack(spacing: 14) {
             CoinBadge(
-                assetIdentifier: coin.iconIdentifier,
-                fallbackText: coin.mark,
-                color: coin.color,
+                assetIdentifier: presentation.coin.iconIdentifier,
+                fallbackText: presentation.coin.mark,
+                color: presentation.coin.color,
                 size: 46
             )
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(coin.name)
+                Text(presentation.coin.name)
                     .font(.headline)
                     .foregroundStyle(Color.primary)
-                Text(store.formattedAssetAmount(coin.amount, symbol: coin.symbol, chainName: coin.chainName))
+                Text(presentation.amountText)
                     .font(.caption)
                     .foregroundStyle(Color.primary.opacity(0.7))
                     .spectraNumericTextLayout()
-                Text(walletFlowLocalizedFormat("wallet.detail.onChainLowercase", coin.chainName))
+                Text(walletFlowLocalizedFormat("wallet.detail.onChainLowercase", presentation.coin.chainName))
                     .font(.caption2)
                     .foregroundStyle(Color.primary.opacity(0.6))
-                Text(coin.tokenStandard)
+                Text(presentation.coin.tokenStandard)
                     .font(.caption2)
                     .foregroundStyle(Color.primary.opacity(0.55))
-                if let contractAddress = coin.contractAddress {
+                if let contractAddress = presentation.coin.contractAddress {
                     Text(contractAddress)
                         .font(.caption2.monospaced())
                         .foregroundStyle(Color.primary.opacity(0.5))
@@ -953,11 +985,11 @@ struct AssetRowView: View {
             Spacer()
             
             VStack(alignment: .trailing, spacing: 4) {
-                Text(store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.currentValueIfAvailable(for: coin)))
+                Text(presentation.valueText)
                     .font(.headline)
                     .foregroundStyle(Color.primary)
                     .spectraNumericTextLayout()
-                Text(store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.currentPriceIfAvailable(for: coin)))
+                Text(presentation.priceText)
                     .font(.caption)
                     .foregroundStyle(Color.primary.opacity(0.68))
                     .spectraNumericTextLayout()

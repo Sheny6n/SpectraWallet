@@ -28,6 +28,11 @@ extension WalletStore {
         set { dashboardState.relevantPriceKeys = newValue }
     }
 
+    var cachedDashboardSupportedTokenEntriesBySymbol: [String: [TokenPreferenceEntry]] {
+        get { dashboardState.supportedTokenEntriesBySymbol }
+        set { dashboardState.supportedTokenEntriesBySymbol = newValue }
+    }
+
     fileprivate static let pinnedDashboardAssetSymbolsDefaultsKey = "dashboardPinnedAssetSymbols"
 
     private var defaultPinnedDashboardAssetSymbols: [String] {
@@ -160,6 +165,10 @@ extension WalletStore {
         cachedDashboardAssetGroups
     }
 
+    func dashboardSupportedTokenEntries(symbol: String) -> [TokenPreferenceEntry] {
+        cachedDashboardSupportedTokenEntriesBySymbol[symbol.uppercased()] ?? []
+    }
+
     func rebuildDashboardDerivedState() {
         let includedHoldings = cachedIncludedPortfolioHoldings
         let holdingsBySymbol = cachedIncludedPortfolioHoldingsBySymbol
@@ -193,6 +202,12 @@ extension WalletStore {
         cachedDashboardPinOptionBySymbol = optionBySymbol
         cachedAvailableDashboardPinOptions = availableSymbols.compactMap { optionBySymbol[$0] }
         cachedDashboardRelevantPriceKeys = Set(includedHoldings.map(\.holdingKey))
+        cachedDashboardSupportedTokenEntriesBySymbol = Dictionary(
+            uniqueKeysWithValues: trackedEntriesBySymbol.map { symbol, entries in
+                let supportedEntries = uniqueDashboardSupportedTokenEntries(from: entries)
+                return (symbol, supportedEntries)
+            }
+        )
 
         let positiveCoins = includedHoldings
             .filter { $0.amount > 0 }
@@ -363,7 +378,21 @@ extension WalletStore {
         return nil
     }
 
+    private func uniqueDashboardSupportedTokenEntries(from entries: [TokenPreferenceEntry]) -> [TokenPreferenceEntry] {
+        var seenKeys = Set<String>()
+        return entries
+            .filter { !$0.contractAddress.isEmpty }
+            .sorted {
+                $0.chain.rawValue.localizedCaseInsensitiveCompare($1.chain.rawValue) == .orderedAscending
+            }
+            .filter { entry in
+                let key = "\(entry.chain.rawValue.lowercased())|\(entry.contractAddress.lowercased())"
+                return seenKeys.insert(key).inserted
+            }
+    }
+
     var appNoticeItems: [AppNoticeItem] {
+        let commonCopy = CommonLocalizationContent.current
         var notices: [AppNoticeItem] = []
 
         if let quoteRefreshError = quoteRefreshError?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -404,7 +433,7 @@ extension WalletStore {
            !importError.isEmpty {
             notices.append(
                 AppNoticeItem(
-                    title: "Wallet Import Error",
+                    title: commonCopy.walletImportErrorTitle,
                     message: importError,
                     severity: .error,
                     systemImage: "square.and.arrow.down.badge.exclamationmark"
@@ -416,7 +445,7 @@ extension WalletStore {
            !sendError.isEmpty {
             notices.append(
                 AppNoticeItem(
-                    title: "Send Error",
+                    title: commonCopy.sendErrorTitle,
                     message: sendError,
                     severity: .error,
                     systemImage: "paperplane.circle"
@@ -428,7 +457,7 @@ extension WalletStore {
            !appLockError.isEmpty {
             notices.append(
                 AppNoticeItem(
-                    title: "Security Notice",
+                    title: commonCopy.securityNoticeTitle,
                     message: appLockError,
                     severity: .error,
                     systemImage: "lock.trianglebadge.exclamationmark"
@@ -440,7 +469,7 @@ extension WalletStore {
            !tronLastSendErrorDetails.isEmpty {
             notices.append(
                 AppNoticeItem(
-                    title: "Tron Send Diagnostic",
+                    title: commonCopy.tronSendDiagnosticTitle,
                     message: tronLastSendErrorDetails,
                     severity: .error,
                     systemImage: "bolt.trianglebadge.exclamationmark",

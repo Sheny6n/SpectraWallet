@@ -13,20 +13,18 @@ enum SolanaWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Solana address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Solana")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this Solana transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("Solana")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Solana seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Solana")
         case .signingFailed(let message):
-            let format = NSLocalizedString("Failed to sign Solana transaction: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("Solana", message: message)
         case .rpcFailed(let message):
             let format = NSLocalizedString("Solana RPC failed: %@", comment: "")
             return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("Solana broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("Solana", message: message)
         }
     }
 }

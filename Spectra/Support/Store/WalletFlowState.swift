@@ -7,6 +7,8 @@ final class WalletFlowState: ObservableObject {
     @Published var isShowingWalletImporter: Bool = false
     @Published var isShowingSendSheet: Bool = false
     @Published var isShowingReceiveSheet: Bool = false
+    @Published var walletPendingDeletion: ImportedWallet?
+    @Published var editingWalletID: UUID?
     @Published var sendWalletID: String = ""
     @Published var sendHoldingKey: String = ""
     @Published var sendAmount: String = ""

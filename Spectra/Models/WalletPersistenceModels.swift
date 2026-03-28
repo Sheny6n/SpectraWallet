@@ -86,7 +86,7 @@ struct PersistedAddressBookStore: Codable {
     static let currentVersion = 1
 }
 
-struct PersistedTransactionRecord: Codable {
+struct PersistedTransactionRecord: Codable, Equatable {
     let id: UUID
     let walletID: UUID?
     let kind: TransactionKind

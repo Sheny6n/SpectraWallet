@@ -4,25 +4,6 @@ private func localizedDashboardString(_ key: String) -> String {
     AppLocalization.string(key)
 }
 
-private func dashboardSupportedTokenEntries(
-    for assetGroup: DashboardAssetGroup,
-    store: WalletStore
-) -> [TokenPreferenceEntry] {
-    var seenKeys = Set<String>()
-    return store.resolvedTokenPreferences
-        .filter { entry in
-            entry.symbol.caseInsensitiveCompare(assetGroup.symbol) == .orderedSame &&
-            !entry.contractAddress.isEmpty
-        }
-        .sorted { lhs, rhs in
-            lhs.chain.rawValue.localizedCaseInsensitiveCompare(rhs.chain.rawValue) == .orderedAscending
-        }
-        .filter { entry in
-            let key = "\(entry.chain.rawValue.lowercased())|\(entry.contractAddress.lowercased())"
-            return seenKeys.insert(key).inserted
-        }
-}
-
 private func dashboardConfigButtonLabel() -> some View {
     Image(systemName: "slider.horizontal.3")
         .font(.subheadline.weight(.semibold))
@@ -293,7 +274,17 @@ struct DashboardView: View {
                 .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
             } else {
                 ForEach(store.wallets) { wallet in
-                    WalletCardView(store: store, wallet: wallet)
+                    WalletCardView(
+                        presentation: WalletCardView.Presentation(
+                            wallet: wallet,
+                            totalValueText: store.hideBalances
+                                ? "••••••"
+                                : store.formattedFiatAmountOrZero(fromUSD: store.currentTotalIfAvailable(for: wallet)),
+                            assetCountText: localizedFormat("%lld assets", wallet.holdings.filter { $0.amount > 0 }.count),
+                            isWatchOnly: store.isWatchOnlyWallet(wallet),
+                            walletBadge: Coin.nativeChainBadge(chainName: wallet.selectedChain) ?? (nil, "W", .mint)
+                        )
+                    )
                         .contentShape(Rectangle())
                         .onTapGesture {
                             selectedWalletID = wallet.id
@@ -318,11 +309,11 @@ struct DashboardView: View {
                 .padding(16)
                 .glassEffect(.regular.tint(.white.opacity(0.02)), in: .rect(cornerRadius: 20))
             } else {
-                ForEach(visiblePortfolio) { assetGroup in
-                    DashboardAssetRowView(store: store, assetGroup: assetGroup)
+                ForEach(visibleAssetPresentations) { presentation in
+                    DashboardAssetRowView(presentation: presentation)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            selectedAssetGroup = assetGroup
+                            selectedAssetGroup = presentation.assetGroup
                         }
                 }
             }
@@ -334,6 +325,24 @@ struct DashboardView: View {
 
     private var visiblePortfolio: [DashboardAssetGroup] {
         store.dashboardAssetGroups
+    }
+
+    private var visibleAssetPresentations: [DashboardAssetRowPresentation] {
+        visiblePortfolio.map { assetGroup in
+            DashboardAssetRowPresentation(
+                assetGroup: assetGroup,
+                amountText: store.formattedAssetAmount(
+                    assetGroup.totalAmount,
+                    symbol: assetGroup.symbol,
+                    chainName: assetGroup.representativeCoin.chainName
+                ),
+                totalValueText: store.hideBalances
+                    ? "••••••"
+                    : store.formattedFiatAmountOrZero(fromUSD: assetGroup.totalValueUSD),
+                priceText: dashboardAssetPriceText(for: assetGroup),
+                chainSummaryText: dashboardChainSummaryText(for: assetGroup)
+            )
+        }
     }
     
     private var activeNotices: [AppNoticeItem] { store.appNoticeItems }
@@ -383,6 +392,29 @@ struct DashboardView: View {
         Label(localizedDashboardString(title), systemImage: symbol)
             .font(.headline)
             .foregroundStyle(Color.primary)
+    }
+
+    private func dashboardAssetPriceText(for assetGroup: DashboardAssetGroup) -> String {
+        guard let price = store.currentPriceIfAvailable(for: assetGroup.representativeCoin) else {
+            return store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: nil)
+        }
+        return store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: price)
+    }
+
+    private func dashboardChainSummaryText(for assetGroup: DashboardAssetGroup) -> String {
+        if assetGroup.chainEntries.isEmpty {
+            return NSLocalizedString("No chain balances yet", comment: "")
+        }
+        if assetGroup.chainEntries.count == 1, let chainName = assetGroup.chainEntries.first?.coin.chainName {
+            return localizedFormat("dashboard.asset.onChain", chainName)
+        }
+        let names = assetGroup.chainEntries.map(\.coin.chainName)
+        let preview = names.prefix(2).joined(separator: ", ")
+        let remainder = names.count - min(names.count, 2)
+        if remainder > 0 {
+            return localizedFormat("On %@ +%lld more", preview, remainder)
+        }
+        return localizedFormat("dashboard.asset.onChain", preview)
     }
 }
 
@@ -535,7 +567,7 @@ struct AssetGroupDetailView: View {
     let assetGroup: DashboardAssetGroup
 
     private var supportedTokenEntries: [TokenPreferenceEntry] {
-        dashboardSupportedTokenEntries(for: assetGroup, store: store)
+        store.dashboardSupportedTokenEntries(symbol: assetGroup.symbol)
     }
 
     var body: some View {
@@ -649,7 +681,7 @@ struct AssetContractsDetailView: View {
     let assetGroup: DashboardAssetGroup
 
     private var supportedTokenEntries: [TokenPreferenceEntry] {
-        dashboardSupportedTokenEntries(for: assetGroup, store: store)
+        store.dashboardSupportedTokenEntries(symbol: assetGroup.symbol)
     }
 
     var body: some View {

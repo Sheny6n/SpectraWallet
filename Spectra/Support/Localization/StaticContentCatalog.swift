@@ -567,6 +567,10 @@ struct DiagnosticsContentCopy: Decodable {
     let broadcastReliabilityFormat: String
     let totalNormalizedEntriesFormat: String
     let noNormalizedHistoryYet: String
+    let historySourcesSectionTitleFormat: String
+    let endpointReachabilitySectionTitleFormat: String
+    let degradedLastGoodSyncFormat: String
+    let degradedNoPriorSuccessfulSyncYet: String
 
     static var current: DiagnosticsContentCopy {
         StaticContentCatalog.loadRequiredResource("DiagnosticsContent", as: DiagnosticsContentCopy.self)
@@ -615,6 +619,104 @@ struct ImportFlowContent: Decodable {
 
     static var current: ImportFlowContent {
         StaticContentCatalog.loadRequiredResource("ImportFlowContent", as: ImportFlowContent.self)
+    }
+}
+
+struct CommonLocalizationContent: Decodable {
+    let priceAlertTitleFormat: String
+    let addressBookSubtitleFormat: String
+    let transactionSentTitleFormat: String
+    let transactionReceivedTitleFormat: String
+    let transactionSubtitleFormat: String
+    let invalidAddressFormat: String
+    let invalidAmountFormat: String
+    let invalidDestinationAddressPromptFormat: String
+    let invalidAssetAmountPromptFormat: String
+    let invalidSeedPhraseFormat: String
+    let invalidProviderResponseFormat: String
+    let invalidTransferAmountFormat: String
+    let signingTransactionFailedFormat: String
+    let insufficientBalanceForAmountPlusNetworkFeeFormat: String
+    let invalidUTXODataFormat: String
+    let sourceAddressDoesNotMatchSeedFormat: String
+    let networkErrorFormat: String
+    let signingFailedFormat: String
+    let networkRequestFailedFormat: String
+    let broadcastFailedFormat: String
+    let rpcErrorFormat: String
+    let walletImportErrorTitle: String
+    let sendErrorTitle: String
+    let securityNoticeTitle: String
+    let tronSendDiagnosticTitle: String
+
+    static var current: CommonLocalizationContent {
+        StaticContentCatalog.loadRequiredResource("CommonContent", as: CommonLocalizationContent.self)
+    }
+}
+
+enum CommonLocalization {
+    static func invalidAddress(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidAddressFormat, chainName)
+    }
+
+    static func invalidAmount(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidAmountFormat, chainName)
+    }
+
+    static func invalidDestinationAddressPrompt(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidDestinationAddressPromptFormat, chainName)
+    }
+
+    static func invalidAssetAmountPrompt(_ symbol: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidAssetAmountPromptFormat, symbol)
+    }
+
+    static func invalidSeedPhrase(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidSeedPhraseFormat, chainName)
+    }
+
+    static func invalidProviderResponse(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidProviderResponseFormat, chainName)
+    }
+
+    static func invalidTransferAmount(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidTransferAmountFormat, chainName)
+    }
+
+    static func signingTransactionFailed(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.signingTransactionFailedFormat, chainName)
+    }
+
+    static func insufficientBalanceForAmountPlusNetworkFee(_ symbolOrChain: String) -> String {
+        String(format: CommonLocalizationContent.current.insufficientBalanceForAmountPlusNetworkFeeFormat, symbolOrChain)
+    }
+
+    static func invalidUTXOData(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidUTXODataFormat, chainName)
+    }
+
+    static func sourceAddressDoesNotMatchSeed(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.sourceAddressDoesNotMatchSeedFormat, chainName)
+    }
+
+    static func networkError(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.networkErrorFormat, chainName, AppLocalization.string(message))
+    }
+
+    static func signingFailed(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.signingFailedFormat, chainName, AppLocalization.string(message))
+    }
+
+    static func networkRequestFailed(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.networkRequestFailedFormat, chainName, AppLocalization.string(message))
+    }
+
+    static func broadcastFailed(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.broadcastFailedFormat, chainName, AppLocalization.string(message))
+    }
+
+    static func rpcError(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.rpcErrorFormat, chainName, AppLocalization.string(message))
     }
 }
 

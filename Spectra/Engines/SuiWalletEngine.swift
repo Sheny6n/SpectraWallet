@@ -16,22 +16,19 @@ enum SuiWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Sui address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Sui")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this Sui transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("Sui")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Sui seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Sui")
         case .invalidResponse:
-            return NSLocalizedString("The Sui provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Sui")
         case .signingFailed(let message):
-            let format = NSLocalizedString("Failed to sign Sui transaction: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("Sui", message: message)
         case .networkError(let message):
-            let format = NSLocalizedString("Sui network request failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkRequestFailed("Sui", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("Sui broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("Sui", message: message)
         case .insufficientBalance:
             return NSLocalizedString("Insufficient SUI balance to cover amount and network fee.", comment: "")
         }

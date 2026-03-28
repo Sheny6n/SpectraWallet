@@ -9,12 +9,11 @@ enum NearBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The NEAR address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("NEAR")
         case .invalidResponse:
-            return NSLocalizedString("The NEAR provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("NEAR")
         case .rpcError(let message):
-            let format = NSLocalizedString("NEAR RPC error: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.rpcError("NEAR", message: message)
         case .httpError(let code):
             let format = NSLocalizedString("The NEAR provider returned HTTP %d.", comment: "")
             return String(format: format, locale: .current, code)

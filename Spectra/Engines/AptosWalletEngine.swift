@@ -15,24 +15,21 @@ enum AptosWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Aptos address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Aptos")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this Aptos transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("Aptos")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Aptos seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Aptos")
         case .invalidResponse:
-            return NSLocalizedString("The Aptos provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Aptos")
         case .insufficientBalance:
             return NSLocalizedString("Insufficient APT balance to cover amount and network fee.", comment: "")
         case .networkError(let message):
-            let format = NSLocalizedString("Aptos network request failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkRequestFailed("Aptos", message: message)
         case .signingFailed(let message):
-            let format = NSLocalizedString("Failed to sign Aptos transaction: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("Aptos", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("Aptos broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("Aptos", message: message)
         }
     }
 }

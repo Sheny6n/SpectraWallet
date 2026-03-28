@@ -15,24 +15,21 @@ enum NearWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The NEAR address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("NEAR")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this NEAR transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("NEAR")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The NEAR seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("NEAR")
         case .invalidResponse:
-            return NSLocalizedString("The NEAR provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("NEAR")
         case .accessKeyUnavailable:
             return NSLocalizedString("No full-access NEAR key was found for this account.", comment: "")
         case .signingFailed(let message):
-            let format = NSLocalizedString("Failed to sign NEAR transaction: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("NEAR", message: message)
         case .networkError(let message):
-            let format = NSLocalizedString("NEAR network request failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkRequestFailed("NEAR", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("NEAR broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("NEAR", message: message)
         }
     }
 }

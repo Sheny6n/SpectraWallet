@@ -13,17 +13,17 @@ enum BitcoinSVWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Bitcoin SV seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Bitcoin SV")
         case .invalidAddress:
-            return NSLocalizedString("The Bitcoin SV destination address is invalid.", comment: "")
+            return CommonLocalization.invalidDestinationAddressPrompt("Bitcoin SV")
         case .signingFailed(let message):
             return NSLocalizedString(message, comment: "")
         case .insufficientFunds:
-            return NSLocalizedString("Insufficient Bitcoin SV balance for amount plus network fee.", comment: "")
+            return CommonLocalization.insufficientBalanceForAmountPlusNetworkFee("Bitcoin SV")
         case .invalidUTXO:
-            return NSLocalizedString("Received invalid Bitcoin SV UTXO data.", comment: "")
+            return CommonLocalization.invalidUTXOData("Bitcoin SV")
         case .sourceAddressDoesNotMatchSeed:
-            return NSLocalizedString("The source Bitcoin SV address does not match the provided seed phrase.", comment: "")
+            return CommonLocalization.sourceAddressDoesNotMatchSeed("Bitcoin SV")
         case .broadcastFailed(let message):
             return NSLocalizedString(message, comment: "")
         }

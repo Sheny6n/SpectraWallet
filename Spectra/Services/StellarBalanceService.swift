@@ -8,9 +8,9 @@ enum StellarBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Stellar address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Stellar")
         case .invalidResponse:
-            return NSLocalizedString("The Stellar provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Stellar")
         case .httpError(let code):
             let format = NSLocalizedString("The Stellar provider returned HTTP %d.", comment: "")
             return String(format: format, locale: .current, code)

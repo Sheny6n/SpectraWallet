@@ -9,12 +9,11 @@ enum TONBalanceServiceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The TON address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("TON")
         case .invalidResponse:
-            return NSLocalizedString("The TON provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("TON")
         case .rpcError(let message):
-            let format = NSLocalizedString("TON RPC error: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.rpcError("TON", message: message)
         }
     }
 }

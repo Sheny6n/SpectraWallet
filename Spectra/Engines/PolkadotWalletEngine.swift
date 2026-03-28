@@ -14,22 +14,19 @@ enum PolkadotWalletEngineError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidAddress:
-            return NSLocalizedString("The Polkadot address is not valid.", comment: "")
+            return CommonLocalization.invalidAddress("Polkadot")
         case .invalidAmount:
-            return NSLocalizedString("The amount is not valid for this Polkadot transfer.", comment: "")
+            return CommonLocalization.invalidTransferAmount("Polkadot")
         case .invalidSeedPhrase:
-            return NSLocalizedString("The Polkadot seed phrase is invalid.", comment: "")
+            return CommonLocalization.invalidSeedPhrase("Polkadot")
         case .invalidResponse:
-            return NSLocalizedString("The Polkadot provider response was invalid.", comment: "")
+            return CommonLocalization.invalidProviderResponse("Polkadot")
         case .signingFailed(let message):
-            let format = NSLocalizedString("Failed to sign Polkadot transaction: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.signingFailed("Polkadot", message: message)
         case .networkError(let message):
-            let format = NSLocalizedString("Polkadot network request failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.networkRequestFailed("Polkadot", message: message)
         case .broadcastFailed(let message):
-            let format = NSLocalizedString("Polkadot broadcast failed: %@", comment: "")
-            return String(format: format, locale: .current, NSLocalizedString(message, comment: ""))
+            return CommonLocalization.broadcastFailed("Polkadot", message: message)
         }
     }
 }
