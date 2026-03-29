@@ -1,9 +1,23 @@
 import SwiftUI
+import Combine
 
 struct EndpointCatalogSettingsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var newBitcoinEndpoint: String = ""
     private let copy = EndpointsContentCopy.current
+
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$bitcoinEsploraEndpoints.asVoidSignal(),
+                store.$bitcoinNetworkMode.asVoidSignal(),
+                store.$ethereumRPCEndpoint.asVoidSignal(),
+                store.$moneroBackendBaseURL.asVoidSignal()
+            ])
+        )
+    }
 
     private var endpointSections: [AppChainDescriptor] {
         ChainBackendRegistry.endpointCatalogChains
@@ -138,7 +152,13 @@ struct EndpointCatalogSettingsView: View {
             case .ethereum:
                 endpointRows(ethereumEndpoints)
 
-                TextField(copy.customEthereumRPCURLPlaceholder, text: $store.ethereumRPCEndpoint)
+                TextField(
+                    copy.customEthereumRPCURLPlaceholder,
+                    text: Binding(
+                        get: { store.ethereumRPCEndpoint },
+                        set: { store.ethereumRPCEndpoint = $0 }
+                    )
+                )
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
@@ -179,7 +199,13 @@ struct EndpointCatalogSettingsView: View {
             case .monero:
                 endpointRows(moneroEndpoints)
 
-                TextField(copy.customMoneroBackendURLPlaceholder, text: $store.moneroBackendBaseURL)
+                TextField(
+                    copy.customMoneroBackendURLPlaceholder,
+                    text: Binding(
+                        get: { store.moneroBackendBaseURL },
+                        set: { store.moneroBackendBaseURL = $0 }
+                    )
+                )
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)

@@ -218,8 +218,23 @@ enum TronBalanceService {
                 }
 
                 guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let rows = object["data"] as? [[String: Any]],
-                      let account = rows.first else {
+                      let rows = object["data"] as? [[String: Any]] else {
+                    lastError = TronBalanceServiceError.invalidResponse
+                    continue
+                }
+
+                if rows.isEmpty {
+                    let tokenBalances = trackedTokens.map { token in
+                        TronTokenBalanceSnapshot(
+                            symbol: token.symbol,
+                            contractAddress: token.contractAddress,
+                            balance: 0
+                        )
+                    }
+                    return (0, tokenBalances)
+                }
+
+                guard let account = rows.first else {
                     lastError = TronBalanceServiceError.invalidResponse
                     continue
                 }
@@ -436,6 +451,9 @@ enum TronBalanceService {
     }
 
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
-        try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        var request = request
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
+        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
 }

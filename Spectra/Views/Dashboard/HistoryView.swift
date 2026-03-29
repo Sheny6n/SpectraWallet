@@ -21,7 +21,9 @@ private struct HistoryPresentationSection: Identifiable {
 }
 
 struct HistoryView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var portfolioState: WalletPortfolioState
+    @ObservedObject private var transactionState: WalletTransactionState
     @State private var selectedFilter: HistoryFilter = .all
     @State private var selectedSortOrder: HistorySortOrder = .newest
     @State private var selectedWalletID: UUID?
@@ -30,8 +32,15 @@ struct HistoryView: View {
     @State private var pendingScrollToTopToken = UUID()
     @State private var visibleTransactions: [TransactionRecord] = []
     @State private var visibleRows: [HistoryRowPresentation] = []
+    @State private var groupedSectionsCache: [HistoryPresentationSection] = []
 
     private let entriesPerPage = 20
+
+    init(store: WalletStore) {
+        self.store = store
+        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
+        _transactionState = ObservedObject(wrappedValue: store.transactionState)
+    }
     
     var body: some View {
         NavigationStack {
@@ -126,15 +135,18 @@ struct HistoryView: View {
                     }
                 }
             }
-            .navigationTitle("History")
+            .navigationTitle(NSLocalizedString("History", comment: ""))
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {
                 rebuildVisibleTransactions(resetPaging: true)
             }
-            .onReceive(store.transactionState.$transactions.combineLatest(store.transactionState.$normalizedHistoryIndex)) { _ in
+            .onChange(of: transactionState.transactionRevision) { _, _ in
                 rebuildVisibleTransactions()
             }
-            .onReceive(store.portfolioState.$wallets) { _ in
+            .onChange(of: transactionState.normalizedHistoryRevision) { _, _ in
+                rebuildVisibleTransactions()
+            }
+            .onChange(of: portfolioState.walletsRevision) { _, _ in
                 rebuildVisibleTransactions()
             }
             .onChange(of: selectedFilter) { _, _ in
@@ -149,12 +161,15 @@ struct HistoryView: View {
             .onChange(of: searchText) { _, _ in
                 rebuildVisibleTransactions(resetPaging: true)
             }
+            .onChange(of: currentPageIndex) { _, _ in
+                rebuildGroupedSections()
+            }
         }
     }
     
     private var controlsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            TextField("Search wallet, asset, symbol, or address", text: $searchText)
+            TextField(NSLocalizedString("Search wallet, asset, symbol, or address", comment: ""), text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .padding(.horizontal, 14)
@@ -164,44 +179,44 @@ struct HistoryView: View {
             
             HStack(spacing: 10) {
                 Menu {
-                    Picker("Wallet", selection: $selectedWalletID) {
-                        Text("All Wallets").tag(Optional<UUID>.none)
-                        ForEach(store.wallets) { wallet in
+                    Picker(NSLocalizedString("Wallet", comment: ""), selection: $selectedWalletID) {
+                        Text(NSLocalizedString("All Wallets", comment: "")).tag(Optional<UUID>.none)
+                        ForEach(portfolioState.wallets) { wallet in
                             Text(wallet.name).tag(Optional(wallet.id))
                         }
                     }
                 } label: {
                     filterCapsuleLabel(
-                        title: "Wallet",
+                        title: NSLocalizedString("Wallet", comment: ""),
                         value: selectedWalletName,
                         systemImage: "wallet.pass"
                     )
                 }
 
                 Menu {
-                    Picker("Type", selection: $selectedFilter) {
+                    Picker(NSLocalizedString("Type", comment: ""), selection: $selectedFilter) {
                         ForEach(HistoryFilter.allCases) { filter in
-                            Text(filter.rawValue).tag(filter)
+                            Text(filter.localizedTitle).tag(filter)
                         }
                     }
                 } label: {
                     filterCapsuleLabel(
-                        title: "Type",
-                        value: selectedFilter.rawValue,
+                        title: NSLocalizedString("Type", comment: ""),
+                        value: selectedFilter.localizedTitle,
                         systemImage: "line.3.horizontal.decrease.circle"
                     )
                 }
 
                 Menu {
-                    Picker("Sort", selection: $selectedSortOrder) {
+                    Picker(NSLocalizedString("Sort", comment: ""), selection: $selectedSortOrder) {
                         ForEach(HistorySortOrder.allCases) { sortOrder in
-                            Text(sortOrder.rawValue).tag(sortOrder)
+                            Text(sortOrder.localizedTitle).tag(sortOrder)
                         }
                     }
                 } label: {
                     filterCapsuleLabel(
-                        title: "Sort",
-                        value: selectedSortOrder.rawValue,
+                        title: NSLocalizedString("Sort", comment: ""),
+                        value: selectedSortOrder.localizedTitle,
                         systemImage: "arrow.up.arrow.down.circle"
                     )
                 }
@@ -216,7 +231,7 @@ struct HistoryView: View {
 
                     Spacer()
 
-                    Button("Clear Filters") {
+                    Button(NSLocalizedString("Clear Filters", comment: "")) {
                         selectedWalletID = nil
                         selectedFilter = .all
                         selectedSortOrder = .newest
@@ -256,6 +271,10 @@ struct HistoryView: View {
     }
     
     private var groupedSections: [HistoryPresentationSection] {
+        groupedSectionsCache
+    }
+
+    private func rebuildGroupedSections() {
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: pagedRows) { row in
             if calendar.isDateInToday(row.transaction.createdAt) {
@@ -285,7 +304,7 @@ struct HistoryView: View {
             ]
         }
         
-        return order.compactMap { title in
+        groupedSectionsCache = order.compactMap { title in
             guard let rows = grouped[title], !rows.isEmpty else {
                 return nil
             }
@@ -297,11 +316,11 @@ struct HistoryView: View {
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
         let rebuiltTransactions: [TransactionRecord]
-        if store.wallets.isEmpty {
+        if portfolioState.wallets.isEmpty {
             rebuiltTransactions = []
         } else {
             let transactionByID = store.cachedTransactionByID
-            let filteredTransactions: [TransactionRecord] = store.normalizedHistoryIndex.compactMap { entry in
+            let filteredTransactions: [TransactionRecord] = transactionState.normalizedHistoryIndex.compactMap { entry in
                 guard let transaction = transactionByID[entry.transactionID] else {
                     return nil
                 }
@@ -337,6 +356,7 @@ struct HistoryView: View {
 
         visibleTransactions = rebuiltTransactions
         visibleRows = rebuiltTransactions.map(historyRowPresentation)
+        rebuildGroupedSections()
 
         if resetPaging {
             currentPageIndex = 0
@@ -402,16 +422,16 @@ struct HistoryView: View {
     }
     
     private var emptyStateTitle: String {
-        store.normalizedHistoryIndex.isEmpty
+        transactionState.normalizedHistoryIndex.isEmpty
             ? NSLocalizedString("No activity yet", comment: "")
             : NSLocalizedString("No matches found", comment: "")
     }
     
     private var emptyStateMessage: String {
-        if store.wallets.isEmpty {
+        if portfolioState.wallets.isEmpty {
             return NSLocalizedString("No wallets are currently loaded. Import a wallet to view activity.", comment: "")
         }
-        if store.normalizedHistoryIndex.isEmpty {
+        if transactionState.normalizedHistoryIndex.isEmpty {
             return NSLocalizedString("Send funds or receive funds to build a persistent transaction log.", comment: "")
         }
         return NSLocalizedString("Try a different filter or search term.", comment: "")

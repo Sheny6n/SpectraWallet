@@ -3,6 +3,7 @@ import PhotosUI
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import Combine
 
 private func localizedSettingsString(_ key: String) -> String {
     AppLocalization.string(key)
@@ -14,8 +15,23 @@ private func localizedSettingsFormat(_ key: String, _ arguments: CVarArg...) -> 
 }
 
 struct PricingSettingsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
     private var copy: SettingsContentCopy { .current }
+
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$pricingProvider.asVoidSignal(),
+                store.$selectedFiatCurrency.asVoidSignal(),
+                store.$fiatRateProvider.asVoidSignal(),
+                store.$coinGeckoAPIKey.asVoidSignal(),
+                store.$quoteRefreshError.asVoidSignal(),
+                store.$fiatRatesRefreshError.asVoidSignal()
+            ])
+        )
+    }
     
     var body: some View {
         Form {
@@ -26,7 +42,10 @@ struct PricingSettingsView: View {
             }
             
             Section(localizedSettingsString("Provider")) {
-                Picker(selection: $store.pricingProvider) {
+                Picker(selection: Binding(
+                    get: { store.pricingProvider },
+                    set: { store.pricingProvider = $0 }
+                )) {
                     ForEach(PricingProvider.allCases) { provider in
                         Text(provider.rawValue).tag(provider)
                     }
@@ -38,7 +57,10 @@ struct PricingSettingsView: View {
             }
 
             Section(localizedSettingsString("Display Currency")) {
-                Picker(localizedSettingsString("Currency"), selection: $store.selectedFiatCurrency) {
+                Picker(localizedSettingsString("Currency"), selection: Binding(
+                    get: { store.selectedFiatCurrency },
+                    set: { store.selectedFiatCurrency = $0 }
+                )) {
                     ForEach(FiatCurrency.allCases) { currency in
                         Text(currency.displayName).tag(currency)
                     }
@@ -47,7 +69,10 @@ struct PricingSettingsView: View {
             }
 
             Section(localizedSettingsString("Fiat Rate Provider")) {
-                Picker(localizedSettingsString("Provider"), selection: $store.fiatRateProvider) {
+                Picker(localizedSettingsString("Provider"), selection: Binding(
+                    get: { store.fiatRateProvider },
+                    set: { store.fiatRateProvider = $0 }
+                )) {
                     ForEach(FiatRateProvider.allCases) { provider in
                         Text(provider.rawValue).tag(provider)
                     }
@@ -60,7 +85,13 @@ struct PricingSettingsView: View {
             
             if store.pricingProvider == .coinGecko {
                 Section(localizedSettingsString("CoinGecko")) {
-                    TextField(localizedSettingsString("CoinGecko Pro API Key (Optional)"), text: $store.coinGeckoAPIKey)
+                    TextField(
+                        localizedSettingsString("CoinGecko Pro API Key (Optional)"),
+                        text: Binding(
+                            get: { store.coinGeckoAPIKey },
+                            set: { store.coinGeckoAPIKey = $0 }
+                        )
+                    )
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     Text(copy.coinGeckoNote)
@@ -96,12 +127,26 @@ struct PricingSettingsView: View {
 }
 
 struct PriceAlertsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var portfolioState: WalletPortfolioState
+    @StateObject private var refreshSignal: ViewRefreshSignal
     
     @State private var selectedHoldingKey: String = ""
     @State private var selectedCondition: PriceAlertCondition = .above
     @State private var targetPriceText: String = ""
     @State private var formMessage: String?
+
+    init(store: WalletStore) {
+        self.store = store
+        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$usePriceAlerts.asVoidSignal(),
+                store.$priceAlerts.asVoidSignal(),
+                store.$selectedFiatCurrency.asVoidSignal()
+            ])
+        )
+    }
     
     private var alertableHoldingKeys: Set<String> {
         Set(store.alertableCoins.map(\.holdingKey))
@@ -120,7 +165,13 @@ struct PriceAlertsView: View {
             }
             
             Section(localizedSettingsString("Notifications")) {
-                Toggle(localizedSettingsString("Enable Price Alerts"), isOn: $store.usePriceAlerts)
+                Toggle(
+                    localizedSettingsString("Enable Price Alerts"),
+                    isOn: Binding(
+                        get: { store.usePriceAlerts },
+                        set: { store.usePriceAlerts = $0 }
+                    )
+                )
                 Text(localizedSettingsString("You can keep rules configured even when alerts are disabled. Re-enable this later to resume notifications."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -221,7 +272,7 @@ struct PriceAlertsView: View {
         .onAppear {
             syncSelection()
         }
-        .onChange(of: store.alertableCoins.map(\.holdingKey).joined(separator: "|")) { _, _ in
+        .onChange(of: portfolioState.walletsRevision) { _, _ in
             syncSelection()
         }
     }
@@ -291,7 +342,8 @@ struct PriceAlertsView: View {
 }
 
 struct AddressBookView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
 
     @State private var contactName: String = ""
     @State private var selectedChainName: String = "Bitcoin"
@@ -301,6 +353,15 @@ struct AddressBookView: View {
     @State private var editingEntry: AddressBookEntry?
     @State private var editedName: String = ""
     @State private var copiedEntryID: UUID?
+
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$addressBook.asVoidSignal()
+            ])
+        )
+    }
 
     private let supportedChains = ["Bitcoin", "Litecoin", "Dogecoin", "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid", "Tron", "Solana", "Cardano", "XRP Ledger", "Monero", "Sui", "Aptos", "TON", "Internet Computer", "NEAR", "Polkadot", "Stellar"]
 
@@ -652,7 +713,17 @@ struct AboutView: View {
 }
 
 struct BackgroundSyncSettingsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
+
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$automaticRefreshFrequencyMinutes.asVoidSignal()
+            ])
+        )
+    }
 
     var body: some View {
         Form {
@@ -660,7 +731,10 @@ struct BackgroundSyncSettingsView: View {
                 Text(localizedSettingsString("Choose how often Spectra refreshes balances automatically while the app is active."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Stepper(value: $store.automaticRefreshFrequencyMinutes, in: 5...60, step: 5) {
+                Stepper(value: Binding(
+                    get: { store.automaticRefreshFrequencyMinutes },
+                    set: { store.automaticRefreshFrequencyMinutes = $0 }
+                ), in: 5...60, step: 5) {
                     LabeledContent(localizedSettingsString("Active app refresh"), value: "\(store.automaticRefreshFrequencyMinutes) min")
                 }
             }
@@ -697,12 +771,26 @@ struct BackgroundSyncSettingsView: View {
 }
 
 struct ChainFeePrioritySettingsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
+
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$bitcoinFeePriority.asVoidSignal(),
+                store.$dogecoinFeePriority.asVoidSignal()
+            ])
+        )
+    }
 
     var body: some View {
         Form {
             Section(localizedSettingsString("Bitcoin")) {
-                Picker(localizedSettingsString("Default Fee Priority"), selection: $store.bitcoinFeePriority) {
+                Picker(localizedSettingsString("Default Fee Priority"), selection: Binding(
+                    get: { store.bitcoinFeePriority },
+                    set: { store.bitcoinFeePriority = $0 }
+                )) {
                     ForEach(BitcoinFeePriority.allCases) { priority in
                         Text(priority.displayName).tag(priority)
                     }
@@ -714,7 +802,10 @@ struct ChainFeePrioritySettingsView: View {
             }
 
             Section(localizedSettingsString("Dogecoin")) {
-                Picker(localizedSettingsString("Dogecoin Default Fee"), selection: $store.dogecoinFeePriority) {
+                Picker(localizedSettingsString("Dogecoin Default Fee"), selection: Binding(
+                    get: { store.dogecoinFeePriority },
+                    set: { store.dogecoinFeePriority = $0 }
+                )) {
                     Text(localizedSettingsString("Economy")).tag(DogecoinWalletEngine.FeePriority.economy)
                     Text(localizedSettingsString("Normal")).tag(DogecoinWalletEngine.FeePriority.normal)
                     Text(localizedSettingsString("Priority")).tag(DogecoinWalletEngine.FeePriority.priority)
@@ -759,8 +850,21 @@ struct ChainFeePrioritySettingsView: View {
 }
 
 struct SettingsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var isShowingResetWalletWarning: Bool = false
+
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$hideBalances.asVoidSignal(),
+                store.$useTransactionStatusNotifications.asVoidSignal(),
+                store.$useFaceID.asVoidSignal(),
+                store.$useAutoLock.asVoidSignal()
+            ])
+        )
+    }
 
     private enum Route: Hashable {
         case addressBook
@@ -804,7 +908,10 @@ struct SettingsView: View {
                         Label(localizedSettingsString("Icon Styles"), systemImage: "photo.on.rectangle")
                     }
 
-                    Toggle(isOn: $store.hideBalances) {
+                    Toggle(isOn: Binding(
+                        get: { store.hideBalances },
+                        set: { store.hideBalances = $0 }
+                    )) {
                         Label(localizedSettingsString("Hide balances"), systemImage: "eye.slash")
                     }
 
@@ -824,7 +931,10 @@ struct SettingsView: View {
                         Label(localizedSettingsString("Price Alerts"), systemImage: "bell.badge")
                     }
 
-                    Toggle(isOn: $store.useTransactionStatusNotifications) {
+                    Toggle(isOn: Binding(
+                        get: { store.useTransactionStatusNotifications },
+                        set: { store.useTransactionStatusNotifications = $0 }
+                    )) {
                         Label(localizedSettingsString("Transaction Status Updates"), systemImage: "clock.badge.checkmark")
                     }
 
@@ -834,10 +944,16 @@ struct SettingsView: View {
                 }
 
                 Section(localizedSettingsString("Security & Privacy")) {
-                    Toggle(isOn: $store.useFaceID) {
+                    Toggle(isOn: Binding(
+                        get: { store.useFaceID },
+                        set: { store.useFaceID = $0 }
+                    )) {
                         Label(localizedSettingsString("Use Face ID"), systemImage: "faceid")
                     }
-                    Toggle(isOn: $store.useAutoLock) {
+                    Toggle(isOn: Binding(
+                        get: { store.useAutoLock },
+                        set: { store.useAutoLock = $0 }
+                    )) {
                         Label(localizedSettingsString("Auto Lock"), systemImage: "lock")
                     }
                     .disabled(!store.useFaceID)
@@ -1035,19 +1151,54 @@ struct BuyCryptoHelpView: View {
 }
 
 struct AdvancedSettingsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var isRunningMaintenance = false
     @State private var maintenanceNotice: String?
     @State private var isShowingDiagnosticsImporter = false
     @State private var isShowingDiagnosticsExportsBrowser = false
     @State private var lastExportedDiagnosticsURL: URL?
 
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$requireBiometricForSendActions.asVoidSignal(),
+                store.$dogecoinAllowTestnet.asVoidSignal(),
+                store.$useStrictRPCOnly.asVoidSignal(),
+                store.$bitcoinHistoryFetchLimit.asVoidSignal(),
+                store.$litecoinHistoryFetchLimit.asVoidSignal(),
+                store.$dogecoinHistoryFetchLimit.asVoidSignal(),
+                store.$ethereumTokenHistoryFetchLimit.asVoidSignal(),
+                store.$moneroHistoryFetchLimit.asVoidSignal()
+            ])
+        )
+    }
+
     var body: some View {
         Form {
             Section(localizedSettingsString("Security")) {
-                Toggle(localizedSettingsString("Biometric Confirmation For Send Actions"), isOn: $store.requireBiometricForSendActions)
-                Toggle(localizedSettingsString("Allow Dogecoin Testnet"), isOn: $store.dogecoinAllowTestnet)
-                Toggle(localizedSettingsString("Strict RPC Only (Disable Ledger Fallback)"), isOn: $store.useStrictRPCOnly)
+                Toggle(
+                    localizedSettingsString("Biometric Confirmation For Send Actions"),
+                    isOn: Binding(
+                        get: { store.requireBiometricForSendActions },
+                        set: { store.requireBiometricForSendActions = $0 }
+                    )
+                )
+                Toggle(
+                    localizedSettingsString("Allow Dogecoin Testnet"),
+                    isOn: Binding(
+                        get: { store.dogecoinAllowTestnet },
+                        set: { store.dogecoinAllowTestnet = $0 }
+                    )
+                )
+                Toggle(
+                    localizedSettingsString("Strict RPC Only (Disable Ledger Fallback)"),
+                    isOn: Binding(
+                        get: { store.useStrictRPCOnly },
+                        set: { store.useStrictRPCOnly = $0 }
+                    )
+                )
                 Text(localizedSettingsString("When enabled, balances only come from live RPC responses."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1066,11 +1217,26 @@ struct AdvancedSettingsView: View {
             }
 
             Section(localizedSettingsString("Performance Tuning")) {
-                Stepper(localizedSettingsFormat("Bitcoin History Page Size: %lld", store.bitcoinHistoryFetchLimit), value: $store.bitcoinHistoryFetchLimit, in: 10 ... 200, step: 10)
-                Stepper(localizedSettingsFormat("Litecoin History Page Size: %lld", store.litecoinHistoryFetchLimit), value: $store.litecoinHistoryFetchLimit, in: 10 ... 200, step: 10)
-                Stepper(localizedSettingsFormat("Dogecoin History Page Size: %lld", store.dogecoinHistoryFetchLimit), value: $store.dogecoinHistoryFetchLimit, in: 10 ... 200, step: 10)
-                Stepper(localizedSettingsFormat("Ethereum Token History Page Size: %lld", store.ethereumTokenHistoryFetchLimit), value: $store.ethereumTokenHistoryFetchLimit, in: 50 ... 500, step: 25)
-                Stepper(localizedSettingsFormat("Monero History Page Size: %lld", store.moneroHistoryFetchLimit), value: $store.moneroHistoryFetchLimit, in: 20 ... 300, step: 10)
+                Stepper(localizedSettingsFormat("Bitcoin History Page Size: %lld", store.bitcoinHistoryFetchLimit), value: Binding(
+                    get: { store.bitcoinHistoryFetchLimit },
+                    set: { store.bitcoinHistoryFetchLimit = $0 }
+                ), in: 10 ... 200, step: 10)
+                Stepper(localizedSettingsFormat("Litecoin History Page Size: %lld", store.litecoinHistoryFetchLimit), value: Binding(
+                    get: { store.litecoinHistoryFetchLimit },
+                    set: { store.litecoinHistoryFetchLimit = $0 }
+                ), in: 10 ... 200, step: 10)
+                Stepper(localizedSettingsFormat("Dogecoin History Page Size: %lld", store.dogecoinHistoryFetchLimit), value: Binding(
+                    get: { store.dogecoinHistoryFetchLimit },
+                    set: { store.dogecoinHistoryFetchLimit = $0 }
+                ), in: 10 ... 200, step: 10)
+                Stepper(localizedSettingsFormat("Ethereum Token History Page Size: %lld", store.ethereumTokenHistoryFetchLimit), value: Binding(
+                    get: { store.ethereumTokenHistoryFetchLimit },
+                    set: { store.ethereumTokenHistoryFetchLimit = $0 }
+                ), in: 50 ... 500, step: 25)
+                Stepper(localizedSettingsFormat("Monero History Page Size: %lld", store.moneroHistoryFetchLimit), value: Binding(
+                    get: { store.moneroHistoryFetchLimit },
+                    set: { store.moneroHistoryFetchLimit = $0 }
+                ), in: 20 ... 300, step: 10)
             }
 
             Section(localizedSettingsString("Quick Maintenance")) {
@@ -1297,7 +1463,7 @@ struct AdvancedSettingsView: View {
 }
 
 struct DiagnosticsExportsBrowserView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
     @Environment(\.dismiss) private var dismiss
     @State private var exportURLs: [URL] = []
 
@@ -1358,12 +1524,27 @@ struct DiagnosticsExportsBrowserView: View {
 }
 
 struct LargeMovementAlertsSettingsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
+
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$useLargeMovementNotifications.asVoidSignal(),
+                store.$largeMovementAlertPercentThreshold.asVoidSignal(),
+                store.$largeMovementAlertUSDThreshold.asVoidSignal()
+            ])
+        )
+    }
 
     var body: some View {
         Form {
             Section(localizedSettingsString("Notifications")) {
-                Toggle(isOn: $store.useLargeMovementNotifications) {
+                Toggle(isOn: Binding(
+                    get: { store.useLargeMovementNotifications },
+                    set: { store.useLargeMovementNotifications = $0 }
+                )) {
                     Label(localizedSettingsString("Large Portfolio Movement Alerts"), systemImage: "chart.line.uptrend.xyaxis")
                 }
                 Text(
@@ -1381,14 +1562,20 @@ struct LargeMovementAlertsSettingsView: View {
                         format: NSLocalizedString("Large movement threshold: %@", comment: ""),
                         (store.largeMovementAlertPercentThreshold / 100).formatted(.percent.precision(.fractionLength(0)))
                     ),
-                    value: $store.largeMovementAlertPercentThreshold,
+                    value: Binding(
+                        get: { store.largeMovementAlertPercentThreshold },
+                        set: { store.largeMovementAlertPercentThreshold = $0 }
+                    ),
                     in: 1 ... 90,
                     step: 1
                 )
                 .disabled(!store.useLargeMovementNotifications)
                 Stepper(
                     localizedSettingsFormat("Large movement minimum: %lld USD", Int(store.largeMovementAlertUSDThreshold)),
-                    value: $store.largeMovementAlertUSDThreshold,
+                    value: Binding(
+                        get: { store.largeMovementAlertUSDThreshold },
+                        set: { store.largeMovementAlertUSDThreshold = $0 }
+                    ),
                     in: 1 ... 100_000,
                     step: 5
                 )
@@ -1416,7 +1603,8 @@ private enum TokenRegistryGrouping {
 }
 
 struct TokenRegistrySettingsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
 
     private enum TokenRegistryChainFilter: CaseIterable, Identifiable {
         case all
@@ -1520,6 +1708,15 @@ struct TokenRegistrySettingsView: View {
     @State private var searchText: String = ""
     @State private var chainFilter: TokenRegistryChainFilter = .all
     @State private var sourceFilter: TokenRegistrySourceFilter = .all
+
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$tokenPreferences.asVoidSignal()
+            ])
+        )
+    }
 
     var body: some View {
         Form {
@@ -1689,7 +1886,7 @@ struct TokenRegistrySettingsView: View {
 }
 
 struct TokenRegistryDetailView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
     let groupKey: String
 
     private var groupEntries: [TokenPreferenceEntry] {
@@ -1752,7 +1949,7 @@ struct TokenRegistryDetailView: View {
 }
 
 struct AddCustomTokenView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
 
     @State private var selectedChain: TokenTrackingChain = .ethereum
     @State private var symbolInput: String = ""
@@ -1831,7 +2028,8 @@ struct AddCustomTokenView: View {
 }
 
 struct DecimalDisplaySettingsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var searchText: String = ""
 
     private let decimalExamples: [(symbol: String, chainName: String)] = [
@@ -1857,6 +2055,16 @@ struct DecimalDisplaySettingsView: View {
         ("DOT", "Polkadot"),
         ("XLM", "Stellar"),
     ]
+
+    init(store: WalletStore) {
+        self.store = store
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$assetDisplayDecimalsByChain.asVoidSignal(),
+                store.$tokenPreferences.asVoidSignal()
+            ])
+        )
+    }
 
     var body: some View {
         Form {
@@ -2123,12 +2331,20 @@ struct DecimalDisplaySettingsView: View {
 }
 
 struct LogsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var diagnosticsState: WalletDiagnosticsState
     @State private var searchText: String = ""
     @State private var selectedLevelFilter: LogLevelFilter = .all
     private let allCategoryFilter = "__all__"
     @State private var selectedCategoryFilter: String = "__all__"
     @State private var copiedNotice: String?
+    @State private var cachedAvailableCategories: [String] = ["__all__"]
+    @State private var cachedFilteredLogs: [WalletStore.OperationalLogEvent] = []
+
+    init(store: WalletStore) {
+        self.store = store
+        _diagnosticsState = ObservedObject(wrappedValue: store.diagnostics)
+    }
 
     private enum LogLevelFilter: CaseIterable, Identifiable {
         case all
@@ -2156,12 +2372,22 @@ struct LogsView: View {
     }
 
     private var availableCategories: [String] {
-        let categories = Set(store.operationalLogs.map { $0.category })
-        return [allCategoryFilter] + categories.sorted()
+        cachedAvailableCategories
     }
 
     private var filteredLogs: [WalletStore.OperationalLogEvent] {
-        store.operationalLogs.filter { event in
+        cachedFilteredLogs
+    }
+
+    private func rebuildLogPresentation() {
+        let categories = Set(diagnosticsState.operationalLogs.map { $0.category })
+        cachedAvailableCategories = [allCategoryFilter] + categories.sorted()
+        if selectedCategoryFilter != allCategoryFilter,
+           !cachedAvailableCategories.contains(selectedCategoryFilter) {
+            selectedCategoryFilter = allCategoryFilter
+        }
+
+        cachedFilteredLogs = diagnosticsState.operationalLogs.filter { event in
             let levelMatches: Bool
             switch selectedLevelFilter {
             case .all:
@@ -2307,6 +2533,21 @@ struct LogsView: View {
         }
         .navigationTitle(localizedSettingsString("Logs"))
         .searchable(text: $searchText, prompt: localizedSettingsString("Search message, chain, tx hash, wallet"))
+        .onAppear {
+            rebuildLogPresentation()
+        }
+        .onChange(of: diagnosticsState.operationalLogsRevision) { _, _ in
+            rebuildLogPresentation()
+        }
+        .onChange(of: selectedLevelFilter) { _, _ in
+            rebuildLogPresentation()
+        }
+        .onChange(of: selectedCategoryFilter) { _, _ in
+            rebuildLogPresentation()
+        }
+        .onChange(of: searchText) { _, _ in
+            rebuildLogPresentation()
+        }
         .onChange(of: copiedNotice) { _, newValue in
             guard newValue != nil else { return }
             Task { @MainActor in
@@ -2326,7 +2567,7 @@ struct LogsView: View {
                 Button(localizedSettingsString("Clear"), role: .destructive) {
                     store.clearOperationalLogs()
                 }
-                .disabled(store.operationalLogs.isEmpty)
+                .disabled(diagnosticsState.operationalLogs.isEmpty)
             }
         }
     }
@@ -2359,7 +2600,7 @@ struct LogsView: View {
 }
 
 struct ResetWalletWarningView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
     @Environment(\.dismiss) private var dismiss
     @State private var selectedScopes = Set(WalletStore.ResetScope.allCases)
 
@@ -2507,10 +2748,19 @@ struct TokenIconSettingsView: View {
 }
 
 struct MainTabView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var runtimeState: WalletRuntimeState
+
+    init(store: WalletStore) {
+        self.store = store
+        _runtimeState = ObservedObject(wrappedValue: store.runtimeState)
+    }
 
     private var selectedMainTabBinding: Binding<MainAppTab> {
-        Binding(get: { store.selectedMainTab }, set: { store.selectedMainTab = $0 })
+        Binding(
+            get: { runtimeState.selectedMainTab },
+            set: { runtimeState.selectedMainTab = $0 }
+        )
     }
     
     var body: some View {

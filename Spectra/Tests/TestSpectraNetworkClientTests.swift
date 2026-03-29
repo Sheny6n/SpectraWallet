@@ -325,10 +325,11 @@ final class ICPSupportTests: XCTestCase {
 
 @MainActor
 final class TronDerivationSupportTests: XCTestCase {
-    func testTronDerivationPresetsIncludeLegacyEthereumStylePath() throws {
+    func testTronDerivationPresetsIncludeLegacyVariants() throws {
         let presets = SeedDerivationChain.tron.presetOptions
 
         XCTAssertEqual(presets.first?.path, "m/44'/195'/0'/0/0")
+        XCTAssertTrue(presets.contains { $0.title == "Simple BIP44" && $0.path == "m/44'/195'/0'" })
         XCTAssertTrue(presets.contains { $0.title == "Legacy" && $0.path == "m/44'/60'/0'/0/0" })
     }
 
@@ -336,6 +337,14 @@ final class TronDerivationSupportTests: XCTestCase {
         let resolution = SeedDerivationChain.tron.resolve(path: "m/44'/60'/0'/0/0")
 
         XCTAssertEqual(resolution.normalizedPath, "m/44'/60'/0'/0/0")
+        XCTAssertEqual(resolution.accountIndex, 0)
+        XCTAssertEqual(resolution.flavor, .legacy)
+    }
+
+    func testTronSimpleBIP44PathResolvesAsLegacyFlavor() {
+        let resolution = SeedDerivationChain.tron.resolve(path: "m/44'/195'/0'")
+
+        XCTAssertEqual(resolution.normalizedPath, "m/44'/195'/0'")
         XCTAssertEqual(resolution.accountIndex, 0)
         XCTAssertEqual(resolution.flavor, .legacy)
     }
@@ -355,5 +364,22 @@ final class BitcoinCashDerivationSupportTests: XCTestCase {
         XCTAssertEqual(resolution.normalizedPath, "m/0")
         XCTAssertEqual(resolution.accountIndex, 0)
         XCTAssertEqual(resolution.flavor, .electrumLegacy)
+    }
+}
+
+@MainActor
+final class XRPDerivationSupportTests: XCTestCase {
+    func testXRPPresetsIncludeSimpleBIP44Path() {
+        let presets = SeedDerivationChain.xrp.presetOptions
+
+        XCTAssertTrue(presets.contains { $0.title == "Simple BIP44" && $0.path == "m/44'/144'/0'" })
+    }
+
+    func testXRPSimpleBIP44PathResolvesAsLegacyFlavor() {
+        let resolution = SeedDerivationChain.xrp.resolve(path: "m/44'/144'/0'")
+
+        XCTAssertEqual(resolution.normalizedPath, "m/44'/144'/0'")
+        XCTAssertEqual(resolution.accountIndex, 0)
+        XCTAssertEqual(resolution.flavor, .legacy)
     }
 }

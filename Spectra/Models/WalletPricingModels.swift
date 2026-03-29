@@ -248,10 +248,7 @@ enum LivePriceService {
         guard let url = URL(string: ChainBackendRegistry.MarketDataRegistry.binanceTickerPriceURL) else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
+        let data = try await fetchMarketData(from: url)
         let decoded = try JSONDecoder().decode([BinanceTickerPriceResponse].self, from: data)
         let priceBySymbol: [String: Double] = Dictionary(uniqueKeysWithValues: decoded.compactMap { ticker -> (String, Double)? in
             guard let price = Double(ticker.price), price > 0 else { return nil }
@@ -275,10 +272,7 @@ enum LivePriceService {
         guard let url = URL(string: ChainBackendRegistry.MarketDataRegistry.coinbaseExchangeRatesURL) else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
+        let data = try await fetchMarketData(from: url)
         let decoded = try JSONDecoder().decode(CoinbaseExchangeRatesEnvelope.self, from: data)
 
         var resolved = stable
@@ -299,10 +293,7 @@ enum LivePriceService {
         guard let url = URL(string: ChainBackendRegistry.MarketDataRegistry.coinPaprikaTickersURL) else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
+        let data = try await fetchMarketData(from: url)
         let decoded = try JSONDecoder().decode([CoinPaprikaTicker].self, from: data)
 
         let byID = Dictionary(uniqueKeysWithValues: decoded.map { ($0.id, $0) })
@@ -337,12 +328,10 @@ enum LivePriceService {
         guard let url = URL(string: ChainBackendRegistry.MarketDataRegistry.coinLoreTickersURL) else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await URLSession.shared.data(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
+        let data = try await fetchMarketData(from: url)
         let decoded = try JSONDecoder().decode(CoinLoreTickersResponse.self, from: data)
 
+        let byNameID = Dictionary(uniqueKeysWithValues: decoded.data.map { ($0.nameid.lowercased(), $0) })
         var bySymbol: [String: CoinLoreTicker] = [:]
         for ticker in decoded.data {
             let symbol = ticker.symbol.uppercased()
@@ -353,7 +342,9 @@ enum LivePriceService {
 
         var resolved = stable
         for coin in coins where resolved[coin.holdingKey] == nil {
-            guard let ticker = bySymbol[coin.symbol.uppercased()],
+            let geckoID = coin.coinGeckoID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let ticker = byNameID[coinLoreNameID(for: geckoID)] ?? bySymbol[coin.symbol.uppercased()]
+            guard let ticker,
                   let price = Double(ticker.priceUSD),
                   price > 0 else {
                 continue
@@ -386,19 +377,21 @@ enum LivePriceService {
             "optimism": "op-optimism",
             "binancecoin": "bnb-binance-coin",
             "bitcoin-cash": "bch-bitcoin-cash",
+            "bitcoin-cash-sv": "bsv-bitcoin-sv",
             "litecoin": "ltc-litecoin",
             "dogecoin": "doge-dogecoin",
             "cardano": "ada-cardano",
             "solana": "sol-solana",
             "tron": "trx-tron",
             "stellar": "xlm-stellar",
+            "ripple": "xrp-xrp",
             "xrp": "xrp-xrp",
             "monero": "xmr-monero",
             "ethereum-classic": "etc-ethereum-classic",
             "sui": "sui-sui",
             "internet-computer": "icp-internet-computer",
             "near": "near-near-protocol",
-            "polkadot": "dot-polkadot",
+            "polkadot": "dot-polkadot-token",
             "hyperliquid": "hype-hyperliquid",
             "tether": "usdt-tether",
             "usd-coin": "usdc-usd-coin",
@@ -443,6 +436,7 @@ enum LivePriceService {
             "SUI": "sui-sui",
             "ICP": "icp-internet-computer",
             "NEAR": "near-near-protocol",
+            "DOT": "dot-polkadot-token",
             "HYPE": "hype-hyperliquid",
             "USDT": "usdt-tether",
             "USDC": "usdc-usd-coin",
@@ -458,6 +452,34 @@ enum LivePriceService {
             "USDG": "usdg-global-dollar"
         ]
         return idBySymbol[symbol]
+    }
+
+    private static func coinLoreNameID(for coinGeckoID: String) -> String {
+        let nameIDByGeckoID: [String: String] = [
+            "bitcoin": "bitcoin",
+            "bitcoin-cash-sv": "bitcoin-cash-sv",
+            "polkadot": "polkadot",
+            "stellar": "stellar",
+            "tron": "tron",
+            "ripple": "ripple",
+            "xrp": "ripple"
+        ]
+        return nameIDByGeckoID[coinGeckoID] ?? coinGeckoID
+    }
+
+    private static func fetchMarketData(from url: URL) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await SpectraNetworkRouter.shared.data(
+            for: request,
+            profile: .chainRead
+        )
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200 ..< 300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return data
     }
 }
 

@@ -67,6 +67,9 @@ enum StellarBalanceService {
                 }
                 return decimalToDouble(balance)
             } catch {
+                if isMissingAccountError(error) {
+                    return 0
+                }
                 lastError = error
             }
         }
@@ -102,6 +105,17 @@ enum StellarBalanceService {
                     )
                 )
             } catch {
+                if isMissingAccountError(error) {
+                    return (
+                        [],
+                        StellarHistoryDiagnostics(
+                            address: normalized,
+                            sourceUsed: endpoint,
+                            transactionCount: 0,
+                            error: nil
+                        )
+                    )
+                }
                 lastError = error.localizedDescription
             }
         }
@@ -145,7 +159,7 @@ enum StellarBalanceService {
         for endpoint in horizonEndpoints {
             guard let url = URL(string: "\(endpoint)/fee_stats") else { continue }
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                let (data, response) = try await fetchData(from: url)
                 guard let http = response as? HTTPURLResponse else {
                     throw StellarBalanceServiceError.invalidResponse
                 }
@@ -182,7 +196,7 @@ enum StellarBalanceService {
                 request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
                 let encodedEnvelope = trimmedEnvelope.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmedEnvelope
                 request.httpBody = "tx=\(encodedEnvelope)".data(using: .utf8)
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+                let (data, response) = try await fetchData(for: request, profile: .chainWrite)
                 guard let http = response as? HTTPURLResponse else {
                     throw StellarBalanceServiceError.invalidResponse
                 }
@@ -280,12 +294,27 @@ enum StellarBalanceService {
         address.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
+        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+    }
+
+    private static func fetchData(for request: URLRequest, profile: NetworkRetryProfile) async throws -> (Data, URLResponse) {
+        var request = request
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
+        return try await SpectraNetworkRouter.shared.data(for: request, profile: profile)
+    }
+
     private static func fetchAccount(address: String, endpoint: String) async throws -> AccountResponse {
         guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(endpoint)/accounts/\(encoded)") else {
             throw StellarBalanceServiceError.invalidResponse
         }
-        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        let (data, response) = try await fetchData(from: url)
         guard let http = response as? HTTPURLResponse else {
             throw StellarBalanceServiceError.invalidResponse
         }
@@ -300,7 +329,7 @@ enum StellarBalanceService {
               let url = URL(string: "\(endpoint)/accounts/\(encoded)/payments?order=desc&limit=\(limit)&include_failed=false") else {
             throw StellarBalanceServiceError.invalidResponse
         }
-        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        let (data, response) = try await fetchData(from: url)
         guard let http = response as? HTTPURLResponse else {
             throw StellarBalanceServiceError.invalidResponse
         }
@@ -394,6 +423,13 @@ enum StellarBalanceService {
 
     private static func decimalToDouble(_ value: Decimal) -> Double {
         NSDecimalNumber(decimal: value).doubleValue
+    }
+
+    private static func isMissingAccountError(_ error: Error) -> Bool {
+        guard case StellarBalanceServiceError.httpError(let code) = error else {
+            return false
+        }
+        return code == 404
     }
 
     static func stroops(fromXLM amount: Double) throws -> Int64 {

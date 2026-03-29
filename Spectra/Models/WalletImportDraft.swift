@@ -12,6 +12,10 @@ enum WalletSecretImportMode: String, CaseIterable, Identifiable {
     case privateKey = "Private Key"
 
     var id: String { rawValue }
+
+    var localizedTitle: String {
+        String(localized: LocalizedStringResource(stringLiteral: rawValue))
+    }
 }
 
 @MainActor
@@ -410,7 +414,7 @@ final class WalletImportDraft: ObservableObject {
         if backupVerificationWordIndices.isEmpty {
             return "Generate a backup verification challenge to continue."
         }
-        return "Confirm your backup by entering the requested words."
+        return ""
     }
 
     var unsupportedSelectedChainNames: [String] {

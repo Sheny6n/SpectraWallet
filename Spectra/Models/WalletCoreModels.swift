@@ -353,6 +353,11 @@ enum SeedDerivationChain: String, CaseIterable, Codable, Identifiable {
                     path: defaultPath
                 ),
                 SeedDerivationPathPreset(
+                    title: "Legacy",
+                    detail: "m/44'/0'/0'/0/0",
+                    path: "m/44'/0'/0'/0/0"
+                ),
+                SeedDerivationPathPreset(
                     title: "Electrum Legacy",
                     detail: "m/0",
                     path: "m/0"
@@ -392,9 +397,27 @@ enum SeedDerivationChain: String, CaseIterable, Codable, Identifiable {
                     path: defaultPath
                 ),
                 SeedDerivationPathPreset(
+                    title: "Simple BIP44",
+                    detail: "m/44'/195'/0'",
+                    path: "m/44'/195'/0'"
+                ),
+                SeedDerivationPathPreset(
                     title: "Legacy",
                     detail: "m/44'/60'/0'/0/0",
                     path: "m/44'/60'/0'/0/0"
+                ),
+            ]
+        case .xrp:
+            return [
+                SeedDerivationPathPreset(
+                    title: "Standard",
+                    detail: "m/44'/144'/0'/0/0",
+                    path: defaultPath
+                ),
+                SeedDerivationPathPreset(
+                    title: "Simple BIP44",
+                    detail: "m/44'/144'/0'",
+                    path: "m/44'/144'/0'"
                 ),
             ]
         default:
@@ -489,6 +512,8 @@ extension SeedDerivationChain {
             switch normalizedPath {
             case "m/0":
                 return .electrumLegacy
+            case let path where path.hasPrefix("m/44'/0'"):
+                return .legacy
             case let path where path.hasPrefix("m/44'/145'"):
                 return .legacy
             default:
@@ -499,7 +524,12 @@ extension SeedDerivationChain {
         case .cardano:
             return normalizedPath.hasPrefix("m/44'/1815'") ? .legacy : .standard
         case .tron:
+            if normalizedPath == "m/44'/195'/0'" {
+                return .legacy
+            }
             return normalizedPath.hasPrefix("m/44'/60'") ? .legacy : .standard
+        case .xrp:
+            return normalizedPath == "m/44'/144'/0'" ? .legacy : .standard
         case .aptos:
             return .standard
         case .internetComputer:
@@ -731,6 +761,17 @@ enum TransactionStatus: String, Codable {
     case pending
     case confirmed
     case failed
+
+    var localizedTitle: String {
+        switch self {
+        case .pending:
+            return String(localized: "Pending")
+        case .confirmed:
+            return String(localized: "Confirmed")
+        case .failed:
+            return String(localized: "Failed")
+        }
+    }
 }
 
 enum HistoryFilter: String, CaseIterable, Identifiable {
@@ -740,6 +781,10 @@ enum HistoryFilter: String, CaseIterable, Identifiable {
     case pending = "Pending"
     
     var id: String { rawValue }
+
+    var localizedTitle: String {
+        String(localized: LocalizedStringResource(stringLiteral: rawValue))
+    }
 }
 
 enum HistorySortOrder: String, CaseIterable, Identifiable {
@@ -747,6 +792,10 @@ enum HistorySortOrder: String, CaseIterable, Identifiable {
     case oldest = "Oldest"
     
     var id: String { rawValue }
+
+    var localizedTitle: String {
+        String(localized: LocalizedStringResource(stringLiteral: rawValue))
+    }
 }
 
 struct HistorySection: Identifiable {
@@ -1206,7 +1255,7 @@ extension TransactionRecord {
     }
     
     var statusText: String {
-        status.rawValue.capitalized
+        status.localizedTitle
     }
     
     var badgeMark: String {

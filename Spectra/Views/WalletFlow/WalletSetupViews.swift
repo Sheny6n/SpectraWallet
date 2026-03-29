@@ -82,7 +82,8 @@ struct SetupView: View {
         case backupVerification
     }
 
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var flowState: WalletFlowState
     @ObservedObject var draft: WalletImportDraft
     private let copy = ImportFlowContent.current
     @Environment(\.colorScheme) private var colorScheme
@@ -100,6 +101,12 @@ struct SetupView: View {
         GridItem(.flexible(), spacing: 12)
     ]
     private let setupCardCornerRadius: CGFloat = 24
+
+    init(store: WalletStore, draft: WalletImportDraft) {
+        self.store = store
+        self.draft = draft
+        _flowState = ObservedObject(wrappedValue: store.flowState)
+    }
 
     private var isEditingWallet: Bool {
         draft.isEditingWallet
@@ -269,36 +276,36 @@ struct SetupView: View {
                 && WalletCoreDerivation.isLikelyPrivateKeyHex(draft.privateKeyInput)
                 && draft.unsupportedPrivateKeyChainNames.isEmpty
                 && draft.selectedChainNames.count == 1
-                && !store.isImportingWallet
+                && !flowState.isImportingWallet
         }
 
         let hasValidSeedPhrase = draft.seedPhraseWords.count == draft.selectedSeedPhraseWordCount
             && draft.seedPhraseValidationError == nil
             && draft.invalidSeedWords.isEmpty
             && draft.hasValidSeedPhraseChecksum
-        return hasChains && hasValidSeedPhrase && !store.isImportingWallet
+        return hasChains && hasValidSeedPhrase && !flowState.isImportingWallet
     }
 
     private var canContinueToBackupVerification: Bool {
         canContinueFromSecretStep
             && draft.walletPasswordValidationError == nil
-            && !store.isImportingWallet
+            && !flowState.isImportingWallet
     }
 
     private var canSubmitFromPasswordStep: Bool {
         draft.walletPasswordValidationError == nil
             && store.canImportWallet
-            && !store.isImportingWallet
+            && !flowState.isImportingWallet
     }
 
     private var canAdvanceFromDetailsPage: Bool {
         if usesSeedPhraseFlow {
-            return !draft.selectedChainNames.isEmpty && !store.isImportingWallet
+            return !draft.selectedChainNames.isEmpty && !flowState.isImportingWallet
         }
         if usesWatchAddressesFlow {
-            return !draft.selectedChainNames.isEmpty && !store.isImportingWallet
+            return !draft.selectedChainNames.isEmpty && !flowState.isImportingWallet
         }
-        return store.canImportWallet && !store.isImportingWallet
+        return store.canImportWallet && !flowState.isImportingWallet
     }
 
     private var primaryActionTitle: String {
@@ -341,7 +348,7 @@ struct SetupView: View {
         if isShowingPasswordPage {
             return canSubmitFromPasswordStep
         }
-        return store.canImportWallet && !store.isImportingWallet
+        return store.canImportWallet && !flowState.isImportingWallet
     }
 
     private var popularChainSelectionDescriptors: [SetupChainSelectionDescriptor] {
@@ -612,7 +619,8 @@ struct SetupView: View {
                             get: { draft.seedDerivationPaths.path(for: chain) },
                             set: { draft.seedDerivationPaths.setPath($0, for: chain) }
                         ),
-                        defaultPath: chain.defaultPath
+                        defaultPath: chain.defaultPath,
+                        presetOptions: chain.presetOptions
                     )
                 }
             }
@@ -659,13 +667,13 @@ struct SetupView: View {
     private var importSecretModePicker: some View {
         if !isEditingWallet && !isCreateMode && !draft.isWatchOnlyMode {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Import Method")
+                Text(localizedWalletFlowString("Import Method"))
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Color.primary.opacity(0.88))
 
                 Picker("Import Method", selection: importSecretModeBinding) {
                     ForEach(WalletSecretImportMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
+                        Text(mode.localizedTitle).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -802,9 +810,11 @@ struct SetupView: View {
                 .font(.headline)
                 .foregroundStyle(Color.primary)
 
-            Text(draft.backupVerificationPromptLabel)
-                .font(.subheadline)
-                .foregroundStyle(Color.primary.opacity(0.76))
+            if !draft.backupVerificationPromptLabel.isEmpty {
+                Text(draft.backupVerificationPromptLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(Color.primary.opacity(0.76))
+            }
 
             if draft.backupVerificationWordIndices.isEmpty {
                 Button(copy.backupVerificationButtonTitle) {
@@ -1297,13 +1307,13 @@ struct SetupView: View {
                         }
                     }
 
-                    if let importError = store.importError {
+                    if let importError = flowState.importError {
                         Text(importError)
                             .font(.footnote)
                             .foregroundStyle(.red.opacity(0.9))
                     }
 
-                    if store.isImportingWallet {
+                    if flowState.isImportingWallet {
                         HStack(spacing: 10) {
                             ProgressView()
                                 .tint(.white)

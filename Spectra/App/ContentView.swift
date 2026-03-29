@@ -36,8 +36,22 @@ extension View {
 }
 
 struct ContentView: View {
-    @StateObject var store = WalletStore()
+    @StateObject private var store: WalletStore
+    @ObservedObject private var runtimeState: WalletRuntimeState
     @Environment(\.scenePhase) private var scenePhase
+
+    @MainActor
+    init() {
+        let store = WalletStore()
+        _store = StateObject(wrappedValue: store)
+        _runtimeState = ObservedObject(wrappedValue: store.runtimeState)
+    }
+
+    @MainActor
+    init(store: WalletStore) {
+        _store = StateObject(wrappedValue: store)
+        _runtimeState = ObservedObject(wrappedValue: store.runtimeState)
+    }
 
     private func refreshAppStateForActivePhase() {
         store.setAppIsActive(true)
@@ -49,10 +63,10 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             MainTabView(store: store)
-                .blur(radius: store.isAppLocked ? 8 : 0)
-                .disabled(store.isAppLocked)
+                .blur(radius: runtimeState.isAppLocked ? 8 : 0)
+                .disabled(runtimeState.isAppLocked)
 
-            if store.isAppLocked {
+            if runtimeState.isAppLocked {
                 VStack(spacing: 14) {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 36, weight: .semibold))
@@ -62,7 +76,7 @@ struct ContentView: View {
                     Text("content.locked.subtitle")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    if let appLockError = store.appLockError {
+                    if let appLockError = runtimeState.appLockError {
                         Text(appLockError)
                             .font(.caption)
                             .foregroundStyle(.red)

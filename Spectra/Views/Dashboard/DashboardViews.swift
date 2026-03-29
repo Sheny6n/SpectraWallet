@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 private func localizedDashboardString(_ key: String) -> String {
@@ -13,14 +14,35 @@ private func dashboardConfigButtonLabel() -> some View {
 }
 
 struct DashboardView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var dashboardState: WalletDashboardState
+    @ObservedObject private var portfolioState: WalletPortfolioState
+    @ObservedObject private var flowState: WalletFlowState
+    @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var dashboardPage: DashboardPage = .assets
     @State private var isShowingPinnedAssetsSheet = false
     @State private var selectedWalletID: UUID?
     @State private var selectedAssetGroup: DashboardAssetGroup?
 
+    init(store: WalletStore) {
+        self.store = store
+        _dashboardState = ObservedObject(wrappedValue: store.dashboardState)
+        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
+        _flowState = ObservedObject(wrappedValue: store.flowState)
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.dashboardState.objectWillChange.asVoidSignal(),
+                store.portfolioState.objectWillChange.asVoidSignal(),
+                store.flowState.objectWillChange.asVoidSignal(),
+                store.$hideBalances.asVoidSignal(),
+                store.$quoteRefreshError.asVoidSignal(),
+                store.$fiatRatesRefreshError.asVoidSignal()
+            ])
+        )
+    }
+
     private var deleteWalletMessage: String {
-        guard let pendingWallet = store.walletPendingDeletion else {
+        guard let pendingWallet = flowState.walletPendingDeletion else {
             return ""
         }
         if store.isWatchOnlyWallet(pendingWallet) {
@@ -81,10 +103,10 @@ struct DashboardView: View {
                 }
             }
             .navigationDestination(isPresented: Binding(
-                get: { store.isShowingWalletImporter && store.editingWalletID == nil },
+                get: { flowState.isShowingWalletImporter && flowState.editingWalletID == nil },
                 set: { isPresented in
                     if !isPresented {
-                        store.isShowingWalletImporter = false
+                        flowState.isShowingWalletImporter = false
                     }
                 }
             )) {
@@ -105,17 +127,23 @@ struct DashboardView: View {
             .navigationDestination(item: $selectedAssetGroup) { assetGroup in
                 AssetGroupDetailView(store: store, assetGroup: assetGroup)
             }
-            .navigationDestination(isPresented: store.isShowingSendSheetBinding) {
+            .navigationDestination(isPresented: Binding(
+                get: { flowState.isShowingSendSheet },
+                set: { flowState.isShowingSendSheet = $0 }
+            )) {
                 SendView(store: store)
             }
-            .navigationDestination(isPresented: store.isShowingReceiveSheetBinding) {
+            .navigationDestination(isPresented: Binding(
+                get: { flowState.isShowingReceiveSheet },
+                set: { flowState.isShowingReceiveSheet = $0 }
+            )) {
                 ReceiveView(store: store)
             }
             .alert("Delete Wallet?", isPresented: Binding(
-                get: { store.walletPendingDeletion != nil },
+                get: { flowState.walletPendingDeletion != nil },
                 set: { isPresented in
                     if !isPresented {
-                        store.walletPendingDeletion = nil
+                        flowState.walletPendingDeletion = nil
                     }
                 }
             )) {
@@ -125,7 +153,7 @@ struct DashboardView: View {
                     }
                 }
                 Button("Cancel", role: .cancel) {
-                    store.walletPendingDeletion = nil
+                    flowState.walletPendingDeletion = nil
                 }
             } message: {
                 Text(deleteWalletMessage)
@@ -164,7 +192,7 @@ struct DashboardView: View {
                 }
                 .buttonStyle(.plain)
 
-                Text(localizedFormat("%lld in total", store.includedPortfolioWallets.count))
+                Text(localizedFormat("%lld in total", portfolioState.includedPortfolioWallets.count))
                     .font(.caption2)
                     .foregroundStyle(Color.primary.opacity(0.72))
             }
@@ -229,7 +257,7 @@ struct DashboardView: View {
     }
 
     private var dashboardCardSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
                 sectionHeading(dashboardCardTitle, symbol: dashboardCardSymbol)
                 Text(dashboardCardCountText)
@@ -238,29 +266,28 @@ struct DashboardView: View {
                 Spacer()
                 dashboardConfigMenu
             }
-
-            VStack(alignment: .leading, spacing: 14) {
-                switch dashboardPage {
-                case .wallets:
-                    walletsSectionContent
-                        .transition(dashboardContentTransition)
-                case .assets:
-                    assetsSectionContent
-                        .transition(dashboardContentTransition)
-                }
-            }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-            .spectraBubbleFill()
-            .glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 30))
-            .contentShape(Rectangle())
-            .animation(.easeOut(duration: 0.16), value: dashboardPage)
+
+            switch dashboardPage {
+            case .wallets:
+                walletsSectionContent
+                    .transition(dashboardContentTransition)
+            case .assets:
+                assetsSectionContent
+                    .transition(dashboardContentTransition)
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .spectraBubbleFill()
+        .glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 30))
+        .contentShape(Rectangle())
+        .animation(.easeOut(duration: 0.16), value: dashboardPage)
     }
 
     private var walletsSectionContent: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if store.wallets.isEmpty {
+            if portfolioState.wallets.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("No wallets yet")
                         .font(.headline)
@@ -273,7 +300,7 @@ struct DashboardView: View {
                 .padding(16)
                 .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
             } else {
-                ForEach(store.wallets) { wallet in
+                ForEach(portfolioState.wallets) { wallet in
                     WalletCardView(
                         presentation: WalletCardView.Presentation(
                             wallet: wallet,
@@ -324,7 +351,7 @@ struct DashboardView: View {
     }
 
     private var visiblePortfolio: [DashboardAssetGroup] {
-        store.dashboardAssetGroups
+        dashboardState.assetGroups
     }
 
     private var visibleAssetPresentations: [DashboardAssetRowPresentation] {
@@ -360,7 +387,7 @@ struct DashboardView: View {
     }
 
     private var dashboardCardCountText: String {
-        dashboardPage == .assets ? "\(visiblePortfolio.count)" : "\(store.wallets.count)"
+        dashboardPage == .assets ? "\(visiblePortfolio.count)" : "\(portfolioState.wallets.count)"
     }
 
     private var dashboardConfigMenu: some View {
@@ -395,7 +422,7 @@ struct DashboardView: View {
     }
 
     private func dashboardAssetPriceText(for assetGroup: DashboardAssetGroup) -> String {
-        guard let price = store.currentPriceIfAvailable(for: assetGroup.representativeCoin) else {
+        guard let price = store.currentOrFallbackPriceIfAvailable(for: assetGroup.representativeCoin) else {
             return store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: nil)
         }
         return store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: price)
@@ -563,11 +590,18 @@ enum DashboardAssetIdentity {
 }
 
 struct AssetGroupDetailView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var dashboardState: WalletDashboardState
     let assetGroup: DashboardAssetGroup
 
+    init(store: WalletStore, assetGroup: DashboardAssetGroup) {
+        self.store = store
+        self.assetGroup = assetGroup
+        _dashboardState = ObservedObject(wrappedValue: store.dashboardState)
+    }
+
     private var supportedTokenEntries: [TokenPreferenceEntry] {
-        store.dashboardSupportedTokenEntries(symbol: assetGroup.symbol)
+        dashboardState.supportedTokenEntriesBySymbol[assetGroup.symbol.uppercased()] ?? []
     }
 
     var body: some View {
@@ -677,11 +711,18 @@ struct AssetGroupDetailView: View {
 }
 
 struct AssetContractsDetailView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var dashboardState: WalletDashboardState
     let assetGroup: DashboardAssetGroup
 
+    init(store: WalletStore, assetGroup: DashboardAssetGroup) {
+        self.store = store
+        self.assetGroup = assetGroup
+        _dashboardState = ObservedObject(wrappedValue: store.dashboardState)
+    }
+
     private var supportedTokenEntries: [TokenPreferenceEntry] {
-        store.dashboardSupportedTokenEntries(symbol: assetGroup.symbol)
+        dashboardState.supportedTokenEntriesBySymbol[assetGroup.symbol.uppercased()] ?? []
     }
 
     var body: some View {
@@ -758,13 +799,19 @@ struct AssetContractsDetailView: View {
 }
 
 struct PinnedAssetsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var dashboardState: WalletDashboardState
     @Environment(\.dismiss) private var dismiss
     @State private var searchText: String = ""
 
+    init(store: WalletStore) {
+        self.store = store
+        _dashboardState = ObservedObject(wrappedValue: store.dashboardState)
+    }
+
     private var filteredOptions: [DashboardPinOption] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let allOptions = store.availableDashboardPinOptions
+        let allOptions = dashboardState.availablePinOptions
         guard !query.isEmpty else { return allOptions }
         return allOptions.filter { option in
             option.symbol.localizedCaseInsensitiveContains(query) ||
@@ -820,12 +867,18 @@ struct PinnedAssetsView: View {
 }
 
 struct PortfolioWalletSelectionView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var portfolioState: WalletPortfolioState
+
+    init(store: WalletStore) {
+        self.store = store
+        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
+    }
 
     var body: some View {
         List {
             Section {
-                ForEach(store.wallets) { wallet in
+                ForEach(portfolioState.wallets) { wallet in
                     Toggle(isOn: binding(for: wallet.id)) {
                         PortfolioWalletToggleRowView(wallet: wallet)
                     }
@@ -842,7 +895,7 @@ struct PortfolioWalletSelectionView: View {
     private func binding(for walletID: UUID) -> Binding<Bool> {
         Binding(
             get: {
-                store.wallets.first(where: { $0.id == walletID })?.includeInPortfolioTotal ?? true
+                portfolioState.wallets.first(where: { $0.id == walletID })?.includeInPortfolioTotal ?? true
             },
             set: { isIncluded in
                 store.setPortfolioInclusion(isIncluded, for: walletID)
@@ -852,7 +905,7 @@ struct PortfolioWalletSelectionView: View {
 }
 
 struct AppNoticesView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
 
     var body: some View {
         List {

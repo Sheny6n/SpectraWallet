@@ -80,6 +80,9 @@ enum PolkadotBalanceService {
                 }
                 throw PolkadotBalanceServiceError.invalidResponse
             } catch {
+                if isMissingAccountError(error) {
+                    return 0
+                }
                 lastError = error
             }
         }
@@ -145,7 +148,7 @@ enum PolkadotBalanceService {
               let url = URL(string: "\(endpoint)/accounts/\(encoded)/balance-info") else {
             throw PolkadotBalanceServiceError.invalidResponse
         }
-        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        let (data, response) = try await fetchData(from: url)
         guard let http = response as? HTTPURLResponse else {
             throw PolkadotBalanceServiceError.invalidResponse
         }
@@ -159,7 +162,7 @@ enum PolkadotBalanceService {
         guard let headURL = URL(string: "\(endpoint)/blocks/head") else {
             throw PolkadotBalanceServiceError.invalidResponse
         }
-        let (headData, headResponse) = try await SpectraNetworkRouter.shared.data(from: headURL, profile: .chainRead)
+        let (headData, headResponse) = try await fetchData(from: headURL)
         guard let headHTTP = headResponse as? HTTPURLResponse,
               (200 ... 299).contains(headHTTP.statusCode) else {
             throw PolkadotBalanceServiceError.httpError((headResponse as? HTTPURLResponse)?.statusCode ?? -1)
@@ -179,7 +182,7 @@ enum PolkadotBalanceService {
             guard let blockURL = URL(string: "\(endpoint)/blocks/\(height)") else { continue }
 
             do {
-                let (blockData, blockResponse) = try await SpectraNetworkRouter.shared.data(from: blockURL, profile: .chainRead)
+                let (blockData, blockResponse) = try await fetchData(from: blockURL)
                 guard let blockHTTP = blockResponse as? HTTPURLResponse,
                       (200 ... 299).contains(blockHTTP.statusCode) else {
                     continue
@@ -230,6 +233,14 @@ enum PolkadotBalanceService {
 
     private static func jsonObject(from data: Data) throws -> Any {
         try JSONSerialization.jsonObject(with: data, options: [])
+    }
+
+    private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
+        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
 
     private static func stringValue(at path: [String], in object: Any) -> String? {
@@ -290,5 +301,12 @@ enum PolkadotBalanceService {
 
     private static func decimalToDouble(_ value: Decimal) -> Double {
         NSDecimalNumber(decimal: value).doubleValue
+    }
+
+    private static func isMissingAccountError(_ error: Error) -> Bool {
+        guard case PolkadotBalanceServiceError.httpError(let code) = error else {
+            return false
+        }
+        return code == 404
     }
 }

@@ -1,10 +1,11 @@
 import Foundation
+import Combine
 
-final class WalletDashboardState {
-    var pinnedAssetSymbols: [String] = []
-    var pinOptionBySymbol: [String: DashboardPinOption] = [:]
-    var availablePinOptions: [DashboardPinOption] = []
-    var assetGroups: [DashboardAssetGroup] = []
-    var relevantPriceKeys: Set<String> = []
-    var supportedTokenEntriesBySymbol: [String: [TokenPreferenceEntry]] = [:]
+final class WalletDashboardState: ObservableObject {
+    @Published var pinnedAssetSymbols: [String] = []
+    @Published var pinOptionBySymbol: [String: DashboardPinOption] = [:]
+    @Published var availablePinOptions: [DashboardPinOption] = []
+    @Published var assetGroups: [DashboardAssetGroup] = []
+    @Published var relevantPriceKeys: Set<String> = []
+    @Published var supportedTokenEntriesBySymbol: [String: [TokenPreferenceEntry]] = [:]
 }

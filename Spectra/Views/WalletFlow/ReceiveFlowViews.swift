@@ -8,7 +8,9 @@ import VisionKit
 
 
 struct ReceiveView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var flowState: WalletFlowState
+    @ObservedObject private var portfolioState: WalletPortfolioState
     @State private var didCopyReceiveAddress: Bool = false
     @State private var isShowingReceiveQRShareSheet: Bool = false
     @State private var receiveQRExportMessage: String?
@@ -23,14 +25,20 @@ struct ReceiveView: View {
         let sameChainSymbolsText: String?
     }
 
+    init(store: WalletStore) {
+        self.store = store
+        _flowState = ObservedObject(wrappedValue: store.flowState)
+        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
+    }
+
     private var presentation: Presentation {
         let resolvedAddress = store.receiveAddress()
         let trimmedAddress = resolvedAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-        let selectedCoin = store.selectedReceiveCoin(for: store.receiveWalletID)
+        let selectedCoin = store.selectedReceiveCoin(for: flowState.receiveWalletID)
         let sameChainSymbolsText = selectedCoin.map { coin in
             let chainSymbols = Array(
                 Set(
-                    store.availableReceiveCoins(for: store.receiveWalletID)
+                    store.availableReceiveCoins(for: flowState.receiveWalletID)
                         .filter { $0.chainName == coin.chainName }
                         .map(\.symbol)
                 )
@@ -54,22 +62,25 @@ struct ReceiveView: View {
         ZStack {
             SpectraBackdrop()
 
-            Form {
-                Section("Wallet") {
-                    Picker("Wallet", selection: store.receiveWalletIDBinding) {
-                        ForEach(presentation.receiveWallets) { wallet in
-                            Text(wallet.name).tag(wallet.id.uuidString)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    receiveDetailCard(title: "Wallet") {
+                        Picker("Wallet", selection: store.receiveWalletIDBinding) {
+                            ForEach(presentation.receiveWallets) { wallet in
+                                Text(wallet.name).tag(wallet.id.uuidString)
+                            }
+                        }
+                        .onChange(of: flowState.receiveWalletID) { _, _ in
+                            store.syncReceiveAssetSelection()
                         }
                     }
-                    .onChange(of: store.receiveWalletID) { _, _ in
-                        store.syncReceiveAssetSelection()
-                    }
+
+                    receiveAddressSections
                 }
-                receiveAddressSections
+                .padding(20)
             }
-            .scrollContentBackground(.hidden)
             .navigationTitle("Receive")
-            .task(id: store.receiveWalletID) {
+            .task(id: flowState.receiveWalletID) {
                 await store.refreshReceiveAddress()
             }
             .sheet(isPresented: $isShowingReceiveQRShareSheet) {
@@ -104,7 +115,7 @@ struct ReceiveView: View {
                     } label: {
                         Label("Copy", systemImage: didCopyReceiveAddress ? "checkmark" : "doc.on.doc")
                     }
-                    .disabled(!presentation.canUseAddress || store.isResolvingReceiveAddress)
+                    .disabled(!presentation.canUseAddress || flowState.isResolvingReceiveAddress)
                 }
             }
         }
@@ -112,7 +123,7 @@ struct ReceiveView: View {
 
     @ViewBuilder
     private var receiveAddressSections: some View {
-        Section("QR Code") {
+        receiveDetailCard(title: "QR Code") {
             VStack(alignment: .center, spacing: 12) {
                 if presentation.canUseAddress {
                     QRCodeImage(address: presentation.resolvedAddress)
@@ -161,16 +172,19 @@ struct ReceiveView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .padding(18)
+            .spectraBubbleFill()
+            .glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
         }
 
-        Section("Address") {
+        receiveDetailCard(title: "Address") {
             Text(presentation.resolvedAddress)
                 .font(.body.monospaced())
                 .textSelection(.enabled)
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .spectraBubbleFill()
+                .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 18))
 
             if didCopyReceiveAddress {
                 Label("Address copied to clipboard.", systemImage: "checkmark.circle.fill")
@@ -180,44 +194,58 @@ struct ReceiveView: View {
         }
 
         if let receiveCoin = presentation.selectedCoin {
-            Section("Asset Details") {
-                HStack(spacing: 12) {
-                    CoinBadge(
-                        assetIdentifier: receiveCoin.iconIdentifier,
-                        fallbackText: receiveCoin.mark,
-                        color: receiveCoin.color,
-                        size: 34
-                    )
+            receiveDetailCard(title: "Asset Details") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        CoinBadge(
+                            assetIdentifier: receiveCoin.iconIdentifier,
+                            fallbackText: receiveCoin.mark,
+                            color: receiveCoin.color,
+                            size: 34
+                        )
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(receiveCoin.name)
-                            .font(.headline)
-                        Text(receiveCoin.symbol)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(receiveCoin.name)
+                                .font(.headline)
+                            Text(receiveCoin.symbol)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
                     }
 
-                    Spacer()
-                }
-                .padding(.vertical, 4)
-
-                LabeledContent("Network", value: receiveCoin.chainName)
-                LabeledContent("Standard", value: receiveCoin.tokenStandard)
-                if let chainSymbols = presentation.sameChainSymbolsText,
-                   chainSymbols.contains(",") {
-                    LabeledContent("Also Receives") {
-                        Text(chainSymbols)
-                            .multilineTextAlignment(.trailing)
+                    LabeledContent("Network", value: receiveCoin.chainName)
+                    LabeledContent("Standard", value: receiveCoin.tokenStandard)
+                    if let chainSymbols = presentation.sameChainSymbolsText,
+                       chainSymbols.contains(",") {
+                        LabeledContent("Also Receives") {
+                            Text(chainSymbols)
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
-                }
-                if let contractAddress = receiveCoin.contractAddress {
-                    LabeledContent("Contract") {
-                        Text(contractAddress)
-                            .font(.footnote.monospaced())
-                            .textSelection(.enabled)
+                    if let contractAddress = receiveCoin.contractAddress {
+                        LabeledContent("Contract") {
+                            Text(contractAddress)
+                                .font(.footnote.monospaced())
+                                .textSelection(.enabled)
+                        }
                     }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func receiveDetailCard(title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(NSLocalizedString(title, comment: ""))
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(Color.primary)
+            content()
+        }
+        .padding(18)
+        .spectraBubbleFill()
+        .glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }
 }

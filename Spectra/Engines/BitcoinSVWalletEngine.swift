@@ -34,8 +34,8 @@ enum BitcoinSVWalletEngine {
     private static let satoshisPerBSV: Double = 100_000_000
     private static let defaultFeeRateSatVb: UInt64 = 1
     private static let minimumFeeSatoshis: UInt64 = 1_000
-    private static let blockchairPushURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairPushURL
-    private static let blockchairTransactionURLPrefix = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairTransactionURLPrefix
+    private static let whatsonchainBroadcastURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainBroadcastURL
+    private static let whatsonchainTransactionURLPrefix = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainTransactionURLPrefix
     private static let defaultDerivationPath = "m/44'/236'/0'/0/0"
 
     struct SendOptions {
@@ -234,15 +234,16 @@ enum BitcoinSVWalletEngine {
     }
 
     private static func broadcast(rawTransactionHex: String) async throws -> String {
-        guard let url = URL(string: blockchairPushURL) else {
+        guard let url = URL(string: whatsonchainBroadcastURL) else {
             throw URLError(.badURL)
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 20
-        request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        request.httpBody = "data=\(rawTransactionHex)".data(using: .utf8)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("text/plain; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.httpBody = rawTransactionHex.data(using: .utf8)
 
         let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
 
@@ -250,17 +251,10 @@ enum BitcoinSVWalletEngine {
             throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV broadcast failed.")
         }
 
-        if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let dataValue = jsonObject["data"] as? [String: Any],
-           let transactionHash = dataValue["transaction_hash"] as? String,
-           !transactionHash.isEmpty {
-            return transactionHash
-        }
-
-        if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let dataValue = jsonObject["data"] as? String,
-           !dataValue.isEmpty {
-            return dataValue
+        if let text = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !text.isEmpty {
+            return text
         }
 
         throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV broadcast returned an empty transaction hash.")
@@ -294,7 +288,7 @@ enum BitcoinSVWalletEngine {
         let trimmed = txid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
               let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(blockchairTransactionURLPrefix)\(encoded)") else {
+              let url = URL(string: "\(whatsonchainTransactionURLPrefix)\(encoded)") else {
             throw URLError(.badURL)
         }
 

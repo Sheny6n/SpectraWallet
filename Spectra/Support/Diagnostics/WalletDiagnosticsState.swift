@@ -27,9 +27,11 @@ final class WalletDiagnosticsState: ObservableObject {
 
     @Published var operationalLogs: [WalletStore.OperationalLogEvent] = [] {
         didSet {
+            operationalLogsRevision &+= 1
             scheduleOperationalLogsPersistence()
         }
     }
+    @Published private(set) var operationalLogsRevision: UInt64 = 0
 
     init() {
         operationalLogs = loadOperationalLogs()
@@ -183,9 +185,17 @@ final class WalletDiagnosticsState: ObservableObject {
         }
     }
 
+    func noteChainSuccessfulSync(_ chainName: String) {
+        guard let chainID = WalletChainID(chainName) else { return }
+        lastGoodChainSyncByID[chainID] = Date()
+    }
+
     func markChainDegraded(_ chainName: String, detail: String) {
         guard let chainID = WalletChainID(chainName) else { return }
         let chainName = chainID.displayName
+        if detailIndicatesLiveSuccess(detail) {
+            lastGoodChainSyncByID[chainID] = Date()
+        }
         let localizedDetail = localizedDegradedDetail(detail, chainName: chainName)
         let metadata = degradedSyncSuffix(for: chainID)
         chainDegradedMessagesByID[chainID] = localizedDetail
@@ -251,6 +261,11 @@ final class WalletDiagnosticsState: ObservableObject {
         }
 
         return localizedStoreString(detail)
+    }
+
+    private func detailIndicatesLiveSuccess(_ detail: String) -> Bool {
+        detail.contains("partially reachable")
+            || detail.contains("partial provider failures")
     }
 
     private func degradedSyncSuffix(for chainID: WalletChainID) -> String {

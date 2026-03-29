@@ -104,6 +104,9 @@ enum NearBalanceService {
                 }
                 return decimalToDouble(yocto / Decimal(string: "1000000000000000000000000")!)
             } catch {
+                if isMissingAccountError(error) {
+                    return 0
+                }
                 lastError = error
             }
         }
@@ -306,6 +309,16 @@ enum NearBalanceService {
             throw NearBalanceServiceError.invalidResponse
         }
         return result
+    }
+
+    private static func isMissingAccountError(_ error: Error) -> Bool {
+        guard case NearBalanceServiceError.rpcError(let message) = error else {
+            return false
+        }
+        let normalized = message.lowercased()
+        return normalized.contains("unknown_account")
+            || normalized.contains("unknown account")
+            || normalized.contains("does not exist")
     }
 
     private static func fetchHistory(address: String, endpoint: String, limit: Int) async throws -> [NearHistorySnapshot] {

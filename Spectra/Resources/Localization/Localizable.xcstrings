@@ -1145,6 +1145,7 @@
       }
     },
     "Address" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1870,6 +1871,7 @@
       }
     },
     "Asset Details" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3800,6 +3802,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認數"
+          }
+        }
+      }
+    },
+    "Confirmed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已确认"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已確認"
           }
         }
       }
@@ -7935,6 +7960,29 @@
         }
       }
     },
+    "Failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "失敗"
+          }
+        }
+      }
+    },
     "Failed to build Solana transaction config." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11132,6 +11180,7 @@
       }
     },
     "Last Sent" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12578,6 +12627,29 @@
         }
       }
     },
+    "Newest" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Newest"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最新"
+          }
+        }
+      }
+    },
     "Next Page" : {
       "localizations" : {
         "en" : {
@@ -13525,6 +13597,29 @@
         }
       }
     },
+    "Oldest" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oldest"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最早"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最早"
+          }
+        }
+      }
+    },
     "On %@ +%lld more" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13817,6 +13912,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已暫停"
+          }
+        }
+      }
+    },
+    "Pending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待处理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待處理"
           }
         }
       }
@@ -14907,6 +15025,29 @@
         }
       }
     },
+    "Receives" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Receives"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收款"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收款"
+          }
+        }
+      }
+    },
     "Recheck" : {
       "localizations" : {
         "en" : {
@@ -14930,6 +15071,7 @@
       }
     },
     "Recipient" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -17611,6 +17753,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : " 交易 %@。"
+          }
+        }
+      }
+    },
+    "Sends" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sends"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "發送"
           }
         }
       }
@@ -22749,6 +22914,7 @@
       }
     },
     "Verification" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -22793,6 +22959,7 @@
       }
     },
     "Wallet & Asset" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

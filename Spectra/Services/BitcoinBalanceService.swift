@@ -499,11 +499,18 @@ enum BitcoinBalanceService {
     }
 
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
-        try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
+        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
 
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
-        try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        var request = request
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
+        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
 
     private static func runWithProviderFallback<T>(

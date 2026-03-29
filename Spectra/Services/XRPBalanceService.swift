@@ -4,6 +4,7 @@ enum XRPBalanceServiceError: LocalizedError {
     case invalidAddress
     case invalidResponse
     case httpError(Int)
+    case rpcError(String)
 
     var errorDescription: String? {
         switch self {
@@ -14,6 +15,8 @@ enum XRPBalanceServiceError: LocalizedError {
         case .httpError(let code):
             let format = NSLocalizedString("The XRP provider returned HTTP %d.", comment: "")
             return String(format: format, locale: .current, code)
+        case .rpcError(let message):
+            return CommonLocalization.rpcError("XRP", message: message)
         }
     }
 }
@@ -138,11 +141,18 @@ enum XRPBalanceService {
             throw XRPBalanceServiceError.invalidAddress
         }
         return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
-            switch provider {
-            case .xrpscan:
-                return try await fetchBalanceViaXRPSCAN(address: normalized)
-            case .xrplCluster, .rippleS1, .rippleS2:
-                return try await fetchBalanceViaXRPLRPC(address: normalized, endpoint: provider.rpcEndpoint)
+            do {
+                switch provider {
+                case .xrpscan:
+                    return try await fetchBalanceViaXRPSCAN(address: normalized)
+                case .xrplCluster, .rippleS1, .rippleS2:
+                    return try await fetchBalanceViaXRPLRPC(address: normalized, endpoint: provider.rpcEndpoint)
+                }
+            } catch {
+                if isMissingAccountError(error) {
+                    return 0
+                }
+                throw error
             }
         }
     }
@@ -199,11 +209,18 @@ enum XRPBalanceService {
     }
 
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
-        try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
+        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
 
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
-        try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        var request = request
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
+        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
 
     private static func runWithProviderFallback<T>(
@@ -230,6 +247,9 @@ enum XRPBalanceService {
                 let (data, response) = try await fetchData(from: url)
                 guard let http = response as? HTTPURLResponse else {
                     throw XRPBalanceServiceError.invalidResponse
+                }
+                if http.statusCode == 404 {
+                    return 0
                 }
                 guard (200 ... 299).contains(http.statusCode) else {
                     throw XRPBalanceServiceError.httpError(http.statusCode)
@@ -424,7 +444,9 @@ enum XRPBalanceService {
 
         if let errorResponse = try? JSONDecoder().decode(XRPLRPCErrorResponse.self, from: data),
            errorResponse.error != nil || errorResponse.error_message != nil {
-            throw XRPBalanceServiceError.invalidResponse
+            throw XRPBalanceServiceError.rpcError(
+                errorResponse.error_message ?? errorResponse.error ?? "Unknown XRPL RPC error"
+            )
         }
 
         guard let root = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
@@ -432,5 +454,19 @@ enum XRPBalanceService {
             throw XRPBalanceServiceError.invalidResponse
         }
         return result
+    }
+
+    private static func isMissingAccountError(_ error: Error) -> Bool {
+        switch error {
+        case XRPBalanceServiceError.httpError(let code):
+            return code == 404
+        case XRPBalanceServiceError.rpcError(let message):
+            let normalized = message.lowercased()
+            return normalized.contains("actnotfound")
+                || normalized.contains("account not found")
+                || normalized.contains("does not exist")
+        default:
+            return false
+        }
     }
 }

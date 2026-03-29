@@ -14,7 +14,7 @@ struct TransactionStatusBadge: View {
     let status: TransactionStatus
 
     private var statusText: String {
-        status.rawValue.capitalized
+        status.localizedTitle
     }
 
     private var statusColor: Color {
@@ -334,7 +334,10 @@ struct QRCodeImage: View {
 }
 
 struct WalletDetailView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var portfolioState: WalletPortfolioState
+    @ObservedObject private var transactionState: WalletTransactionState
+    @ObservedObject private var flowState: WalletFlowState
     let wallet: ImportedWallet
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -346,6 +349,14 @@ struct WalletDetailView: View {
     @State private var isRevealingSeedPhrase: Bool = false
     @State private var didCopyWalletAddress: Bool = false
     @State private var isShowingDeleteWalletAlert: Bool = false
+
+    init(store: WalletStore, wallet: ImportedWallet) {
+        self.store = store
+        self.wallet = wallet
+        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
+        _transactionState = ObservedObject(wrappedValue: store.transactionState)
+        _flowState = ObservedObject(wrappedValue: store.flowState)
+    }
 
     private struct HoldingPresentation: Identifiable {
         let coin: Coin
@@ -385,7 +396,7 @@ struct WalletDetailView: View {
     }
 
     private var displayedWallet: ImportedWallet {
-        store.wallets.first(where: { $0.id == wallet.id }) ?? wallet
+        portfolioState.wallets.first(where: { $0.id == wallet.id }) ?? wallet
     }
 
     private var firstActivityDateText: String {
@@ -705,13 +716,16 @@ struct WalletDetailView: View {
             .padding(.bottom, 24)
         }
         .background(SpectraBackdrop())
+        .refreshable {
+            await store.refreshWalletBalance(wallet.id)
+        }
         .navigationTitle("Wallet Details")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: Binding(
-            get: { store.isShowingWalletImporter && store.editingWalletID == wallet.id },
+            get: { flowState.isShowingWalletImporter && flowState.editingWalletID == wallet.id },
             set: { isPresented in
                 if !isPresented {
-                    store.isShowingWalletImporter = false
+                    flowState.isShowingWalletImporter = false
                 }
             }
         )) {
@@ -743,7 +757,7 @@ struct WalletDetailView: View {
         .onChange(of: wallet.id) { _, _ in
             didCopyWalletAddress = false
         }
-        .onChange(of: store.wallets.contains(where: { $0.id == wallet.id })) { _, walletStillExists in
+        .onChange(of: portfolioState.wallets.contains(where: { $0.id == wallet.id })) { _, walletStillExists in
             handleWalletPresenceChange(walletStillExists: walletStillExists)
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -876,6 +890,7 @@ struct SeedPathSlotEditor: View {
     let title: String
     @Binding var path: String
     let defaultPath: String
+    let presetOptions: [SeedDerivationPathPreset]
 
     private var segments: [DerivationPathSegment] {
         DerivationPathParser.parse(path) ?? DerivationPathParser.parse(defaultPath) ?? []
@@ -925,6 +940,52 @@ struct SeedPathSlotEditor: View {
                                     .font(.caption.monospaced().weight(.bold))
                                     .foregroundStyle(Color.primary.opacity(0.72))
                             }
+                        }
+                    }
+                }
+            }
+
+            if !presetOptions.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(localizedWalletFlowString("Derivation Paths"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.primary.opacity(0.72))
+
+                    VStack(spacing: 8) {
+                        ForEach(presetOptions) { preset in
+                            Button {
+                                path = preset.path
+                            } label: {
+                                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                    Text(preset.title)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(Color.primary)
+                                        .lineLimit(1)
+
+                                    Spacer(minLength: 0)
+
+                                    Text(preset.detail)
+                                        .font(.caption2.monospaced())
+                                        .foregroundStyle(Color.primary.opacity(0.68))
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .fill(preset.path == path ? Color.orange.opacity(0.16) : Color.white.opacity(0.04))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(
+                                            preset.path == path ? Color.orange.opacity(0.65) : Color.white.opacity(0.08),
+                                            lineWidth: 1
+                                        )
+                                )
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }

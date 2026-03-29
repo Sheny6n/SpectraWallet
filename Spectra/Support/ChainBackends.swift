@@ -387,9 +387,10 @@ enum ChainBackendRegistry {
     }
 
     enum BitcoinSVRuntimeEndpoints {
-        static let blockchairBaseURL = "https://api.blockchair.com/bitcoin-sv"
-        static let blockchairPushURL = "https://api.blockchair.com/bitcoin-sv/push/transaction"
-        static let blockchairTransactionURLPrefix = "https://api.blockchair.com/bitcoin-sv/dashboards/transaction/"
+        static let whatsonchainBaseURL = "https://api.whatsonchain.com/v1/bsv/main"
+        static let whatsonchainChainInfoURL = "https://api.whatsonchain.com/v1/bsv/main/chain/info"
+        static let whatsonchainBroadcastURL = "https://api.whatsonchain.com/v1/bsv/main/tx/raw"
+        static let whatsonchainTransactionURLPrefix = "https://api.whatsonchain.com/v1/bsv/main/tx/hash/"
     }
 
     enum LitecoinRuntimeEndpoints {
@@ -546,7 +547,7 @@ enum ChainBackendRegistry {
         private static let transactionBases: [String: String] = [
             bitcoinChainName: "https://mempool.space/tx/",
             bitcoinCashChainName: "https://blockchair.com/bitcoin-cash/transaction/",
-            "Bitcoin SV": "https://blockchair.com/bitcoin-sv/transaction/",
+            "Bitcoin SV": "https://whatsonchain.com/tx/",
             litecoinChainName: "https://litecoinspace.org/tx/",
             dogecoinChainName: "https://dogechain.info/tx/",
             ethereumChainName: "https://etherscan.io/tx/",
@@ -567,7 +568,7 @@ enum ChainBackendRegistry {
         private static let transactionLabels: [String: String] = [
             bitcoinChainName: "Open In Mempool",
             bitcoinCashChainName: "Open In Blockchair",
-            "Bitcoin SV": "Open In Blockchair",
+            "Bitcoin SV": "Open In WhatsOnChain",
             litecoinChainName: "Open In LitecoinSpace",
             dogecoinChainName: "Open In Dogechain",
             ethereumChainName: "Open In Etherscan",
@@ -803,7 +804,7 @@ enum ChainBackendRegistry {
     static let appChains: [AppChainDescriptor] = [
         AppChainDescriptor(id: .bitcoin, chainName: bitcoinChainName, title: "Bitcoin Diagnostics", shortLabel: "BTC", nativeSymbol: "BTC", searchKeywords: ["Bitcoin", "BTC"], supportsDiagnostics: true, supportsEndpointCatalog: true, isEVM: false),
         AppChainDescriptor(id: .bitcoinCash, chainName: bitcoinCashChainName, title: "Bitcoin Cash Diagnostics", shortLabel: "BCH", nativeSymbol: "BCH", searchKeywords: ["Bitcoin Cash", "BCH"], supportsDiagnostics: true, supportsEndpointCatalog: true, isEVM: false),
-        AppChainDescriptor(id: .bitcoinSV, chainName: "Bitcoin SV", title: "Bitcoin SV Diagnostics", shortLabel: "BSV", nativeSymbol: "BSV", searchKeywords: ["Bitcoin SV", "BSV"], supportsDiagnostics: false, supportsEndpointCatalog: false, isEVM: false),
+        AppChainDescriptor(id: .bitcoinSV, chainName: "Bitcoin SV", title: "Bitcoin SV Diagnostics", shortLabel: "BSV", nativeSymbol: "BSV", searchKeywords: ["Bitcoin SV", "BSV"], supportsDiagnostics: true, supportsEndpointCatalog: false, isEVM: false),
         AppChainDescriptor(id: .litecoin, chainName: litecoinChainName, title: "Litecoin Diagnostics", shortLabel: "LTC", nativeSymbol: "LTC", searchKeywords: ["Litecoin", "LTC"], supportsDiagnostics: true, supportsEndpointCatalog: true, isEVM: false),
         AppChainDescriptor(id: .dogecoin, chainName: dogecoinChainName, title: "Dogecoin Diagnostics", shortLabel: "DOGE", nativeSymbol: "DOGE", searchKeywords: ["Dogecoin", "DOGE"], supportsDiagnostics: true, supportsEndpointCatalog: true, isEVM: false),
         AppChainDescriptor(id: .ethereum, chainName: ethereumChainName, title: "Ethereum Diagnostics", shortLabel: "ETH", nativeSymbol: "ETH", searchKeywords: ["Ethereum", "ETH"], supportsDiagnostics: true, supportsEndpointCatalog: true, isEVM: true),

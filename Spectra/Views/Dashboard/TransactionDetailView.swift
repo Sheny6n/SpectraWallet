@@ -4,13 +4,22 @@ import UIKit
 import Combine
 
 struct HistoryDetailView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var portfolioState: WalletPortfolioState
+    @ObservedObject private var transactionState: WalletTransactionState
     let transaction: TransactionRecord
     
     @State private var didCopyAddress = false
     @State private var ethereumReplacementMessage: String?
     @State private var liveTransaction: TransactionRecord?
     @State private var liveOwnedAddresses: Set<String> = []
+
+    init(store: WalletStore, transaction: TransactionRecord) {
+        self.store = store
+        self.transaction = transaction
+        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
+        _transactionState = ObservedObject(wrappedValue: store.transactionState)
+    }
     
     private var displayedTransaction: TransactionRecord {
         liveTransaction ?? transaction
@@ -264,7 +273,10 @@ struct HistoryDetailView: View {
         .onAppear {
             rebuildDisplayedTransactionState()
         }
-        .onReceive(store.transactionState.$transactions.combineLatest(store.portfolioState.$wallets)) { _ in
+        .onChange(of: transactionState.transactionRevision) { _, _ in
+            rebuildDisplayedTransactionState()
+        }
+        .onChange(of: portfolioState.walletsRevision) { _, _ in
             rebuildDisplayedTransactionState()
         }
     }
@@ -384,7 +396,7 @@ struct HistoryDetailView: View {
     }
 
     private func rebuildDisplayedTransactionState() {
-        let resolvedTransaction = store.transactions.first(where: { $0.id == transaction.id }) ?? transaction
+        let resolvedTransaction = transactionState.transactions.first(where: { $0.id == transaction.id }) ?? transaction
         liveTransaction = resolvedTransaction
 
         guard let walletID = resolvedTransaction.walletID else {

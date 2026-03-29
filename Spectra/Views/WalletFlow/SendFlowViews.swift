@@ -8,7 +8,11 @@ import VisionKit
 
 
 struct SendView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var flowState: WalletFlowState
+    @ObservedObject private var sendState: WalletSendState
+    @ObservedObject private var runtimeState: WalletRuntimeState
+    @ObservedObject private var portfolioState: WalletPortfolioState
     @State private var selectedAddressBookEntryID: String = ""
     @State private var isShowingQRScanner: Bool = false
     @State private var qrScannerErrorMessage: String?
@@ -31,12 +35,68 @@ struct SendView: View {
         let addressBookEntries: [AddressBookEntry]
     }
 
+    init(store: WalletStore) {
+        self.store = store
+        _flowState = ObservedObject(wrappedValue: store.flowState)
+        _sendState = ObservedObject(wrappedValue: store.sendState)
+        _runtimeState = ObservedObject(wrappedValue: store.runtimeState)
+        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
+    }
+
+    private var sendAdvancedModeBinding: Binding<Bool> {
+        Binding(get: { store.sendAdvancedMode }, set: { store.sendAdvancedMode = $0 })
+    }
+
+    private var sendUTXOMaxInputCountBinding: Binding<Int> {
+        Binding(get: { store.sendUTXOMaxInputCount }, set: { store.sendUTXOMaxInputCount = $0 })
+    }
+
+    private var sendEnableRBFBinding: Binding<Bool> {
+        Binding(get: { store.sendEnableRBF }, set: { store.sendEnableRBF = $0 })
+    }
+
+    private var sendEnableCPFPBinding: Binding<Bool> {
+        Binding(get: { store.sendEnableCPFP }, set: { store.sendEnableCPFP = $0 })
+    }
+
+    private var sendLitecoinChangeStrategyBinding: Binding<LitecoinWalletEngine.ChangeStrategy> {
+        Binding(get: { store.sendLitecoinChangeStrategy }, set: { store.sendLitecoinChangeStrategy = $0 })
+    }
+
+    private var bitcoinFeePriorityBinding: Binding<BitcoinFeePriority> {
+        Binding(get: { store.bitcoinFeePriority }, set: { store.bitcoinFeePriority = $0 })
+    }
+
+    private var useCustomEthereumFeesBinding: Binding<Bool> {
+        Binding(get: { store.useCustomEthereumFees }, set: { store.useCustomEthereumFees = $0 })
+    }
+
+    private var customEthereumMaxFeeGweiBinding: Binding<String> {
+        Binding(get: { store.customEthereumMaxFeeGwei }, set: { store.customEthereumMaxFeeGwei = $0 })
+    }
+
+    private var customEthereumPriorityFeeGweiBinding: Binding<String> {
+        Binding(get: { store.customEthereumPriorityFeeGwei }, set: { store.customEthereumPriorityFeeGwei = $0 })
+    }
+
+    private var ethereumManualNonceEnabledBinding: Binding<Bool> {
+        Binding(get: { store.ethereumManualNonceEnabled }, set: { store.ethereumManualNonceEnabled = $0 })
+    }
+
+    private var ethereumManualNonceBinding: Binding<String> {
+        Binding(get: { store.ethereumManualNonce }, set: { store.ethereumManualNonce = $0 })
+    }
+
+    private var dogecoinFeePriorityBinding: Binding<DogecoinWalletEngine.FeePriority> {
+        Binding(get: { store.dogecoinFeePriority }, set: { store.dogecoinFeePriority = $0 })
+    }
+
     private var sendPreviewTaskID: String {
         [
-            store.sendWalletID,
-            store.sendHoldingKey,
-            store.sendAddress,
-            store.sendAmount,
+            flowState.sendWalletID,
+            flowState.sendHoldingKey,
+            flowState.sendAddress,
+            flowState.sendAmount,
             store.dogecoinFeePriority.rawValue,
             store.useCustomEthereumFees ? "custom-on" : "custom-off",
             store.customEthereumMaxFeeGwei,
@@ -49,34 +109,34 @@ struct SendView: View {
     }
 
     private var isSendBusy: Bool {
-        store.isSendingBitcoin
-            || store.isSendingBitcoinCash
-            || store.isSendingLitecoin
-            || store.isSendingEthereum
-            || store.isSendingDogecoin
-            || store.isSendingTron
-            || store.isSendingXRP
-            || store.isSendingMonero
-            || store.isSendingCardano
-            || store.isSendingNear
-            || store.isPreparingEthereumSend
-            || store.isPreparingDogecoinSend
-            || store.isPreparingTronSend
-            || store.isPreparingXRPSend
-            || store.isPreparingMoneroSend
-            || store.isPreparingCardanoSend
-            || store.isPreparingNearSend
+        sendState.isSendingBitcoin
+            || sendState.isSendingBitcoinCash
+            || sendState.isSendingLitecoin
+            || sendState.isSendingEthereum
+            || sendState.isSendingDogecoin
+            || sendState.isSendingTron
+            || sendState.isSendingXRP
+            || sendState.isSendingMonero
+            || sendState.isSendingCardano
+            || sendState.isSendingNear
+            || runtimeState.isPreparingEthereumSend
+            || runtimeState.isPreparingDogecoinSend
+            || runtimeState.isPreparingTronSend
+            || runtimeState.isPreparingXRPSend
+            || runtimeState.isPreparingMoneroSend
+            || runtimeState.isPreparingCardanoSend
+            || runtimeState.isPreparingNearSend
     }
 
     private var primaryPresentation: PrimaryPresentation {
         let sendWallets = store.sendEnabledWallets
-        let selectedWallet = sendWallets.first(where: { $0.id.uuidString == store.sendWalletID })
-        let availableSendCoins = store.availableSendCoins(for: store.sendWalletID)
-        let selectedCoin = availableSendCoins.first(where: { $0.holdingKey == store.sendHoldingKey })
+        let selectedWallet = sendWallets.first(where: { $0.id.uuidString == flowState.sendWalletID })
+        let availableSendCoins = store.availableSendCoins(for: flowState.sendWalletID)
+        let selectedCoin = availableSendCoins.first(where: { $0.holdingKey == flowState.sendHoldingKey })
         let selectedCoinAmountText = selectedCoin.map {
             store.formattedAssetAmount($0.amount, symbol: $0.symbol, chainName: $0.chainName)
         }
-        let sendAmount = Double(store.sendAmount) ?? 0
+        let sendAmount = Double(flowState.sendAmount) ?? 0
         let selectedCoinApproximateFiatText: String?
         if let selectedCoin, !sendAmount.isZero {
             selectedCoinApproximateFiatText = store.formattedFiatAmount(fromNative: sendAmount, symbol: selectedCoin.symbol)
@@ -98,8 +158,8 @@ struct SendView: View {
     private var sendLiveActivitySnapshot: SendLiveActivitySnapshot? {
         guard let selectedCoin = primaryPresentation.selectedCoin else { return nil }
         guard let selectedWallet = primaryPresentation.selectedWallet else { return nil }
-        let trimmedAmount = store.sendAmount.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedAddress = store.sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAmount = flowState.sendAmount.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAddress = flowState.sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAmount.isEmpty, !trimmedAddress.isEmpty else { return nil }
         return SendLiveActivitySnapshot(
             walletName: selectedWallet.name,
@@ -114,7 +174,7 @@ struct SendView: View {
     private var primarySendSections: some View {
         let presentation = primaryPresentation
 
-        Section {
+        sendDetailCard {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 12) {
                     if let selectedCoin = presentation.selectedCoin {
@@ -179,124 +239,126 @@ struct SendView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .padding(18)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
 
-        Section("Wallet & Asset") {
-            Picker("Wallet", selection: store.sendWalletIDBinding) {
-                ForEach(presentation.sendWallets) { wallet in
-                    Text(wallet.name).tag(wallet.id.uuidString)
+        sendDetailCard(title: "Wallet & Asset") {
+            VStack(alignment: .leading, spacing: 12) {
+                Picker("Wallet", selection: store.sendWalletIDBinding) {
+                    ForEach(presentation.sendWallets) { wallet in
+                        Text(wallet.name).tag(wallet.id.uuidString)
+                    }
+                }
+                .onChange(of: store.sendWalletID) { _, _ in
+                    store.syncSendAssetSelection()
+                }
+
+                Picker("Asset", selection: store.sendHoldingKeyBinding) {
+                    ForEach(presentation.availableSendCoins, id: \.holdingKey) { coin in
+                        Text("\(coin.name) on \(coin.chainName)").tag(coin.holdingKey)
+                    }
                 }
             }
-            .onChange(of: store.sendWalletID) { _, _ in
-                store.syncSendAssetSelection()
-            }
-
-            Picker("Asset", selection: store.sendHoldingKeyBinding) {
-                ForEach(presentation.availableSendCoins, id: \.holdingKey) { coin in
-                    Text("\(coin.name) on \(coin.chainName)").tag(coin.holdingKey)
-                }
-            }
-
-            sendAssetSummary(presentation.selectedCoin)
         }
 
-        Section("Recipient") {
-            if !presentation.addressBookEntries.isEmpty {
-                Picker("Saved Recipient", selection: $selectedAddressBookEntryID) {
-                    Text("None").tag("")
-                    ForEach(presentation.addressBookEntries) { entry in
-                        Text("\(entry.name) • \(entry.chainName)").tag(entry.id.uuidString)
+        sendDetailCard(title: "Recipient") {
+            VStack(alignment: .leading, spacing: 12) {
+                if !presentation.addressBookEntries.isEmpty {
+                    Picker("Saved Recipient", selection: $selectedAddressBookEntryID) {
+                        Text("None").tag("")
+                        ForEach(presentation.addressBookEntries) { entry in
+                            Text("\(entry.name) • \(entry.chainName)").tag(entry.id.uuidString)
+                        }
+                    }
+                    .onChange(of: selectedAddressBookEntryID) { _, newValue in
+                        guard let selectedEntry = primaryPresentation.addressBookEntries.first(where: { $0.id.uuidString == newValue }) else {
+                            return
+                        }
+                        store.sendAddress = selectedEntry.address
                     }
                 }
-                .onChange(of: selectedAddressBookEntryID) { _, newValue in
-                    guard let selectedEntry = primaryPresentation.addressBookEntries.first(where: { $0.id.uuidString == newValue }) else {
-                        return
+
+                HStack(spacing: 10) {
+                    TextField("Recipient address", text: store.sendAddressBinding)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    Button {
+                        guard DataScannerViewController.isSupported else {
+                            qrScannerErrorMessage = "QR scanning is not supported on this device."
+                            return
+                        }
+                        guard DataScannerViewController.isAvailable else {
+                            qrScannerErrorMessage = "QR scanning is unavailable right now. Check camera permission and try again."
+                            return
+                        }
+                        isShowingQRScanner = true
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.title3.weight(.semibold))
+                            .frame(width: 40, height: 40)
                     }
-                    store.sendAddress = selectedEntry.address
+                    .buttonStyle(.glass)
+                    .accessibilityLabel("Scan QR Code")
                 }
-            }
 
-            HStack(spacing: 10) {
-                TextField("Recipient address", text: store.sendAddressBinding)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                Button {
-                    guard DataScannerViewController.isSupported else {
-                        qrScannerErrorMessage = "QR scanning is not supported on this device."
-                        return
-                    }
-                    guard DataScannerViewController.isAvailable else {
-                        qrScannerErrorMessage = "QR scanning is unavailable right now. Check camera permission and try again."
-                        return
-                    }
-                    isShowingQRScanner = true
-                } label: {
-                    Image(systemName: "qrcode.viewfinder")
-                        .font(.title3.weight(.semibold))
-                        .frame(width: 40, height: 40)
+                if let qrScannerErrorMessage {
+                    Text(qrScannerErrorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
-                .buttonStyle(.glass)
-                .accessibilityLabel("Scan QR Code")
-            }
 
-            if let qrScannerErrorMessage {
-                Text(qrScannerErrorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
+                if flowState.isCheckingSendDestinationBalance {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Checking destination on-chain balance...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
-            if store.isCheckingSendDestinationBalance {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text("Checking destination on-chain balance...")
+                if let sendDestinationRiskWarning = flowState.sendDestinationRiskWarning {
+                    Text(sendDestinationRiskWarning)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                if let sendDestinationInfoMessage = flowState.sendDestinationInfoMessage {
+                    Text(sendDestinationInfoMessage)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-
-            if let sendDestinationRiskWarning = store.sendDestinationRiskWarning {
-                Text(sendDestinationRiskWarning)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-
-            if let sendDestinationInfoMessage = store.sendDestinationInfoMessage {
-                Text(sendDestinationInfoMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
         }
 
-        Section("Amount") {
-            TextField("Amount", text: store.sendAmountBinding)
-                .keyboardType(.decimalPad)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        sendDetailCard(title: "Amount") {
+            VStack(alignment: .leading, spacing: 12) {
+                TextField("Amount", text: store.sendAmountBinding)
+                    .keyboardType(.decimalPad)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            if let selectedCoin = presentation.selectedCoin {
-                HStack {
-                    Text("Using")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(selectedCoin.symbol)
-                        .font(.subheadline.weight(.semibold))
-                }
-
-                if let fiatAmount = presentation.selectedCoinApproximateFiatText {
+                if let selectedCoin = presentation.selectedCoin {
                     HStack {
-                        Text("Approx. Value")
+                        Text("Using")
                             .foregroundStyle(.secondary)
                         Spacer()
-                        Text(fiatAmount)
+                        Text(selectedCoin.symbol)
                             .font(.subheadline.weight(.semibold))
-                            .spectraNumericTextLayout()
+                    }
+
+                    if let fiatAmount = presentation.selectedCoinApproximateFiatText {
+                        HStack {
+                            Text("Approx. Value")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(fiatAmount)
+                                .font(.subheadline.weight(.semibold))
+                                .spectraNumericTextLayout()
+                        }
                     }
                 }
             }
@@ -305,24 +367,24 @@ struct SendView: View {
 
     @ViewBuilder
     private var sendStatusSections: some View {
-        if let sendError = store.sendError {
-            Section {
+        if let sendError = flowState.sendError {
+            sendDetailCard {
                 Text(sendError)
                     .font(.caption)
                     .foregroundStyle(.red)
             }
         }
 
-        if let sendVerificationNotice = store.sendVerificationNotice {
-            Section("Verification") {
+        if let sendVerificationNotice = flowState.sendVerificationNotice {
+            sendDetailCard(title: "Verification") {
                 Text(sendVerificationNotice)
                     .font(.caption)
-                    .foregroundStyle(store.sendVerificationNoticeIsWarning ? .red : .orange)
+                    .foregroundStyle(flowState.sendVerificationNoticeIsWarning ? .red : .orange)
             }
         }
 
-        if let lastSentTransaction = store.lastSentTransaction {
-            Section("Last Sent") {
+        if let lastSentTransaction = sendState.lastSentTransaction {
+            sendDetailCard(title: "Last Sent") {
                 Text(walletFlowLocalizedFormat("%@ sent to %@", lastSentTransaction.symbol, lastSentTransaction.addressPreviewText))
                     .font(.subheadline)
                 HStack {
@@ -370,37 +432,37 @@ struct SendView: View {
             }
         }
 
-        if store.isSendingBitcoin {
+        if sendState.isSendingBitcoin {
             sendingSection("Broadcasting Bitcoin transaction...")
         }
-        if store.isSendingBitcoinCash {
+        if sendState.isSendingBitcoinCash {
             sendingSection("Broadcasting Bitcoin Cash transaction...")
         }
-        if store.isSendingLitecoin {
+        if sendState.isSendingLitecoin {
             sendingSection("Broadcasting Litecoin transaction...")
         }
-        if store.isSendingEthereum {
+        if sendState.isSendingEthereum {
             sendingSection("Broadcasting \(store.selectedSendCoin?.chainName ?? "EVM") transaction...")
         }
-        if store.isSendingDogecoin {
+        if sendState.isSendingDogecoin {
             sendingSection("Broadcasting Dogecoin transaction...")
         }
-        if store.isSendingTron {
+        if sendState.isSendingTron {
             sendingSection("Broadcasting Tron transaction...")
         }
-        if store.isSendingXRP {
+        if sendState.isSendingXRP {
             sendingSection("Broadcasting XRP transaction...")
         }
-        if store.isSendingMonero {
+        if sendState.isSendingMonero {
             sendingSection("Broadcasting Monero transaction...")
         }
-        if store.isSendingCardano {
+        if sendState.isSendingCardano {
             sendingSection("Broadcasting Cardano transaction...")
         }
     }
 
     private func sendingSection(_ title: String) -> some View {
-        Section {
+        sendDetailCard {
             HStack(spacing: 10) {
                 ProgressView()
                 Text(title)
@@ -409,38 +471,28 @@ struct SendView: View {
         }
     }
 
-    @ViewBuilder
-    private func sendAssetSummary(_ coin: Coin?) -> some View {
-        if let coin {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    CoinBadge(
-                        assetIdentifier: coin.iconIdentifier,
-                        fallbackText: coin.mark,
-                        color: coin.color,
-                        size: 36
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(coin.name)
-                            .font(.headline)
-                        Text(coin.chainName)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-                }
-
-                LabeledContent("Available") {
-                    Text(store.formattedAssetAmount(coin.amount, symbol: coin.symbol, chainName: coin.chainName))
-                        .font(.subheadline.weight(.semibold))
-                        .spectraNumericTextLayout()
-                }
-            }
-            .padding(14)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
+    private func hasNetworkSendSections(for coin: Coin?) -> Bool {
+        guard let coin else { return false }
+        let chainName = coin.chainName
+        return chainName == "Bitcoin"
+            || chainName == "Bitcoin Cash"
+            || chainName == "Bitcoin SV"
+            || chainName == "Litecoin"
+            || chainName == "Dogecoin"
+            || chainName == "Ethereum"
+            || chainName == "Ethereum Classic"
+            || chainName == "Arbitrum"
+            || chainName == "Optimism"
+            || chainName == "BNB Chain"
+            || chainName == "Avalanche"
+            || chainName == "Hyperliquid"
+            || chainName == "Tron"
+            || chainName == "XRP Ledger"
+            || chainName == "Cardano"
+            || chainName == "NEAR"
+            || chainName == "Polkadot"
+            || chainName == "Stellar"
+            || chainName == "Internet Computer"
     }
 
     private func utxoPreview(for coin: Coin) -> BitcoinSendPreview? {
@@ -458,16 +510,16 @@ struct SendView: View {
         if let selectedCoin,
            selectedCoin.chainName == "Bitcoin" || selectedCoin.chainName == "Bitcoin Cash" || selectedCoin.chainName == "Bitcoin SV" || selectedCoin.chainName == "Litecoin" || selectedCoin.chainName == "Dogecoin" {
             Section("Advanced UTXO Mode") {
-                Toggle("Enable Advanced Controls", isOn: $store.sendAdvancedMode)
+                Toggle("Enable Advanced Controls", isOn: sendAdvancedModeBinding)
                 if store.sendAdvancedMode {
                     Stepper(
                         "Max Inputs: \(store.sendUTXOMaxInputCount == 0 ? "Auto" : "\(store.sendUTXOMaxInputCount)")",
-                        value: $store.sendUTXOMaxInputCount,
+                        value: sendUTXOMaxInputCountBinding,
                         in: 0 ... 50
                     )
                     if selectedCoin.chainName == "Litecoin" {
-                        Toggle("Enable RBF Policy", isOn: $store.sendEnableRBF)
-                        Picker("Change Strategy", selection: $store.sendLitecoinChangeStrategy) {
+                        Toggle("Enable RBF Policy", isOn: sendEnableRBFBinding)
+                        Picker("Change Strategy", selection: sendLitecoinChangeStrategyBinding) {
                             ForEach(LitecoinWalletEngine.ChangeStrategy.allCases) { strategy in
                                 Text(strategy.displayName).tag(strategy)
                             }
@@ -477,8 +529,8 @@ struct SendView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        Toggle("RBF Intent", isOn: $store.sendEnableRBF)
-                        Toggle("CPFP Intent", isOn: $store.sendEnableCPFP)
+                        Toggle("RBF Intent", isOn: sendEnableRBFBinding)
+                        Toggle("CPFP Intent", isOn: sendEnableCPFPBinding)
                         if selectedCoin.chainName == "Bitcoin" {
                             Text("For Bitcoin sends, advanced mode records RBF/CPFP intent and applies the max-input cap for coin selection.")
                                 .font(.caption)
@@ -505,7 +557,7 @@ struct SendView: View {
             let feeSymbol = selectedCoin.symbol
             let utxoPreview = utxoPreview(for: selectedCoin)
             Section(walletFlowLocalizedFormat("%@ Network", selectedCoin.chainName)) {
-                Picker("Fee Priority", selection: $store.bitcoinFeePriority) {
+                Picker("Fee Priority", selection: bitcoinFeePriorityBinding) {
                     ForEach(BitcoinFeePriority.allCases) { priority in
                         Text(priority.displayName).tag(priority)
                     }
@@ -530,12 +582,12 @@ struct SendView: View {
         if let selectedCoin,
            (selectedCoin.chainName == "Ethereum" || selectedCoin.chainName == "Ethereum Classic" || selectedCoin.chainName == "Arbitrum" || selectedCoin.chainName == "Optimism" || selectedCoin.chainName == "BNB Chain" || selectedCoin.chainName == "Avalanche" || selectedCoin.chainName == "Hyperliquid") {
             Section(walletFlowLocalizedFormat("%@ Network", selectedCoin.chainName)) {
-                Toggle("Use Custom Fees", isOn: $store.useCustomEthereumFees)
+                Toggle("Use Custom Fees", isOn: useCustomEthereumFeesBinding)
 
                 if store.useCustomEthereumFees {
-                    TextField("Max Fee (gwei)", text: $store.customEthereumMaxFeeGwei)
+                    TextField("Max Fee (gwei)", text: customEthereumMaxFeeGweiBinding)
                         .keyboardType(.decimalPad)
-                    TextField("Priority Fee (gwei)", text: $store.customEthereumPriorityFeeGwei)
+                    TextField("Priority Fee (gwei)", text: customEthereumPriorityFeeGweiBinding)
                         .keyboardType(.decimalPad)
 
                     if let customEthereumFeeValidationError = store.customEthereumFeeValidationError {
@@ -549,9 +601,9 @@ struct SendView: View {
                     }
                 }
 
-                Toggle("Manual Nonce", isOn: $store.ethereumManualNonceEnabled)
+                Toggle("Manual Nonce", isOn: ethereumManualNonceEnabledBinding)
                 if store.ethereumManualNonceEnabled {
-                    TextField("Nonce", text: $store.ethereumManualNonce)
+                    TextField("Nonce", text: ethereumManualNonceBinding)
                         .keyboardType(.numberPad)
                     if let customEthereumNonceValidationError = store.customEthereumNonceValidationError {
                         Text(customEthereumNonceValidationError)
@@ -561,7 +613,7 @@ struct SendView: View {
                 }
 
                 if selectedCoin.chainName == "Ethereum" {
-                    if store.isPreparingEthereumReplacementContext {
+                    if runtimeState.isPreparingEthereumReplacementContext {
                         HStack(spacing: 10) {
                             ProgressView()
                             Text("Preparing replacement/cancel context...")
@@ -583,7 +635,7 @@ struct SendView: View {
                     }
                 }
 
-                if store.isPreparingEthereumSend {
+                if runtimeState.isPreparingEthereumSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading nonce and fee estimate...")
@@ -616,7 +668,7 @@ struct SendView: View {
 
         if let selectedCoin, selectedCoin.chainName == "Tron" {
             Section("Tron Network") {
-                if store.isPreparingTronSend {
+                if runtimeState.isPreparingTronSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading Tron fee estimate...")
@@ -649,7 +701,7 @@ struct SendView: View {
 
         if let selectedCoin, selectedCoin.chainName == "XRP Ledger" {
             Section("XRP Ledger Network") {
-                if store.isPreparingXRPSend {
+                if runtimeState.isPreparingXRPSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading XRP fee estimate...")
@@ -683,7 +735,7 @@ struct SendView: View {
 
         if let selectedCoin, selectedCoin.chainName == "Cardano" {
             Section("Cardano Network") {
-                if store.isPreparingCardanoSend {
+                if runtimeState.isPreparingCardanoSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading Cardano fee estimate...")
@@ -714,7 +766,7 @@ struct SendView: View {
 
         if let selectedCoin, selectedCoin.chainName == "NEAR" {
             Section("NEAR Network") {
-                if store.isPreparingNearSend {
+                if runtimeState.isPreparingNearSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading NEAR fee estimate...")
@@ -742,7 +794,7 @@ struct SendView: View {
 
         if let selectedCoin, selectedCoin.chainName == "Polkadot" {
             Section("Polkadot Network") {
-                if store.isPreparingPolkadotSend {
+                if runtimeState.isPreparingPolkadotSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading Polkadot fee estimate...")
@@ -770,7 +822,7 @@ struct SendView: View {
 
         if let selectedCoin, selectedCoin.chainName == "Stellar" {
             Section("Stellar Network") {
-                if store.isPreparingStellarSend {
+                if runtimeState.isPreparingStellarSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading Stellar fee estimate...")
@@ -801,7 +853,7 @@ struct SendView: View {
 
         if let selectedCoin, selectedCoin.chainName == "Internet Computer" {
             Section("Internet Computer Network") {
-                if store.isPreparingICPSend {
+                if runtimeState.isPreparingICPSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading ICP fee estimate...")
@@ -829,14 +881,14 @@ struct SendView: View {
 
         if let selectedCoin, selectedCoin.chainName == "Dogecoin" {
             Section("Dogecoin Send") {
-                Picker("Fee Priority", selection: $store.dogecoinFeePriority) {
+                Picker("Fee Priority", selection: dogecoinFeePriorityBinding) {
                     Text("Economy").tag(DogecoinWalletEngine.FeePriority.economy)
                     Text("Normal").tag(DogecoinWalletEngine.FeePriority.normal)
                     Text("Priority").tag(DogecoinWalletEngine.FeePriority.priority)
                 }
                 .pickerStyle(.segmented)
 
-                if store.isPreparingDogecoinSend {
+                if runtimeState.isPreparingDogecoinSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text("Loading UTXOs and fee estimate...")
@@ -875,13 +927,21 @@ struct SendView: View {
         ZStack {
             SpectraBackdrop()
 
-            Form {
-                primarySendSections
-                networkSendSections(selectedCoin: selectedCoin)
-
-                sendStatusSections
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    primarySendSections
+                    if hasNetworkSendSections(for: selectedCoin) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            networkSendSections(selectedCoin: selectedCoin)
+                        }
+                        .padding(18)
+                        .spectraBubbleFill()
+                        .glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+                    }
+                    sendStatusSections
+                }
+                .padding(20)
             }
-            .scrollContentBackground(.hidden)
             .navigationTitle("Send")
             .task(id: sendPreviewTaskID) {
                 await store.refreshSendPreview()
@@ -898,7 +958,7 @@ struct SendView: View {
                     Text(verbatim: qrScannerErrorMessage)
                 }
             }
-            .onChange(of: store.sendHoldingKey) { _, _ in
+            .onChange(of: flowState.sendHoldingKey) { _, _ in
                 selectedAddressBookEntryID = ""
             }
             .onChange(of: isSendBusy) { _, isBusy in
@@ -913,8 +973,8 @@ struct SendView: View {
                     )
                 }
             }
-            .onChange(of: store.lastSentTransaction?.id) { _, _ in
-                guard let transaction = store.lastSentTransaction,
+            .onChange(of: sendState.lastSentTransaction?.id) { _, _ in
+                guard let transaction = sendState.lastSentTransaction,
                       transaction.kind == .send else { return }
                 Task {
                     let walletName = transaction.walletID.flatMap { walletID in
@@ -930,7 +990,7 @@ struct SendView: View {
                     )
                 }
             }
-            .onChange(of: store.sendError) { _, sendError in
+            .onChange(of: flowState.sendError) { _, sendError in
                 guard !isSendBusy,
                       let sendError,
                       !sendError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -963,6 +1023,23 @@ struct SendView: View {
                      : "• " + store.pendingHighRiskSendReasons.joined(separator: "\n• "))
             }
         }
+    }
+
+    @ViewBuilder
+    private func sendDetailCard(title: String? = nil, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let title {
+                Text(NSLocalizedString(title, comment: ""))
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.primary)
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                content()
+            }
+        }
+        .padding(18)
+        .spectraBubbleFill()
+        .glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }
 
     private var qrScannerAlertBinding: Binding<Bool> {

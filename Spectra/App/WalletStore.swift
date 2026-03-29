@@ -36,6 +36,7 @@ struct DiagnosticsBundlePayload: Codable {
     let environment: DiagnosticsEnvironmentMetadata
     let chainDegradedMessages: [String: String]
     let bitcoinDiagnosticsJSON: String
+    let bitcoinSVDiagnosticsJSON: String?
     let litecoinDiagnosticsJSON: String?
     let ethereumDiagnosticsJSON: String
     let arbitrumDiagnosticsJSON: String?
@@ -1070,19 +1071,16 @@ class WalletStore: ObservableObject {
     // 4) start background maintenance loops and initial refreshes.
     init() {
         clearPersistedSecureDataOnFreshInstallIfNeeded()
-        portfolioStateObservation = portfolioState.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        portfolioStateObservation = portfolioState.objectWillChange.sink { _ in
         }
         walletCollectionObservation = portfolioState.$wallets.dropFirst().sink { [weak self] _ in
             guard let self else { return }
             guard !self.suppressWalletSideEffects else { return }
             self.applyWalletCollectionSideEffects()
         }
-        runtimeStateObservation = runtimeState.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        runtimeStateObservation = runtimeState.objectWillChange.sink { _ in
         }
-        transactionStateObservation = transactionState.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        transactionStateObservation = transactionState.objectWillChange.sink { _ in
         }
         transactionMutationObservation = transactionState.$transactions.dropFirst().sink { [weak self] newTransactions in
             guard let self else { return }
@@ -1092,17 +1090,13 @@ class WalletStore: ObservableObject {
             self.persistTransactionsDelta(from: oldTransactions, to: newTransactions)
             self.rebuildTransactionDerivedState()
         }
-        flowStateObservation = flowState.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        flowStateObservation = flowState.objectWillChange.sink { _ in
         }
-        diagnosticsObservation = diagnostics.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        diagnosticsObservation = diagnostics.objectWillChange.sink { _ in
         }
-        chainDiagnosticsStateObservation = chainDiagnosticsState.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        chainDiagnosticsStateObservation = chainDiagnosticsState.objectWillChange.sink { _ in
         }
-        sendStateObservation = sendState.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        sendStateObservation = sendState.objectWillChange.sink { _ in
         }
         if let storedProvider = UserDefaults.standard.string(forKey: Self.pricingProviderDefaultsKey),
            let pricingProvider = PricingProvider(rawValue: storedProvider) {
@@ -3558,7 +3552,6 @@ func resetImportForm() {
             appLockError = nil
         }
         if !isActive {
-            importDraft.clearSensitiveInputs()
             maintenanceTask?.cancel()
             maintenanceTask = nil
             return
@@ -10110,6 +10103,16 @@ func resetImportForm() {
         livePrices[activePriceKey(for: coin)]
     }
 
+    func currentOrFallbackPriceIfAvailable(for coin: Coin) -> Double? {
+        if let livePrice = currentPriceIfAvailable(for: coin) {
+            return livePrice
+        }
+        guard coin.priceUSD > 0 else {
+            return nil
+        }
+        return coin.priceUSD
+    }
+
     func currentPrice(for coin: Coin) -> Double {
         currentPriceIfAvailable(for: coin) ?? 0
     }
@@ -10560,6 +10563,194 @@ func resetImportForm() {
         await operation()
     }
 
+    func refreshWalletBalance(_ walletID: UUID) async {
+        await withBalanceRefreshWindow {
+            guard let wallet = wallets.first(where: { $0.id == walletID }) else { return }
+
+            let updatedHoldings: [Coin]?
+
+            switch wallet.selectedChain {
+            case "Bitcoin":
+                await refreshBitcoinBalances()
+                return
+            case "Bitcoin Cash":
+                guard let address = resolvedBitcoinCashAddress(for: wallet) else { return }
+                guard let balance = try? await BitcoinCashBalanceService.fetchBalance(for: address) else { return }
+                updatedHoldings = applyBitcoinCashBalance(balance, to: wallet.holdings)
+            case "Bitcoin SV":
+                guard let address = resolvedBitcoinSVAddress(for: wallet) else { return }
+                guard let balance = try? await BitcoinSVBalanceService.fetchBalance(for: address) else { return }
+                updatedHoldings = applyBitcoinSVBalance(balance, to: wallet.holdings)
+            case "Litecoin":
+                guard let address = resolvedLitecoinAddress(for: wallet) else { return }
+                guard let balance = try? await LitecoinBalanceService.fetchBalance(for: address) else { return }
+                updatedHoldings = applyLitecoinBalance(balance, to: wallet.holdings)
+            case "Dogecoin":
+                await refreshDogecoinBalances()
+                return
+            case "Ethereum":
+                guard let address = resolvedEthereumAddress(for: wallet) else { return }
+                guard let portfolio = try? await fetchEthereumPortfolio(for: address) else { return }
+                updatedHoldings = applyEthereumBalances(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "Ethereum Classic":
+                guard let address = resolvedEVMAddress(for: wallet, chainName: "Ethereum Classic") else { return }
+                guard let portfolio = try? await fetchEVMNativePortfolio(for: address, chainName: "Ethereum Classic") else { return }
+                updatedHoldings = applyETCBalances(nativeBalance: portfolio.nativeBalance, to: wallet.holdings)
+            case "Arbitrum":
+                guard let address = resolvedEVMAddress(for: wallet, chainName: "Arbitrum") else { return }
+                guard let portfolio = try? await fetchEVMNativePortfolio(for: address, chainName: "Arbitrum") else { return }
+                updatedHoldings = applyArbitrumBalances(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "Optimism":
+                guard let address = resolvedEVMAddress(for: wallet, chainName: "Optimism") else { return }
+                guard let portfolio = try? await fetchEVMNativePortfolio(for: address, chainName: "Optimism") else { return }
+                updatedHoldings = applyOptimismBalances(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "BNB Chain":
+                guard let address = resolvedEVMAddress(for: wallet, chainName: "BNB Chain") else { return }
+                guard let portfolio = try? await fetchEVMNativePortfolio(for: address, chainName: "BNB Chain") else { return }
+                updatedHoldings = applyBNBBalances(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "Avalanche":
+                guard let address = resolvedEVMAddress(for: wallet, chainName: "Avalanche") else { return }
+                guard let portfolio = try? await fetchEVMNativePortfolio(for: address, chainName: "Avalanche") else { return }
+                updatedHoldings = applyAvalancheBalances(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "Hyperliquid":
+                guard let address = resolvedEVMAddress(for: wallet, chainName: "Hyperliquid") else { return }
+                guard let portfolio = try? await fetchEVMNativePortfolio(for: address, chainName: "Hyperliquid") else { return }
+                updatedHoldings = applyHyperliquidBalances(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "Tron":
+                guard let address = resolvedTronAddress(for: wallet) else { return }
+                guard let balances = try? await TronBalanceService.fetchBalances(
+                    for: address,
+                    trackedTokens: enabledTronTrackedTokens()
+                ) else { return }
+                updatedHoldings = applyTronBalances(
+                    nativeBalance: balances.trxBalance,
+                    tokenBalances: balances.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "Solana":
+                guard let address = resolvedSolanaAddress(for: wallet) else { return }
+                guard let portfolio = try? await SolanaBalanceService.fetchPortfolio(
+                    for: address,
+                    trackedTokenMetadataByMint: enabledSolanaTrackedTokens()
+                ) else { return }
+                var holdings = applySolanaPortfolio(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+                if portfolio.tokenBalances.isEmpty {
+                    holdings = mergeSolanaHistoryFallbackHoldings(
+                        historyDerivedSolanaTrackedTokenHoldings(for: wallet.id),
+                        into: holdings
+                    )
+                }
+                updatedHoldings = holdings
+            case "Cardano":
+                guard let address = resolvedCardanoAddress(for: wallet) else { return }
+                guard let balance = try? await CardanoBalanceService.fetchBalance(for: address) else { return }
+                updatedHoldings = applyCardanoBalance(balance, to: wallet.holdings)
+            case "XRP Ledger":
+                guard let address = resolvedXRPAddress(for: wallet) else { return }
+                guard let balance = try? await XRPBalanceService.fetchBalance(for: address) else { return }
+                updatedHoldings = applyXRPBalance(balance, to: wallet.holdings)
+            case "Stellar":
+                guard let address = resolvedStellarAddress(for: wallet) else { return }
+                guard let balance = try? await StellarBalanceService.fetchBalance(for: address) else { return }
+                updatedHoldings = applyStellarBalance(balance, to: wallet.holdings)
+            case "Monero":
+                guard let address = resolvedMoneroAddress(for: wallet) else { return }
+                guard let balance = try? await MoneroBalanceService.fetchBalance(for: address) else { return }
+                updatedHoldings = applyMoneroBalance(balance, to: wallet.holdings)
+            case "Sui":
+                guard let address = resolvedSuiAddress(for: wallet) else { return }
+                guard let portfolio = try? await SuiBalanceService.fetchPortfolio(
+                    for: address,
+                    trackedTokenMetadataByCoinType: enabledSuiTrackedTokens()
+                ) else { return }
+                updatedHoldings = applySuiBalances(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "Aptos":
+                guard let address = resolvedAptosAddress(for: wallet) else { return }
+                guard let portfolio = try? await AptosBalanceService.fetchPortfolio(
+                    for: address,
+                    trackedTokenMetadataByType: enabledAptosTrackedTokens()
+                ) else { return }
+                updatedHoldings = applyAptosBalances(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "TON":
+                guard let address = resolvedTONAddress(for: wallet) else { return }
+                guard let portfolio = try? await TONBalanceService.fetchPortfolio(
+                    for: address,
+                    trackedTokenMetadataByMasterAddress: enabledTONTrackedTokens()
+                ) else { return }
+                updatedHoldings = applyTONBalances(
+                    nativeBalance: portfolio.nativeBalance,
+                    tokenBalances: portfolio.tokenBalances,
+                    to: wallet.holdings
+                )
+            case "Internet Computer":
+                guard let address = resolvedICPAddress(for: wallet) else { return }
+                guard let balance = try? await ICPBalanceService.fetchBalance(for: address) else { return }
+                updatedHoldings = applyICPBalance(balance, to: wallet.holdings)
+            case "NEAR":
+                guard let address = resolvedNearAddress(for: wallet) else { return }
+                async let nativeBalanceTask = try? await NearBalanceService.fetchBalance(for: address)
+                async let tokenBalancesTask = try? await NearBalanceService.fetchTrackedTokenBalances(
+                    for: address,
+                    trackedTokenMetadataByContract: enabledNearTrackedTokens()
+                )
+                let nativeBalance = await nativeBalanceTask
+                let tokenBalances = await tokenBalancesTask
+                updatedHoldings = applyNearBalances(
+                    nativeBalance: nativeBalance,
+                    tokenBalances: tokenBalances,
+                    to: wallet.holdings
+                )
+            case "Polkadot":
+                guard let address = resolvedPolkadotAddress(for: wallet) else { return }
+                guard let balance = try? await PolkadotBalanceService.fetchBalance(for: address) else { return }
+                updatedHoldings = applyPolkadotBalance(balance, to: wallet.holdings)
+            default:
+                return
+            }
+
+            guard let updatedHoldings,
+                  let index = wallets.firstIndex(where: { $0.id == walletID }) else { return }
+            wallets[index] = walletByReplacingHoldings(wallets[index], with: updatedHoldings)
+            applyWalletCollectionSideEffects()
+        }
+    }
+
     private func collectLimitedConcurrentIndexedResults<Item, Value>(
         from items: [Item],
         maxConcurrent: Int = 4,
@@ -10665,6 +10856,12 @@ func resetImportForm() {
             guard wallet.selectedChain == "Bitcoin" else {
                 return nil
             }
+            let hasStoredSeedPhrase = storedSeedPhrase(for: wallet.id) != nil
+            let hasBitcoinAddress = !(wallet.bitcoinAddress?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            let hasExtendedPublicKey = !(wallet.bitcoinXPub?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            guard hasStoredSeedPhrase || hasBitcoinAddress || hasExtendedPublicKey else {
+                return nil
+            }
             return (index, wallet)
         }
         
@@ -10722,6 +10919,7 @@ func resetImportForm() {
         if resolvedBalances.count == walletsToRefresh.count {
             markChainHealthy("Bitcoin")
         } else if !resolvedBalances.isEmpty {
+            noteChainSuccessfulSync("Bitcoin")
             if usedLedgerFallback {
                 markChainDegraded("Bitcoin", detail: "Bitcoin providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
             } else {
@@ -11635,6 +11833,7 @@ func resetImportForm() {
         if resolvedBalances.count == walletsToRefresh.count {
             markChainHealthy("Tron")
         } else if !resolvedBalances.isEmpty {
+            noteChainSuccessfulSync("Tron")
             if usedLedgerFallback {
                 markChainDegraded("Tron", detail: "Tron providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
             } else {
@@ -12119,6 +12318,7 @@ func resetImportForm() {
         if resolvedBalances.count == walletsToRefresh.count {
             markChainHealthy("Stellar")
         } else if !resolvedBalances.isEmpty {
+            noteChainSuccessfulSync("Stellar")
             if usedLedgerFallback {
                 markChainDegraded("Stellar", detail: "Stellar providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
             } else {
@@ -12871,6 +13071,7 @@ func resetImportForm() {
         if resolvedBalances.count == walletsToRefresh.count {
             markChainHealthy("Polkadot")
         } else if !resolvedBalances.isEmpty {
+            noteChainSuccessfulSync("Polkadot")
             if usedLedgerFallback {
                 markChainDegraded("Polkadot", detail: "Polkadot providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
             } else {
@@ -15214,6 +15415,77 @@ func resetImportForm() {
         )
     }
 
+    func runBitcoinSVHistoryDiagnostics() async {
+        guard !isRunningBitcoinSVHistoryDiagnostics else { return }
+        isRunningBitcoinSVHistoryDiagnostics = true
+        defer { isRunningBitcoinSVHistoryDiagnostics = false }
+
+        let walletsToRefresh = wallets.compactMap { wallet -> (ImportedWallet, String)? in
+            guard wallet.selectedChain == "Bitcoin SV",
+                  let address = resolvedBitcoinSVAddress(for: wallet) else {
+                return nil
+            }
+            return (wallet, address)
+        }
+        guard !walletsToRefresh.isEmpty else {
+            bitcoinSVHistoryDiagnosticsLastUpdatedAt = Date()
+            return
+        }
+
+        for (wallet, address) in walletsToRefresh {
+            bitcoinSVHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
+                walletID: wallet.id,
+                identifier: address,
+                sourceUsed: "running",
+                transactionCount: 0,
+                nextCursor: nil,
+                error: "Running..."
+            )
+            bitcoinSVHistoryDiagnosticsLastUpdatedAt = Date()
+
+            do {
+                let page = try await withTimeout(seconds: 15) {
+                    try await BitcoinSVBalanceService.fetchTransactionPage(
+                        for: address,
+                        limit: max(10, min(self.bitcoinHistoryFetchLimit, 100))
+                    )
+                }
+                bitcoinSVHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
+                    walletID: wallet.id,
+                    identifier: address,
+                    sourceUsed: page.sourceUsed,
+                    transactionCount: page.snapshots.count,
+                    nextCursor: page.nextCursor ?? "",
+                    error: nil
+                )
+            } catch {
+                bitcoinSVHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
+                    walletID: wallet.id,
+                    identifier: address,
+                    sourceUsed: "none",
+                    transactionCount: 0,
+                    nextCursor: nil,
+                    error: error.localizedDescription
+                )
+            }
+        }
+
+        bitcoinSVHistoryDiagnosticsLastUpdatedAt = Date()
+    }
+
+    func runBitcoinSVEndpointReachabilityDiagnostics() async {
+        guard !isCheckingBitcoinSVEndpointHealth else { return }
+        isCheckingBitcoinSVEndpointHealth = true
+        defer { isCheckingBitcoinSVEndpointHealth = false }
+
+        await runSimpleEndpointReachabilityDiagnostics(
+            checks: BitcoinSVBalanceService.diagnosticsChecks(),
+            profile: .litecoinDiagnostics,
+            setResults: { self.bitcoinSVEndpointHealthResults = $0 },
+            markUpdated: { self.bitcoinSVEndpointHealthLastUpdatedAt = Date() }
+        )
+    }
+
     func runTronHistoryDiagnostics() async {
         await runAddressHistoryDiagnosticsForAllWallets(
             isRunning: { self.isRunningTronHistoryDiagnostics },
@@ -16680,6 +16952,34 @@ func resetImportForm() {
         return prettyJSONString(from: payload)
     }
 
+    func bitcoinSVDiagnosticsJSON() -> String? {
+        let history = bitcoinSVHistoryDiagnosticsByWallet.values.map { item in
+            [
+                "walletID": item.walletID.uuidString,
+                "identifier": item.identifier,
+                "sourceUsed": item.sourceUsed,
+                "transactionCount": item.transactionCount,
+                "nextCursor": item.nextCursor ?? "",
+                "error": item.error ?? ""
+            ]
+        }
+        let endpoints = bitcoinSVEndpointHealthResults.map { item in
+            [
+                "endpoint": item.endpoint,
+                "reachable": item.reachable,
+                "statusCode": item.statusCode ?? -1,
+                "detail": item.detail
+            ] as [String: Any]
+        }
+        let payload: [String: Any] = [
+            "historyLastUpdatedAt": bitcoinSVHistoryDiagnosticsLastUpdatedAt?.timeIntervalSince1970 ?? 0,
+            "endpointsLastUpdatedAt": bitcoinSVEndpointHealthLastUpdatedAt?.timeIntervalSince1970 ?? 0,
+            "history": history,
+            "endpoints": endpoints
+        ]
+        return prettyJSONString(from: payload)
+    }
+
     func ethereumDiagnosticsJSON() -> String? {
         let history = ethereumHistoryDiagnosticsByWallet.map { (walletID, item) in
             [
@@ -17292,6 +17592,7 @@ func resetImportForm() {
             environment: metadata,
             chainDegradedMessages: chainDegradedMessages,
             bitcoinDiagnosticsJSON: bitcoinDiagnosticsJSON() ?? "{}",
+            bitcoinSVDiagnosticsJSON: bitcoinSVDiagnosticsJSON() ?? "{}",
             litecoinDiagnosticsJSON: litecoinDiagnosticsJSON() ?? "{}",
             ethereumDiagnosticsJSON: ethereumDiagnosticsJSON() ?? "{}",
             arbitrumDiagnosticsJSON: arbitrumDiagnosticsJSON() ?? "{}",
@@ -18786,6 +19087,10 @@ func resetImportForm() {
         diagnostics.markChainHealthy(chainName)
     }
 
+    private func noteChainSuccessfulSync(_ chainName: String) {
+        diagnostics.noteChainSuccessfulSync(chainName)
+    }
+
     // Full history persistence path.
     // Writes normalized transaction snapshots to the local history database in one replacement pass.
     private func clearHistoryTracking(for walletID: UUID) {
@@ -19201,7 +19506,7 @@ extension WalletStore {
     }
 
     func currentValueIfAvailable(for coin: Coin) -> Double? {
-        guard let price = currentPriceIfAvailable(for: coin) else {
+        guard let price = currentOrFallbackPriceIfAvailable(for: coin) else {
             return nil
         }
         return coin.amount * price

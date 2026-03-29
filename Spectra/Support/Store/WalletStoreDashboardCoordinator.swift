@@ -109,13 +109,11 @@ extension WalletStore {
         }
         UserDefaults.standard.set(symbols, forKey: Self.pinnedDashboardAssetSymbolsDefaultsKey)
         rebuildDashboardDerivedState()
-        objectWillChange.send()
     }
 
     func resetPinnedDashboardAssets() {
         UserDefaults.standard.removeObject(forKey: Self.pinnedDashboardAssetSymbolsDefaultsKey)
         rebuildDashboardDerivedState()
-        objectWillChange.send()
     }
 
     private func dashboardAssetGroupingKey(for coin: Coin) -> String {

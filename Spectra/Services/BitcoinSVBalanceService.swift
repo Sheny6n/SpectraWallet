@@ -28,119 +28,122 @@ struct BitcoinSVUTXO: Equatable {
 }
 
 enum BitcoinSVBalanceService {
-    private static let blockchairBaseURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairBaseURL
-    private static let iso8601Formatter = ISO8601DateFormatter()
-    private static let fallbackTimestampFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return formatter
-    }()
+    private static let whatsonchainBaseURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainBaseURL
+    private static let whatsonchainChainInfoURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainChainInfoURL
     private static let satoshisPerBSV: Double = 100_000_000
 
     static func endpointCatalog() -> [String] {
-        [blockchairBaseURL]
+        [whatsonchainBaseURL]
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
         endpointCatalog().map { endpoint in
-            (endpoint: endpoint, probeURL: endpoint + "/stats")
+            (endpoint: endpoint, probeURL: whatsonchainChainInfoURL)
         }
     }
 
-    private struct BlockchairAddressResponse: Decodable {
-        struct Context: Decodable {
-            let code: Int?
-        }
-
-        let data: [String: AddressDashboard]
-        let context: Context?
+    private struct WhatsOnChainBalanceResponse: Decodable {
+        let confirmed: Int64?
+        let unconfirmed: Int64?
     }
 
-    private struct AddressDashboard: Decodable {
-        struct AddressDetails: Decodable {
-            let balance: Int64?
-            let transactionCount: Int?
+    private struct WhatsOnChainHistoryEntry: Decodable {
+        let txHash: String
+        let height: Int?
 
-            enum CodingKeys: String, CodingKey {
-                case balance
-                case transactionCount = "transaction_count"
-            }
+        enum CodingKeys: String, CodingKey {
+            case txHash = "tx_hash"
+            case height
         }
-
-        struct UTXOEntry: Decodable {
-            let transactionHash: String
-            let index: Int
-            let value: UInt64
-
-            enum CodingKeys: String, CodingKey {
-                case transactionHash = "transaction_hash"
-                case index
-                case value
-            }
-        }
-
-        let address: AddressDetails
-        let transactions: [String]
-        let utxo: [UTXOEntry]?
     }
 
-    private struct BlockchairTransactionResponse: Decodable {
-        let data: [String: TransactionDashboard]
+    private struct WhatsOnChainUnspentEntry: Decodable {
+        let txHash: String
+        let outputIndex: Int
+        let value: UInt64
+
+        enum CodingKeys: String, CodingKey {
+            case txHash = "tx_hash"
+            case outputIndex = "tx_pos"
+            case value
+        }
     }
 
-    private struct TransactionDashboard: Decodable {
-        struct TransactionDetails: Decodable {
-            let blockID: Int?
-            let hash: String
-            let time: String?
-
-            enum CodingKeys: String, CodingKey {
-                case blockID = "block_id"
-                case hash
-                case time
-            }
-        }
-
+    private struct WhatsOnChainTransaction: Decodable {
         struct Input: Decodable {
-            let recipient: String?
-            let value: Int64?
+            struct ScriptSignature: Decodable {
+                let asm: String?
+                let hex: String?
+            }
+
+            let txid: String?
+            let vout: Int?
+            let scriptSig: ScriptSignature?
+            let sequence: UInt64?
+            let address: String?
+            let value: Double?
         }
 
         struct Output: Decodable {
-            let recipient: String?
-            let value: Int64?
+            struct ScriptPubKey: Decodable {
+                let addresses: [String]?
+                let address: String?
+            }
+
+            let value: Double?
+            let n: Int?
+            let scriptPubKey: ScriptPubKey?
         }
 
-        let transaction: TransactionDetails
-        let inputs: [Input]
-        let outputs: [Output]
+        let txid: String
+        let confirmations: Int?
+        let blockheight: Int?
+        let time: TimeInterval?
+        let blocktime: TimeInterval?
+        let vin: [Input]
+        let vout: [Output]
     }
 
     static func fetchBalance(for address: String) async throws -> Double {
-        let dashboard = try await fetchAddressDashboard(for: address, limit: 1, offset: 0)
-        let balance = max(0, dashboard.address.balance ?? 0)
-        return Double(balance) / satoshisPerBSV
+        let trimmed = try normalizedAddress(address)
+        let balance: WhatsOnChainBalanceResponse = try await fetchDecodable(
+            path: "/address/\(trimmed)/balance"
+        )
+        let confirmed = max(0, balance.confirmed ?? 0)
+        let unconfirmed = max(0, balance.unconfirmed ?? 0)
+        return Double(confirmed + unconfirmed) / satoshisPerBSV
     }
 
     static func hasTransactionHistory(for address: String) async throws -> Bool {
-        let dashboard = try await fetchAddressDashboard(for: address, limit: 1, offset: 0)
-        return !(dashboard.transactions.isEmpty) || (dashboard.address.transactionCount ?? 0) > 0
+        let trimmed = try normalizedAddress(address)
+        let confirmed: [WhatsOnChainHistoryEntry] = try await fetchDecodable(
+            path: "/address/\(trimmed)/confirmed/history"
+        )
+        if !confirmed.isEmpty {
+            return true
+        }
+        let unconfirmed: [WhatsOnChainHistoryEntry] = try await fetchDecodable(
+            path: "/address/\(trimmed)/unconfirmed/history"
+        )
+        return !unconfirmed.isEmpty
     }
 
     static func fetchUTXOs(for address: String) async throws -> [BitcoinSVUTXO] {
-        let dashboard = try await fetchAddressDashboard(for: address, limit: 100, offset: 0)
-        return (dashboard.utxo ?? []).map {
-            BitcoinSVUTXO(txid: $0.transactionHash, vout: $0.index, value: $0.value)
+        let trimmed = try normalizedAddress(address)
+        let utxos: [WhatsOnChainUnspentEntry] = try await fetchDecodable(
+            path: "/address/\(trimmed)/confirmed/unspent"
+        )
+        return utxos.map {
+            BitcoinSVUTXO(txid: $0.txHash, vout: $0.outputIndex, value: $0.value)
         }
     }
 
     static func fetchTransactionStatus(txid: String) async throws -> BitcoinSVTransactionStatus {
         let transaction = try await fetchTransactionDetails(txid: txid)
+        let confirmations = max(0, transaction.confirmations ?? 0)
         return BitcoinSVTransactionStatus(
-            confirmed: transaction.transaction.blockID != nil,
-            blockHeight: transaction.transaction.blockID
+            confirmed: confirmations > 0 || transaction.blockheight != nil,
+            blockHeight: transaction.blockheight
         )
     }
 
@@ -149,114 +152,146 @@ enum BitcoinSVBalanceService {
         limit: Int,
         cursor: String? = nil
     ) async throws -> BitcoinSVHistoryPage {
-        let offset = Int(cursor ?? "0") ?? 0
-        let dashboard = try await fetchAddressDashboard(for: address, limit: limit, offset: offset)
-        let ownAddresses = ownAddressVariants(for: address)
-        let txids = Array(dashboard.transactions.prefix(limit))
-        var snapshots: [BitcoinSVHistorySnapshot] = []
+        let trimmed = try normalizedAddress(address)
+        let normalizedLimit = max(1, limit)
+        let ownAddresses = ownAddressVariants(for: trimmed)
 
-        for txid in txids {
-            let transaction = try await fetchTransactionDetails(txid: txid)
-            let snapshot = snapshot(for: transaction, ownAddresses: ownAddresses)
-            snapshots.append(snapshot)
+        let unconfirmedEntries: [WhatsOnChainHistoryEntry]
+        let confirmedEntries: [WhatsOnChainHistoryEntry]
+        let nextCursor: String?
+
+        if let cursor, !cursor.isEmpty {
+            let token = cursor.replacingOccurrences(of: "confirmed:", with: "")
+            confirmedEntries = try await fetchHistoryPage(
+                path: "/address/\(trimmed)/confirmed/history",
+                limit: normalizedLimit,
+                cursor: token.isEmpty ? nil : token
+            )
+            unconfirmedEntries = []
+            nextCursor = confirmedEntries.count == normalizedLimit
+                ? "confirmed:\(tokenForLastHistoryEntry(confirmedEntries.last))"
+                : nil
+        } else {
+            unconfirmedEntries = try await fetchHistoryPage(
+                path: "/address/\(trimmed)/unconfirmed/history",
+                limit: normalizedLimit,
+                cursor: nil
+            )
+            let remainingLimit = max(0, normalizedLimit - unconfirmedEntries.count)
+            if remainingLimit > 0 {
+                confirmedEntries = try await fetchHistoryPage(
+                    path: "/address/\(trimmed)/confirmed/history",
+                    limit: remainingLimit,
+                    cursor: nil
+                )
+            } else {
+                confirmedEntries = []
+            }
+            nextCursor = confirmedEntries.count == remainingLimit && remainingLimit > 0
+                ? "confirmed:\(tokenForLastHistoryEntry(confirmedEntries.last))"
+                : nil
         }
 
-        let nextOffset = offset + txids.count
-        let hasMore = (dashboard.address.transactionCount ?? 0) > nextOffset
+        let txids = Array(Set((unconfirmedEntries + confirmedEntries).map(\.txHash)))
+        var snapshots: [BitcoinSVHistorySnapshot] = []
+        for txid in txids {
+            let transaction = try await fetchTransactionDetails(txid: txid)
+            snapshots.append(snapshot(for: transaction, ownAddresses: ownAddresses))
+        }
+
         return BitcoinSVHistoryPage(
             snapshots: snapshots.sorted { $0.createdAt > $1.createdAt },
-            nextCursor: hasMore ? String(nextOffset) : nil,
-            sourceUsed: "blockchair"
+            nextCursor: nextCursor,
+            sourceUsed: "whatsonchain"
         )
     }
 
-    private static func fetchAddressDashboard(
-        for address: String,
+    private static func fetchHistoryPage(
+        path: String,
         limit: Int,
-        offset: Int
-    ) async throws -> AddressDashboard {
-        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(blockchairBaseURL)/dashboards/address/\(encoded)?limit=\(max(1, limit)),\(max(1, limit))&offset=\(max(0, offset)),0") else {
-            throw URLError(.badURL)
+        cursor: String?
+    ) async throws -> [WhatsOnChainHistoryEntry] {
+        var queryItems = [URLQueryItem(name: "limit", value: String(max(1, limit)))]
+        if let cursor, !cursor.isEmpty {
+            queryItems.append(URLQueryItem(name: "start", value: cursor))
         }
-
-        let (data, response) = try await fetchData(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-
-        let decoded = try JSONDecoder().decode(BlockchairAddressResponse.self, from: data)
-        if let dashboard = decoded.data[trimmed] {
-            return dashboard
-        }
-        if let dashboard = decoded.data.values.first {
-            return dashboard
-        }
-        throw URLError(.cannotParseResponse)
+        return try await fetchDecodable(path: path, queryItems: queryItems)
     }
 
-    private static func fetchTransactionDetails(txid: String) async throws -> TransactionDashboard {
+    private static func fetchTransactionDetails(txid: String) async throws -> WhatsOnChainTransaction {
         let trimmed = txid.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(blockchairBaseURL)/dashboards/transaction/\(encoded)") else {
+        guard !trimmed.isEmpty else {
             throw URLError(.badURL)
         }
-
-        let (data, response) = try await fetchData(from: url)
-        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-
-        let decoded = try JSONDecoder().decode(BlockchairTransactionResponse.self, from: data)
-        if let transaction = decoded.data[trimmed] {
-            return transaction
-        }
-        if let transaction = decoded.data.values.first {
-            return transaction
-        }
-        throw URLError(.cannotParseResponse)
+        return try await fetchDecodable(path: "/tx/hash/\(trimmed)")
     }
 
     private static func snapshot(
-        for transaction: TransactionDashboard,
+        for transaction: WhatsOnChainTransaction,
         ownAddresses: Set<String>
     ) -> BitcoinSVHistorySnapshot {
-        let outgoingValue = transaction.inputs.reduce(Int64(0)) { partialResult, input in
-            guard let recipient = input.recipient?.lowercased(), ownAddresses.contains(recipient) else {
+        let outgoingValue = transaction.vin.reduce(0.0) { partialResult, input in
+            guard let address = input.address?.lowercased(), ownAddresses.contains(address) else {
                 return partialResult
             }
             return partialResult + max(0, input.value ?? 0)
         }
-        let incomingOutputs = transaction.outputs.filter { output in
-            guard let recipient = output.recipient?.lowercased() else { return false }
-            return ownAddresses.contains(recipient)
+        let incomingOutputs = transaction.vout.filter { output in
+            let outputAddresses = resolvedAddresses(for: output)
+            return outputAddresses.contains { ownAddresses.contains($0.lowercased()) }
         }
-        let incomingValue = incomingOutputs.reduce(Int64(0)) { $0 + max(0, $1.value ?? 0) }
-        let amount = max(0, incomingValue - outgoingValue)
-        let isReceive = incomingValue >= outgoingValue
+        let incomingValue = incomingOutputs.reduce(0.0) { $0 + max(0, $1.value ?? 0) }
+        let netAmount = incomingValue - outgoingValue
+        let isReceive = netAmount >= 0
 
         let counterparty = if isReceive {
-            transaction.inputs.compactMap(\.recipient).first ?? "Unknown"
+            transaction.vin.compactMap(\.address).first ?? "Unknown"
         } else {
-            transaction.outputs.first { output in
-                guard let recipient = output.recipient?.lowercased() else { return false }
-                return !ownAddresses.contains(recipient)
-            }?.recipient ?? "Unknown"
+            transaction.vout.first { output in
+                let outputAddresses = resolvedAddresses(for: output)
+                return outputAddresses.contains { !ownAddresses.contains($0.lowercased()) }
+            }
+            .flatMap { resolvedAddresses(for: $0).first } ?? "Unknown"
         }
 
-        let createdAt = parseDate(transaction.transaction.time) ?? Date()
+        let timestamp = transaction.blocktime ?? transaction.time
+        let createdAt = timestamp.map(Date.init(timeIntervalSince1970:)) ?? Date()
+        let confirmations = max(0, transaction.confirmations ?? 0)
+
         return BitcoinSVHistorySnapshot(
-            txid: transaction.transaction.hash,
-            amountBSV: Double(abs(amount)) / satoshisPerBSV,
+            txid: transaction.txid,
+            amountBSV: abs(netAmount),
             kind: isReceive ? .receive : .send,
-            status: transaction.transaction.blockID == nil ? .pending : .confirmed,
+            status: confirmations > 0 || transaction.blockheight != nil ? .confirmed : .pending,
             counterpartyAddress: counterparty,
-            blockHeight: transaction.transaction.blockID,
+            blockHeight: transaction.blockheight,
             createdAt: createdAt
         )
+    }
+
+    private static func resolvedAddresses(for output: WhatsOnChainTransaction.Output) -> [String] {
+        if let addresses = output.scriptPubKey?.addresses, !addresses.isEmpty {
+            return addresses
+        }
+        if let address = output.scriptPubKey?.address, !address.isEmpty {
+            return [address]
+        }
+        return []
+    }
+
+    private static func tokenForLastHistoryEntry(_ entry: WhatsOnChainHistoryEntry?) -> String {
+        guard let entry else { return "" }
+        let height = entry.height.map(String.init) ?? ""
+        return height.isEmpty ? entry.txHash : "\(height):\(entry.txHash)"
+    }
+
+    private static func normalizedAddress(_ address: String) throws -> String {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw URLError(.badURL)
+        }
+        return encoded
     }
 
     private static func ownAddressVariants(for address: String) -> Set<String> {
@@ -265,17 +300,32 @@ enum BitcoinSVBalanceService {
         return [trimmed, lowered]
     }
 
-    private static func parseDate(_ value: String?) -> Date? {
-        guard let value, !value.isEmpty else { return nil }
-        if let date = iso8601Formatter.date(from: value) {
-            return date
+    private static func fetchDecodable<T: Decodable>(
+        path: String,
+        queryItems: [URLQueryItem] = []
+    ) async throws -> T {
+        guard var components = URLComponents(string: whatsonchainBaseURL + path) else {
+            throw URLError(.badURL)
         }
-        return fallbackTimestampFormatter.date(from: value)
+        if !queryItems.isEmpty {
+            components.queryItems = queryItems
+        }
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+
+        let (data, response) = try await fetchData(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(T.self, from: data)
     }
 
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
         return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }
 }

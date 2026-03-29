@@ -1,6 +1,6 @@
 import Foundation
-import Combine
 import SwiftUI
+import Combine
 
 struct DiagnosticsHubView: View {
     let store: WalletStore
@@ -74,6 +74,7 @@ enum StandardDiagnosticsChain: Hashable, CaseIterable {
     case dogecoin
     case bitcoin
     case bitcoinCash
+    case bitcoinSV
     case litecoin
     case ethereum
     case ethereumClassic
@@ -100,6 +101,7 @@ enum StandardDiagnosticsChain: Hashable, CaseIterable {
         case .dogecoin: return .dogecoin
         case .bitcoin: return .bitcoin
         case .bitcoinCash: return .bitcoinCash
+        case .bitcoinSV: return .bitcoinSV
         case .litecoin: return .litecoin
         case .ethereum: return .ethereum
         case .ethereumClassic: return .ethereumClassic
@@ -128,6 +130,7 @@ enum StandardDiagnosticsChain: Hashable, CaseIterable {
         case .dogecoin: self = .dogecoin
         case .bitcoin: self = .bitcoin
         case .bitcoinCash: self = .bitcoinCash
+        case .bitcoinSV: self = .bitcoinSV
         case .litecoin: self = .litecoin
         case .ethereum: self = .ethereum
         case .ethereumClassic: self = .ethereumClassic
@@ -148,8 +151,6 @@ enum StandardDiagnosticsChain: Hashable, CaseIterable {
         case .icp: self = .icp
         case .near: self = .near
         case .polkadot: self = .polkadot
-        case .bitcoinSV:
-            return nil
         }
     }
 
@@ -176,7 +177,9 @@ private struct StandardHistorySourceRow: Identifiable {
 }
 
 struct StandardChainDiagnosticsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var chainDiagnosticsState: WalletChainDiagnosticsState
+    @StateObject private var refreshSignal: ViewRefreshSignal
     let chain: StandardDiagnosticsChain
     private let copy = DiagnosticsContentCopy.current
     @State private var copiedDiagnosticsNotice: String?
@@ -185,6 +188,17 @@ struct StandardChainDiagnosticsView: View {
     @State private var cachedHistorySourceRows: [StandardHistorySourceRow] = []
 
     private let moneroCustomBackendID = "custom"
+
+    init(store: WalletStore, chain: StandardDiagnosticsChain) {
+        self.store = store
+        self.chain = chain
+        _chainDiagnosticsState = ObservedObject(wrappedValue: store.chainDiagnosticsState)
+        _refreshSignal = StateObject(
+            wrappedValue: ViewRefreshSignal([
+                store.$moneroBackendBaseURL.asVoidSignal()
+            ])
+        )
+    }
 
     private var moneroBackendChoices: [(id: String, title: String)] {
         let trusted = MoneroBalanceService.trustedBackends.map { ($0.id, $0.displayName) }
@@ -356,10 +370,13 @@ struct StandardChainDiagnosticsView: View {
             guard chain == .monero else { return }
             syncSelectedMoneroBackendIDFromStore()
         }
-        .onReceive(historyDiagnosticsChangePublisher) { _ in
+        .onChange(of: historyLastUpdatedAt) { _, _ in
             rebuildHistorySourceRows()
         }
-        .onReceive(endpointDiagnosticsChangePublisher) { _ in
+        .onChange(of: historyWalletCount) { _, _ in
+            rebuildHistorySourceRows()
+        }
+        .onChange(of: endpointLastUpdatedAt) { _, _ in
             rebuildEndpointRows()
         }
     }
@@ -369,6 +386,7 @@ struct StandardChainDiagnosticsView: View {
         case .dogecoin: return store.isRunningDogecoinHistoryDiagnostics
         case .bitcoin: return store.isRunningBitcoinHistoryDiagnostics
         case .bitcoinCash: return store.isRunningBitcoinCashHistoryDiagnostics
+        case .bitcoinSV: return store.isRunningBitcoinSVHistoryDiagnostics
         case .litecoin: return store.isRunningLitecoinHistoryDiagnostics
         case .ethereum: return store.isRunningEthereumHistoryDiagnostics
         case .ethereumClassic: return store.isRunningETCHistoryDiagnostics
@@ -397,6 +415,7 @@ struct StandardChainDiagnosticsView: View {
         case .dogecoin: return store.isCheckingDogecoinEndpointHealth
         case .bitcoin: return store.isCheckingBitcoinEndpointHealth
         case .bitcoinCash: return store.isCheckingBitcoinCashEndpointHealth
+        case .bitcoinSV: return store.isCheckingBitcoinSVEndpointHealth
         case .litecoin: return store.isCheckingLitecoinEndpointHealth
         case .ethereum: return store.isCheckingEthereumEndpointHealth
         case .ethereumClassic: return store.isCheckingETCEndpointHealth
@@ -425,6 +444,7 @@ struct StandardChainDiagnosticsView: View {
         case .dogecoin: return store.dogecoinDiagnosticsJSON()
         case .bitcoin: return store.bitcoinDiagnosticsJSON()
         case .bitcoinCash: return store.bitcoinCashDiagnosticsJSON()
+        case .bitcoinSV: return store.bitcoinSVDiagnosticsJSON()
         case .litecoin: return store.litecoinDiagnosticsJSON()
         case .ethereum: return store.ethereumDiagnosticsJSON()
         case .ethereumClassic: return store.etcDiagnosticsJSON()
@@ -453,6 +473,7 @@ struct StandardChainDiagnosticsView: View {
         case .dogecoin: return store.dogecoinHistoryDiagnosticsLastUpdatedAt
         case .bitcoin: return store.bitcoinHistoryDiagnosticsLastUpdatedAt
         case .bitcoinCash: return store.bitcoinCashHistoryDiagnosticsLastUpdatedAt
+        case .bitcoinSV: return store.bitcoinSVHistoryDiagnosticsLastUpdatedAt
         case .litecoin: return store.litecoinHistoryDiagnosticsLastUpdatedAt
         case .ethereum: return store.ethereumHistoryDiagnosticsLastUpdatedAt
         case .ethereumClassic: return store.etcHistoryDiagnosticsLastUpdatedAt
@@ -481,6 +502,7 @@ struct StandardChainDiagnosticsView: View {
         case .dogecoin: return store.dogecoinHistoryDiagnosticsByWallet.count
         case .bitcoin: return store.bitcoinHistoryDiagnosticsByWallet.count
         case .bitcoinCash: return store.bitcoinCashHistoryDiagnosticsByWallet.count
+        case .bitcoinSV: return store.bitcoinSVHistoryDiagnosticsByWallet.count
         case .litecoin: return store.litecoinHistoryDiagnosticsByWallet.count
         case .ethereum: return store.ethereumHistoryDiagnosticsByWallet.count
         case .ethereumClassic: return store.etcHistoryDiagnosticsByWallet.count
@@ -509,6 +531,7 @@ struct StandardChainDiagnosticsView: View {
         case .dogecoin: return store.dogecoinEndpointHealthLastUpdatedAt
         case .bitcoin: return store.bitcoinEndpointHealthLastUpdatedAt
         case .bitcoinCash: return store.bitcoinCashEndpointHealthLastUpdatedAt
+        case .bitcoinSV: return store.bitcoinSVEndpointHealthLastUpdatedAt
         case .litecoin: return store.litecoinEndpointHealthLastUpdatedAt
         case .ethereum: return store.ethereumEndpointHealthLastUpdatedAt
         case .ethereumClassic: return store.etcEndpointHealthLastUpdatedAt
@@ -540,62 +563,6 @@ struct StandardChainDiagnosticsView: View {
         cachedHistorySourceRows
     }
 
-    private var historyDiagnosticsChangePublisher: AnyPublisher<Void, Never> {
-        switch chain {
-        case .dogecoin: return store.chainDiagnosticsState.$dogecoinHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .bitcoin: return store.chainDiagnosticsState.$bitcoinHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .bitcoinCash: return store.chainDiagnosticsState.$bitcoinCashHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .litecoin: return store.chainDiagnosticsState.$litecoinHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .ethereum: return store.chainDiagnosticsState.$ethereumHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .ethereumClassic: return store.chainDiagnosticsState.$etcHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .arbitrum: return store.chainDiagnosticsState.$arbitrumHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .optimism: return store.chainDiagnosticsState.$optimismHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .bnb: return store.chainDiagnosticsState.$bnbHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .avalanche: return store.chainDiagnosticsState.$avalancheHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .hyperliquid: return store.chainDiagnosticsState.$hyperliquidHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .tron: return store.chainDiagnosticsState.$tronHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .solana: return store.chainDiagnosticsState.$solanaHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .cardano: return store.chainDiagnosticsState.$cardanoHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .xrp: return store.chainDiagnosticsState.$xrpHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .stellar: return store.chainDiagnosticsState.$stellarHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .monero: return store.chainDiagnosticsState.$moneroHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .sui: return store.chainDiagnosticsState.$suiHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .aptos: return store.chainDiagnosticsState.$aptosHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .ton: return store.chainDiagnosticsState.$tonHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .icp: return store.chainDiagnosticsState.$icpHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .near: return store.chainDiagnosticsState.$nearHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        case .polkadot: return store.chainDiagnosticsState.$polkadotHistoryDiagnosticsByWallet.map { _ in () }.eraseToAnyPublisher()
-        }
-    }
-
-    private var endpointDiagnosticsChangePublisher: AnyPublisher<Void, Never> {
-        switch chain {
-        case .dogecoin: return store.chainDiagnosticsState.$dogecoinEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .bitcoin: return store.chainDiagnosticsState.$bitcoinEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .bitcoinCash: return store.chainDiagnosticsState.$bitcoinCashEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .litecoin: return store.chainDiagnosticsState.$litecoinEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .ethereum: return store.chainDiagnosticsState.$ethereumEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .ethereumClassic: return store.chainDiagnosticsState.$etcEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .arbitrum: return store.chainDiagnosticsState.$arbitrumEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .optimism: return store.chainDiagnosticsState.$optimismEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .bnb: return store.chainDiagnosticsState.$bnbEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .avalanche: return store.chainDiagnosticsState.$avalancheEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .hyperliquid: return store.chainDiagnosticsState.$hyperliquidEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .tron: return store.chainDiagnosticsState.$tronEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .solana: return store.chainDiagnosticsState.$solanaEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .cardano: return store.chainDiagnosticsState.$cardanoEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .xrp: return store.chainDiagnosticsState.$xrpEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .stellar: return store.chainDiagnosticsState.$stellarEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .monero: return store.chainDiagnosticsState.$moneroEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .sui: return store.chainDiagnosticsState.$suiEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .aptos: return store.chainDiagnosticsState.$aptosEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .ton: return store.chainDiagnosticsState.$tonEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .icp: return store.chainDiagnosticsState.$icpEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .near: return store.chainDiagnosticsState.$nearEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        case .polkadot: return store.chainDiagnosticsState.$polkadotEndpointHealthResults.map { _ in () }.eraseToAnyPublisher()
-        }
-    }
-
     private func rebuildCachedRows() {
         rebuildEndpointRows()
         rebuildHistorySourceRows()
@@ -609,6 +576,8 @@ struct StandardChainDiagnosticsView: View {
             cachedEndpointRows = store.bitcoinEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
         case .bitcoinCash:
             cachedEndpointRows = store.bitcoinCashEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
+        case .bitcoinSV:
+            cachedEndpointRows = store.bitcoinSVEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
         case .litecoin:
             cachedEndpointRows = store.litecoinEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
         case .ethereum:
@@ -661,6 +630,8 @@ struct StandardChainDiagnosticsView: View {
             sources = store.bitcoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
         case .bitcoinCash:
             sources = store.bitcoinCashHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .bitcoinSV:
+            sources = store.bitcoinSVHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
         case .litecoin:
             sources = store.litecoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
         case .ethereum:
@@ -724,6 +695,7 @@ struct StandardChainDiagnosticsView: View {
         case .dogecoin: await store.runDogecoinHistoryDiagnostics()
         case .bitcoin: await store.runBitcoinHistoryDiagnostics()
         case .bitcoinCash: await store.runBitcoinCashHistoryDiagnostics()
+        case .bitcoinSV: await store.runBitcoinSVHistoryDiagnostics()
         case .litecoin: await store.runLitecoinHistoryDiagnostics()
         case .ethereum: await store.runEthereumHistoryDiagnostics()
         case .ethereumClassic: await store.runETCHistoryDiagnostics()
@@ -752,6 +724,7 @@ struct StandardChainDiagnosticsView: View {
         case .dogecoin: await store.runDogecoinEndpointReachabilityDiagnostics()
         case .bitcoin: await store.runBitcoinEndpointReachabilityDiagnostics()
         case .bitcoinCash: await store.runBitcoinCashEndpointReachabilityDiagnostics()
+        case .bitcoinSV: await store.runBitcoinSVEndpointReachabilityDiagnostics()
         case .litecoin: await store.runLitecoinEndpointReachabilityDiagnostics()
         case .ethereum: await store.runEthereumEndpointReachabilityDiagnostics()
         case .ethereumClassic: await store.runETCEndpointReachabilityDiagnostics()
@@ -779,22 +752,37 @@ struct StandardChainDiagnosticsView: View {
     private var chainSpecificSections: some View {
         if chain == .bitcoin {
             Section(NSLocalizedString("Bitcoin Network", comment: "")) {
-                Picker(NSLocalizedString("Mode", comment: ""), selection: $store.bitcoinNetworkMode) {
+                Picker(NSLocalizedString("Mode", comment: ""), selection: Binding(
+                    get: { store.bitcoinNetworkMode },
+                    set: { store.bitcoinNetworkMode = $0 }
+                )) {
                     ForEach(BitcoinNetworkMode.allCases) { mode in
                         Text(mode.displayName).tag(mode)
                     }
                 }
 
-                Stepper(localizedFormat("Address Gap Limit: %lld", store.bitcoinStopGap), value: $store.bitcoinStopGap, in: 1 ... 200)
+                Stepper(localizedFormat("Address Gap Limit: %lld", store.bitcoinStopGap), value: Binding(
+                    get: { store.bitcoinStopGap },
+                    set: { store.bitcoinStopGap = $0 }
+                ), in: 1 ... 200)
 
-                Picker(NSLocalizedString("Send Fee Priority", comment: ""), selection: $store.bitcoinFeePriority) {
+                Picker(NSLocalizedString("Send Fee Priority", comment: ""), selection: Binding(
+                    get: { store.bitcoinFeePriority },
+                    set: { store.bitcoinFeePriority = $0 }
+                )) {
                     ForEach(BitcoinFeePriority.allCases) { priority in
                         Text(priority.displayName).tag(priority)
                     }
                 }
                 .pickerStyle(.segmented)
 
-                TextField(NSLocalizedString("Custom Esplora endpoints (comma-separated, optional)", comment: ""), text: $store.bitcoinEsploraEndpoints)
+                TextField(
+                    NSLocalizedString("Custom Esplora endpoints (comma-separated, optional)", comment: ""),
+                    text: Binding(
+                        get: { store.bitcoinEsploraEndpoints },
+                        set: { store.bitcoinEsploraEndpoints = $0 }
+                    )
+                )
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
@@ -813,7 +801,13 @@ struct StandardChainDiagnosticsView: View {
 
         if chain == .ethereum {
             Section(NSLocalizedString("Ethereum RPC", comment: "")) {
-                TextField(NSLocalizedString("Ethereum RPC URL (Optional)", comment: ""), text: $store.ethereumRPCEndpoint)
+                TextField(
+                    NSLocalizedString("Ethereum RPC URL (Optional)", comment: ""),
+                    text: Binding(
+                        get: { store.ethereumRPCEndpoint },
+                        set: { store.ethereumRPCEndpoint = $0 }
+                    )
+                )
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
@@ -829,7 +823,13 @@ struct StandardChainDiagnosticsView: View {
             }
 
             Section(NSLocalizedString("Etherscan (Optional)", comment: "")) {
-                TextField(NSLocalizedString("Etherscan API Key", comment: ""), text: $store.etherscanAPIKey)
+                TextField(
+                    NSLocalizedString("Etherscan API Key", comment: ""),
+                    text: Binding(
+                        get: { store.etherscanAPIKey },
+                        set: { store.etherscanAPIKey = $0 }
+                    )
+                )
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 Text(copy.etherscanNote)
@@ -847,7 +847,13 @@ struct StandardChainDiagnosticsView: View {
                 }
 
                 if selectedMoneroBackendID == moneroCustomBackendID {
-                    TextField(NSLocalizedString("Monero Backend URL (Optional)", comment: ""), text: $store.moneroBackendBaseURL)
+                    TextField(
+                        NSLocalizedString("Monero Backend URL (Optional)", comment: ""),
+                        text: Binding(
+                            get: { store.moneroBackendBaseURL },
+                            set: { store.moneroBackendBaseURL = $0 }
+                        )
+                    )
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
@@ -867,7 +873,13 @@ struct StandardChainDiagnosticsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                TextField(NSLocalizedString("Monero Backend API Key (Optional)", comment: ""), text: $store.moneroBackendAPIKey)
+                TextField(
+                    NSLocalizedString("Monero Backend API Key (Optional)", comment: ""),
+                    text: Binding(
+                        get: { store.moneroBackendAPIKey },
+                        set: { store.moneroBackendAPIKey = $0 }
+                    )
+                )
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 Text(copy.moneroAPIKeyNote)
@@ -878,7 +890,13 @@ struct StandardChainDiagnosticsView: View {
 
         if chain == .dogecoin {
             Section(NSLocalizedString("Network Policy", comment: "")) {
-                Toggle(NSLocalizedString("Allow Testnet Addresses", comment: ""), isOn: $store.dogecoinAllowTestnet)
+                Toggle(
+                    NSLocalizedString("Allow Testnet Addresses", comment: ""),
+                    isOn: Binding(
+                        get: { store.dogecoinAllowTestnet },
+                        set: { store.dogecoinAllowTestnet = $0 }
+                    )
+                )
                 Text(copy.dogecoinTestnetNote)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -988,9 +1006,15 @@ struct StandardChainDiagnosticsView: View {
 }
 
 struct HistorySourceConfidenceDiagnosticsView: View {
-    @ObservedObject var store: WalletStore
+    let store: WalletStore
+    @ObservedObject private var transactionState: WalletTransactionState
     private let copy = DiagnosticsContentCopy.current
     @State private var cachedGroupedRows: [(key: String, count: Int)] = []
+
+    init(store: WalletStore) {
+        self.store = store
+        _transactionState = ObservedObject(wrappedValue: store.transactionState)
+    }
 
     private var groupedRows: [(key: String, count: Int)] {
         cachedGroupedRows
@@ -1000,6 +1024,7 @@ struct HistorySourceConfidenceDiagnosticsView: View {
         Form {
             Section(NSLocalizedString("Summary", comment: "")) {
                 Text(String(format: copy.totalNormalizedEntriesFormat, String(store.normalizedHistoryIndex.count)))
+                Text(String(format: copy.totalNormalizedEntriesFormat, String(transactionState.normalizedHistoryIndex.count)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -1027,14 +1052,14 @@ struct HistorySourceConfidenceDiagnosticsView: View {
         .onAppear {
             rebuildGroupedRows()
         }
-        .onReceive(store.transactionState.$normalizedHistoryIndex) { _ in
+        .onChange(of: transactionState.normalizedHistoryIndex.count) { _, _ in
             rebuildGroupedRows()
         }
     }
 
     private func rebuildGroupedRows() {
         var counts: [String: Int] = [:]
-        for entry in store.normalizedHistoryIndex {
+        for entry in transactionState.normalizedHistoryIndex {
             let key = "\(entry.chainName) | \(entry.sourceTag) | \(entry.sourceConfidenceTag)"
             counts[key, default: 0] += 1
         }

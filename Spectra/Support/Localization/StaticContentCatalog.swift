@@ -884,7 +884,7 @@ enum BuiltInTokenRegistryCatalog {
                 name: seed.name,
                 symbol: seed.symbol,
                 tokenStandard: seed.tokenStandard,
-                contractAddress: seed.contractAddress,
+                contractAddress: resolvedContractAddress(seed.contractAddress),
                 marketDataID: seed.marketDataID,
                 coinGeckoID: seed.coinGeckoID,
                 decimals: seed.decimals,
@@ -927,6 +927,39 @@ enum BuiltInTokenRegistryCatalog {
             return TokenTrackingChain.allCases.first {
                 $0.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalized
             }
+        }
+    }
+
+    private static func resolvedContractAddress(_ value: String) -> String {
+        switch value {
+        case "SolanaBalanceService.usdtMintAddress":
+            return SolanaBalanceService.usdtMintAddress
+        case "SolanaBalanceService.usdcMintAddress":
+            return SolanaBalanceService.usdcMintAddress
+        case "SolanaBalanceService.pyusdMintAddress":
+            return SolanaBalanceService.pyusdMintAddress
+        case "SolanaBalanceService.usdgMintAddress":
+            return SolanaBalanceService.usdgMintAddress
+        case "SolanaBalanceService.usd1MintAddress":
+            return SolanaBalanceService.usd1MintAddress
+        case "SolanaBalanceService.linkMintAddress":
+            return SolanaBalanceService.linkMintAddress
+        case "SolanaBalanceService.wlfiMintAddress":
+            return SolanaBalanceService.wlfiMintAddress
+        case "SolanaBalanceService.jupMintAddress":
+            return SolanaBalanceService.jupMintAddress
+        case "SolanaBalanceService.bonkMintAddress":
+            return SolanaBalanceService.bonkMintAddress
+        case "TronBalanceService.usdtTronContract":
+            return TronBalanceService.usdtTronContract
+        case "TronBalanceService.usddTronContract":
+            return TronBalanceService.usddTronContract
+        case "TronBalanceService.usd1TronContract":
+            return TronBalanceService.usd1TronContract
+        case "TronBalanceService.bttTronContract":
+            return TronBalanceService.bttTronContract
+        default:
+            return value
         }
     }
 }

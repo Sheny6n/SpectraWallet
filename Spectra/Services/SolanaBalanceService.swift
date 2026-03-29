@@ -651,12 +651,14 @@ enum SolanaBalanceService {
         for ownerAddress: String,
         trackedTokenMetadataByMint: [String: KnownTokenMetadata]
     ) async throws -> [SolanaSPLTokenBalanceSnapshot] {
-        var rawByMint: [String: Decimal] = [:]
-        var sourceTokenAccountByMint: [String: String] = [:]
-        var decimalsByMint: [String: Int] = [:]
         let programs = [legacyTokenProgramID, token2022ProgramID]
+        var lastError: Error?
 
         for baseURL in solanaRPCBases {
+            var rawByMint: [String: Decimal] = [:]
+            var sourceTokenAccountByMint: [String: String] = [:]
+            var decimalsByMint: [String: Int] = [:]
+
             for programID in programs {
                 guard let endpoint = URL(string: baseURL) else { continue }
                 do {
@@ -713,41 +715,49 @@ enum SolanaBalanceService {
                         }
                     }
                 } catch {
+                    lastError = error
                     continue
                 }
             }
-        }
 
-        guard !rawByMint.isEmpty else { return [] }
+            guard !rawByMint.isEmpty else { continue }
 
-        let snapshots: [SolanaSPLTokenBalanceSnapshot] = rawByMint.compactMap { mint, rawAmount in
-            guard
-                let metadata = trackedTokenMetadataByMint[mint],
-                let sourceTokenAccountAddress = sourceTokenAccountByMint[mint],
-                !sourceTokenAccountAddress.isEmpty
-            else {
-                return nil
+            let snapshots: [SolanaSPLTokenBalanceSnapshot] = rawByMint.compactMap { mint, rawAmount in
+                guard
+                    let metadata = trackedTokenMetadataByMint[mint],
+                    let sourceTokenAccountAddress = sourceTokenAccountByMint[mint],
+                    !sourceTokenAccountAddress.isEmpty
+                else {
+                    return nil
+                }
+
+                let decimals = decimalsByMint[mint] ?? metadata.decimals
+                let divisor = pow(10.0, Double(decimals))
+                guard divisor > 0 else { return nil }
+                let amount = NSDecimalNumber(decimal: rawAmount).doubleValue / divisor
+                guard amount > 0 else { return nil }
+
+                return SolanaSPLTokenBalanceSnapshot(
+                    mintAddress: mint,
+                    sourceTokenAccountAddress: sourceTokenAccountAddress,
+                    symbol: metadata.symbol,
+                    name: metadata.name,
+                    tokenStandard: "SPL",
+                    decimals: decimals,
+                    balance: amount,
+                    marketDataID: metadata.marketDataID,
+                    coinGeckoID: metadata.coinGeckoID
+                )
             }
 
-            let decimals = decimalsByMint[mint] ?? metadata.decimals
-            let divisor = pow(10.0, Double(decimals))
-            guard divisor > 0 else { return nil }
-            let amount = NSDecimalNumber(decimal: rawAmount).doubleValue / divisor
-            guard amount > 0 else { return nil }
-
-            return SolanaSPLTokenBalanceSnapshot(
-                mintAddress: mint,
-                sourceTokenAccountAddress: sourceTokenAccountAddress,
-                symbol: metadata.symbol,
-                name: metadata.name,
-                tokenStandard: "SPL",
-                decimals: decimals,
-                balance: amount,
-                marketDataID: metadata.marketDataID,
-                coinGeckoID: metadata.coinGeckoID
-            )
+            if !snapshots.isEmpty {
+                return snapshots
+            }
         }
 
-        return snapshots
+        if let lastError {
+            throw lastError
+        }
+        return []
     }
 }
