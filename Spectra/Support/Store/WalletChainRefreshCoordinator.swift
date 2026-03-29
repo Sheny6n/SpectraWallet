@@ -44,6 +44,8 @@ extension WalletStore {
             WalletChainRefreshDescriptor(
                 chainID: WalletChainID("Bitcoin Cash")!,
                 executeRefresh: { store, refreshHistory in
+                    await store.refreshUTXOAddressDiscovery(chainName: "Bitcoin Cash")
+                    await store.refreshUTXOReceiveReservationState(chainName: "Bitcoin Cash")
                     await store.refreshBitcoinCashBalances()
                     if refreshHistory {
                         await store.refreshBitcoinCashTransactions(limit: store.bitcoinHistoryFetchLimit, loadMore: false)
@@ -58,6 +60,8 @@ extension WalletStore {
             WalletChainRefreshDescriptor(
                 chainID: WalletChainID("Bitcoin SV")!,
                 executeRefresh: { store, refreshHistory in
+                    await store.refreshUTXOAddressDiscovery(chainName: "Bitcoin SV")
+                    await store.refreshUTXOReceiveReservationState(chainName: "Bitcoin SV")
                     await store.refreshBitcoinSVBalances()
                     if refreshHistory {
                         await store.refreshBitcoinSVTransactions(limit: store.bitcoinHistoryFetchLimit, loadMore: false)
@@ -72,6 +76,8 @@ extension WalletStore {
             WalletChainRefreshDescriptor(
                 chainID: WalletChainID("Litecoin")!,
                 executeRefresh: { store, refreshHistory in
+                    await store.refreshUTXOAddressDiscovery(chainName: "Litecoin")
+                    await store.refreshUTXOReceiveReservationState(chainName: "Litecoin")
                     await store.refreshLitecoinBalances()
                     if refreshHistory {
                         await store.refreshLitecoinTransactions(limit: store.litecoinHistoryFetchLimit, loadMore: false)
@@ -211,6 +217,7 @@ extension WalletStore {
                     if refreshHistory {
                         await store.refreshTronTransactions(loadMore: false)
                     }
+                    await store.refreshPendingTronTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshTronBalances()
@@ -226,6 +233,7 @@ extension WalletStore {
                     if refreshHistory {
                         await store.refreshSolanaTransactions(loadMore: false)
                     }
+                    await store.refreshPendingSolanaTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshSolanaBalances()
@@ -241,6 +249,7 @@ extension WalletStore {
                     if refreshHistory {
                         await store.refreshCardanoTransactions(loadMore: false)
                     }
+                    await store.refreshPendingCardanoTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshCardanoBalances()
@@ -256,6 +265,7 @@ extension WalletStore {
                     if refreshHistory {
                         await store.refreshXRPTransactions(loadMore: false)
                     }
+                    await store.refreshPendingXRPTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshXRPBalances()
@@ -271,6 +281,7 @@ extension WalletStore {
                     if refreshHistory {
                         await store.refreshStellarTransactions(loadMore: false)
                     }
+                    await store.refreshPendingStellarTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshStellarBalances()
@@ -286,6 +297,7 @@ extension WalletStore {
                     if refreshHistory {
                         await store.refreshMoneroTransactions(loadMore: false)
                     }
+                    await store.refreshPendingMoneroTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshMoneroBalances()
@@ -301,6 +313,7 @@ extension WalletStore {
                     if refreshHistory {
                         await store.refreshSuiTransactions(loadMore: false)
                     }
+                    await store.refreshPendingSuiTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshSuiBalances()
@@ -316,6 +329,7 @@ extension WalletStore {
                     if refreshHistory {
                         await store.refreshNearTransactions(loadMore: false)
                     }
+                    await store.refreshPendingNearTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshNearBalances()
@@ -331,6 +345,7 @@ extension WalletStore {
                     if refreshHistory {
                         await store.refreshPolkadotTransactions(loadMore: false)
                     }
+                    await store.refreshPendingPolkadotTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshPolkadotBalances()
@@ -344,8 +359,12 @@ extension WalletStore {
         plannedChainRefreshDescriptors + [
             WalletChainRefreshDescriptor(
                 chainID: WalletChainID("Aptos")!,
-                executeRefresh: { store, _ in
+                executeRefresh: { store, refreshHistory in
                     await store.refreshAptosBalances()
+                    if refreshHistory {
+                        await store.refreshAptosTransactions(loadMore: false)
+                    }
+                    await store.refreshPendingAptosTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshAptosBalances()
@@ -354,8 +373,12 @@ extension WalletStore {
             ),
             WalletChainRefreshDescriptor(
                 chainID: WalletChainID("Internet Computer")!,
-                executeRefresh: { store, _ in
+                executeRefresh: { store, refreshHistory in
                     await store.refreshICPBalances()
+                    if refreshHistory {
+                        await store.refreshICPTransactions(loadMore: false)
+                    }
+                    await store.refreshPendingICPTransactions()
                 },
                 executeBalancesOnly: { store in
                     await store.refreshICPBalances()

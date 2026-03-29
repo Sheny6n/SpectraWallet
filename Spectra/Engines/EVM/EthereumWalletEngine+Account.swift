@@ -24,8 +24,12 @@ static func resolvedRPCEndpoints(preferred: URL?, chain: EVMChainContext) -> [UR
     if let preferred {
         return [preferred]
     }
+    let orderedEndpointStrings = ChainEndpointReliability.orderedEndpoints(
+        namespace: "evm.\(chain.displayName.lowercased().replacingOccurrences(of: " ", with: "-")).rpc",
+        candidates: chain.defaultRPCEndpoints
+    )
     var endpoints: [URL] = []
-    for endpointString in chain.defaultRPCEndpoints {
+    for endpointString in orderedEndpointStrings {
         guard let endpointURL = URL(string: endpointString) else { continue }
         if !endpoints.contains(endpointURL) {
             endpoints.append(endpointURL)

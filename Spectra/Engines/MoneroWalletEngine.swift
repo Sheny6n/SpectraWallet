@@ -26,6 +26,12 @@ enum MoneroWalletEngineError: LocalizedError {
 struct MoneroSendPreview: Equatable {
     let estimatedNetworkFeeXMR: Double
     let priorityLabel: String
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct MoneroSendResult: Equatable {
@@ -107,7 +113,13 @@ enum MoneroWalletEngine {
                 }
                 return MoneroSendPreview(
                     estimatedNetworkFeeXMR: decoded.estimatedFeeXMR,
-                    priorityLabel: decoded.priority ?? "normal"
+                    priorityLabel: decoded.priority ?? "normal",
+                    spendableBalance: max(0, (try await MoneroBalanceService.fetchBalance(for: source)) - decoded.estimatedFeeXMR),
+                    feeRateDescription: decoded.priority ?? "normal",
+                    estimatedTransactionBytes: nil,
+                    selectedInputCount: nil,
+                    usesChangeOutput: nil,
+                    maxSendable: max(0, (try await MoneroBalanceService.fetchBalance(for: source)) - decoded.estimatedFeeXMR)
                 )
             } catch {
                 lastError = error
@@ -175,6 +187,21 @@ enum MoneroWalletEngine {
                 )
             } catch {
                 lastError = error
+                if classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                   let recoveredHash = await recoverRecentTransactionHashIfAvailable(
+                       ownerAddress: source,
+                       destinationAddress: destination,
+                       amount: amount
+                   ) {
+                    return MoneroSendResult(
+                        transactionHash: recoveredHash,
+                        estimatedNetworkFeeXMR: 0,
+                        verificationStatus: await verifyBroadcastedTransactionIfAvailable(
+                            ownerAddress: source,
+                            transactionHash: recoveredHash
+                        )
+                    )
+                }
                 if index < candidates.count - 1 {
                     continue
                 }
@@ -204,5 +231,18 @@ enum MoneroWalletEngine {
             return .failed(error)
         }
         return .deferred
+    }
+
+    private static func recoverRecentTransactionHashIfAvailable(
+        ownerAddress: String,
+        destinationAddress: String,
+        amount: Double
+    ) async -> String? {
+        let result = await MoneroBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 20)
+        return result.snapshots.first {
+            $0.kind == .send
+                && abs($0.amount - amount) < 0.000000000001
+                && $0.counterpartyAddress.lowercased() == destinationAddress.lowercased()
+        }?.transactionHash
     }
 }

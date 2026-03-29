@@ -134,6 +134,29 @@ enum PolkadotBalanceService {
         )
     }
 
+    static func verifyTransactionIfAvailable(_ transactionHash: String) async -> SendBroadcastVerificationStatus {
+        let normalizedHash = transactionHash.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedHash.isEmpty else {
+            return .deferred
+        }
+
+        var lastError: String?
+        for endpoint in sidecarEndpoints {
+            do {
+                if try await sidecarContainsTransactionHash(normalizedHash, endpoint: endpoint) {
+                    return .verified
+                }
+            } catch {
+                lastError = error.localizedDescription
+            }
+        }
+
+        if let lastError {
+            return .failed(lastError)
+        }
+        return .deferred
+    }
+
     private struct SidecarBalanceInfo: Decodable {
         let free: String?
         let nonce: Int?
@@ -229,6 +252,48 @@ enum PolkadotBalanceService {
         }
 
         return snapshots.sorted { $0.createdAt > $1.createdAt }.prefix(limit).map { $0 }
+    }
+
+    private static func sidecarContainsTransactionHash(_ transactionHash: String, endpoint: String) async throws -> Bool {
+        guard let headURL = URL(string: "\(endpoint)/blocks/head") else {
+            throw PolkadotBalanceServiceError.invalidResponse
+        }
+        let (headData, headResponse) = try await fetchData(from: headURL)
+        guard let headHTTP = headResponse as? HTTPURLResponse,
+              (200 ... 299).contains(headHTTP.statusCode) else {
+            throw PolkadotBalanceServiceError.httpError((headResponse as? HTTPURLResponse)?.statusCode ?? -1)
+        }
+
+        let headObject = try jsonObject(from: headData)
+        let headNumber = stringValue(at: ["number"], in: headObject).flatMap(Int.init)
+            ?? stringValue(at: ["header", "number"], in: headObject).flatMap(Int.init)
+        guard let startHeight = headNumber else {
+            throw PolkadotBalanceServiceError.invalidResponse
+        }
+
+        let lowerBound = max(0, startHeight - scanBlockLimit)
+        for height in stride(from: startHeight, through: lowerBound, by: -1) {
+            guard let blockURL = URL(string: "\(endpoint)/blocks/\(height)") else { continue }
+            do {
+                let (blockData, blockResponse) = try await fetchData(from: blockURL)
+                guard let blockHTTP = blockResponse as? HTTPURLResponse,
+                      (200 ... 299).contains(blockHTTP.statusCode) else {
+                    continue
+                }
+
+                let blockObject = try jsonObject(from: blockData)
+                let extrinsics = arrayValue(at: ["extrinsics"], in: blockObject)
+                if extrinsics.contains(where: {
+                    stringValue(at: ["hash"], in: $0)?.lowercased() == transactionHash
+                }) {
+                    return true
+                }
+            } catch {
+                continue
+            }
+        }
+
+        return false
     }
 
     private static func jsonObject(from data: Data) throws -> Any {

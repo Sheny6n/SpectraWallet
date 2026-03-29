@@ -28,18 +28,28 @@ struct BitcoinSVUTXO: Equatable {
 }
 
 enum BitcoinSVBalanceService {
+    private enum Provider: String, CaseIterable {
+        case whatsonchain
+        case blockchair
+    }
+
     private static let whatsonchainBaseURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainBaseURL
     private static let whatsonchainChainInfoURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainChainInfoURL
+    private static let blockchairBaseURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairBaseURL
     private static let satoshisPerBSV: Double = 100_000_000
 
     static func endpointCatalog() -> [String] {
-        [whatsonchainBaseURL]
+        [
+            whatsonchainBaseURL,
+            blockchairBaseURL,
+        ]
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpointCatalog().map { endpoint in
-            (endpoint: endpoint, probeURL: whatsonchainChainInfoURL)
-        }
+        [
+            (endpoint: whatsonchainBaseURL, probeURL: whatsonchainChainInfoURL),
+            (endpoint: blockchairBaseURL, probeURL: blockchairBaseURL + "/stats"),
+        ]
     }
 
     private struct WhatsOnChainBalanceResponse: Decodable {
@@ -104,47 +114,147 @@ enum BitcoinSVBalanceService {
         let vout: [Output]
     }
 
+    private struct BlockchairAddressResponse: Decodable {
+        let data: [String: AddressDashboard]
+    }
+
+    private struct AddressDashboard: Decodable {
+        struct AddressDetails: Decodable {
+            let balance: Int64?
+            let transactionCount: Int?
+
+            enum CodingKeys: String, CodingKey {
+                case balance
+                case transactionCount = "transaction_count"
+            }
+        }
+
+        struct UTXOEntry: Decodable {
+            let transactionHash: String
+            let index: Int
+            let value: UInt64
+
+            enum CodingKeys: String, CodingKey {
+                case transactionHash = "transaction_hash"
+                case index
+                case value
+            }
+        }
+
+        let address: AddressDetails
+        let transactions: [String]
+        let utxo: [UTXOEntry]?
+    }
+
+    private struct BlockchairTransactionResponse: Decodable {
+        let data: [String: TransactionDashboard]
+    }
+
+    private struct TransactionDashboard: Decodable {
+        struct TransactionDetails: Decodable {
+            let blockID: Int?
+            let hash: String
+            let time: String?
+
+            enum CodingKeys: String, CodingKey {
+                case blockID = "block_id"
+                case hash
+                case time
+            }
+        }
+
+        struct Input: Decodable {
+            let recipient: String?
+            let value: Int64?
+        }
+
+        struct Output: Decodable {
+            let recipient: String?
+            let value: Int64?
+        }
+
+        let transaction: TransactionDetails
+        let inputs: [Input]
+        let outputs: [Output]
+    }
+
     static func fetchBalance(for address: String) async throws -> Double {
         let trimmed = try normalizedAddress(address)
-        let balance: WhatsOnChainBalanceResponse = try await fetchDecodable(
-            path: "/address/\(trimmed)/balance"
-        )
-        let confirmed = max(0, balance.confirmed ?? 0)
-        let unconfirmed = max(0, balance.unconfirmed ?? 0)
-        return Double(confirmed + unconfirmed) / satoshisPerBSV
+        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+            switch provider {
+            case .whatsonchain:
+                let balance: WhatsOnChainBalanceResponse = try await fetchWhatsOnChainDecodable(path: "/address/\(trimmed)/balance")
+                let confirmed = max(0, balance.confirmed ?? 0)
+                let unconfirmed = max(0, balance.unconfirmed ?? 0)
+                return Double(confirmed + unconfirmed) / satoshisPerBSV
+            case .blockchair:
+                let dashboard = try await fetchBlockchairAddressDashboard(for: trimmed, limit: 1, offset: 0)
+                let balance = max(0, dashboard.address.balance ?? 0)
+                return Double(balance) / satoshisPerBSV
+            }
+        }
     }
 
     static func hasTransactionHistory(for address: String) async throws -> Bool {
         let trimmed = try normalizedAddress(address)
-        let confirmed: [WhatsOnChainHistoryEntry] = try await fetchDecodable(
-            path: "/address/\(trimmed)/confirmed/history"
-        )
-        if !confirmed.isEmpty {
-            return true
+        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+            switch provider {
+            case .whatsonchain:
+                let confirmed: [WhatsOnChainHistoryEntry] = try await fetchWhatsOnChainDecodable(path: "/address/\(trimmed)/confirmed/history")
+                if !confirmed.isEmpty {
+                    return true
+                }
+                let unconfirmed: [WhatsOnChainHistoryEntry] = try await fetchWhatsOnChainDecodable(path: "/address/\(trimmed)/unconfirmed/history")
+                return !unconfirmed.isEmpty
+            case .blockchair:
+                let dashboard = try await fetchBlockchairAddressDashboard(for: trimmed, limit: 1, offset: 0)
+                return !(dashboard.transactions.isEmpty) || (dashboard.address.transactionCount ?? 0) > 0
+            }
         }
-        let unconfirmed: [WhatsOnChainHistoryEntry] = try await fetchDecodable(
-            path: "/address/\(trimmed)/unconfirmed/history"
-        )
-        return !unconfirmed.isEmpty
     }
 
     static func fetchUTXOs(for address: String) async throws -> [BitcoinSVUTXO] {
         let trimmed = try normalizedAddress(address)
-        let utxos: [WhatsOnChainUnspentEntry] = try await fetchDecodable(
-            path: "/address/\(trimmed)/confirmed/unspent"
-        )
-        return utxos.map {
-            BitcoinSVUTXO(txid: $0.txHash, vout: $0.outputIndex, value: $0.value)
+        let whatsonchainUTXOs = try? await fetchWhatsOnChainUTXOs(for: trimmed)
+        let blockchairUTXOs = try? await fetchBlockchairUTXOs(for: trimmed)
+
+        switch (whatsonchainUTXOs, blockchairUTXOs) {
+        case let (.some(whatsonchain), .some(blockchair)):
+            return try mergeConsistentUTXOs(
+                whatsonchainUTXOs: whatsonchain,
+                blockchairUTXOs: blockchair
+            )
+        case let (.some(whatsonchain), .none):
+            return whatsonchain
+        case let (.none, .some(blockchair)):
+            return blockchair
+        case (.none, .none):
+            throw URLError(.cannotLoadFromNetwork)
         }
     }
 
     static func fetchTransactionStatus(txid: String) async throws -> BitcoinSVTransactionStatus {
-        let transaction = try await fetchTransactionDetails(txid: txid)
-        let confirmations = max(0, transaction.confirmations ?? 0)
-        return BitcoinSVTransactionStatus(
-            confirmed: confirmations > 0 || transaction.blockheight != nil,
-            blockHeight: transaction.blockheight
-        )
+        let trimmed = txid.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw URLError(.badURL)
+        }
+        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+            switch provider {
+            case .whatsonchain:
+                let transaction = try await fetchWhatsOnChainTransactionDetails(txid: trimmed)
+                let confirmations = max(0, transaction.confirmations ?? 0)
+                return BitcoinSVTransactionStatus(
+                    confirmed: confirmations > 0 || transaction.blockheight != nil,
+                    blockHeight: transaction.blockheight
+                )
+            case .blockchair:
+                let transaction = try await fetchBlockchairTransactionDetails(txid: trimmed)
+                return BitcoinSVTransactionStatus(
+                    confirmed: transaction.transaction.blockID != nil,
+                    blockHeight: transaction.transaction.blockID
+                )
+            }
+        }
     }
 
     static func fetchTransactionPage(
@@ -195,7 +305,7 @@ enum BitcoinSVBalanceService {
         let txids = Array(Set((unconfirmedEntries + confirmedEntries).map(\.txHash)))
         var snapshots: [BitcoinSVHistorySnapshot] = []
         for txid in txids {
-            let transaction = try await fetchTransactionDetails(txid: txid)
+            let transaction = try await fetchWhatsOnChainTransactionDetails(txid: txid)
             snapshots.append(snapshot(for: transaction, ownAddresses: ownAddresses))
         }
 
@@ -215,15 +325,71 @@ enum BitcoinSVBalanceService {
         if let cursor, !cursor.isEmpty {
             queryItems.append(URLQueryItem(name: "start", value: cursor))
         }
-        return try await fetchDecodable(path: path, queryItems: queryItems)
+        return try await fetchWhatsOnChainDecodable(path: path, queryItems: queryItems)
     }
 
-    private static func fetchTransactionDetails(txid: String) async throws -> WhatsOnChainTransaction {
-        let trimmed = txid.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+    private static func fetchWhatsOnChainTransactionDetails(txid: String) async throws -> WhatsOnChainTransaction {
+        try await fetchWhatsOnChainDecodable(path: "/tx/hash/\(txid)")
+    }
+
+    private static func fetchBlockchairAddressDashboard(
+        for address: String,
+        limit: Int,
+        offset: Int
+    ) async throws -> AddressDashboard {
+        guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(blockchairBaseURL)/dashboards/address/\(encoded)?limit=\(max(1, limit)),\(max(1, limit))&offset=\(max(0, offset)),0") else {
             throw URLError(.badURL)
         }
-        return try await fetchDecodable(path: "/tx/hash/\(trimmed)")
+
+        let (data, response) = try await fetchData(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let decoded = try JSONDecoder().decode(BlockchairAddressResponse.self, from: data)
+        if let dashboard = decoded.data[address] {
+            return dashboard
+        }
+        if let dashboard = decoded.data.values.first {
+            return dashboard
+        }
+        throw URLError(.cannotParseResponse)
+    }
+
+    private static func fetchBlockchairTransactionDetails(txid: String) async throws -> TransactionDashboard {
+        guard let encoded = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(blockchairBaseURL)/dashboards/transaction/\(encoded)") else {
+            throw URLError(.badURL)
+        }
+
+        let (data, response) = try await fetchData(from: url)
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+
+        let decoded = try JSONDecoder().decode(BlockchairTransactionResponse.self, from: data)
+        if let transaction = decoded.data[txid] {
+            return transaction
+        }
+        if let transaction = decoded.data.values.first {
+            return transaction
+        }
+        throw URLError(.cannotParseResponse)
+    }
+
+    private static func fetchWhatsOnChainUTXOs(for address: String) async throws -> [BitcoinSVUTXO] {
+        let utxos: [WhatsOnChainUnspentEntry] = try await fetchWhatsOnChainDecodable(path: "/address/\(address)/confirmed/unspent")
+        return sanitizeUTXOs(utxos.map {
+            BitcoinSVUTXO(txid: $0.txHash, vout: $0.outputIndex, value: $0.value)
+        })
+    }
+
+    private static func fetchBlockchairUTXOs(for address: String) async throws -> [BitcoinSVUTXO] {
+        let dashboard = try await fetchBlockchairAddressDashboard(for: address, limit: 100, offset: 0)
+        return sanitizeUTXOs((dashboard.utxo ?? []).map {
+            BitcoinSVUTXO(txid: $0.transactionHash, vout: $0.index, value: $0.value)
+        })
     }
 
     private static func snapshot(
@@ -300,7 +466,63 @@ enum BitcoinSVBalanceService {
         return [trimmed, lowered]
     }
 
-    private static func fetchDecodable<T: Decodable>(
+    nonisolated private static func sanitizeUTXOs(_ utxos: [BitcoinSVUTXO]) -> [BitcoinSVUTXO] {
+        var deduplicated: [String: BitcoinSVUTXO] = [:]
+        for utxo in utxos where !utxo.txid.isEmpty && utxo.vout >= 0 && utxo.value > 0 {
+            let key = outpointKey(hash: utxo.txid, index: utxo.vout)
+            if let existing = deduplicated[key] {
+                guard existing.value == utxo.value else {
+                    continue
+                }
+            }
+            deduplicated[key] = utxo
+        }
+        return deduplicated.values.sorted {
+            if $0.value == $1.value {
+                return outpointKey(hash: $0.txid, index: $0.vout) < outpointKey(hash: $1.txid, index: $1.vout)
+            }
+            return $0.value > $1.value
+        }
+    }
+
+    nonisolated private static func mergeConsistentUTXOs(
+        whatsonchainUTXOs: [BitcoinSVUTXO],
+        blockchairUTXOs: [BitcoinSVUTXO]
+    ) throws -> [BitcoinSVUTXO] {
+        guard !whatsonchainUTXOs.isEmpty else { return blockchairUTXOs }
+        guard !blockchairUTXOs.isEmpty else { return whatsonchainUTXOs }
+
+        let whatsonchainByOutpoint = Dictionary(uniqueKeysWithValues: whatsonchainUTXOs.map { (outpointKey(hash: $0.txid, index: $0.vout), $0) })
+        let blockchairByOutpoint = Dictionary(uniqueKeysWithValues: blockchairUTXOs.map { (outpointKey(hash: $0.txid, index: $0.vout), $0) })
+        let overlappingKeys = Set(whatsonchainByOutpoint.keys).intersection(blockchairByOutpoint.keys)
+
+        guard !overlappingKeys.isEmpty else {
+            throw URLError(.cannotParseResponse)
+        }
+
+        for key in overlappingKeys {
+            guard whatsonchainByOutpoint[key]?.value == blockchairByOutpoint[key]?.value else {
+                throw URLError(.cannotParseResponse)
+            }
+        }
+
+        var merged = whatsonchainByOutpoint
+        for (key, utxo) in blockchairByOutpoint where merged.index(forKey: key) == nil {
+            merged[key] = utxo
+        }
+        return merged.values.sorted {
+            if $0.value == $1.value {
+                return outpointKey(hash: $0.txid, index: $0.vout) < outpointKey(hash: $1.txid, index: $1.vout)
+            }
+            return $0.value > $1.value
+        }
+    }
+
+    nonisolated private static func outpointKey(hash: String, index: Int) -> String {
+        "\(hash.lowercased()):\(index)"
+    }
+
+    private static func fetchWhatsOnChainDecodable<T: Decodable>(
         path: String,
         queryItems: [URLQueryItem] = []
     ) async throws -> T {
@@ -319,6 +541,26 @@ enum BitcoinSVBalanceService {
             throw URLError(.badServerResponse)
         }
         return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private static func runWithProviderFallback<T>(
+        candidates: [Provider],
+        operation: @escaping (Provider) async throws -> T
+    ) async throws -> T {
+        var firstError: Error?
+        var lastError: Error?
+        for provider in candidates {
+            do {
+                return try await operation(provider)
+            } catch {
+                if firstError == nil {
+                    firstError = error
+                }
+                lastError = error
+                try? await Task.sleep(nanoseconds: 180_000_000)
+            }
+        }
+        throw firstError ?? lastError ?? URLError(.cannotLoadFromNetwork)
     }
 
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {

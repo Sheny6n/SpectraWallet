@@ -241,6 +241,49 @@ enum TONBalanceService {
         )
     }
 
+    static func verifyTransactionIfAvailable(_ transactionHash: String) async -> SendBroadcastVerificationStatus {
+        let normalizedHash = transactionHash.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedHash.isEmpty else {
+            return .deferred
+        }
+
+        var lastError: String?
+        for endpoint in jettonEndpoints {
+            do {
+                var components = URLComponents(string: "\(endpoint)/transactions")
+                components?.queryItems = [
+                    URLQueryItem(name: "hash", value: normalizedHash),
+                    URLQueryItem(name: "limit", value: "1")
+                ]
+                guard let url = components?.url else {
+                    throw TONBalanceServiceError.invalidResponse
+                }
+
+                let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+                    throw TONBalanceServiceError.rpcError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                }
+
+                let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
+                let rows = transactionRows(from: jsonObject)
+                if rows.contains(where: {
+                    (stringValue(in: $0, keys: ["hash", "transaction_hash"]) ?? "")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .caseInsensitiveCompare(normalizedHash) == .orderedSame
+                }) {
+                    return .verified
+                }
+            } catch {
+                lastError = error.localizedDescription
+            }
+        }
+
+        if let lastError {
+            return .failed(lastError)
+        }
+        return .deferred
+    }
+
     private static func parseTransactionHistoryResponse(_ data: Data, ownerAddress: String) throws -> [TONHistorySnapshot] {
         if let envelope = try? JSONDecoder().decode(TransactionsEnvelope.self, from: data),
            let result = envelope.result {
@@ -274,6 +317,9 @@ enum TONBalanceService {
             return rows
         }
         if let rows = dictionary["items"] as? [[String: Any]] {
+            return rows
+        }
+        if let rows = dictionary["transactions"] as? [[String: Any]] {
             return rows
         }
         return []

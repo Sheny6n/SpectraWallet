@@ -30,16 +30,23 @@ enum CardanoWalletEngineError: LocalizedError {
 struct CardanoSendPreview: Equatable {
     let estimatedNetworkFeeADA: Double
     let ttlSlot: UInt64
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct CardanoSendResult: Equatable {
     let transactionHash: String
     let estimatedNetworkFeeADA: Double
+    let signedTransactionCBORHex: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
 enum CardanoWalletEngine {
-    private static let koiosBaseURL = ChainBackendRegistry.CardanoRuntimeEndpoints.primaryBaseURL
+    private static let endpointReliabilityNamespace = "cardano.koios"
 
     private struct RPCAddressUTXO {
         let txHash: String
@@ -84,10 +91,19 @@ enum CardanoWalletEngine {
         }
 
         let tip = try await fetchTip()
+        let balanceADA = try await CardanoBalanceService.fetchBalance(for: ownerAddress)
+        let estimatedNetworkFeeADA = 0.2
+        let maxSendable = max(0, balanceADA - estimatedNetworkFeeADA)
         // Conservative ADA fee estimate for basic transfer tx.
         return CardanoSendPreview(
-            estimatedNetworkFeeADA: 0.2,
-            ttlSlot: tip.absSlot + 7_200
+            estimatedNetworkFeeADA: estimatedNetworkFeeADA,
+            ttlSlot: tip.absSlot + 7_200,
+            spendableBalance: maxSendable,
+            feeRateDescription: nil,
+            estimatedTransactionBytes: nil,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: maxSendable
         )
     }
 
@@ -173,12 +189,34 @@ enum CardanoWalletEngine {
             throw CardanoWalletEngineError.signingFailed("Missing transaction hash from signing output.")
         }
 
-        try await submitTransactionCBOR(cbor: output.encoded)
+        try await submitTransactionCBOR(cbor: output.encoded, fallbackTransactionHash: txHashHex)
 
         return CardanoSendResult(
             transactionHash: txHashHex,
             estimatedNetworkFeeADA: 0.2,
+            signedTransactionCBORHex: output.encoded.hexEncodedString(),
             verificationStatus: await verifyBroadcastedTransactionIfAvailable(ownerAddress: ownerAddress, transactionHash: txHashHex)
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        signedTransactionCBORHex: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> CardanoSendResult {
+        let normalized = signedTransactionCBORHex.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let cbor = Data(hexEncoded: normalized), !cbor.isEmpty else {
+            throw CardanoWalletEngineError.signingFailed("Invalid signed Cardano transaction payload.")
+        }
+        guard let fallbackTransactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !fallbackTransactionHash.isEmpty else {
+            throw CardanoWalletEngineError.signingFailed("Missing prior Cardano transaction hash for rebroadcast recovery.")
+        }
+        try await submitTransactionCBOR(cbor: cbor, fallbackTransactionHash: fallbackTransactionHash)
+        return CardanoSendResult(
+            transactionHash: fallbackTransactionHash,
+            estimatedNetworkFeeADA: 0,
+            signedTransactionCBORHex: normalized,
+            verificationStatus: await CardanoBalanceService.verifyTransactionIfAvailable(fallbackTransactionHash)
         )
     }
 
@@ -201,112 +239,183 @@ enum CardanoWalletEngine {
     }
 
     private static func fetchTip() async throws -> TipResult {
-        let url = koiosBaseURL.appendingPathComponent("tip")
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 20
+        var lastError: Error?
+        for endpoint in orderedKoiosBaseURLs() {
+            let url = endpoint.appendingPathComponent("tip")
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 20
 
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw CardanoWalletEngineError.networkError(error.localizedDescription)
-        }
-        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw CardanoWalletEngineError.networkError("HTTP \(code)")
-        }
+            let (data, response): (Data, URLResponse)
+            do {
+                (data, response) = try await URLSession.shared.data(for: request)
+            } catch {
+                lastError = CardanoWalletEngineError.networkError(error.localizedDescription)
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                continue
+            }
+            guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                lastError = CardanoWalletEngineError.networkError("HTTP \(code)")
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                continue
+            }
 
-        guard let rows = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]],
-              let first = rows.first else {
-            throw CardanoWalletEngineError.networkError("Invalid /tip response payload.")
-        }
+            guard let rows = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]],
+                  let first = rows.first else {
+                lastError = CardanoWalletEngineError.networkError("Invalid /tip response payload.")
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                continue
+            }
 
-        if let absSlot = first["abs_slot"] as? UInt64 {
-            return TipResult(absSlot: absSlot)
-        }
-        if let absSlotInt = first["abs_slot"] as? Int {
-            return TipResult(absSlot: UInt64(max(0, absSlotInt)))
-        }
-        if let absSlotString = first["abs_slot"] as? String,
-           let absSlot = UInt64(absSlotString) {
-            return TipResult(absSlot: absSlot)
-        }
+            if let absSlot = first["abs_slot"] as? UInt64 {
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                return TipResult(absSlot: absSlot)
+            }
+            if let absSlotInt = first["abs_slot"] as? Int {
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                return TipResult(absSlot: UInt64(max(0, absSlotInt)))
+            }
+            if let absSlotString = first["abs_slot"] as? String,
+               let absSlot = UInt64(absSlotString) {
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                return TipResult(absSlot: absSlot)
+            }
 
-        throw CardanoWalletEngineError.networkError("Missing abs_slot in /tip response.")
+            lastError = CardanoWalletEngineError.networkError("Missing abs_slot in /tip response.")
+            ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+        }
+        throw lastError ?? CardanoWalletEngineError.networkError("Missing abs_slot in /tip response.")
     }
 
     private static func fetchAddressUTXOs(address: String) async throws -> [RPCAddressUTXO] {
-        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "\(koiosBaseURL.absoluteString)/address_utxos?_address=eq.\(encodedAddress)") else {
+        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
             throw CardanoWalletEngineError.networkError("Invalid Cardano UTXO endpoint URL.")
         }
-
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 20
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw CardanoWalletEngineError.networkError(error.localizedDescription)
-        }
-        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw CardanoWalletEngineError.networkError("HTTP \(code)")
-        }
-
-        guard let rows = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] else {
-            throw CardanoWalletEngineError.networkError("Invalid Cardano UTXO response payload.")
-        }
-
-        return rows.compactMap { row in
-            guard let txHash = row["tx_hash"] as? String,
-                  !txHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return nil
+        var lastError: Error?
+        for endpoint in orderedKoiosBaseURLs() {
+            guard let url = URL(string: "\(endpoint.absoluteString)/address_utxos?_address=eq.\(encodedAddress)") else {
+                continue
             }
 
-            let txIndex: UInt64 = {
-                if let value = row["tx_index"] as? UInt64 { return value }
-                if let value = row["tx_index"] as? Int { return UInt64(max(0, value)) }
-                if let value = row["tx_index"] as? String, let parsed = UInt64(value) { return parsed }
-                return 0
-            }()
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 20
 
-            let lovelace: UInt64? = {
-                if let value = row["value"] as? UInt64 { return value }
-                if let value = row["value"] as? Int { return UInt64(max(0, value)) }
-                if let value = row["value"] as? String { return UInt64(value) }
-                return nil
-            }()
+            let (data, response): (Data, URLResponse)
+            do {
+                (data, response) = try await URLSession.shared.data(for: request)
+            } catch {
+                lastError = CardanoWalletEngineError.networkError(error.localizedDescription)
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                continue
+            }
+            guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                lastError = CardanoWalletEngineError.networkError("HTTP \(code)")
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                continue
+            }
 
-            guard let amount = lovelace, amount > 0 else { return nil }
-            return RPCAddressUTXO(txHash: txHash, txIndex: txIndex, amountLovelace: amount)
+            guard let rows = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] else {
+                lastError = CardanoWalletEngineError.networkError("Invalid Cardano UTXO response payload.")
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                continue
+            }
+
+            let utxos: [RPCAddressUTXO] = rows.compactMap { row in
+                guard let txHash = row["tx_hash"] as? String,
+                      !txHash.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    return nil
+                }
+
+                let txIndex: UInt64 = {
+                    if let value = row["tx_index"] as? UInt64 { return value }
+                    if let value = row["tx_index"] as? Int { return UInt64(max(0, value)) }
+                    if let value = row["tx_index"] as? String, let parsed = UInt64(value) { return parsed }
+                    return 0
+                }()
+
+                let lovelace: UInt64? = {
+                    if let value = row["value"] as? UInt64 { return value }
+                    if let value = row["value"] as? Int { return UInt64(max(0, value)) }
+                    if let value = row["value"] as? String { return UInt64(value) }
+                    return nil
+                }()
+
+                guard let amount = lovelace, amount > 0 else { return nil }
+                return RPCAddressUTXO(txHash: txHash, txIndex: txIndex, amountLovelace: amount)
+            }
+            ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+            return utxos
         }
+        throw lastError ?? CardanoWalletEngineError.networkError("Invalid Cardano UTXO response payload.")
     }
 
-    private static func submitTransactionCBOR(cbor: Data) async throws {
-        let url = koiosBaseURL.appendingPathComponent("submittx")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.setValue("application/cbor", forHTTPHeaderField: "Content-Type")
-        request.httpBody = cbor
+    private static func submitTransactionCBOR(cbor: Data, fallbackTransactionHash: String) async throws {
+        let attempts = 2
+        var lastError: Error?
 
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw CardanoWalletEngineError.broadcastFailed(error.localizedDescription)
+        for endpoint in orderedKoiosBaseURLs() {
+            let url = endpoint.appendingPathComponent("submittx")
+            for _ in 0 ..< attempts {
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.timeoutInterval = 20
+                request.setValue("application/cbor", forHTTPHeaderField: "Content-Type")
+                request.httpBody = cbor
+
+                let (data, response): (Data, URLResponse)
+                do {
+                    (data, response) = try await URLSession.shared.data(for: request)
+                } catch {
+                    let disposition = classifySendBroadcastFailure(error.localizedDescription)
+                    if disposition == .alreadyBroadcast, !fallbackTransactionHash.isEmpty {
+                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                        return
+                    }
+                    lastError = CardanoWalletEngineError.broadcastFailed(error.localizedDescription)
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                    if disposition != .retryable {
+                        break
+                    }
+                    continue
+                }
+
+                guard let http = response as? HTTPURLResponse else {
+                    lastError = CardanoWalletEngineError.broadcastFailed("Missing HTTP response from Cardano submit endpoint.")
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                    break
+                }
+
+                guard (200 ... 299).contains(http.statusCode) else {
+                    let body = String(data: data, encoding: .utf8) ?? ""
+                    let message = "HTTP \(http.statusCode) \(body)"
+                    let disposition = classifySendBroadcastFailure(message)
+                    if disposition == .alreadyBroadcast, !fallbackTransactionHash.isEmpty {
+                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                        return
+                    }
+                    lastError = CardanoWalletEngineError.broadcastFailed(message)
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                    if disposition != .retryable {
+                        break
+                    }
+                    continue
+                }
+
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                return
+            }
         }
 
-        guard let http = response as? HTTPURLResponse else {
-            throw CardanoWalletEngineError.broadcastFailed("Missing HTTP response from Cardano submit endpoint.")
-        }
+        throw lastError ?? CardanoWalletEngineError.broadcastFailed("Cardano submit failed.")
+    }
 
-        guard (200 ... 299).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw CardanoWalletEngineError.broadcastFailed("HTTP \(http.statusCode) \(body)")
-        }
+    private static func orderedKoiosBaseURLs() -> [URL] {
+        let ordered = ChainEndpointReliability.orderedEndpoints(
+            namespace: endpointReliabilityNamespace,
+            candidates: ChainBackendRegistry.CardanoRuntimeEndpoints.koiosBaseURLs
+        )
+        return ordered.compactMap(URL.init(string:))
     }
 
     private static func scaledSignedAmount(_ amount: Double, decimals: Int) throws -> Int64 {

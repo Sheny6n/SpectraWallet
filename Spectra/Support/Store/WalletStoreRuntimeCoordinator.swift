@@ -96,14 +96,24 @@ extension WalletStore {
         set { runtimeState.isPreparingPolkadotSend = newValue }
     }
 
+    var statusTrackingByTransactionID: [UUID: TransactionStatusTrackingState] {
+        get { runtimeState.statusTrackingByTransactionID }
+        set { runtimeState.statusTrackingByTransactionID = newValue }
+    }
+
     var dogecoinStatusTrackingByTransactionID: [UUID: DogecoinStatusTrackingState] {
-        get { runtimeState.dogecoinStatusTrackingByTransactionID }
-        set { runtimeState.dogecoinStatusTrackingByTransactionID = newValue }
+        get { runtimeState.statusTrackingByTransactionID }
+        set { runtimeState.statusTrackingByTransactionID = newValue }
+    }
+
+    var pendingSelfSendConfirmation: PendingSelfSendConfirmation? {
+        get { runtimeState.pendingSelfSendConfirmation }
+        set { runtimeState.pendingSelfSendConfirmation = newValue }
     }
 
     var pendingDogecoinSelfSendConfirmation: PendingDogecoinSelfSendConfirmation? {
-        get { runtimeState.pendingDogecoinSelfSendConfirmation }
-        set { runtimeState.pendingDogecoinSelfSendConfirmation = newValue }
+        get { runtimeState.pendingSelfSendConfirmation }
+        set { runtimeState.pendingSelfSendConfirmation = newValue }
     }
 
     var activeEthereumSendWalletIDs: Set<UUID> {

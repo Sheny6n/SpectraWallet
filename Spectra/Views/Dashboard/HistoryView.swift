@@ -1,14 +1,13 @@
 import SwiftUI
-import Combine
 
 private struct HistoryRowPresentation: Identifiable {
     let transaction: TransactionRecord
     let amountText: String?
-    let titleText: String
+    let amountColor: Color?
     let subtitleText: String
     let statusText: String
     let fullTimestampText: String
-    let dogecoinFeeText: String?
+    let metadataText: String?
 
     var id: UUID { transaction.id }
 }
@@ -85,21 +84,22 @@ struct HistoryView: View {
                                                 .buttonStyle(.plain)
                                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                                     if row.transaction.kind == .send,
-                                                       row.transaction.chainName == "Dogecoin",
-                                                              row.transaction.status == .pending || row.transaction.status == .failed {
-                                                        Button {
-                                                            Task {
-                                                                _ = await store.retryDogecoinTransactionStatus(for: row.transaction.id)
-                                                            }
-                                                        } label: {
-                                                            Label("Recheck", systemImage: "arrow.clockwise")
-                                                        }
-                                                        .tint(.blue)
-
-                                                        if row.transaction.dogecoinRawTransactionHex != nil {
+                                                       row.transaction.status == .pending || row.transaction.status == .failed {
+                                                        if row.transaction.chainName == "Dogecoin" {
                                                             Button {
                                                                 Task {
-                                                                    _ = await store.rebroadcastDogecoinTransaction(for: row.transaction.id)
+                                                                    _ = await store.retryDogecoinTransactionStatus(for: row.transaction.id)
+                                                                }
+                                                            } label: {
+                                                                Label("Recheck", systemImage: "arrow.clockwise")
+                                                            }
+                                                            .tint(.blue)
+                                                        }
+
+                                                        if row.transaction.supportsSignedRebroadcast {
+                                                            Button {
+                                                                Task {
+                                                                    _ = await store.rebroadcastSignedTransaction(for: row.transaction.id)
                                                                 }
                                                             } label: {
                                                                 Label("Rebroadcast", systemImage: "dot.radiowaves.up.forward")
@@ -452,9 +452,12 @@ struct HistoryView: View {
                 CoinBadge(assetIdentifier: row.transaction.assetIdentifier, fallbackText: row.transaction.symbol, color: row.transaction.badgeColor, size: 40)
                 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(row.titleText)
-                        .font(.headline)
-                        .foregroundStyle(Color.primary)
+                    if let amountText = row.amountText {
+                        Text(amountText)
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(row.amountColor ?? Color.primary)
+                            .spectraNumericTextLayout()
+                    }
                     Text(row.subtitleText)
                         .font(.caption)
                         .foregroundStyle(Color.primary.opacity(0.72))
@@ -479,16 +482,9 @@ struct HistoryView: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Color.primary.opacity(0.35))
             }
-            
-            if let amountText = row.amountText {
-                Text(amountText)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.primary)
-                    .spectraNumericTextLayout()
-            }
 
-            if let dogecoinFeeText = row.dogecoinFeeText {
-                Text(dogecoinFeeText)
+            if let metadataText = row.metadataText {
+                Text(metadataText)
                 .font(.caption2)
                 .foregroundStyle(Color.primary.opacity(0.62))
                 .lineLimit(1)
@@ -525,37 +521,37 @@ struct HistoryView: View {
     private func historyRowPresentation(for transaction: TransactionRecord) -> HistoryRowPresentation {
         HistoryRowPresentation(
             transaction: transaction,
-            amountText: store.formattedTransactionAmount(transaction),
-            titleText: transaction.titleText,
+            amountText: signedAmountText(for: transaction),
+            amountColor: amountColor(for: transaction),
             subtitleText: transaction.subtitleText,
             statusText: transaction.statusText,
             fullTimestampText: transaction.fullTimestampText,
-            dogecoinFeeText: dogecoinFeeText(for: transaction)
+            metadataText: transaction.historyMetadataText
         )
     }
 
-    private func dogecoinFeeText(for transaction: TransactionRecord) -> String? {
-        guard transaction.chainName == "Dogecoin",
-              transaction.kind == .send,
-              let dogecoinFeePriorityRaw = transaction.dogecoinFeePriorityRaw,
-              let dogecoinEstimatedFeeRateDOGEPerKB = transaction.dogecoinEstimatedFeeRateDOGEPerKB else {
+    private func signedAmountText(for transaction: TransactionRecord) -> String? {
+        guard let amountText = store.formattedTransactionAmount(transaction) else {
             return nil
         }
 
-        let changeOutputSuffix = (transaction.dogecoinUsedChangeOutput == false) ? " • no change output" : ""
-        let confirmedFeeSuffix = transaction.dogecoinConfirmedNetworkFeeDOGE
-            .map { String(format: " • confirmed %.6f", $0) } ?? ""
-        let confirmationsSuffix = transaction.dogecoinConfirmations
-            .map { " • \($0) conf" } ?? ""
-        return String(
-            format: "DOGE fee: %@ • %.4f DOGE/KB%@%@%@",
-            dogecoinFeePriorityRaw.capitalized,
-            dogecoinEstimatedFeeRateDOGEPerKB,
-            changeOutputSuffix,
-            confirmedFeeSuffix,
-            confirmationsSuffix
-        )
+        switch transaction.kind {
+        case .receive:
+            return "+\(amountText)"
+        case .send:
+            return "-\(amountText)"
+        }
     }
+
+    private func amountColor(for transaction: TransactionRecord) -> Color {
+        switch transaction.kind {
+        case .receive:
+            return .mint
+        case .send:
+            return .red
+        }
+    }
+
 }
 
 private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {

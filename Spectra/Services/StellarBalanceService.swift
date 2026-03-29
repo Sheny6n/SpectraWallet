@@ -38,6 +38,7 @@ enum StellarBalanceService {
     static let horizonEndpoints = ChainBackendRegistry.StellarRuntimeEndpoints.horizonBaseURLs
     private static let stroopDivisor = Decimal(string: "10000000")!
     private static let iso8601Formatter = ISO8601DateFormatter()
+    private static let endpointReliabilityNamespace = "stellar.horizon"
 
     static func endpointCatalog() -> [String] {
         horizonEndpoints
@@ -187,7 +188,7 @@ enum StellarBalanceService {
         }
 
         var lastError: Error?
-        for endpoint in horizonEndpoints {
+        for endpoint in orderedHorizonEndpoints() {
             guard let url = URL(string: "\(endpoint)/transactions") else { continue }
             do {
                 var request = URLRequest(url: url)
@@ -201,6 +202,13 @@ enum StellarBalanceService {
                     throw StellarBalanceServiceError.invalidResponse
                 }
                 guard (200 ... 299).contains(http.statusCode) else {
+                    if let envelope = try? JSONDecoder().decode(SubmitTransactionResponse.self, from: data),
+                       let hash = envelope.hash?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !hash.isEmpty,
+                       classifySendBroadcastFailure(String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)") == .alreadyBroadcast {
+                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                        return hash
+                    }
                     throw StellarBalanceServiceError.httpError(http.statusCode)
                 }
                 let envelope = try JSONDecoder().decode(SubmitTransactionResponse.self, from: data)
@@ -208,12 +216,21 @@ enum StellarBalanceService {
                       !hash.isEmpty else {
                     throw StellarBalanceServiceError.invalidResponse
                 }
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
                 return hash
             } catch {
                 lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
         throw lastError ?? StellarBalanceServiceError.invalidResponse
+    }
+
+    private static func orderedHorizonEndpoints() -> [String] {
+        ChainEndpointReliability.orderedEndpoints(
+            namespace: endpointReliabilityNamespace,
+            candidates: horizonEndpoints
+        )
     }
 
     private struct AccountResponse: Decodable {

@@ -774,77 +774,74 @@ struct ChainFeePrioritySettingsView: View {
     let store: WalletStore
     @StateObject private var refreshSignal: ViewRefreshSignal
 
+    private struct ChainFeePrioritySetting: Identifiable {
+        let chainName: String
+        let title: String
+        let detail: String
+
+        var id: String { chainName }
+    }
+
     init(store: WalletStore) {
         self.store = store
         _refreshSignal = StateObject(
             wrappedValue: ViewRefreshSignal([
                 store.$bitcoinFeePriority.asVoidSignal(),
-                store.$dogecoinFeePriority.asVoidSignal()
+                store.$dogecoinFeePriority.asVoidSignal(),
+                store.$selectedFeePriorityOptionRawByChain.asVoidSignal()
             ])
         )
     }
 
     var body: some View {
         Form {
-            Section(localizedSettingsString("Bitcoin")) {
-                Picker(localizedSettingsString("Default Fee Priority"), selection: Binding(
-                    get: { store.bitcoinFeePriority },
-                    set: { store.bitcoinFeePriority = $0 }
-                )) {
-                    ForEach(BitcoinFeePriority.allCases) { priority in
-                        Text(priority.displayName).tag(priority)
+            ForEach(chainFeePrioritySettings) { item in
+                Section(localizedSettingsString(item.chainName)) {
+                    Picker(localizedSettingsString(item.title), selection: Binding(
+                        get: { store.feePriorityOption(for: item.chainName) },
+                        set: { store.setFeePriorityOption($0, for: item.chainName) }
+                    )) {
+                        ForEach(ChainFeePriorityOption.allCases) { priority in
+                            Text(priority.displayName).tag(priority)
+                        }
                     }
-                }
-                .pickerStyle(.segmented)
-                Text(localizedSettingsString("Used as the default for Bitcoin sends. You can still override before broadcasting."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+                    .pickerStyle(.segmented)
 
-            Section(localizedSettingsString("Dogecoin")) {
-                Picker(localizedSettingsString("Dogecoin Default Fee"), selection: Binding(
-                    get: { store.dogecoinFeePriority },
-                    set: { store.dogecoinFeePriority = $0 }
-                )) {
-                    Text(localizedSettingsString("Economy")).tag(DogecoinWalletEngine.FeePriority.economy)
-                    Text(localizedSettingsString("Normal")).tag(DogecoinWalletEngine.FeePriority.normal)
-                    Text(localizedSettingsString("Priority")).tag(DogecoinWalletEngine.FeePriority.priority)
+                    Text(localizedSettingsString(item.detail))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .pickerStyle(.segmented)
-
-                Text(localizedSettingsString("This is the default in Send. You can still override fee priority per transaction."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section(localizedSettingsString("Other Chains")) {
-                ForEach(autoManagedChains, id: \.self) { chainName in
-                    LabeledContent(chainName, value: localizedSettingsString("Auto-managed"))
-                }
-                Text(localizedSettingsString("These networks use dynamic fee estimation from providers and do not expose a manual priority setting in this build."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle(localizedSettingsString("Fee Priorities"))
     }
 
-    private var autoManagedChains: [String] {
+    private var chainFeePrioritySettings: [ChainFeePrioritySetting] {
         [
-            "Litecoin",
-            "Ethereum",
-            "Ethereum Classic",
-            "Arbitrum",
-            "Optimism",
-            "BNB Chain",
-            "Tron",
-            "Solana",
-            "Cardano",
-            "XRP Ledger",
-            "Monero",
-            "Sui",
-            "NEAR",
-            "Stellar"
+            ChainFeePrioritySetting(chainName: "Bitcoin", title: "Default Fee Priority", detail: "Used as the default for Bitcoin sends. You can still override before broadcasting."),
+            ChainFeePrioritySetting(chainName: "Bitcoin Cash", title: "Default Fee Priority", detail: "Stored as the default fee priority for Bitcoin Cash sends."),
+            ChainFeePrioritySetting(chainName: "Bitcoin SV", title: "Default Fee Priority", detail: "Stored as the default fee priority for Bitcoin SV sends."),
+            ChainFeePrioritySetting(chainName: "Litecoin", title: "Default Fee Priority", detail: "Used as the default for Litecoin sends. You can still override before broadcasting."),
+            ChainFeePrioritySetting(chainName: "Dogecoin", title: "Dogecoin Default Fee", detail: "This is the default in Send. You can still override fee priority per transaction."),
+            ChainFeePrioritySetting(chainName: "Ethereum", title: "Default Fee Priority", detail: "Stored as the default fee priority for Ethereum sends."),
+            ChainFeePrioritySetting(chainName: "Ethereum Classic", title: "Default Fee Priority", detail: "Stored as the default fee priority for Ethereum Classic sends."),
+            ChainFeePrioritySetting(chainName: "Arbitrum", title: "Default Fee Priority", detail: "Stored as the default fee priority for Arbitrum sends."),
+            ChainFeePrioritySetting(chainName: "Optimism", title: "Default Fee Priority", detail: "Stored as the default fee priority for Optimism sends."),
+            ChainFeePrioritySetting(chainName: "BNB Chain", title: "Default Fee Priority", detail: "Stored as the default fee priority for BNB Chain sends."),
+            ChainFeePrioritySetting(chainName: "Avalanche", title: "Default Fee Priority", detail: "Stored as the default fee priority for Avalanche sends."),
+            ChainFeePrioritySetting(chainName: "Hyperliquid", title: "Default Fee Priority", detail: "Stored as the default fee priority for Hyperliquid sends."),
+            ChainFeePrioritySetting(chainName: "Tron", title: "Default Fee Priority", detail: "Stored as the default fee priority for Tron sends."),
+            ChainFeePrioritySetting(chainName: "Solana", title: "Default Fee Priority", detail: "Stored as the default fee priority for Solana sends."),
+            ChainFeePrioritySetting(chainName: "XRP Ledger", title: "Default Fee Priority", detail: "Stored as the default fee priority for XRP sends."),
+            ChainFeePrioritySetting(chainName: "Cardano", title: "Default Fee Priority", detail: "Stored as the default fee priority for Cardano sends."),
+            ChainFeePrioritySetting(chainName: "Monero", title: "Default Fee Priority", detail: "Stored as the default fee priority for Monero sends."),
+            ChainFeePrioritySetting(chainName: "Sui", title: "Default Fee Priority", detail: "Stored as the default fee priority for Sui sends."),
+            ChainFeePrioritySetting(chainName: "Aptos", title: "Default Fee Priority", detail: "Stored as the default fee priority for Aptos sends."),
+            ChainFeePrioritySetting(chainName: "TON", title: "Default Fee Priority", detail: "Stored as the default fee priority for TON sends."),
+            ChainFeePrioritySetting(chainName: "NEAR", title: "Default Fee Priority", detail: "Stored as the default fee priority for NEAR sends."),
+            ChainFeePrioritySetting(chainName: "Polkadot", title: "Default Fee Priority", detail: "Stored as the default fee priority for Polkadot sends."),
+            ChainFeePrioritySetting(chainName: "Stellar", title: "Default Fee Priority", detail: "Stored as the default fee priority for Stellar sends."),
+            ChainFeePrioritySetting(chainName: "Internet Computer", title: "Default Fee Priority", detail: "Stored as the default fee priority for Internet Computer sends.")
         ]
     }
 }

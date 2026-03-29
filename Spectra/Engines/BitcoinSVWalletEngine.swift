@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import WalletCore
 
 enum BitcoinSVWalletEngineError: LocalizedError {
@@ -9,6 +10,7 @@ enum BitcoinSVWalletEngineError: LocalizedError {
     case invalidUTXO
     case sourceAddressDoesNotMatchSeed
     case broadcastFailed(String)
+    case policyViolation(String)
 
     var errorDescription: String? {
         switch self {
@@ -26,6 +28,8 @@ enum BitcoinSVWalletEngineError: LocalizedError {
             return CommonLocalization.sourceAddressDoesNotMatchSeed("Bitcoin SV")
         case .broadcastFailed(let message):
             return NSLocalizedString(message, comment: "")
+        case .policyViolation(let message):
+            return NSLocalizedString(message, comment: "")
         }
     }
 }
@@ -33,10 +37,27 @@ enum BitcoinSVWalletEngineError: LocalizedError {
 enum BitcoinSVWalletEngine {
     private static let satoshisPerBSV: Double = 100_000_000
     private static let defaultFeeRateSatVb: UInt64 = 1
+    private static let minimumFeeRateSatVb: UInt64 = 1
     private static let minimumFeeSatoshis: UInt64 = 1_000
+    private static let dustThresholdSatoshis: UInt64 = 546
+    private static let maxStandardTransactionBytes: UInt64 = 100_000
     private static let whatsonchainBroadcastURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainBroadcastURL
     private static let whatsonchainTransactionURLPrefix = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainTransactionURLPrefix
+    private static let blockchairPushURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairPushURL
+    private static let blockchairTransactionURLPrefix = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairTransactionURLPrefix
+    private static let providerReliabilityDefaultsKey = "bitcoinsv.engine.provider.reliability.v1"
     private static let defaultDerivationPath = "m/44'/236'/0'/0/0"
+
+    private enum Provider: String, CaseIterable {
+        case whatsonchain
+        case blockchair
+    }
+
+    private struct ProviderReliabilityCounter: Codable {
+        var successCount: Int
+        var failureCount: Int
+        var lastUpdatedAt: TimeInterval
+    }
 
     struct SendOptions {
         let maxInputCount: Int?
@@ -84,7 +105,13 @@ enum BitcoinSVWalletEngine {
         }
         return BitcoinSendPreview(
             estimatedFeeRateSatVb: defaultFeeRateSatVb,
-            estimatedNetworkFeeBTC: Double(estimatedFee) / satoshisPerBSV
+            estimatedNetworkFeeBTC: Double(estimatedFee) / satoshisPerBSV,
+            feeRateDescription: "\(defaultFeeRateSatVb) sat/vB",
+            spendableBalance: Double(spendable) / satoshisPerBSV,
+            estimatedTransactionBytes: Int(estimatedBytes),
+            selectedInputCount: utxos.count,
+            usesChangeOutput: nil,
+            maxSendable: Double(spendable) / satoshisPerBSV
         )
     }
 
@@ -138,6 +165,11 @@ enum BitcoinSVWalletEngine {
             feeRateSatVb: defaultFeeRateSatVb,
             maxInputCount: effectiveOptions.maxInputCount
         )
+        try validatePolicyRules(
+            sendAmountSatoshis: amountSatoshis,
+            selectedUTXOs: selectedUTXOs,
+            feeRateSatVb: defaultFeeRateSatVb
+        )
 
         let sourceScript = try sourceScript(for: sourceAddress)
 
@@ -164,11 +196,37 @@ enum BitcoinSVWalletEngine {
         }
 
         let rawHex = output.encoded.map { String(format: "%02x", $0) }.joined()
-        let txid = try await broadcast(rawTransactionHex: rawHex)
+        let txid = try await broadcast(rawTransactionHex: rawHex, fallbackTransactionHash: computeTransactionHash(fromRawHex: rawHex))
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
         return SendResult(
             transactionHash: txid,
             rawTransactionHex: rawHex,
+            verificationStatus: verificationStatus
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        rawTransactionHex: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> SendResult {
+        let normalizedRawHex = rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let rawData = Data(hexEncoded: normalizedRawHex), !rawData.isEmpty else {
+            throw BitcoinSVWalletEngineError.signingFailed("Invalid signed Bitcoin SV transaction payload.")
+        }
+        guard UInt64(rawData.count) <= maxStandardTransactionBytes else {
+            throw BitcoinSVWalletEngineError.policyViolation("Bitcoin SV transaction is too large for standard relay policy.")
+        }
+        let fallbackTransactionHash = (expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : computeTransactionHash(fromRawHex: normalizedRawHex)
+        let txid = try await broadcast(
+            rawTransactionHex: normalizedRawHex,
+            fallbackTransactionHash: fallbackTransactionHash
+        )
+        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
+        return SendResult(
+            transactionHash: txid,
+            rawTransactionHex: normalizedRawHex,
             verificationStatus: verificationStatus
         )
     }
@@ -224,6 +282,32 @@ enum BitcoinSVWalletEngine {
         throw BitcoinSVWalletEngineError.insufficientFunds
     }
 
+    private static func validatePolicyRules(
+        sendAmountSatoshis: UInt64,
+        selectedUTXOs: [BitcoinSVUTXO],
+        feeRateSatVb: UInt64
+    ) throws {
+        guard sendAmountSatoshis >= dustThresholdSatoshis else {
+            throw BitcoinSVWalletEngineError.policyViolation("Amount is below Bitcoin SV dust threshold.")
+        }
+        guard feeRateSatVb >= minimumFeeRateSatVb else {
+            throw BitcoinSVWalletEngineError.policyViolation("Bitcoin SV fee rate is below standard relay policy.")
+        }
+        let estimatedBytes = UInt64(10 + (148 * max(1, selectedUTXOs.count)) + 68)
+        guard estimatedBytes <= maxStandardTransactionBytes else {
+            throw BitcoinSVWalletEngineError.policyViolation("Bitcoin SV transaction is too large for standard relay policy.")
+        }
+        let totalInput = selectedUTXOs.reduce(UInt64(0)) { $0 + $1.value }
+        let estimatedFee = max(minimumFeeSatoshis, UInt64(Double(estimatedBytes) * Double(feeRateSatVb)))
+        guard totalInput >= sendAmountSatoshis + estimatedFee else {
+            throw BitcoinSVWalletEngineError.insufficientFunds
+        }
+        let change = totalInput - sendAmountSatoshis - estimatedFee
+        if change > 0, change < dustThresholdSatoshis {
+            throw BitcoinSVWalletEngineError.policyViolation("Calculated Bitcoin SV change is below dust threshold.")
+        }
+    }
+
     private static func sourceScript(for address: String) throws -> Data {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         let script = BitcoinScript.lockScriptForAddress(address: trimmed, coin: .bitcoin)
@@ -233,31 +317,28 @@ enum BitcoinSVWalletEngine {
         return script.data
     }
 
-    private static func broadcast(rawTransactionHex: String) async throws -> String {
-        guard let url = URL(string: whatsonchainBroadcastURL) else {
-            throw URLError(.badURL)
+    private static func broadcast(rawTransactionHex: String, fallbackTransactionHash: String) async throws -> String {
+        try await runWithFallback(candidates: orderedProviders(candidates: Provider.allCases)) { provider in
+            switch provider {
+            case .whatsonchain:
+                return try await broadcastViaWhatsOnChain(
+                    rawTransactionHex: rawTransactionHex,
+                    fallbackTransactionHash: fallbackTransactionHash
+                )
+            case .blockchair:
+                return try await broadcastViaBlockchair(
+                    rawTransactionHex: rawTransactionHex,
+                    fallbackTransactionHash: fallbackTransactionHash
+                )
+            }
         }
+    }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("text/plain; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        request.httpBody = rawTransactionHex.data(using: .utf8)
-
-        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
-
-        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
-            throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV broadcast failed.")
-        }
-
-        if let text = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-           !text.isEmpty {
-            return text
-        }
-
-        throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV broadcast returned an empty transaction hash.")
+    private static func computeTransactionHash(fromRawHex rawHex: String) -> String {
+        guard let rawData = Data(hexEncoded: rawHex) else { return "" }
+        let firstHash = SHA256.hash(data: rawData)
+        let secondHash = SHA256.hash(data: Data(firstHash))
+        return Data(secondHash).reversed().map { String(format: "%02x", $0) }.joined()
     }
 
     private static func verifyBroadcastedTransactionIfAvailable(txid: String) async -> SendBroadcastVerificationStatus {
@@ -286,23 +367,177 @@ enum BitcoinSVWalletEngine {
 
     private static func verifyPresenceOnlyIfAvailable(txid: String) async throws -> Bool {
         let trimmed = txid.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(whatsonchainTransactionURLPrefix)\(encoded)") else {
+        guard !trimmed.isEmpty else {
             throw URLError(.badURL)
         }
 
-        let (_, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
-        guard let http = response as? HTTPURLResponse else {
-            throw BitcoinSVWalletEngineError.broadcastFailed("Invalid Bitcoin SV verification response.")
+        return try await runWithFallback(candidates: orderedProviders(candidates: Provider.allCases)) { provider in
+            let url: URL
+            switch provider {
+            case .whatsonchain:
+                guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                      let resolved = URL(string: "\(whatsonchainTransactionURLPrefix)\(encoded)") else {
+                    throw URLError(.badURL)
+                }
+                url = resolved
+            case .blockchair:
+                guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                      let resolved = URL(string: "\(blockchairTransactionURLPrefix)\(encoded)") else {
+                    throw URLError(.badURL)
+                }
+                url = resolved
+            }
+
+            let (_, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+            guard let http = response as? HTTPURLResponse else {
+                throw BitcoinSVWalletEngineError.broadcastFailed("Invalid Bitcoin SV verification response.")
+            }
+            if (200 ..< 300).contains(http.statusCode) {
+                return true
+            }
+            if http.statusCode == 404 {
+                return false
+            }
+            throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV verification failed with status \(http.statusCode).")
         }
-        if (200 ..< 300).contains(http.statusCode) {
-            return true
+    }
+
+    private static func broadcastViaWhatsOnChain(
+        rawTransactionHex: String,
+        fallbackTransactionHash: String
+    ) async throws -> String {
+        guard let url = URL(string: whatsonchainBroadcastURL) else {
+            throw URLError(.badURL)
         }
-        if http.statusCode == 404 {
-            return false
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("text/plain; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.httpBody = rawTransactionHex.data(using: .utf8)
+
+        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            let responseBody = String(data: data, encoding: .utf8) ?? ""
+            let message = "Bitcoin SV broadcast failed. \(responseBody)".trimmingCharacters(in: .whitespacesAndNewlines)
+            if classifySendBroadcastFailure(message) == .alreadyBroadcast, !fallbackTransactionHash.isEmpty {
+                return fallbackTransactionHash
+            }
+            throw BitcoinSVWalletEngineError.broadcastFailed(message)
         }
-        throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV verification failed with status \(http.statusCode).")
+
+        if let text = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !text.isEmpty {
+            return text
+        }
+
+        throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV broadcast returned an empty transaction hash.")
+    }
+
+    private static func broadcastViaBlockchair(
+        rawTransactionHex: String,
+        fallbackTransactionHash: String
+    ) async throws -> String {
+        guard let url = URL(string: blockchairPushURL) else {
+            throw URLError(.badURL)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.httpBody = "data=\(rawTransactionHex)".data(using: .utf8)
+
+        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+        guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
+            let responseBody = String(data: data, encoding: .utf8) ?? ""
+            let message = "Bitcoin SV broadcast failed. \(responseBody)".trimmingCharacters(in: .whitespacesAndNewlines)
+            if classifySendBroadcastFailure(message) == .alreadyBroadcast, !fallbackTransactionHash.isEmpty {
+                return fallbackTransactionHash
+            }
+            throw BitcoinSVWalletEngineError.broadcastFailed(message)
+        }
+
+        if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let dataValue = jsonObject["data"] as? [String: Any],
+           let transactionHash = dataValue["transaction_hash"] as? String,
+           !transactionHash.isEmpty {
+            return transactionHash
+        }
+
+        if let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let dataValue = jsonObject["data"] as? String,
+           !dataValue.isEmpty {
+            return dataValue
+        }
+
+        throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV broadcast returned an empty transaction hash.")
+    }
+
+    private static func runWithFallback<T>(
+        candidates: [Provider],
+        operation: @escaping (Provider) async throws -> T
+    ) async throws -> T {
+        var lastError: Error?
+        for provider in candidates {
+            do {
+                let value = try await operation(provider)
+                recordProviderAttempt(provider: provider, success: true)
+                return value
+            } catch {
+                lastError = error
+                recordProviderAttempt(provider: provider, success: false)
+                try? await Task.sleep(nanoseconds: 180_000_000)
+            }
+        }
+        throw lastError ?? BitcoinSVWalletEngineError.broadcastFailed("All Bitcoin SV providers failed.")
+    }
+
+    private static func orderedProviders(candidates: [Provider]) -> [Provider] {
+        let counters = loadProviderReliabilityCounters()
+        return candidates.sorted { lhs, rhs in
+            let leftScore = providerScore(counters[lhs.rawValue])
+            let rightScore = providerScore(counters[rhs.rawValue])
+            if leftScore == rightScore {
+                return lhs.rawValue < rhs.rawValue
+            }
+            return leftScore > rightScore
+        }
+    }
+
+    private static func providerScore(_ counter: ProviderReliabilityCounter?) -> Double {
+        guard let counter else { return 0.5 }
+        let attempts = max(1, counter.successCount + counter.failureCount)
+        return Double(counter.successCount) / Double(attempts)
+    }
+
+    private static func loadProviderReliabilityCounters() -> [String: ProviderReliabilityCounter] {
+        guard let data = UserDefaults.standard.data(forKey: providerReliabilityDefaultsKey),
+              let decoded = try? JSONDecoder().decode([String: ProviderReliabilityCounter].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
+    private static func saveProviderReliabilityCounters(_ counters: [String: ProviderReliabilityCounter]) {
+        guard let data = try? JSONEncoder().encode(counters) else { return }
+        UserDefaults.standard.set(data, forKey: providerReliabilityDefaultsKey)
+    }
+
+    private static func recordProviderAttempt(provider: Provider, success: Bool) {
+        var counters = loadProviderReliabilityCounters()
+        var counter = counters[provider.rawValue] ?? ProviderReliabilityCounter(successCount: 0, failureCount: 0, lastUpdatedAt: 0)
+        if success {
+            counter.successCount += 1
+        } else {
+            counter.failureCount += 1
+        }
+        counter.lastUpdatedAt = Date().timeIntervalSince1970
+        counters[provider.rawValue] = counter
+        saveProviderReliabilityCounters(counters)
     }
 
     private static func changeDerivationPath(for path: String) -> String {

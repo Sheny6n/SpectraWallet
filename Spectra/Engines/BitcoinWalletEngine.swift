@@ -53,14 +53,32 @@ enum BitcoinFeePriority: String, CaseIterable, Identifiable {
 struct BitcoinSendPreview: Equatable {
     let estimatedFeeRateSatVb: UInt64
     let estimatedNetworkFeeBTC: Double
+    let feeRateDescription: String?
+    let spendableBalance: Double?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double?
 }
 
 struct BitcoinSendResult: Equatable {
     let transactionHash: String
+    let rawTransactionHex: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
 struct BitcoinWalletEngine {
+    private static let dustThresholdSats: UInt64 = 546
+    private static let minimumFeeRateSatVb: UInt64 = 1
+    private static let maxStandardTransactionBytes: UInt64 = 100_000
+    private static let endpointReliabilityDefaultsKey = "bitcoin.engine.endpoint.reliability.v1"
+
+    private struct EndpointReliabilityCounter: Codable {
+        var successCount: Int
+        var failureCount: Int
+        var lastUpdatedAt: TimeInterval
+    }
+
     private enum ScriptDescriptorKind {
         case legacy
         case nestedSegWit
@@ -298,6 +316,33 @@ struct BitcoinWalletEngine {
         }
     }
 
+    static func addressInventory(
+        for importedWallet: ImportedWallet,
+        seedPhrase: String,
+        scanLimit: UInt32 = 20
+    ) throws -> WalletAddressInventory {
+        let session = try makeSession(for: importedWallet, seedPhrase: seedPhrase)
+        return addressInventory(
+            session: session,
+            derivationPath: importedWallet.seedDerivationPaths.bitcoin,
+            scanLimit: scanLimit
+        )
+    }
+
+    static func addressInventory(
+        for walletID: UUID,
+        seedPhrase: String,
+        derivationPath: String = SeedDerivationChain.bitcoin.defaultPath,
+        scanLimit: UInt32 = 20
+    ) throws -> WalletAddressInventory {
+        let session = try makeSession(for: walletID, seedPhrase: seedPhrase, derivationPath: derivationPath)
+        return addressInventory(
+            session: session,
+            derivationPath: derivationPath,
+            scanLimit: scanLimit
+        )
+    }
+
     @discardableResult
     static func send(from importedWallet: ImportedWallet, seedPhrase: String, to recipientAddress: String, amountBTC: Double) throws -> String {
         try send(
@@ -306,7 +351,7 @@ struct BitcoinWalletEngine {
             to: recipientAddress,
             amountBTC: amountBTC,
             feePriority: .normal
-        )
+        ).transactionHash
     }
 
     static func send(from walletID: UUID, seedPhrase: String, to recipientAddress: String, amountBTC: Double) throws -> String {
@@ -316,7 +361,7 @@ struct BitcoinWalletEngine {
             to: recipientAddress,
             amountBTC: amountBTC,
             feePriority: .normal
-        )
+        ).transactionHash
     }
 
     static func send(
@@ -325,18 +370,20 @@ struct BitcoinWalletEngine {
         to recipientAddress: String,
         amountBTC: Double,
         feePriority: BitcoinFeePriority
-    ) throws -> String {
+    ) throws -> (transactionHash: String, rawTransactionHex: String) {
         let session = try makeSession(for: importedWallet, seedPhrase: seedPhrase)
         try sync(session: session)
 
         let recipient = try Address(address: recipientAddress, network: currentNetwork())
         let amount = try Amount.fromBtc(btc: amountBTC)
+        let sendAmountSats = UInt64((amountBTC * 100_000_000).rounded())
 
         let feeEstimates = try performWithClientFallback { client in
             try client.getFeeEstimates()
         }
         let estimatedRate = feeEstimate(for: feePriority, from: feeEstimates)
         let satPerVb = max(UInt64(1), UInt64(ceil(estimatedRate)))
+        try validatePolicyRules(sendAmountSats: sendAmountSats, estimatedVBytes: estimatedVirtualBytes(for: importedWallet.seedDerivationPaths.bitcoin))
         let feeRate = try FeeRate.fromSatPerVb(satVb: satPerVb)
 
         let psbt = try TxBuilder()
@@ -350,13 +397,13 @@ struct BitcoinWalletEngine {
         }
 
         let transaction = try psbt.extractTx()
-        try performWithClientFallback { client in
-            try client.broadcast(transaction: transaction)
-        }
+        let txid = String(describing: transaction.computeTxid())
+        let rawTransactionHex = transaction.serialize().map { String(format: "%02x", $0) }.joined()
+        try broadcastWithRecovery(transaction: transaction, txid: txid)
         _ = try session.wallet.persist(persister: session.persister)
         try sync(session: session)
 
-        return String(describing: transaction.computeTxid())
+        return (txid, rawTransactionHex)
     }
 
     static func send(
@@ -365,18 +412,20 @@ struct BitcoinWalletEngine {
         to recipientAddress: String,
         amountBTC: Double,
         feePriority: BitcoinFeePriority
-    ) throws -> String {
+    ) throws -> (transactionHash: String, rawTransactionHex: String) {
         let session = try makeSession(for: walletID, seedPhrase: seedPhrase)
         try sync(session: session)
 
         let recipient = try Address(address: recipientAddress, network: currentNetwork())
         let amount = try Amount.fromBtc(btc: amountBTC)
+        let sendAmountSats = UInt64((amountBTC * 100_000_000).rounded())
 
         let feeEstimates = try performWithClientFallback { client in
             try client.getFeeEstimates()
         }
         let estimatedRate = feeEstimate(for: feePriority, from: feeEstimates)
         let satPerVb = max(UInt64(1), UInt64(ceil(estimatedRate)))
+        try validatePolicyRules(sendAmountSats: sendAmountSats, estimatedVBytes: estimatedVirtualBytes(for: SeedDerivationChain.bitcoin.defaultPath))
         let feeRate = try FeeRate.fromSatPerVb(satVb: satPerVb)
 
         let psbt = try TxBuilder()
@@ -390,13 +439,13 @@ struct BitcoinWalletEngine {
         }
 
         let transaction = try psbt.extractTx()
-        try performWithClientFallback { client in
-            try client.broadcast(transaction: transaction)
-        }
+        let txid = String(describing: transaction.computeTxid())
+        let rawTransactionHex = transaction.serialize().map { String(format: "%02x", $0) }.joined()
+        try broadcastWithRecovery(transaction: transaction, txid: txid)
         _ = try session.wallet.persist(persister: session.persister)
         try sync(session: session)
 
-        return String(describing: transaction.computeTxid())
+        return (txid, rawTransactionHex)
     }
 
     @discardableResult
@@ -421,7 +470,7 @@ struct BitcoinWalletEngine {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    let txid = try send(
+                    let sent = try send(
                         from: importedWallet,
                         seedPhrase: seedPhrase,
                         to: recipientAddress,
@@ -429,8 +478,9 @@ struct BitcoinWalletEngine {
                         feePriority: feePriority
                     )
                     continuation.resume(returning: BitcoinSendResult(
-                        transactionHash: txid,
-                        verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: txid)
+                        transactionHash: sent.transactionHash,
+                        rawTransactionHex: sent.rawTransactionHex,
+                        verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: sent.transactionHash)
                     ))
                 } catch {
                     continuation.resume(throwing: error)
@@ -449,7 +499,7 @@ struct BitcoinWalletEngine {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    let txid = try send(
+                    let sent = try send(
                         from: walletID,
                         seedPhrase: seedPhrase,
                         to: recipientAddress,
@@ -457,8 +507,9 @@ struct BitcoinWalletEngine {
                         feePriority: feePriority
                     )
                     continuation.resume(returning: BitcoinSendResult(
-                        transactionHash: txid,
-                        verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: txid)
+                        transactionHash: sent.transactionHash,
+                        rawTransactionHex: sent.rawTransactionHex,
+                        verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: sent.transactionHash)
                     ))
                 } catch {
                     continuation.resume(throwing: error)
@@ -485,7 +536,13 @@ struct BitcoinWalletEngine {
         let estimatedFeeBTC = Double(estimatedSats) / 100_000_000
         return BitcoinSendPreview(
             estimatedFeeRateSatVb: satPerVb,
-            estimatedNetworkFeeBTC: estimatedFeeBTC
+            estimatedNetworkFeeBTC: estimatedFeeBTC,
+            feeRateDescription: "\(satPerVb) sat/vB",
+            spendableBalance: nil,
+            estimatedTransactionBytes: Int(estimatedVBytes),
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: nil
         )
     }
 
@@ -507,7 +564,13 @@ struct BitcoinWalletEngine {
         let estimatedFeeBTC = Double(estimatedSats) / 100_000_000
         return BitcoinSendPreview(
             estimatedFeeRateSatVb: satPerVb,
-            estimatedNetworkFeeBTC: estimatedFeeBTC
+            estimatedNetworkFeeBTC: estimatedFeeBTC,
+            feeRateDescription: "\(satPerVb) sat/vB",
+            spendableBalance: nil,
+            estimatedTransactionBytes: Int(estimatedVBytes),
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: nil
         )
     }
 
@@ -699,6 +762,74 @@ struct BitcoinWalletEngine {
         }
     }
 
+    private static func addressInventory(
+        session: Session,
+        derivationPath: String,
+        scanLimit: UInt32
+    ) -> WalletAddressInventory {
+        let normalizedPath = DerivationPathParser.normalize(
+            derivationPath,
+            fallback: SeedDerivationChain.bitcoin.defaultPath
+        )
+        let account = DerivationPathParser.segmentValue(at: 2, in: normalizedPath) ?? 0
+        var entries: [WalletAddressInventoryEntry] = []
+
+        for index in 0 ..< scanLimit {
+            let externalAddress = String(describing: session.wallet.peekAddress(keychain: .external, index: index).address)
+            entries.append(
+                WalletAddressInventoryEntry(
+                    address: externalAddress,
+                    derivationPath: DerivationPathParser.replacingLastTwoSegments(
+                        in: normalizedPath,
+                        branch: 0,
+                        index: index,
+                        fallback: normalizedPath
+                    ),
+                    account: account,
+                    branchIndex: 0,
+                    addressIndex: index,
+                    role: index == 0 ? .primary : .external
+                )
+            )
+
+            let changeAddress = String(describing: session.wallet.peekAddress(keychain: .internal, index: index).address)
+            entries.append(
+                WalletAddressInventoryEntry(
+                    address: changeAddress,
+                    derivationPath: DerivationPathParser.replacingLastTwoSegments(
+                        in: normalizedPath,
+                        branch: 1,
+                        index: index,
+                        fallback: normalizedPath
+                    ),
+                    account: account,
+                    branchIndex: 1,
+                    addressIndex: index,
+                    role: .change
+                )
+            )
+        }
+
+        return WalletAddressInventory(
+            entries: entries,
+            supportsDiscoveryScan: true,
+            supportsChangeBranch: true,
+            scanLimit: scanLimit
+        )
+    }
+
+    private static func validatePolicyRules(sendAmountSats: UInt64, estimatedVBytes: UInt64) throws {
+        guard sendAmountSats >= dustThresholdSats else {
+            throw BitcoinWalletEngineError.policyViolation("Amount is below Bitcoin dust threshold.")
+        }
+        guard minimumFeeRateSatVb > 0 else {
+            throw BitcoinWalletEngineError.policyViolation("Bitcoin fee-rate policy is misconfigured.")
+        }
+        guard estimatedVBytes <= maxStandardTransactionBytes else {
+            throw BitcoinWalletEngineError.policyViolation("Bitcoin transaction is too large for standard relay policy.")
+        }
+    }
+
     private static func defaultEsploraEndpoints(for mode: BitcoinNetworkMode) -> [String] {
         ChainBackendRegistry.BitcoinRuntimeEndpoints.esploraBaseURLs(for: mode)
     }
@@ -719,15 +850,119 @@ struct BitcoinWalletEngine {
 
     private static func performWithClientFallback<T>(_ operation: (EsploraClient) throws -> T) throws -> T {
         var lastError: Error?
-        for endpoint in resolvedEsploraEndpoints() {
+        for endpoint in orderedEsploraEndpoints() {
             let client = EsploraClient(url: endpoint)
             do {
-                return try operation(client)
+                let value = try operation(client)
+                recordEndpointAttempt(endpoint: endpoint, success: true)
+                return value
             } catch {
                 lastError = error
+                recordEndpointAttempt(endpoint: endpoint, success: false)
                 continue
             }
         }
+        throw lastError ?? URLError(.cannotConnectToHost)
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        rawTransactionHex: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> BitcoinSendResult {
+        let fallbackTransactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : ""
+        let transactionHash = try await broadcastRawTransactionHex(
+            rawTransactionHex,
+            fallbackTransactionHash: fallbackTransactionHash
+        )
+        return BitcoinSendResult(
+            transactionHash: transactionHash,
+            rawTransactionHex: rawTransactionHex,
+            verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: transactionHash)
+        )
+    }
+
+    private static func broadcastRawTransactionHex(
+        _ rawTransactionHex: String,
+        fallbackTransactionHash: String
+    ) async throws -> String {
+        let trimmedRawHex = rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedRawHex.isEmpty,
+              let rawTransactionData = Data(hexEncoded: trimmedRawHex),
+              !rawTransactionData.isEmpty else {
+            throw BitcoinWalletEngineError.signingFailed
+        }
+        guard UInt64(rawTransactionData.count) <= maxStandardTransactionBytes else {
+            throw BitcoinWalletEngineError.policyViolation("Bitcoin transaction is too large for standard relay policy.")
+        }
+
+        var lastError: Error?
+        for endpoint in orderedEsploraEndpoints() {
+            guard let url = URL(string: "\(endpoint)/tx") else {
+                continue
+            }
+
+            do {
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.setValue("text/plain", forHTTPHeaderField: "Content-Type")
+                request.httpBody = trimmedRawHex.data(using: .utf8)
+                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+                guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+                    let message = String(data: data, encoding: .utf8) ?? "Unknown Bitcoin broadcast failure."
+                    if classifySendBroadcastFailure(message) == .alreadyBroadcast, !fallbackTransactionHash.isEmpty {
+                        return fallbackTransactionHash
+                    }
+                    throw BitcoinWalletEngineError.broadcastFailed(message)
+                }
+
+                let txid = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if !txid.isEmpty {
+                    recordEndpointAttempt(endpoint: endpoint, success: true)
+                    return txid
+                }
+                if !fallbackTransactionHash.isEmpty {
+                    recordEndpointAttempt(endpoint: endpoint, success: true)
+                    return fallbackTransactionHash
+                }
+                throw BitcoinWalletEngineError.broadcastFailed("Bitcoin broadcast succeeded but no txid returned.")
+            } catch {
+                lastError = error
+                recordEndpointAttempt(endpoint: endpoint, success: false)
+                if classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                   !fallbackTransactionHash.isEmpty {
+                    return fallbackTransactionHash
+                }
+            }
+        }
+
+        throw lastError ?? URLError(.cannotConnectToHost)
+    }
+
+    private static func broadcastWithRecovery(transaction: Transaction, txid: String) throws {
+        let attempts = 2
+        var lastError: Error?
+
+        for _ in 0 ..< attempts {
+            do {
+                try performWithClientFallback { client in
+                    try client.broadcast(transaction: transaction)
+                }
+                return
+            } catch {
+                let disposition = classifySendBroadcastFailure(error.localizedDescription)
+                if disposition == .alreadyBroadcast {
+                    return
+                }
+                lastError = error
+                if disposition != .retryable {
+                    break
+                }
+            }
+        }
+
         throw lastError ?? URLError(.cannotConnectToHost)
     }
 
@@ -782,11 +1017,57 @@ struct BitcoinWalletEngine {
         }
         return .deferred
     }
+
+    private static func orderedEsploraEndpoints() -> [String] {
+        let counters = loadEndpointReliabilityCounters()
+        return resolvedEsploraEndpoints().sorted { lhs, rhs in
+            let leftScore = endpointScore(counters[lhs])
+            let rightScore = endpointScore(counters[rhs])
+            if leftScore == rightScore {
+                return lhs < rhs
+            }
+            return leftScore > rightScore
+        }
+    }
+
+    private static func endpointScore(_ counter: EndpointReliabilityCounter?) -> Double {
+        guard let counter else { return 0.5 }
+        let attempts = max(1, counter.successCount + counter.failureCount)
+        return Double(counter.successCount) / Double(attempts)
+    }
+
+    private static func loadEndpointReliabilityCounters() -> [String: EndpointReliabilityCounter] {
+        guard let data = UserDefaults.standard.data(forKey: endpointReliabilityDefaultsKey),
+              let decoded = try? JSONDecoder().decode([String: EndpointReliabilityCounter].self, from: data) else {
+            return [:]
+        }
+        return decoded
+    }
+
+    private static func saveEndpointReliabilityCounters(_ counters: [String: EndpointReliabilityCounter]) {
+        guard let data = try? JSONEncoder().encode(counters) else { return }
+        UserDefaults.standard.set(data, forKey: endpointReliabilityDefaultsKey)
+    }
+
+    private static func recordEndpointAttempt(endpoint: String, success: Bool) {
+        var counters = loadEndpointReliabilityCounters()
+        var counter = counters[endpoint] ?? EndpointReliabilityCounter(successCount: 0, failureCount: 0, lastUpdatedAt: 0)
+        if success {
+            counter.successCount += 1
+        } else {
+            counter.failureCount += 1
+        }
+        counter.lastUpdatedAt = Date().timeIntervalSince1970
+        counters[endpoint] = counter
+        saveEndpointReliabilityCounters(counters)
+    }
 }
 
 enum BitcoinWalletEngineError: LocalizedError {
     case signingFailed
     case unsupportedDerivationPath(String)
+    case broadcastFailed(String)
+    case policyViolation(String)
 
     var errorDescription: String? {
         switch self {
@@ -795,6 +1076,10 @@ enum BitcoinWalletEngineError: LocalizedError {
         case .unsupportedDerivationPath(let derivationPath):
             let format = NSLocalizedString("Unsupported Bitcoin derivation path: %@", comment: "")
             return String(format: format, locale: .current, derivationPath)
+        case .broadcastFailed(let message):
+            return message
+        case .policyViolation(let message):
+            return message
         }
     }
 }

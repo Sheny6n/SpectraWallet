@@ -30,6 +30,8 @@ extension WalletStore {
             }
             SecureStore.deleteValue(for: Self.walletsAccount)
             dogecoinOwnedAddressMap = [:]
+            chainOwnedAddressMapByChain = [:]
+            chainKeypoolByChain = [:]
             return
         }
 
@@ -43,6 +45,23 @@ extension WalletStore {
         dogecoinOwnedAddressMap = dogecoinOwnedAddressMap.filter { _, value in
             currentWalletIDs.contains(value.walletID)
         }
+        chainOwnedAddressMapByChain = chainOwnedAddressMapByChain.reduce(into: [:]) { partialResult, entry in
+            let filtered = entry.value.filter { _, value in
+                currentWalletIDs.contains(value.walletID)
+            }
+            if !filtered.isEmpty {
+                partialResult[entry.key] = filtered
+            }
+        }
+        chainKeypoolByChain = chainKeypoolByChain.reduce(into: [:]) { partialResult, entry in
+            let filtered = entry.value.filter { walletID, _ in
+                currentWalletIDs.contains(walletID)
+            }
+            if !filtered.isEmpty {
+                partialResult[entry.key] = filtered
+            }
+        }
+        syncChainOwnedAddressManagementState()
 
         let snapshots = wallets
             .map(sanitizedWallet)

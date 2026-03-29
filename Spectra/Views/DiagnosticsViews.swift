@@ -910,9 +910,6 @@ struct StandardChainDiagnosticsView: View {
             }
 
             Section(NSLocalizedString("DOGE Exclusive Actions", comment: "")) {
-                Button(NSLocalizedString("Reset Provider Reliability", comment: "")) {
-                    store.resetDogecoinBroadcastProviderReliability()
-                }
                 Button(store.isRunningDogecoinSelfTests ? NSLocalizedString("Running Self-Tests...", comment: "") : NSLocalizedString("Run DOGE Self-Tests", comment: "")) {
                     store.runDogecoinSelfTests()
                 }
@@ -926,15 +923,23 @@ struct StandardChainDiagnosticsView: View {
                 .disabled(store.isRunningDogecoinRescan)
             }
 
+        }
+
+        if !store.availableBroadcastProviders(for: chain.title).isEmpty {
             Section(NSLocalizedString("Broadcast Reliability", comment: "")) {
-                if store.dogecoinBroadcastProviderReliability.isEmpty {
+                Button(NSLocalizedString("Reset Provider Reliability", comment: "")) {
+                    store.resetBroadcastProviderReliability(for: chain.title)
+                }
+
+                let reliabilityItems = store.broadcastProviderReliability(for: chain.title)
+                if reliabilityItems.isEmpty {
                     Text(copy.noBroadcastReliabilityYet)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(store.dogecoinBroadcastProviderReliability) { item in
+                    ForEach(reliabilityItems) { item in
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(item.providerID)
+                            Text(item.providerName)
                                 .font(.subheadline.weight(.semibold))
                             Text(String(format: copy.broadcastReliabilityFormat, String(item.successCount), String(item.failureCount), successRateString(item.successRate)))
                                 .font(.caption)
@@ -942,6 +947,69 @@ struct StandardChainDiagnosticsView: View {
                         }
                         .padding(.vertical, 2)
                     }
+                }
+            }
+        }
+
+        Section(NSLocalizedString("Operational Events", comment: "")) {
+            let events = store.operationalEvents(for: chain.title)
+            if events.isEmpty {
+                Text(NSLocalizedString("No operational events recorded yet.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(events.prefix(20)) { event in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(event.message)
+                            .font(.subheadline)
+                        Text(event.level.rawValue.capitalized)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(event.level == .error ? .red : (event.level == .warning ? .orange : .secondary))
+                        if let transactionHash = event.transactionHash, !transactionHash.isEmpty {
+                            Text(transactionHash)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+
+        Section(NSLocalizedString("Owned Address Management", comment: "")) {
+            let diagnostics = store.chainKeypoolDiagnostics(for: chain.title)
+            if diagnostics.isEmpty {
+                Text(NSLocalizedString("No owned-address management state recorded yet.", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(diagnostics) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.walletName)
+                            .font(.subheadline.weight(.semibold))
+                        Text("Next receive index: \(item.nextExternalIndex)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Next change index: \(item.nextChangeIndex)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let reservedReceiveIndex = item.reservedReceiveIndex {
+                            Text("Reserved receive index: \(reservedReceiveIndex)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let reservedReceivePath = item.reservedReceivePath, !reservedReceivePath.isEmpty {
+                            Text(reservedReceivePath)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                        if let reservedReceiveAddress = item.reservedReceiveAddress, !reservedReceiveAddress.isEmpty {
+                            Text(reservedReceiveAddress)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
                 }
             }
         }

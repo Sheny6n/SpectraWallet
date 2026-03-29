@@ -146,11 +146,18 @@ struct EthereumSendPreview: Equatable {
     let maxFeePerGasGwei: Double
     let maxPriorityFeePerGasGwei: Double
     let estimatedNetworkFeeETH: Double
+    let spendableBalance: Double?
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double?
 }
 
 struct EthereumSendResult: Equatable {
     let fromAddress: String
     let transactionHash: String
+    let rawTransactionHex: String
     let preview: EthereumSendPreview
     let verificationStatus: SendBroadcastVerificationStatus
 }
@@ -321,7 +328,8 @@ enum EVMChainContext: Equatable {
             ]
         case .hyperliquid:
             return [
-                "https://rpc.hyperliquid.xyz/evm"
+                "https://rpc.hyperliquid.xyz/evm",
+                "https://hyperliquid.api.onfinality.io/evm/public"
             ]
         }
     }

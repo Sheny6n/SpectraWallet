@@ -31,11 +31,18 @@ enum SolanaWalletEngineError: LocalizedError {
 
 struct SolanaSendPreview: Equatable {
     let estimatedNetworkFeeSOL: Double
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct SolanaSendResult: Equatable {
     let transactionHash: String
     let estimatedNetworkFeeSOL: Double
+    let signedTransactionBase64: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
@@ -43,6 +50,8 @@ enum SolanaWalletEngine {
     static let estimatedFeeSOL = 0.000005
     // Primary Solana wallet path used by major wallets.
     private static let primaryDerivationPath = "m/44'/501'/0'/0'"
+    private static let endpointReliabilityNamespace = "solana.rpc"
+    private static let maxSerializedTransactionBytes = 1232
 
     enum DerivationPreference {
         case standard
@@ -57,11 +66,14 @@ enum SolanaWalletEngine {
 
     private static func withRPCClient<T>(_ operation: (SolanaAPIClient) async throws -> T) async throws -> T {
         var lastError: Error?
-        for baseURL in solanaRPCBases {
+        for baseURL in orderedRPCBases() {
             do {
-                return try await operation(rpcClient(baseURL: baseURL))
+                let result = try await operation(rpcClient(baseURL: baseURL))
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: true)
+                return result
             } catch {
                 lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: false)
             }
         }
         throw lastError ?? SolanaWalletEngineError.rpcFailed("No Solana RPC endpoint was reachable.")
@@ -86,14 +98,24 @@ enum SolanaWalletEngine {
         return address
     }
 
-    static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) throws -> SolanaSendPreview {
+    static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) async throws -> SolanaSendPreview {
         guard AddressValidation.isValidSolanaAddress(ownerAddress), AddressValidation.isValidSolanaAddress(destinationAddress) else {
             throw SolanaWalletEngineError.invalidAddress
         }
         guard amount > 0 else {
             throw SolanaWalletEngineError.invalidAmount
         }
-        return SolanaSendPreview(estimatedNetworkFeeSOL: estimatedFeeSOL)
+        let balance = try await SolanaBalanceService.fetchBalance(for: ownerAddress)
+        let maxSendable = max(0, balance - estimatedFeeSOL)
+        return SolanaSendPreview(
+            estimatedNetworkFeeSOL: estimatedFeeSOL,
+            spendableBalance: maxSendable,
+            feeRateDescription: nil,
+            estimatedTransactionBytes: nil,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: maxSendable
+        )
     }
 
     static func sendInBackground(
@@ -150,12 +172,14 @@ enum SolanaWalletEngine {
         guard !encodedTransaction.isEmpty else {
             throw SolanaWalletEngineError.signingFailed("WalletCore returned an empty transaction payload.")
         }
+        try validateSerializedTransactionPolicy(encodedTransaction)
 
         let txHash = try await broadcastSignedTransaction(encodedTransaction)
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(signature: txHash)
         return SolanaSendResult(
             transactionHash: txHash,
             estimatedNetworkFeeSOL: estimatedFeeSOL,
+            signedTransactionBase64: encodedTransaction,
             verificationStatus: verificationStatus
         )
     }
@@ -244,13 +268,33 @@ enum SolanaWalletEngine {
         guard !encodedTransaction.isEmpty else {
             throw SolanaWalletEngineError.signingFailed("WalletCore returned an empty token transaction payload.")
         }
+        try validateSerializedTransactionPolicy(encodedTransaction)
 
         let txHash = try await broadcastSignedTransaction(encodedTransaction)
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(signature: txHash)
         return SolanaSendResult(
             transactionHash: txHash,
             estimatedNetworkFeeSOL: estimatedFeeSOL,
+            signedTransactionBase64: encodedTransaction,
             verificationStatus: verificationStatus
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        signedTransactionBase64: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> SolanaSendResult {
+        let normalizedPayload = signedTransactionBase64.trimmingCharacters(in: .whitespacesAndNewlines)
+        try validateSerializedTransactionPolicy(normalizedPayload)
+        let txHash = try await broadcastSignedTransaction(normalizedPayload)
+        let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : txHash
+        return SolanaSendResult(
+            transactionHash: transactionHash,
+            estimatedNetworkFeeSOL: estimatedFeeSOL,
+            signedTransactionBase64: normalizedPayload,
+            verificationStatus: await verifyBroadcastedTransactionIfAvailable(signature: transactionHash)
         )
     }
 
@@ -270,7 +314,7 @@ enum SolanaWalletEngine {
 
         var lastError: Error?
         for attempt in 0 ..< 3 {
-            for baseURL in solanaRPCBases {
+            for baseURL in orderedRPCBases() {
                 do {
                     guard let url = URL(string: baseURL) else { continue }
                     var request = URLRequest(url: url)
@@ -300,10 +344,12 @@ enum SolanaWalletEngine {
                         return .failed("Solana reported transaction error: \(err)")
                     }
                     if status["confirmationStatus"] != nil || status["confirmations"] != nil || status["slot"] != nil {
+                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: true)
                         return .verified
                     }
                 } catch {
                     lastError = error
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: false)
                 }
             }
 
@@ -329,6 +375,7 @@ enum SolanaWalletEngine {
     }
 
     private static func broadcastSignedTransaction(_ encodedTransactionBase64: String) async throws -> String {
+        try validateSerializedTransactionPolicy(encodedTransactionBase64)
         guard let config = RequestConfiguration(
             commitment: "confirmed",
             encoding: "base64",
@@ -337,17 +384,96 @@ enum SolanaWalletEngine {
         ) else {
             throw SolanaWalletEngineError.broadcastFailed("Failed to build Solana transaction config.")
         }
-        let signature = try await withRPCClient { client in
-            try await client.sendTransaction(
-                transaction: encodedTransactionBase64,
-                configs: config
-            )
+        let fallbackSignature = recoverSignature(fromEncodedTransaction: encodedTransactionBase64)
+        let attempts = 2
+        var lastError: Error?
+
+        for _ in 0 ..< attempts {
+            do {
+                let signature = try await withRPCClient { client in
+                    try await client.sendTransaction(
+                        transaction: encodedTransactionBase64,
+                        configs: config
+                    )
+                }
+                let txHash = signature.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !txHash.isEmpty else {
+                    throw SolanaWalletEngineError.broadcastFailed("Provider did not return a transaction hash.")
+                }
+                return txHash
+            } catch {
+                let disposition = classifySendBroadcastFailure(error.localizedDescription)
+                if disposition == .alreadyBroadcast, !fallbackSignature.isEmpty {
+                    return fallbackSignature
+                }
+                lastError = error
+                if disposition != .retryable {
+                    break
+                }
+            }
         }
-        let txHash = signature.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !txHash.isEmpty else {
-            throw SolanaWalletEngineError.broadcastFailed("Provider did not return a transaction hash.")
+
+        throw lastError ?? SolanaWalletEngineError.broadcastFailed("Provider did not return a transaction hash.")
+    }
+
+    private static func validateSerializedTransactionPolicy(_ encodedTransactionBase64: String) throws {
+        let normalizedPayload = encodedTransactionBase64.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let payload = Data(base64Encoded: normalizedPayload), !payload.isEmpty else {
+            throw SolanaWalletEngineError.signingFailed("Invalid signed Solana transaction payload.")
         }
-        return txHash
+        guard payload.count <= maxSerializedTransactionBytes else {
+            throw SolanaWalletEngineError.broadcastFailed("Solana transaction exceeds the standard packet size limit.")
+        }
+    }
+
+    private static func recoverSignature(fromEncodedTransaction encodedTransactionBase64: String) -> String {
+        guard let payload = Data(base64Encoded: encodedTransactionBase64),
+              !payload.isEmpty else {
+            return ""
+        }
+
+        let signatureCount = Int(payload[0])
+        guard signatureCount > 0 else { return "" }
+
+        let signatureLength = 64
+        let signatureStart = 1
+        let signatureEnd = signatureStart + signatureLength
+        guard payload.count >= signatureEnd else { return "" }
+
+        let signatureData = payload.subdata(in: signatureStart ..< signatureEnd)
+        return base58Encode(signatureData)
+    }
+
+    private static func base58Encode(_ data: Data) -> String {
+        let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+        guard !data.isEmpty else { return "" }
+
+        var bytes = [UInt8](data)
+        var zeros = 0
+        while zeros < bytes.count, bytes[zeros] == 0 {
+            zeros += 1
+        }
+
+        var encoded: [Character] = []
+        var startAt = zeros
+        while startAt < bytes.count {
+            var remainder = 0
+            for index in startAt ..< bytes.count {
+                let value = Int(bytes[index]) + (remainder << 8)
+                bytes[index] = UInt8(value / 58)
+                remainder = value % 58
+            }
+            encoded.append(alphabet[remainder])
+            while startAt < bytes.count, bytes[startAt] == 0 {
+                startAt += 1
+            }
+        }
+
+        if zeros > 0 {
+            encoded.append(contentsOf: repeatElement(alphabet[0], count: zeros))
+        }
+
+        return String(encoded.reversed())
     }
 
     private static func scaledUnsignedAmount(_ amount: Double, decimals: Int) throws -> UInt64 {
@@ -454,5 +580,12 @@ enum SolanaWalletEngine {
         case .legacy:
             return "m/44'/501'/\(account)'"
         }
+    }
+
+    private static func orderedRPCBases() -> [String] {
+        ChainEndpointReliability.orderedEndpoints(
+            namespace: endpointReliabilityNamespace,
+            candidates: solanaRPCBases
+        )
     }
 }

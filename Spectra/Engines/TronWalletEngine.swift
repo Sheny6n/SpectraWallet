@@ -35,16 +35,24 @@ struct TronSendPreview: Equatable {
     let estimatedNetworkFeeTRX: Double
     let feeLimitSun: Int64
     let simulationUsed: Bool
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct TronSendResult: Equatable {
     let transactionHash: String
     let estimatedNetworkFeeTRX: Double
+    let signedTransactionJSON: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
 enum TronWalletEngine {
-    static let tronGridBaseURL = ChainBackendRegistry.TronRuntimeEndpoints.tronGridBaseURL
+    private static let tronGridBaseURLs = ChainBackendRegistry.TronRuntimeEndpoints.tronGridBroadcastBaseURLs
+    private static let endpointReliabilityNamespace = "tron.trongrid"
     private static let usdtDecimals: Int64 = 6
 
     private static func isSupportedUSDTContract(_ contractAddress: String) -> Bool {
@@ -71,10 +79,18 @@ enum TronWalletEngine {
         }
 
         if symbol == "TRX" {
+            let balances = try await TronBalanceService.fetchBalances(for: ownerAddress)
+            let maxSendable = max(0, balances.trxBalance - defaultTRXFeeTRX)
             return TronSendPreview(
                 estimatedNetworkFeeTRX: defaultTRXFeeTRX,
                 feeLimitSun: 0,
-                simulationUsed: false
+                simulationUsed: false,
+                spendableBalance: maxSendable,
+                feeRateDescription: nil,
+                estimatedTransactionBytes: nil,
+                selectedInputCount: nil,
+                usesChangeOutput: nil,
+                maxSendable: maxSendable
             )
         }
 
@@ -105,10 +121,18 @@ enum TronWalletEngine {
             estimatedFeeTRX = defaultTRC20FeeTRX
         }
 
+        let balances = try await TronBalanceService.fetchBalances(for: ownerAddress)
+        let tokenBalance = balances.tokenBalances.first(where: { $0.symbol == symbol })?.balance ?? 0
         return TronSendPreview(
             estimatedNetworkFeeTRX: estimatedFeeTRX,
             feeLimitSun: simulation.feeLimitSun,
-            simulationUsed: simulation.energyUsed != nil
+            simulationUsed: simulation.energyUsed != nil,
+            spendableBalance: tokenBalance,
+            feeRateDescription: simulation.energyUsed.map { "\($0) energy" },
+            estimatedTransactionBytes: nil,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: tokenBalance
         )
     }
 
@@ -165,6 +189,7 @@ enum TronWalletEngine {
             return TronSendResult(
                 transactionHash: txid,
                 estimatedNetworkFeeTRX: defaultTRXFeeTRX,
+                signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
                 verificationStatus: verificationStatus
             )
         }
@@ -209,6 +234,7 @@ enum TronWalletEngine {
         return TronSendResult(
             transactionHash: txid,
             estimatedNetworkFeeTRX: estimatedFeeTRX,
+            signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
             verificationStatus: verificationStatus
         )
     }
@@ -253,6 +279,7 @@ enum TronWalletEngine {
             return TronSendResult(
                 transactionHash: txid,
                 estimatedNetworkFeeTRX: defaultTRXFeeTRX,
+                signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
                 verificationStatus: verificationStatus
             )
         }
@@ -297,7 +324,28 @@ enum TronWalletEngine {
         return TronSendResult(
             transactionHash: txid,
             estimatedNetworkFeeTRX: estimatedFeeTRX,
+            signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
             verificationStatus: verificationStatus
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        signedTransactionJSON: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> TronSendResult {
+        guard let data = signedTransactionJSON.data(using: .utf8),
+              let signedTransaction = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw TronWalletEngineError.broadcastFailed("Invalid signed Tron transaction payload.")
+        }
+        let txid = try await broadcastSignedTransaction(signedTransaction)
+        let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : txid
+        return TronSendResult(
+            transactionHash: transactionHash,
+            estimatedNetworkFeeTRX: 0,
+            signedTransactionJSON: signedTransactionJSON,
+            verificationStatus: await verifyBroadcastedTransactionIfAvailable(txid: transactionHash)
         )
     }
 
@@ -326,36 +374,46 @@ enum TronWalletEngine {
     }
 
     private static func transactionExists(txid: String) async throws -> Bool {
-        guard let url = URL(string: tronGridBaseURL + "/walletsolidity/gettransactioninfobyid") else {
-            throw TronWalletEngineError.createTransactionFailed("Invalid Tron verification endpoint URL.")
-        }
+        var lastError: Error?
+        for baseURL in orderedBroadcastBaseURLs() {
+            guard let url = URL(string: baseURL + "/walletsolidity/gettransactioninfobyid") else {
+                continue
+            }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["value": txid], options: [])
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 20
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["value": txid], options: [])
 
-        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
-        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw TronWalletEngineError.broadcastFailed("Tron verification failed with HTTP \(code).")
-        }
+            do {
+                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                    throw TronWalletEngineError.broadcastFailed("Tron verification failed with HTTP \(code).")
+                }
 
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw TronWalletEngineError.broadcastFailed("Invalid Tron verification payload.")
-        }
+                guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    throw TronWalletEngineError.broadcastFailed("Invalid Tron verification payload.")
+                }
 
-        if object.isEmpty {
-            return false
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: true)
+                if object.isEmpty {
+                    return false
+                }
+                if let id = object["id"] as? String, !id.isEmpty {
+                    return true
+                }
+                if let receipt = object["receipt"] as? [String: Any], !receipt.isEmpty {
+                    return true
+                }
+                return false
+            } catch {
+                lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: false)
+            }
         }
-        if let id = object["id"] as? String, !id.isEmpty {
-            return true
-        }
-        if let receipt = object["receipt"] as? [String: Any], !receipt.isEmpty {
-            return true
-        }
-        return false
+        throw lastError ?? TronWalletEngineError.broadcastFailed("Invalid Tron verification payload.")
     }
 
     private struct TRC20SimulationResult {
@@ -499,6 +557,14 @@ enum TronWalletEngine {
         }
 
         if let providerMessage = bestProviderMessage(from: response), !providerMessage.isEmpty {
+            if classifySendBroadcastFailure(providerMessage) == .alreadyBroadcast {
+                if let txid = response["txid"] as? String, !txid.isEmpty {
+                    return txid
+                }
+                if let txid = signedTransaction["txID"] as? String, !txid.isEmpty {
+                    return txid
+                }
+            }
             throw TronWalletEngineError.broadcastFailed("Tron broadcast failed: \(providerMessage)")
         }
         throw TronWalletEngineError.broadcastFailed("Tron broadcast failed with unknown provider response.")
@@ -511,37 +577,54 @@ enum TronWalletEngine {
         expectedKey: String,
         errorPrefix: String
     ) async throws -> [String: Any] {
-        guard let url = URL(string: tronGridBaseURL + path) else {
-            throw TronWalletEngineError.createTransactionFailed("Invalid Tron endpoint URL.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
-
-        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: profile)
-
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): invalid JSON payload.")
-        }
-
-        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
-            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
-            if let providerMessage = bestProviderMessage(from: object), !providerMessage.isEmpty {
-                throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): HTTP \(statusCode) (\(providerMessage))")
+        var lastError: Error?
+        for baseURL in orderedBroadcastBaseURLs() {
+            guard let url = URL(string: baseURL + path) else {
+                continue
             }
-            throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): HTTP \(statusCode)")
-        }
 
-        if object[expectedKey] == nil {
-            if let providerMessage = bestProviderMessage(from: object), !providerMessage.isEmpty {
-                throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): \(providerMessage)")
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 20
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
+
+            do {
+                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: profile)
+
+                guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): invalid JSON payload.")
+                }
+
+                guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+                    let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+                    if let providerMessage = bestProviderMessage(from: object), !providerMessage.isEmpty {
+                        throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): HTTP \(statusCode) (\(providerMessage))")
+                    }
+                    throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): HTTP \(statusCode)")
+                }
+
+                if object[expectedKey] == nil {
+                    if let providerMessage = bestProviderMessage(from: object), !providerMessage.isEmpty {
+                        throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): \(providerMessage)")
+                    }
+                    throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): missing expected field \(expectedKey).")
+                }
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: true)
+                return object
+            } catch {
+                lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: false)
             }
-            throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): missing expected field \(expectedKey).")
         }
-        return object
+        throw lastError ?? TronWalletEngineError.createTransactionFailed("\(errorPrefix): all providers failed.")
+    }
+
+    private static func orderedBroadcastBaseURLs() -> [String] {
+        ChainEndpointReliability.orderedEndpoints(
+            namespace: endpointReliabilityNamespace,
+            candidates: tronGridBaseURLs
+        )
     }
 
     private static func bestProviderMessage(from object: [String: Any]) -> String? {
@@ -589,6 +672,15 @@ enum TronWalletEngine {
         }
 
         return nil
+    }
+
+    private static func encodedSignedTransactionJSON(_ signedTransaction: [String: Any]) -> String {
+        guard JSONSerialization.isValidJSONObject(signedTransaction),
+              let data = try? JSONSerialization.data(withJSONObject: signedTransaction, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return json
     }
 
     private static func decodeHexASCIIIfNeeded(_ string: String) -> String? {

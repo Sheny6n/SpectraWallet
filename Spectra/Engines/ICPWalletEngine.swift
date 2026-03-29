@@ -37,11 +37,18 @@ enum ICPWalletEngineError: LocalizedError {
 struct ICPSendPreview: Equatable {
     let estimatedNetworkFeeICP: Double
     let feeE8s: UInt64
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct ICPSendResult: Equatable {
     let transactionHash: String
     let estimatedNetworkFeeICP: Double
+    let signedTransactionHex: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
@@ -82,10 +89,18 @@ enum ICPWalletEngine {
         guard amount > 0 else {
             throw ICPWalletEngineError.invalidAmount
         }
-
+        let estimatedNetworkFeeICP = Double(defaultFeeE8s) / 100_000_000.0
+        let balanceICP = try await ICPBalanceService.fetchBalance(for: normalizedOwner)
+        let maxSendable = max(0, balanceICP - estimatedNetworkFeeICP)
         return ICPSendPreview(
-            estimatedNetworkFeeICP: Double(defaultFeeE8s) / 100_000_000.0,
-            feeE8s: defaultFeeE8s
+            estimatedNetworkFeeICP: estimatedNetworkFeeICP,
+            feeE8s: defaultFeeE8s,
+            spendableBalance: maxSendable,
+            feeRateDescription: "\(defaultFeeE8s) e8s",
+            estimatedTransactionBytes: nil,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: maxSendable
         )
     }
 
@@ -127,10 +142,24 @@ enum ICPWalletEngine {
             destinationAddress: normalizedDestination,
             amountE8s: amountE8s
         )
-        let hash = try await ICPBalanceService.submitSignedTransaction(signedTransaction.hexEncodedString())
+        let hash: String
+        do {
+            hash = try await ICPBalanceService.submitSignedTransaction(signedTransaction.hexEncodedString())
+        } catch {
+            guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                  let recoveredHash = await recoverRecentTransactionHashIfAvailable(
+                      ownerAddress: normalizedOwner,
+                      destinationAddress: normalizedDestination,
+                      amount: amount
+                  ) else {
+                throw error
+            }
+            hash = recoveredHash
+        }
         return ICPSendResult(
             transactionHash: hash,
             estimatedNetworkFeeICP: preview.estimatedNetworkFeeICP,
+            signedTransactionHex: signedTransaction.hexEncodedString(),
             verificationStatus: await verifyBroadcastedTransactionIfAvailable(ownerAddress: normalizedOwner, transactionHash: hash)
         )
     }
@@ -168,11 +197,46 @@ enum ICPWalletEngine {
             destinationAddress: normalizedDestination,
             amountE8s: amountE8s
         )
-        let hash = try await ICPBalanceService.submitSignedTransaction(signedTransaction.hexEncodedString())
+        let hash: String
+        do {
+            hash = try await ICPBalanceService.submitSignedTransaction(signedTransaction.hexEncodedString())
+        } catch {
+            guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                  let recoveredHash = await recoverRecentTransactionHashIfAvailable(
+                      ownerAddress: normalizedOwner,
+                      destinationAddress: normalizedDestination,
+                      amount: amount
+                  ) else {
+                throw error
+            }
+            hash = recoveredHash
+        }
         return ICPSendResult(
             transactionHash: hash,
             estimatedNetworkFeeICP: preview.estimatedNetworkFeeICP,
+            signedTransactionHex: signedTransaction.hexEncodedString(),
             verificationStatus: await verifyBroadcastedTransactionIfAvailable(ownerAddress: normalizedOwner, transactionHash: hash)
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        signedTransactionHex: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> ICPSendResult {
+        let normalizedTransaction = signedTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedTransaction.isEmpty,
+              Data(hexEncoded: normalizedTransaction) != nil else {
+            throw ICPWalletEngineError.invalidResponse
+        }
+        let hash = try await ICPBalanceService.submitSignedTransaction(normalizedTransaction)
+        let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : hash
+        return ICPSendResult(
+            transactionHash: transactionHash,
+            estimatedNetworkFeeICP: 0,
+            signedTransactionHex: normalizedTransaction,
+            verificationStatus: await ICPBalanceService.verifyTransactionIfAvailable(transactionHash)
         )
     }
 
@@ -192,6 +256,19 @@ enum ICPWalletEngine {
             return .failed(error)
         }
         return .deferred
+    }
+
+    private static func recoverRecentTransactionHashIfAvailable(
+        ownerAddress: String,
+        destinationAddress: String,
+        amount: Double
+    ) async -> String? {
+        let result = await ICPBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 20)
+        return result.snapshots.first {
+            $0.kind == .send
+                && abs($0.amount - amount) < 0.00000001
+                && normalizeAddress($0.counterpartyAddress) == normalizeAddress(destinationAddress)
+        }?.transactionHash
     }
 
     private static func signTransaction(

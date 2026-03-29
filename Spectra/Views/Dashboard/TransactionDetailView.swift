@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
 import UIKit
-import Combine
 
 struct HistoryDetailView: View {
     let store: WalletStore
@@ -130,8 +129,8 @@ struct HistoryDetailView: View {
                         if let receiptBlockNumberText = displayedTransaction.receiptBlockNumberText {
                             detailRow(label: "Block", value: receiptBlockNumberText)
                         }
-                        if let dogecoinConfirmationsText = displayedTransaction.dogecoinConfirmationsText {
-                            detailRow(label: "Confirmations", value: dogecoinConfirmationsText)
+                        if let confirmationCountText = displayedTransaction.storedConfirmationCountText {
+                            detailRow(label: "Confirmations", value: confirmationCountText)
                         }
                         if let receiptGasUsed = displayedTransaction.receiptGasUsed {
                             detailRow(label: "Gas Used", value: receiptGasUsed)
@@ -142,22 +141,23 @@ struct HistoryDetailView: View {
                         if let receiptNetworkFeeText = displayedTransaction.receiptNetworkFeeText {
                             detailRow(label: "Network Fee", value: receiptNetworkFeeText)
                         }
-                        if let dogecoinFeePriorityRaw = displayedTransaction.dogecoinFeePriorityRaw {
-                            detailRow(label: "DOGE Fee Priority", value: dogecoinFeePriorityRaw.capitalized)
+                        if let storedFeePriorityText = displayedTransaction.storedFeePriorityText {
+                            detailRow(label: "Fee Priority", value: storedFeePriorityText)
                         }
                         if let dogecoinConfirmedNetworkFeeDOGE = displayedTransaction.dogecoinConfirmedNetworkFeeDOGE {
-                            detailRow(label: "DOGE Confirmed Fee", value: String(format: "%.6f DOGE", dogecoinConfirmedNetworkFeeDOGE))
+                            detailRow(label: "Confirmed Fee", value: String(format: "%.6f DOGE", dogecoinConfirmedNetworkFeeDOGE))
                         }
-                        if let dogecoinEstimatedFeeRateDOGEPerKB = displayedTransaction.dogecoinEstimatedFeeRateDOGEPerKB {
-                            detailRow(label: "DOGE Fee Rate", value: String(format: "%.4f DOGE/KB", dogecoinEstimatedFeeRateDOGEPerKB))
+                        if let storedFeeRateText = displayedTransaction.storedFeeRateText {
+                            detailRow(label: "Fee Rate", value: storedFeeRateText)
                         }
-                        if let dogecoinUsedChangeOutput = displayedTransaction.dogecoinUsedChangeOutput {
+                        if let storedUsedChangeOutputText = displayedTransaction.storedUsedChangeOutputText {
                             detailRow(
-                                label: "DOGE Change Output",
-                                value: dogecoinUsedChangeOutput
-                                    ? NSLocalizedString("Yes", comment: "")
-                                    : NSLocalizedString("No (dust-safe fee absorption)", comment: "")
+                                label: "Used Change Output",
+                                value: storedUsedChangeOutputText
                             )
+                        }
+                        if let rawTransactionFormatText = displayedTransaction.rawTransactionFormatText {
+                            detailRow(label: "Signed Payload Format", value: rawTransactionFormatText)
                         }
                         if let sourceDerivationPath = displayedTransaction.sourceDerivationPath {
                             detailRow(label: "Source Path", value: sourceDerivationPath)
@@ -262,6 +262,18 @@ struct HistoryDetailView: View {
                                 .buttonStyle(.glassProminent)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                        }
+                    }
+
+                    if let rawTransactionHexText = displayedTransaction.rawTransactionHexText {
+                        detailCard(title: "Raw Transaction Hex") {
+                            Text(rawTransactionHexText)
+                                .font(.body.monospaced())
+                                .foregroundStyle(Color.primary.opacity(0.82))
+                                .textSelection(.enabled)
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
                     }
                 }

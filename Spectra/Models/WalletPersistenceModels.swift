@@ -103,16 +103,22 @@ struct PersistedTransactionRecord: Codable, Equatable {
     let receiptGasUsed: String?
     let receiptEffectiveGasPriceGwei: Double?
     let receiptNetworkFeeETH: Double?
+    let feePriorityRaw: String?
+    let feeRateDescription: String?
+    let confirmationCount: Int?
     let dogecoinConfirmedNetworkFeeDOGE: Double?
     let dogecoinConfirmations: Int?
     let dogecoinFeePriorityRaw: String?
     let dogecoinEstimatedFeeRateDOGEPerKB: Double?
+    let usedChangeOutput: Bool?
     let dogecoinUsedChangeOutput: Bool?
     let sourceDerivationPath: String?
     let changeDerivationPath: String?
     let sourceAddress: String?
     let changeAddress: String?
     let dogecoinRawTransactionHex: String?
+    let signedTransactionPayload: String?
+    let signedTransactionPayloadFormat: String?
     let failureReason: String?
     let transactionHistorySource: String?
     let createdAt: Date
@@ -134,16 +140,22 @@ struct PersistedTransactionRecord: Codable, Equatable {
         case receiptGasUsed
         case receiptEffectiveGasPriceGwei
         case receiptNetworkFeeETH
+        case feePriorityRaw
+        case feeRateDescription
+        case confirmationCount
         case dogecoinConfirmedNetworkFeeDOGE
         case dogecoinConfirmations
         case dogecoinFeePriorityRaw
         case dogecoinEstimatedFeeRateDOGEPerKB
+        case usedChangeOutput
         case dogecoinUsedChangeOutput
         case sourceDerivationPath
         case changeDerivationPath
         case sourceAddress
         case changeAddress
         case dogecoinRawTransactionHex
+        case signedTransactionPayload
+        case signedTransactionPayloadFormat
         case failureReason
         case transactionHistorySource
         case createdAt
@@ -166,16 +178,22 @@ struct PersistedTransactionRecord: Codable, Equatable {
         receiptGasUsed: String? = nil,
         receiptEffectiveGasPriceGwei: Double? = nil,
         receiptNetworkFeeETH: Double? = nil,
+        feePriorityRaw: String? = nil,
+        feeRateDescription: String? = nil,
+        confirmationCount: Int? = nil,
         dogecoinConfirmedNetworkFeeDOGE: Double? = nil,
         dogecoinConfirmations: Int? = nil,
         dogecoinFeePriorityRaw: String? = nil,
         dogecoinEstimatedFeeRateDOGEPerKB: Double? = nil,
+        usedChangeOutput: Bool? = nil,
         dogecoinUsedChangeOutput: Bool? = nil,
         sourceDerivationPath: String? = nil,
         changeDerivationPath: String? = nil,
         sourceAddress: String? = nil,
         changeAddress: String? = nil,
         dogecoinRawTransactionHex: String? = nil,
+        signedTransactionPayload: String? = nil,
+        signedTransactionPayloadFormat: String? = nil,
         failureReason: String? = nil,
         transactionHistorySource: String? = nil,
         createdAt: Date
@@ -196,16 +214,22 @@ struct PersistedTransactionRecord: Codable, Equatable {
         self.receiptGasUsed = receiptGasUsed
         self.receiptEffectiveGasPriceGwei = receiptEffectiveGasPriceGwei
         self.receiptNetworkFeeETH = receiptNetworkFeeETH
+        self.feePriorityRaw = feePriorityRaw
+        self.feeRateDescription = feeRateDescription
+        self.confirmationCount = confirmationCount
         self.dogecoinConfirmedNetworkFeeDOGE = dogecoinConfirmedNetworkFeeDOGE
         self.dogecoinConfirmations = dogecoinConfirmations
         self.dogecoinFeePriorityRaw = dogecoinFeePriorityRaw
         self.dogecoinEstimatedFeeRateDOGEPerKB = dogecoinEstimatedFeeRateDOGEPerKB
+        self.usedChangeOutput = usedChangeOutput
         self.dogecoinUsedChangeOutput = dogecoinUsedChangeOutput
         self.sourceDerivationPath = sourceDerivationPath
         self.changeDerivationPath = changeDerivationPath
         self.sourceAddress = sourceAddress
         self.changeAddress = changeAddress
         self.dogecoinRawTransactionHex = dogecoinRawTransactionHex
+        self.signedTransactionPayload = signedTransactionPayload
+        self.signedTransactionPayloadFormat = signedTransactionPayloadFormat
         self.failureReason = failureReason
         self.transactionHistorySource = transactionHistorySource
         self.createdAt = createdAt
@@ -232,16 +256,22 @@ struct PersistedTransactionRecord: Codable, Equatable {
         receiptGasUsed = try container.decodeIfPresent(String.self, forKey: .receiptGasUsed)
         receiptEffectiveGasPriceGwei = try container.decodeIfPresent(Double.self, forKey: .receiptEffectiveGasPriceGwei)
         receiptNetworkFeeETH = try container.decodeIfPresent(Double.self, forKey: .receiptNetworkFeeETH)
+        feePriorityRaw = try container.decodeIfPresent(String.self, forKey: .feePriorityRaw)
+        feeRateDescription = try container.decodeIfPresent(String.self, forKey: .feeRateDescription)
+        confirmationCount = try container.decodeIfPresent(Int.self, forKey: .confirmationCount)
         dogecoinConfirmedNetworkFeeDOGE = try container.decodeIfPresent(Double.self, forKey: .dogecoinConfirmedNetworkFeeDOGE)
         dogecoinConfirmations = try container.decodeIfPresent(Int.self, forKey: .dogecoinConfirmations)
         dogecoinFeePriorityRaw = try container.decodeIfPresent(String.self, forKey: .dogecoinFeePriorityRaw)
         dogecoinEstimatedFeeRateDOGEPerKB = try container.decodeIfPresent(Double.self, forKey: .dogecoinEstimatedFeeRateDOGEPerKB)
+        usedChangeOutput = try container.decodeIfPresent(Bool.self, forKey: .usedChangeOutput)
         dogecoinUsedChangeOutput = try container.decodeIfPresent(Bool.self, forKey: .dogecoinUsedChangeOutput)
         sourceDerivationPath = try container.decodeIfPresent(String.self, forKey: .sourceDerivationPath)
         changeDerivationPath = try container.decodeIfPresent(String.self, forKey: .changeDerivationPath)
         sourceAddress = try container.decodeIfPresent(String.self, forKey: .sourceAddress)
         changeAddress = try container.decodeIfPresent(String.self, forKey: .changeAddress)
         dogecoinRawTransactionHex = try container.decodeIfPresent(String.self, forKey: .dogecoinRawTransactionHex)
+        signedTransactionPayload = try container.decodeIfPresent(String.self, forKey: .signedTransactionPayload)
+        signedTransactionPayloadFormat = try container.decodeIfPresent(String.self, forKey: .signedTransactionPayloadFormat)
         failureReason = try container.decodeIfPresent(String.self, forKey: .failureReason)
         transactionHistorySource = try container.decodeIfPresent(String.self, forKey: .transactionHistorySource)
         createdAt = try container.decode(Date.self, forKey: .createdAt)

@@ -21,8 +21,8 @@ final class WalletRuntimeState: ObservableObject {
     @Published var isPreparingNearSend: Bool = false
     @Published var isPreparingPolkadotSend: Bool = false
 
-    var dogecoinStatusTrackingByTransactionID: [UUID: WalletStore.DogecoinStatusTrackingState] = [:]
-    var pendingDogecoinSelfSendConfirmation: WalletStore.PendingDogecoinSelfSendConfirmation?
+    var statusTrackingByTransactionID: [UUID: WalletStore.TransactionStatusTrackingState] = [:]
+    var pendingSelfSendConfirmation: WalletStore.PendingSelfSendConfirmation?
     var activeEthereumSendWalletIDs: Set<UUID> = []
     var lastSendDestinationProbeKey: String?
     var lastSendDestinationProbeWarning: String?

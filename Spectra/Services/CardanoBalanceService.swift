@@ -186,6 +186,33 @@ enum CardanoBalanceService {
         )
     }
 
+    static func verifyTransactionIfAvailable(_ transactionHash: String) async -> SendBroadcastVerificationStatus {
+        let normalizedHash = transactionHash.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedHash.isEmpty else {
+            return .deferred
+        }
+
+        var lastError: String?
+        for provider in Provider.allCases {
+            do {
+                let detailsByHash = try await fetchTransactionDetailsByHash(
+                    hashes: [normalizedHash],
+                    baseURL: baseURL(for: provider)
+                )
+                if detailsByHash[normalizedHash] != nil {
+                    return .verified
+                }
+            } catch {
+                lastError = error.localizedDescription
+            }
+        }
+
+        if let lastError {
+            return .failed(lastError)
+        }
+        return .deferred
+    }
+
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
         try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
     }

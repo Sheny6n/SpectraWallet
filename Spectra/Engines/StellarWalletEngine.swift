@@ -35,15 +35,24 @@ struct StellarSendPreview: Equatable {
     let estimatedNetworkFeeXLM: Double
     let feeStroops: Int64
     let sequence: Int64
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct StellarSendResult: Equatable {
     let transactionHash: String
     let estimatedNetworkFeeXLM: Double
+    let signedEnvelopeXDR: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
 enum StellarWalletEngine {
+    private static let minimumBaseFeeStroops: Int64 = 100
+
     static func derivedAddress(for seedPhrase: String, derivationPath: String = "m/44'/148'/0'") throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
             seedPhrase: seedPhrase,
@@ -79,12 +88,21 @@ enum StellarWalletEngine {
             throw StellarWalletEngineError.invalidAmount
         }
 
-        let feeStroops = try await StellarBalanceService.fetchBaseFeeStroops()
+        let feeStroops = max(minimumBaseFeeStroops, try await StellarBalanceService.fetchBaseFeeStroops())
         let sequence = try await StellarBalanceService.fetchSequence(for: ownerAddress)
+        let estimatedNetworkFeeXLM = Double(feeStroops) / 10_000_000.0
+        let balanceXLM = try await StellarBalanceService.fetchBalance(for: ownerAddress)
+        let maxSendable = max(0, balanceXLM - estimatedNetworkFeeXLM)
         return StellarSendPreview(
-            estimatedNetworkFeeXLM: Double(feeStroops) / 10_000_000.0,
+            estimatedNetworkFeeXLM: estimatedNetworkFeeXLM,
             feeStroops: feeStroops,
-            sequence: sequence
+            sequence: sequence,
+            spendableBalance: maxSendable,
+            feeRateDescription: "\(feeStroops) stroops",
+            estimatedTransactionBytes: nil,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: maxSendable
         )
     }
 
@@ -115,11 +133,25 @@ enum StellarWalletEngine {
             feeStroops: preview.feeStroops,
             sequence: preview.sequence
         )
-        let hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: envelope)
+        let hash: String
+        do {
+            hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: envelope)
+        } catch {
+            guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                  let recoveredHash = await recoverRecentTransactionHashIfAvailable(
+                      ownerAddress: ownerAddress,
+                      destinationAddress: destinationAddress,
+                      amount: amount
+                  ) else {
+                throw error
+            }
+            hash = recoveredHash
+        }
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(hash: hash)
         return StellarSendResult(
             transactionHash: hash,
             estimatedNetworkFeeXLM: preview.estimatedNetworkFeeXLM,
+            signedEnvelopeXDR: envelope,
             verificationStatus: verificationStatus
         )
     }
@@ -143,12 +175,46 @@ enum StellarWalletEngine {
             feeStroops: preview.feeStroops,
             sequence: preview.sequence
         )
-        let hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: envelope)
+        let hash: String
+        do {
+            hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: envelope)
+        } catch {
+            guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                  let recoveredHash = await recoverRecentTransactionHashIfAvailable(
+                      ownerAddress: ownerAddress,
+                      destinationAddress: destinationAddress,
+                      amount: amount
+                  ) else {
+                throw error
+            }
+            hash = recoveredHash
+        }
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(hash: hash)
         return StellarSendResult(
             transactionHash: hash,
             estimatedNetworkFeeXLM: preview.estimatedNetworkFeeXLM,
+            signedEnvelopeXDR: envelope,
             verificationStatus: verificationStatus
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        signedEnvelopeXDR: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> StellarSendResult {
+        let normalizedEnvelope = signedEnvelopeXDR.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Data(base64Encoded: normalizedEnvelope) != nil else {
+            throw StellarWalletEngineError.invalidResponse
+        }
+        let hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: normalizedEnvelope)
+        let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : hash
+        return StellarSendResult(
+            transactionHash: transactionHash,
+            estimatedNetworkFeeXLM: 0,
+            signedEnvelopeXDR: normalizedEnvelope,
+            verificationStatus: await verifyBroadcastedTransactionIfAvailable(hash: transactionHash)
         )
     }
 
@@ -198,6 +264,19 @@ enum StellarWalletEngine {
             return .failed(lastError.localizedDescription)
         }
         return .deferred
+    }
+
+    private static func recoverRecentTransactionHashIfAvailable(
+        ownerAddress: String,
+        destinationAddress: String,
+        amount: Double
+    ) async -> String? {
+        let result = await StellarBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 20)
+        return result.snapshots.first {
+            $0.kind == .send
+                && abs($0.amount - amount) < 0.0000001
+                && $0.counterpartyAddress.lowercased() == destinationAddress.lowercased()
+        }?.transactionHash
     }
 
     private static func signEnvelope(

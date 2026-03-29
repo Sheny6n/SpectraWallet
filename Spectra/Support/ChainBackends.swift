@@ -334,7 +334,98 @@ struct AppChainDescriptor: Identifiable {
     }
 }
 
+struct ChainBroadcastProviderOption: Identifiable, Hashable {
+    let id: String
+    let title: String
+}
+
 enum ChainBackendRegistry {
+    static func broadcastProviderOptions(for chainName: String) -> [ChainBroadcastProviderOption] {
+        switch chainName {
+        case "Bitcoin":
+            return [
+                ChainBroadcastProviderOption(id: "esplora", title: "Esplora"),
+                ChainBroadcastProviderOption(id: "maestro-esplora", title: "Maestro Esplora")
+            ]
+        case "Bitcoin Cash":
+            return [
+                ChainBroadcastProviderOption(id: "blockchair", title: "Blockchair"),
+                ChainBroadcastProviderOption(id: "actorforth", title: "ActorForth REST")
+            ]
+        case "Bitcoin SV":
+            return [
+                ChainBroadcastProviderOption(id: "whatsonchain", title: "WhatsOnChain"),
+                ChainBroadcastProviderOption(id: "blockchair", title: "Blockchair")
+            ]
+        case "Litecoin":
+            return [
+                ChainBroadcastProviderOption(id: "litecoinspace", title: "LitecoinSpace"),
+                ChainBroadcastProviderOption(id: "blockcypher", title: "BlockCypher")
+            ]
+        case "Dogecoin":
+            return [
+                ChainBroadcastProviderOption(id: "blockchair", title: "Blockchair"),
+                ChainBroadcastProviderOption(id: "blockcypher", title: "BlockCypher")
+            ]
+        case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid":
+            return [
+                ChainBroadcastProviderOption(id: "rpc", title: "RPC Broadcast")
+            ]
+        case "Tron":
+            return [
+                ChainBroadcastProviderOption(id: "trongrid-io", title: "TronGrid"),
+                ChainBroadcastProviderOption(id: "trongrid-pro", title: "TronGrid Pro"),
+                ChainBroadcastProviderOption(id: "trongrid-network", title: "TronGrid Network")
+            ]
+        case "Solana":
+            return [
+                ChainBroadcastProviderOption(id: "rpc", title: "Solana RPC")
+            ]
+        case "Cardano":
+            return [
+                ChainBroadcastProviderOption(id: "koios", title: "Koios")
+            ]
+        case "XRP Ledger":
+            return [
+                ChainBroadcastProviderOption(id: "xrpl-rpc", title: "XRPL RPC")
+            ]
+        case "Stellar":
+            return [
+                ChainBroadcastProviderOption(id: "horizon", title: "Horizon")
+            ]
+        case "Monero":
+            return [
+                ChainBroadcastProviderOption(id: "trusted-backend", title: "Trusted Backend")
+            ]
+        case "Sui":
+            return [
+                ChainBroadcastProviderOption(id: "sui-rpc", title: "Sui RPC")
+            ]
+        case "Aptos":
+            return [
+                ChainBroadcastProviderOption(id: "aptos-rpc", title: "Aptos RPC")
+            ]
+        case "TON":
+            return [
+                ChainBroadcastProviderOption(id: "ton-api-v2", title: "TON API v2")
+            ]
+        case "Internet Computer":
+            return [
+                ChainBroadcastProviderOption(id: "rosetta", title: "Rosetta")
+            ]
+        case "NEAR":
+            return [
+                ChainBroadcastProviderOption(id: "near-rpc", title: "NEAR RPC")
+            ]
+        case "Polkadot":
+            return [
+                ChainBroadcastProviderOption(id: "sidecar", title: "Sidecar")
+            ]
+        default:
+            return []
+        }
+    }
+
     enum BitcoinRuntimeEndpoints {
         static let blockchainInfoMultiAddressBaseURL = "https://blockchain.info/multiaddr"
         static let blockchairXPubDashboardBaseURL = "https://api.blockchair.com/bitcoin/dashboards/xpub/"
@@ -345,7 +436,8 @@ enum ChainBackendRegistry {
                 return [
                     "https://blockstream.info/api",
                     "https://mempool.space/api",
-                    "https://mempool.emzy.de/api"
+                    "https://mempool.emzy.de/api",
+                    "https://xbt-mainnet.gomaestro-api.org/v0/esplora"
                 ]
             case .testnet:
                 return [
@@ -365,7 +457,8 @@ enum ChainBackendRegistry {
             case .mainnet:
                 return [
                     "https://blockstream.info/api",
-                    "https://mempool.space/api"
+                    "https://mempool.space/api",
+                    "https://xbt-mainnet.gomaestro-api.org/v0/esplora"
                 ]
             case .testnet:
                 return [
@@ -384,6 +477,9 @@ enum ChainBackendRegistry {
         static let blockchairBaseURL = "https://api.blockchair.com/bitcoin-cash"
         static let blockchairPushURL = "https://api.blockchair.com/bitcoin-cash/push/transaction"
         static let blockchairTransactionURLPrefix = "https://api.blockchair.com/bitcoin-cash/dashboards/transaction/"
+        static let actorforthBaseURL = "https://rest.bch.actorforth.org/v2"
+        static let actorforthTransactionURLPrefix = "https://rest.bch.actorforth.org/v2/transaction/details/"
+        static let actorforthBroadcastURLPrefix = "https://rest.bch.actorforth.org/v2/rawtransactions/sendRawTransaction/"
     }
 
     enum BitcoinSVRuntimeEndpoints {
@@ -391,6 +487,9 @@ enum ChainBackendRegistry {
         static let whatsonchainChainInfoURL = "https://api.whatsonchain.com/v1/bsv/main/chain/info"
         static let whatsonchainBroadcastURL = "https://api.whatsonchain.com/v1/bsv/main/tx/raw"
         static let whatsonchainTransactionURLPrefix = "https://api.whatsonchain.com/v1/bsv/main/tx/hash/"
+        static let blockchairBaseURL = "https://api.blockchair.com/bitcoin-sv"
+        static let blockchairPushURL = "https://api.blockchair.com/bitcoin-sv/push/transaction"
+        static let blockchairTransactionURLPrefix = "https://api.blockchair.com/bitcoin-sv/dashboards/transaction/"
     }
 
     enum LitecoinRuntimeEndpoints {
@@ -414,6 +513,11 @@ enum ChainBackendRegistry {
             "https://api.trongrid.io/v1/accounts",
             "https://api.trongrid.pro/v1/accounts",
             "https://api.trongrid.network/v1/accounts"
+        ]
+        static let tronGridBroadcastBaseURLs = [
+            "https://api.trongrid.io",
+            "https://api.trongrid.pro",
+            "https://api.trongrid.network"
         ]
         static let tronScanProbeURL = "https://apilist.tronscanapi.com/api/system/status"
         static let tronGridProbeURL = "https://api.trongrid.io/wallet/getnowblock"

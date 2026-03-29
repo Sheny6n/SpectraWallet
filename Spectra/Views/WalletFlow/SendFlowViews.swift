@@ -1,46 +1,21 @@
 import Foundation
 import SwiftUI
-import CoreImage
-import CoreImage.CIFilterBuiltins
-import UIKit
-import Vision
 import VisionKit
-
 
 struct SendView: View {
     let store: WalletStore
     @ObservedObject private var flowState: WalletFlowState
     @ObservedObject private var sendState: WalletSendState
     @ObservedObject private var runtimeState: WalletRuntimeState
-    @ObservedObject private var portfolioState: WalletPortfolioState
     @State private var selectedAddressBookEntryID: String = ""
     @State private var isShowingQRScanner: Bool = false
     @State private var qrScannerErrorMessage: String?
-
-    private struct SendLiveActivitySnapshot {
-        let walletName: String
-        let chainName: String
-        let symbol: String
-        let amountText: String
-        let destinationAddress: String
-    }
-
-    private struct PrimaryPresentation {
-        let sendWallets: [ImportedWallet]
-        let selectedWallet: ImportedWallet?
-        let availableSendCoins: [Coin]
-        let selectedCoin: Coin?
-        let selectedCoinAmountText: String?
-        let selectedCoinApproximateFiatText: String?
-        let addressBookEntries: [AddressBookEntry]
-    }
 
     init(store: WalletStore) {
         self.store = store
         _flowState = ObservedObject(wrappedValue: store.flowState)
         _sendState = ObservedObject(wrappedValue: store.sendState)
         _runtimeState = ObservedObject(wrappedValue: store.runtimeState)
-        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
     }
 
     private var sendAdvancedModeBinding: Binding<Bool> {
@@ -63,10 +38,6 @@ struct SendView: View {
         Binding(get: { store.sendLitecoinChangeStrategy }, set: { store.sendLitecoinChangeStrategy = $0 })
     }
 
-    private var bitcoinFeePriorityBinding: Binding<BitcoinFeePriority> {
-        Binding(get: { store.bitcoinFeePriority }, set: { store.bitcoinFeePriority = $0 })
-    }
-
     private var useCustomEthereumFeesBinding: Binding<Bool> {
         Binding(get: { store.useCustomEthereumFees }, set: { store.useCustomEthereumFees = $0 })
     }
@@ -87,282 +58,44 @@ struct SendView: View {
         Binding(get: { store.ethereumManualNonce }, set: { store.ethereumManualNonce = $0 })
     }
 
-    private var dogecoinFeePriorityBinding: Binding<DogecoinWalletEngine.FeePriority> {
-        Binding(get: { store.dogecoinFeePriority }, set: { store.dogecoinFeePriority = $0 })
-    }
-
-    private var sendPreviewTaskID: String {
-        [
-            flowState.sendWalletID,
-            flowState.sendHoldingKey,
-            flowState.sendAddress,
-            flowState.sendAmount,
-            store.dogecoinFeePriority.rawValue,
-            store.useCustomEthereumFees ? "custom-on" : "custom-off",
-            store.customEthereumMaxFeeGwei,
-            store.customEthereumPriorityFeeGwei,
-            store.ethereumManualNonceEnabled ? "manual-nonce-on" : "manual-nonce-off",
-            store.ethereumManualNonce,
-            store.sendAdvancedMode ? "adv-on" : "adv-off",
-            "\(store.sendUTXOMaxInputCount)"
-        ].joined(separator: "|")
-    }
-
     private var isSendBusy: Bool {
         sendState.isSendingBitcoin
             || sendState.isSendingBitcoinCash
+            || sendState.isSendingBitcoinSV
             || sendState.isSendingLitecoin
             || sendState.isSendingEthereum
             || sendState.isSendingDogecoin
             || sendState.isSendingTron
+            || sendState.isSendingSolana
             || sendState.isSendingXRP
+            || sendState.isSendingStellar
             || sendState.isSendingMonero
             || sendState.isSendingCardano
+            || sendState.isSendingSui
+            || sendState.isSendingAptos
+            || sendState.isSendingTON
+            || sendState.isSendingICP
             || sendState.isSendingNear
+            || sendState.isSendingPolkadot
             || runtimeState.isPreparingEthereumSend
             || runtimeState.isPreparingDogecoinSend
             || runtimeState.isPreparingTronSend
+            || runtimeState.isPreparingSolanaSend
             || runtimeState.isPreparingXRPSend
+            || runtimeState.isPreparingStellarSend
             || runtimeState.isPreparingMoneroSend
             || runtimeState.isPreparingCardanoSend
+            || runtimeState.isPreparingSuiSend
+            || runtimeState.isPreparingAptosSend
+            || runtimeState.isPreparingTONSend
+            || runtimeState.isPreparingICPSend
             || runtimeState.isPreparingNearSend
+            || runtimeState.isPreparingPolkadotSend
     }
 
-    private var primaryPresentation: PrimaryPresentation {
-        let sendWallets = store.sendEnabledWallets
-        let selectedWallet = sendWallets.first(where: { $0.id.uuidString == flowState.sendWalletID })
-        let availableSendCoins = store.availableSendCoins(for: flowState.sendWalletID)
-        let selectedCoin = availableSendCoins.first(where: { $0.holdingKey == flowState.sendHoldingKey })
-        let selectedCoinAmountText = selectedCoin.map {
-            store.formattedAssetAmount($0.amount, symbol: $0.symbol, chainName: $0.chainName)
-        }
-        let sendAmount = Double(flowState.sendAmount) ?? 0
-        let selectedCoinApproximateFiatText: String?
-        if let selectedCoin, !sendAmount.isZero {
-            selectedCoinApproximateFiatText = store.formattedFiatAmount(fromNative: sendAmount, symbol: selectedCoin.symbol)
-        } else {
-            selectedCoinApproximateFiatText = nil
-        }
-
-        return PrimaryPresentation(
-            sendWallets: sendWallets,
-            selectedWallet: selectedWallet,
-            availableSendCoins: availableSendCoins,
-            selectedCoin: selectedCoin,
-            selectedCoinAmountText: selectedCoinAmountText,
-            selectedCoinApproximateFiatText: selectedCoinApproximateFiatText,
-            addressBookEntries: store.sendAddressBookEntries
-        )
-    }
-
-    private var sendLiveActivitySnapshot: SendLiveActivitySnapshot? {
-        guard let selectedCoin = primaryPresentation.selectedCoin else { return nil }
-        guard let selectedWallet = primaryPresentation.selectedWallet else { return nil }
-        let trimmedAmount = flowState.sendAmount.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedAddress = flowState.sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedAmount.isEmpty, !trimmedAddress.isEmpty else { return nil }
-        return SendLiveActivitySnapshot(
-            walletName: selectedWallet.name,
-            chainName: selectedCoin.chainName,
-            symbol: selectedCoin.symbol,
-            amountText: trimmedAmount,
-            destinationAddress: trimmedAddress
-        )
-    }
-
-    @ViewBuilder
-    private var primarySendSections: some View {
-        let presentation = primaryPresentation
-
-        sendDetailCard {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
-                    if let selectedCoin = presentation.selectedCoin {
-                        CoinBadge(
-                            assetIdentifier: selectedCoin.iconIdentifier,
-                            fallbackText: selectedCoin.mark,
-                            color: selectedCoin.color,
-                            size: 42
-                        )
-                    } else {
-                        Image(systemName: "arrow.up.right.circle.fill")
-                            .font(.system(size: 38))
-                            .foregroundStyle(.mint)
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Send")
-                            .font(.title3.weight(.bold))
-                        if let wallet = presentation.selectedWallet {
-                            Text(wallet.name)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    Spacer()
-
-                    if let selectedCoin = presentation.selectedCoin {
-                        Text(selectedCoin.symbol)
-                            .font(.caption.weight(.bold))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(selectedCoin.color.opacity(0.18), in: Capsule())
-                            .foregroundStyle(selectedCoin.color)
-                    }
-                }
-
-                if let selectedCoin = presentation.selectedCoin {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Available")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(presentation.selectedCoinAmountText ?? "")
-                                .font(.headline.weight(.semibold))
-                                .spectraNumericTextLayout()
-                        }
-
-                        Spacer()
-
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text("Network")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(selectedCoin.chainName)
-                                .font(.subheadline.weight(.semibold))
-                        }
-                    }
-                } else {
-                    Text("Choose a wallet and asset to prepare a transfer with live fee previews and risk checks.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-
-        sendDetailCard(title: "Wallet & Asset") {
-            VStack(alignment: .leading, spacing: 12) {
-                Picker("Wallet", selection: store.sendWalletIDBinding) {
-                    ForEach(presentation.sendWallets) { wallet in
-                        Text(wallet.name).tag(wallet.id.uuidString)
-                    }
-                }
-                .onChange(of: store.sendWalletID) { _, _ in
-                    store.syncSendAssetSelection()
-                }
-
-                Picker("Asset", selection: store.sendHoldingKeyBinding) {
-                    ForEach(presentation.availableSendCoins, id: \.holdingKey) { coin in
-                        Text("\(coin.name) on \(coin.chainName)").tag(coin.holdingKey)
-                    }
-                }
-            }
-        }
-
-        sendDetailCard(title: "Recipient") {
-            VStack(alignment: .leading, spacing: 12) {
-                if !presentation.addressBookEntries.isEmpty {
-                    Picker("Saved Recipient", selection: $selectedAddressBookEntryID) {
-                        Text("None").tag("")
-                        ForEach(presentation.addressBookEntries) { entry in
-                            Text("\(entry.name) • \(entry.chainName)").tag(entry.id.uuidString)
-                        }
-                    }
-                    .onChange(of: selectedAddressBookEntryID) { _, newValue in
-                        guard let selectedEntry = primaryPresentation.addressBookEntries.first(where: { $0.id.uuidString == newValue }) else {
-                            return
-                        }
-                        store.sendAddress = selectedEntry.address
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    TextField("Recipient address", text: store.sendAddressBinding)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                    Button {
-                        guard DataScannerViewController.isSupported else {
-                            qrScannerErrorMessage = "QR scanning is not supported on this device."
-                            return
-                        }
-                        guard DataScannerViewController.isAvailable else {
-                            qrScannerErrorMessage = "QR scanning is unavailable right now. Check camera permission and try again."
-                            return
-                        }
-                        isShowingQRScanner = true
-                    } label: {
-                        Image(systemName: "qrcode.viewfinder")
-                            .font(.title3.weight(.semibold))
-                            .frame(width: 40, height: 40)
-                    }
-                    .buttonStyle(.glass)
-                    .accessibilityLabel("Scan QR Code")
-                }
-
-                if let qrScannerErrorMessage {
-                    Text(qrScannerErrorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-
-                if flowState.isCheckingSendDestinationBalance {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                        Text("Checking destination on-chain balance...")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let sendDestinationRiskWarning = flowState.sendDestinationRiskWarning {
-                    Text(sendDestinationRiskWarning)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-
-                if let sendDestinationInfoMessage = flowState.sendDestinationInfoMessage {
-                    Text(sendDestinationInfoMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-
-        sendDetailCard(title: "Amount") {
-            VStack(alignment: .leading, spacing: 12) {
-                TextField("Amount", text: store.sendAmountBinding)
-                    .keyboardType(.decimalPad)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                if let selectedCoin = presentation.selectedCoin {
-                    HStack {
-                        Text("Using")
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(selectedCoin.symbol)
-                            .font(.subheadline.weight(.semibold))
-                    }
-
-                    if let fiatAmount = presentation.selectedCoinApproximateFiatText {
-                        HStack {
-                            Text("Approx. Value")
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text(fiatAmount)
-                                .font(.subheadline.weight(.semibold))
-                                .spectraNumericTextLayout()
-                        }
-                    }
-                }
-            }
-        }
+    private var selectedNetworkSendCoin: Coin? {
+        store.availableSendCoins(for: flowState.sendWalletID)
+            .first(where: { $0.holdingKey == flowState.sendHoldingKey })
     }
 
     @ViewBuilder
@@ -385,7 +118,7 @@ struct SendView: View {
 
         if let lastSentTransaction = sendState.lastSentTransaction {
             sendDetailCard(title: "Last Sent") {
-                Text(walletFlowLocalizedFormat("%@ sent to %@", lastSentTransaction.symbol, lastSentTransaction.addressPreviewText))
+                Text("\(lastSentTransaction.symbol) sent to \(lastSentTransaction.addressPreviewText)")
                     .font(.subheadline)
                 HStack {
                     Text("Status")
@@ -438,6 +171,9 @@ struct SendView: View {
         if sendState.isSendingBitcoinCash {
             sendingSection("Broadcasting Bitcoin Cash transaction...")
         }
+        if sendState.isSendingBitcoinSV {
+            sendingSection("Broadcasting Bitcoin SV transaction...")
+        }
         if sendState.isSendingLitecoin {
             sendingSection("Broadcasting Litecoin transaction...")
         }
@@ -450,14 +186,38 @@ struct SendView: View {
         if sendState.isSendingTron {
             sendingSection("Broadcasting Tron transaction...")
         }
+        if sendState.isSendingSolana {
+            sendingSection("Broadcasting Solana transaction...")
+        }
         if sendState.isSendingXRP {
             sendingSection("Broadcasting XRP transaction...")
+        }
+        if sendState.isSendingStellar {
+            sendingSection("Broadcasting Stellar transaction...")
         }
         if sendState.isSendingMonero {
             sendingSection("Broadcasting Monero transaction...")
         }
         if sendState.isSendingCardano {
             sendingSection("Broadcasting Cardano transaction...")
+        }
+        if sendState.isSendingSui {
+            sendingSection("Broadcasting Sui transaction...")
+        }
+        if sendState.isSendingAptos {
+            sendingSection("Broadcasting Aptos transaction...")
+        }
+        if sendState.isSendingTON {
+            sendingSection("Broadcasting TON transaction...")
+        }
+        if sendState.isSendingICP {
+            sendingSection("Broadcasting Internet Computer transaction...")
+        }
+        if sendState.isSendingNear {
+            sendingSection("Broadcasting NEAR transaction...")
+        }
+        if sendState.isSendingPolkadot {
+            sendingSection("Broadcasting Polkadot transaction...")
         }
     }
 
@@ -474,7 +234,8 @@ struct SendView: View {
     private func hasNetworkSendSections(for coin: Coin?) -> Bool {
         guard let coin else { return false }
         let chainName = coin.chainName
-        return chainName == "Bitcoin"
+        return !store.availableBroadcastProviders(for: chainName).isEmpty
+            || chainName == "Bitcoin"
             || chainName == "Bitcoin Cash"
             || chainName == "Bitcoin SV"
             || chainName == "Litecoin"
@@ -487,12 +248,36 @@ struct SendView: View {
             || chainName == "Avalanche"
             || chainName == "Hyperliquid"
             || chainName == "Tron"
+            || chainName == "Solana"
             || chainName == "XRP Ledger"
+            || chainName == "Monero"
             || chainName == "Cardano"
+            || chainName == "Sui"
+            || chainName == "Aptos"
+            || chainName == "TON"
             || chainName == "NEAR"
             || chainName == "Polkadot"
             || chainName == "Stellar"
             || chainName == "Internet Computer"
+    }
+
+    private func broadcastProviderBinding(
+        providerID: String,
+        chainName: String
+    ) -> Binding<Bool> {
+        Binding(
+            get: { store.isBroadcastProviderEnabled(providerID, for: chainName) },
+            set: { newValue in
+                store.setBroadcastProvider(providerID, enabled: newValue, for: chainName)
+            }
+        )
+    }
+
+    private func chainFeePriorityBinding(for chainName: String) -> Binding<ChainFeePriorityOption> {
+        Binding(
+            get: { store.feePriorityOption(for: chainName) },
+            set: { store.setFeePriorityOption($0, for: chainName) }
+        )
     }
 
     private func utxoPreview(for coin: Coin) -> BitcoinSendPreview? {
@@ -503,6 +288,38 @@ struct SendView: View {
             return store.bitcoinCashSendPreview
         }
         return store.bitcoinSendPreview
+    }
+
+    private func formattedPreviewAssetAmount(_ amount: Double, for coin: Coin) -> String {
+        store.formattedAssetAmount(amount, symbol: coin.symbol, chainName: coin.chainName)
+    }
+
+    @ViewBuilder
+    private func sendPreviewDetailsSection(for selectedCoin: Coin) -> some View {
+        if let details = store.sendPreviewDetails(for: selectedCoin),
+           details.hasVisibleContent {
+            Section("Preview Details") {
+                if let spendableBalance = details.spendableBalance {
+                    Text("Spendable Balance: \(formattedPreviewAssetAmount(spendableBalance, for: selectedCoin))")
+                }
+                if let feeRateDescription = details.feeRateDescription {
+                    Text("Fee Rate: \(feeRateDescription)")
+                }
+                if let estimatedTransactionBytes = details.estimatedTransactionBytes {
+                    Text("Estimated Size: \(estimatedTransactionBytes) bytes")
+                }
+                if let selectedInputCount = details.selectedInputCount {
+                    Text("Selected Inputs: \(selectedInputCount)")
+                }
+                if let usesChangeOutput = details.usesChangeOutput {
+                    let changeOutputLabel = usesChangeOutput ? NSLocalizedString("Yes", comment: "") : NSLocalizedString("No", comment: "")
+                    Text("Change Output: \(changeOutputLabel)")
+                }
+                if let maxSendable = details.maxSendable {
+                    Text("Max Sendable: \(formattedPreviewAssetAmount(maxSendable, for: selectedCoin))")
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -550,29 +367,53 @@ struct SendView: View {
         }
 
         if let selectedCoin,
+           selectedCoin.chainName != "Bitcoin",
+           selectedCoin.chainName != "Bitcoin Cash",
+           selectedCoin.chainName != "Bitcoin SV",
+           selectedCoin.chainName != "Litecoin",
+           selectedCoin.chainName != "Dogecoin" {
+            Section("Fee Priority") {
+                Picker("Fee Priority", selection: chainFeePriorityBinding(for: selectedCoin.chainName)) {
+                    ForEach(ChainFeePriorityOption.allCases) { priority in
+                        Text(priority.displayName).tag(priority)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text("Spectra stores this preference per chain. Some networks still use provider-managed fee estimation in this build.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        if let selectedCoin,
            ((selectedCoin.chainName == "Bitcoin" && selectedCoin.symbol == "BTC")
                || (selectedCoin.chainName == "Bitcoin Cash" && selectedCoin.symbol == "BCH")
                || (selectedCoin.chainName == "Bitcoin SV" && selectedCoin.symbol == "BSV")
                || (selectedCoin.chainName == "Litecoin" && selectedCoin.symbol == "LTC")) {
             let feeSymbol = selectedCoin.symbol
             let utxoPreview = utxoPreview(for: selectedCoin)
-            Section(walletFlowLocalizedFormat("%@ Network", selectedCoin.chainName)) {
-                Picker("Fee Priority", selection: bitcoinFeePriorityBinding) {
-                    ForEach(BitcoinFeePriority.allCases) { priority in
+            Section("\(selectedCoin.chainName) Network") {
+                Picker("Fee Priority", selection: chainFeePriorityBinding(for: selectedCoin.chainName)) {
+                    ForEach(ChainFeePriorityOption.allCases) { priority in
                         Text(priority.displayName).tag(priority)
                     }
                 }
                 .pickerStyle(.segmented)
 
+                Text("Spectra stores fee priority separately for each UTXO chain. Bitcoin and Litecoin currently apply it directly to fee estimation in this build.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 if let utxoPreview {
-                    Text(walletFlowLocalizedFormat("Estimated Fee Rate: %llu sat/vB", utxoPreview.estimatedFeeRateSatVb))
+                    Text("Estimated Fee Rate: \(utxoPreview.estimatedFeeRateSatVb) sat/vB")
                     if let fiatFee = store.formattedFiatAmount(fromNative: utxoPreview.estimatedNetworkFeeBTC, symbol: feeSymbol) {
                         Text("Estimated Network Fee: \(utxoPreview.estimatedNetworkFeeBTC, specifier: "%.8f") \(feeSymbol) (~\(fiatFee))")
                     } else {
                         Text("Estimated Network Fee: \(utxoPreview.estimatedNetworkFeeBTC, specifier: "%.8f") \(feeSymbol)")
                     }
                 } else {
-                    Text(walletFlowLocalizedFormat("Enter amount to preview estimated %@ network fee.", selectedCoin.chainName))
+                    Text("Enter amount to preview estimated \(selectedCoin.chainName) network fee.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -581,7 +422,7 @@ struct SendView: View {
 
         if let selectedCoin,
            (selectedCoin.chainName == "Ethereum" || selectedCoin.chainName == "Ethereum Classic" || selectedCoin.chainName == "Arbitrum" || selectedCoin.chainName == "Optimism" || selectedCoin.chainName == "BNB Chain" || selectedCoin.chainName == "Avalanche" || selectedCoin.chainName == "Hyperliquid") {
-            Section(walletFlowLocalizedFormat("%@ Network", selectedCoin.chainName)) {
+            Section("\(selectedCoin.chainName) Network") {
                 Toggle("Use Custom Fees", isOn: useCustomEthereumFeesBinding)
 
                 if store.useCustomEthereumFees {
@@ -642,16 +483,16 @@ struct SendView: View {
                             .font(.caption)
                     }
                 } else if let ethereumSendPreview = store.ethereumSendPreview {
-                    Text(walletFlowLocalizedFormat("send.preview.nonceLabel", ethereumSendPreview.nonce))
-                    Text(walletFlowLocalizedFormat("Gas Limit: %lld", ethereumSendPreview.gasLimit))
-                    Text(walletFlowLocalizedFormat("Max Fee: %.2f gwei", ethereumSendPreview.maxFeePerGasGwei))
-                    Text(walletFlowLocalizedFormat("Priority Fee: %.2f gwei", ethereumSendPreview.maxPriorityFeePerGasGwei))
+                    Text("Nonce: \(ethereumSendPreview.nonce)")
+                    Text("Gas Limit: \(ethereumSendPreview.gasLimit)")
+                    Text("Max Fee: \(ethereumSendPreview.maxFeePerGasGwei, specifier: "%.2f") gwei")
+                    Text("Priority Fee: \(ethereumSendPreview.maxPriorityFeePerGasGwei, specifier: "%.2f") gwei")
                     let feeSymbol = selectedCoin.chainName == "BNB Chain" ? "BNB" : (selectedCoin.chainName == "Ethereum Classic" ? "ETC" : (selectedCoin.chainName == "Avalanche" ? "AVAX" : (selectedCoin.chainName == "Hyperliquid" ? "HYPE" : "ETH")))
                     if let fiatFee = store.formattedFiatAmount(fromNative: ethereumSendPreview.estimatedNetworkFeeETH, symbol: feeSymbol) {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f %@ (~%@)", ethereumSendPreview.estimatedNetworkFeeETH, feeSymbol, fiatFee))
+                        Text("Estimated Network Fee: \(ethereumSendPreview.estimatedNetworkFeeETH, specifier: "%.6f") \(feeSymbol) (~\(fiatFee))")
                             .font(.subheadline.weight(.semibold))
                     } else {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f %@", ethereumSendPreview.estimatedNetworkFeeETH, feeSymbol))
+                        Text("Estimated Network Fee: \(ethereumSendPreview.estimatedNetworkFeeETH, specifier: "%.6f") \(feeSymbol)")
                             .font(.subheadline.weight(.semibold))
                     }
                 } else {
@@ -660,7 +501,7 @@ struct SendView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text(walletFlowLocalizedFormat("Spectra signs and broadcasts supported %@ transfers. This preview is the live nonce and fee estimate for the transaction you are about to send.", selectedCoin.chainName))
+                Text("Spectra signs and broadcasts supported \(selectedCoin.chainName) transfers. This preview is the live nonce and fee estimate for the transaction you are about to send.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -676,10 +517,10 @@ struct SendView: View {
                     }
                 } else if let tronSendPreview = store.tronSendPreview {
                     if let fiatFee = store.formattedFiatAmount(fromNative: tronSendPreview.estimatedNetworkFeeTRX, symbol: "TRX") {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f TRX (~%@)", tronSendPreview.estimatedNetworkFeeTRX, fiatFee))
+                        Text("Estimated Network Fee: \(tronSendPreview.estimatedNetworkFeeTRX, specifier: "%.6f") TRX (~\(fiatFee))")
                             .font(.subheadline.weight(.semibold))
                     } else {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f TRX", tronSendPreview.estimatedNetworkFeeTRX))
+                        Text("Estimated Network Fee: \(tronSendPreview.estimatedNetworkFeeTRX, specifier: "%.6f") TRX")
                             .font(.subheadline.weight(.semibold))
                     }
                     if selectedCoin.symbol == "USDT" {
@@ -709,17 +550,17 @@ struct SendView: View {
                     }
                 } else if let xrpSendPreview = store.xrpSendPreview {
                     if let fiatFee = store.formattedFiatAmount(fromNative: xrpSendPreview.estimatedNetworkFeeXRP, symbol: "XRP") {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f XRP (~%@)", xrpSendPreview.estimatedNetworkFeeXRP, fiatFee))
+                        Text("Estimated Network Fee: \(xrpSendPreview.estimatedNetworkFeeXRP, specifier: "%.6f") XRP (~\(fiatFee))")
                             .font(.subheadline.weight(.semibold))
                     } else {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f XRP", xrpSendPreview.estimatedNetworkFeeXRP))
+                        Text("Estimated Network Fee: \(xrpSendPreview.estimatedNetworkFeeXRP, specifier: "%.6f") XRP")
                             .font(.subheadline.weight(.semibold))
                     }
                     if xrpSendPreview.sequence > 0 {
-                        Text(walletFlowLocalizedFormat("Sequence: %lld", xrpSendPreview.sequence))
+                        Text("Sequence: \(xrpSendPreview.sequence)")
                     }
                     if xrpSendPreview.lastLedgerSequence > 0 {
-                        Text(walletFlowLocalizedFormat("Last Ledger Sequence: %lld", xrpSendPreview.lastLedgerSequence))
+                        Text("Last Ledger Sequence: \(xrpSendPreview.lastLedgerSequence)")
                     }
                 } else {
                     Text("Enter an amount to load an XRP fee preview. Add a valid destination address before sending.")
@@ -728,6 +569,39 @@ struct SendView: View {
                 }
 
                 Text("Spectra signs and broadcasts XRP transfers in-app.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        if let selectedCoin, selectedCoin.chainName == "Solana" {
+            Section("Solana Network") {
+                if runtimeState.isPreparingSolanaSend {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading Solana fee estimate...")
+                            .font(.caption)
+                    }
+                } else if let solanaSendPreview = store.solanaSendPreview {
+                    if let fiatFee = store.formattedFiatAmount(fromNative: solanaSendPreview.estimatedNetworkFeeSOL, symbol: "SOL") {
+                        Text("Estimated Network Fee: \(solanaSendPreview.estimatedNetworkFeeSOL, specifier: "%.6f") SOL (~\(fiatFee))")
+                            .font(.subheadline.weight(.semibold))
+                    } else {
+                        Text("Estimated Network Fee: \(solanaSendPreview.estimatedNetworkFeeSOL, specifier: "%.6f") SOL")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    if selectedCoin.symbol != "SOL" {
+                        Text("Token transfers on Solana still use SOL for network fees.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("Enter an amount to load a Solana fee preview. Add a valid destination address before sending.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Spectra signs and broadcasts Solana transfers in-app, including SOL and supported SPL assets.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -743,14 +617,14 @@ struct SendView: View {
                     }
                 } else if let cardanoSendPreview = store.cardanoSendPreview {
                     if let fiatFee = store.formattedFiatAmount(fromNative: cardanoSendPreview.estimatedNetworkFeeADA, symbol: "ADA") {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f ADA (~%@)", cardanoSendPreview.estimatedNetworkFeeADA, fiatFee))
+                        Text("Estimated Network Fee: \(cardanoSendPreview.estimatedNetworkFeeADA, specifier: "%.6f") ADA (~\(fiatFee))")
                             .font(.subheadline.weight(.semibold))
                     } else {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f ADA", cardanoSendPreview.estimatedNetworkFeeADA))
+                        Text("Estimated Network Fee: \(cardanoSendPreview.estimatedNetworkFeeADA, specifier: "%.6f") ADA")
                             .font(.subheadline.weight(.semibold))
                     }
                     if cardanoSendPreview.ttlSlot > 0 {
-                        Text(walletFlowLocalizedFormat("TTL Slot: %lld", cardanoSendPreview.ttlSlot))
+                        Text("TTL Slot: \(cardanoSendPreview.ttlSlot)")
                     }
                 } else {
                     Text("Enter an amount to load a Cardano fee preview. Add a valid destination address before sending.")
@@ -759,6 +633,35 @@ struct SendView: View {
                 }
 
                 Text("Spectra signs and broadcasts ADA transfers in-app.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        if let selectedCoin, selectedCoin.chainName == "Monero" {
+            Section("Monero Network") {
+                if runtimeState.isPreparingMoneroSend {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading Monero fee estimate...")
+                            .font(.caption)
+                    }
+                } else if let moneroSendPreview = store.moneroSendPreview {
+                    if let fiatFee = store.formattedFiatAmount(fromNative: moneroSendPreview.estimatedNetworkFeeXMR, symbol: "XMR") {
+                        Text("Estimated Network Fee: \(moneroSendPreview.estimatedNetworkFeeXMR, specifier: "%.6f") XMR (~\(fiatFee))")
+                            .font(.subheadline.weight(.semibold))
+                    } else {
+                        Text("Estimated Network Fee: \(moneroSendPreview.estimatedNetworkFeeXMR, specifier: "%.6f") XMR")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    Text("Priority: \(moneroSendPreview.priorityLabel)")
+                } else {
+                    Text("Enter an amount to load a Monero fee preview. Add a valid destination address before sending.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Spectra prepares Monero sends in-app using the configured backend fee quote.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -774,10 +677,10 @@ struct SendView: View {
                     }
                 } else if let nearSendPreview = store.nearSendPreview {
                     if let fiatFee = store.formattedFiatAmount(fromNative: nearSendPreview.estimatedNetworkFeeNEAR, symbol: "NEAR") {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f NEAR (~%@)", nearSendPreview.estimatedNetworkFeeNEAR, fiatFee))
+                        Text("Estimated Network Fee: \(nearSendPreview.estimatedNetworkFeeNEAR, specifier: "%.6f") NEAR (~\(fiatFee))")
                             .font(.subheadline.weight(.semibold))
                     } else {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f NEAR", nearSendPreview.estimatedNetworkFeeNEAR))
+                        Text("Estimated Network Fee: \(nearSendPreview.estimatedNetworkFeeNEAR, specifier: "%.6f") NEAR")
                             .font(.subheadline.weight(.semibold))
                     }
                 } else {
@@ -802,10 +705,10 @@ struct SendView: View {
                     }
                 } else if let polkadotSendPreview = store.polkadotSendPreview {
                     if let fiatFee = store.formattedFiatAmount(fromNative: polkadotSendPreview.estimatedNetworkFeeDOT, symbol: "DOT") {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f DOT (~%@)", polkadotSendPreview.estimatedNetworkFeeDOT, fiatFee))
+                        Text("Estimated Network Fee: \(polkadotSendPreview.estimatedNetworkFeeDOT, specifier: "%.6f") DOT (~\(fiatFee))")
                             .font(.subheadline.weight(.semibold))
                     } else {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.6f DOT", polkadotSendPreview.estimatedNetworkFeeDOT))
+                        Text("Estimated Network Fee: \(polkadotSendPreview.estimatedNetworkFeeDOT, specifier: "%.6f") DOT")
                             .font(.subheadline.weight(.semibold))
                     }
                 } else {
@@ -830,14 +733,14 @@ struct SendView: View {
                     }
                 } else if let stellarSendPreview = store.stellarSendPreview {
                     if let fiatFee = store.formattedFiatAmount(fromNative: stellarSendPreview.estimatedNetworkFeeXLM, symbol: "XLM") {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.7f XLM (~%@)", stellarSendPreview.estimatedNetworkFeeXLM, fiatFee))
+                        Text("Estimated Network Fee: \(stellarSendPreview.estimatedNetworkFeeXLM, specifier: "%.7f") XLM (~\(fiatFee))")
                             .font(.subheadline.weight(.semibold))
                     } else {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.7f XLM", stellarSendPreview.estimatedNetworkFeeXLM))
+                        Text("Estimated Network Fee: \(stellarSendPreview.estimatedNetworkFeeXLM, specifier: "%.7f") XLM")
                             .font(.subheadline.weight(.semibold))
                     }
                     if stellarSendPreview.sequence > 0 {
-                        Text(walletFlowLocalizedFormat("Sequence: %lld", stellarSendPreview.sequence))
+                        Text("Sequence: \(stellarSendPreview.sequence)")
                     }
                 } else {
                     Text("Enter an amount to load a Stellar fee preview. Add a valid destination address before sending.")
@@ -861,10 +764,10 @@ struct SendView: View {
                     }
                 } else if let icpSendPreview = store.icpSendPreview {
                     if let fiatFee = store.formattedFiatAmount(fromNative: icpSendPreview.estimatedNetworkFeeICP, symbol: "ICP") {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.8f ICP (~%@)", icpSendPreview.estimatedNetworkFeeICP, fiatFee))
+                        Text("Estimated Network Fee: \(icpSendPreview.estimatedNetworkFeeICP, specifier: "%.8f") ICP (~\(fiatFee))")
                             .font(.subheadline.weight(.semibold))
                     } else {
-                        Text(walletFlowLocalizedFormat("Estimated Network Fee: %.8f ICP", icpSendPreview.estimatedNetworkFeeICP))
+                        Text("Estimated Network Fee: \(icpSendPreview.estimatedNetworkFeeICP, specifier: "%.8f") ICP")
                             .font(.subheadline.weight(.semibold))
                     }
                 } else {
@@ -879,12 +782,101 @@ struct SendView: View {
             }
         }
 
+        if let selectedCoin, selectedCoin.chainName == "Sui" {
+            Section("Sui Network") {
+                if runtimeState.isPreparingSuiSend {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading Sui fee estimate...")
+                            .font(.caption)
+                    }
+                } else if let suiSendPreview = store.suiSendPreview {
+                    if let fiatFee = store.formattedFiatAmount(fromNative: suiSendPreview.estimatedNetworkFeeSUI, symbol: "SUI") {
+                        Text("Estimated Network Fee: \(suiSendPreview.estimatedNetworkFeeSUI, specifier: "%.6f") SUI (~\(fiatFee))")
+                            .font(.subheadline.weight(.semibold))
+                    } else {
+                        Text("Estimated Network Fee: \(suiSendPreview.estimatedNetworkFeeSUI, specifier: "%.6f") SUI")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    Text("Gas Budget: \(suiSendPreview.gasBudgetMist) MIST")
+                    Text("Reference Gas Price: \(suiSendPreview.referenceGasPrice)")
+                } else {
+                    Text("Enter an amount to load a Sui fee preview. Add a valid destination address before sending.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Spectra signs and broadcasts Sui transfers in-app.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        if let selectedCoin, selectedCoin.chainName == "Aptos" {
+            Section("Aptos Network") {
+                if runtimeState.isPreparingAptosSend {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading Aptos fee estimate...")
+                            .font(.caption)
+                    }
+                } else if let aptosSendPreview = store.aptosSendPreview {
+                    if let fiatFee = store.formattedFiatAmount(fromNative: aptosSendPreview.estimatedNetworkFeeAPT, symbol: "APT") {
+                        Text("Estimated Network Fee: \(aptosSendPreview.estimatedNetworkFeeAPT, specifier: "%.6f") APT (~\(fiatFee))")
+                            .font(.subheadline.weight(.semibold))
+                    } else {
+                        Text("Estimated Network Fee: \(aptosSendPreview.estimatedNetworkFeeAPT, specifier: "%.6f") APT")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    Text("Max Gas Amount: \(aptosSendPreview.maxGasAmount)")
+                    Text("Gas Unit Price: \(aptosSendPreview.gasUnitPriceOctas) octas")
+                } else {
+                    Text("Enter an amount to load an Aptos fee preview. Add a valid destination address before sending.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Spectra signs and broadcasts Aptos transfers in-app.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
+        if let selectedCoin, selectedCoin.chainName == "TON" {
+            Section("TON Network") {
+                if runtimeState.isPreparingTONSend {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading TON fee estimate...")
+                            .font(.caption)
+                    }
+                } else if let tonSendPreview = store.tonSendPreview {
+                    if let fiatFee = store.formattedFiatAmount(fromNative: tonSendPreview.estimatedNetworkFeeTON, symbol: "TON") {
+                        Text("Estimated Network Fee: \(tonSendPreview.estimatedNetworkFeeTON, specifier: "%.6f") TON (~\(fiatFee))")
+                            .font(.subheadline.weight(.semibold))
+                    } else {
+                        Text("Estimated Network Fee: \(tonSendPreview.estimatedNetworkFeeTON, specifier: "%.6f") TON")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    Text("Sequence Number: \(tonSendPreview.sequenceNumber)")
+                } else {
+                    Text("Enter an amount to load a TON fee preview. Add a valid destination address before sending.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Spectra signs and broadcasts TON transfers in-app.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+
         if let selectedCoin, selectedCoin.chainName == "Dogecoin" {
             Section("Dogecoin Send") {
-                Picker("Fee Priority", selection: dogecoinFeePriorityBinding) {
-                    Text("Economy").tag(DogecoinWalletEngine.FeePriority.economy)
-                    Text("Normal").tag(DogecoinWalletEngine.FeePriority.normal)
-                    Text("Priority").tag(DogecoinWalletEngine.FeePriority.priority)
+                Picker("Fee Priority", selection: chainFeePriorityBinding(for: selectedCoin.chainName)) {
+                    ForEach(ChainFeePriorityOption.allCases) { priority in
+                        Text(priority.displayName).tag(priority)
+                    }
                 }
                 .pickerStyle(.segmented)
 
@@ -895,19 +887,12 @@ struct SendView: View {
                             .font(.caption)
                     }
                 } else if let dogecoinSendPreview = store.dogecoinSendPreview {
-                    Text(walletFlowLocalizedFormat("Spendable Balance: %.6f DOGE", dogecoinSendPreview.spendableBalanceDOGE))
                     if let fiatFee = store.formattedFiatAmount(fromNative: dogecoinSendPreview.estimatedNetworkFeeDOGE, symbol: "DOGE") {
-                        Text(walletFlowLocalizedFormat("Estimated Fee: %.6f DOGE (~%@)", dogecoinSendPreview.estimatedNetworkFeeDOGE, fiatFee))
+                        Text("Estimated Fee: \(dogecoinSendPreview.estimatedNetworkFeeDOGE, specifier: "%.6f") DOGE (~\(fiatFee))")
                     } else {
-                        Text(walletFlowLocalizedFormat("Estimated Fee: %.6f DOGE", dogecoinSendPreview.estimatedNetworkFeeDOGE))
+                        Text("Estimated Fee: \(dogecoinSendPreview.estimatedNetworkFeeDOGE, specifier: "%.6f") DOGE")
                     }
-                    Text(walletFlowLocalizedFormat("Fee Rate: %.4f DOGE/KB", dogecoinSendPreview.estimatedFeeRateDOGEPerKB))
-                    Text(walletFlowLocalizedFormat("Estimated Size: %lld bytes", dogecoinSendPreview.estimatedTransactionBytes))
-                    Text(walletFlowLocalizedFormat("Selected Inputs: %lld", dogecoinSendPreview.selectedInputCount))
-                    Text(walletFlowLocalizedFormat("Change Output: %@", dogecoinSendPreview.usesChangeOutput ? NSLocalizedString("Yes", comment: "") : NSLocalizedString("No (dust-safe fee absorption)", comment: "")))
-                    Text(walletFlowLocalizedFormat("Confirmation Preference: %@", confirmationPreferenceText(for: dogecoinSendPreview.feePriority)))
-                    Text(walletFlowLocalizedFormat("Max Sendable: %.6f DOGE", dogecoinSendPreview.maxSendableDOGE))
-                        .font(.subheadline.weight(.semibold))
+                    Text("Confirmation Preference: \(confirmationPreferenceText(for: dogecoinSendPreview.feePriority))")
                 } else {
                     Text("Enter an amount to load a live UTXO and fee preview. Add a valid destination address before sending.")
                         .font(.caption)
@@ -918,18 +903,50 @@ struct SendView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+        }
+
+        if let selectedCoin {
+            sendPreviewDetailsSection(for: selectedCoin)
+        }
+
+        if let selectedCoin {
+            let providers = store.availableBroadcastProviders(for: selectedCoin.chainName)
+            if !providers.isEmpty {
+                Section("Broadcast Providers") {
+                    ForEach(providers) { provider in
+                        Toggle(
+                            provider.title,
+                            isOn: broadcastProviderBinding(
+                                providerID: provider.id,
+                                chainName: selectedCoin.chainName
+                            )
+                        )
+                    }
+
+                    Text("Choose which providers Spectra is allowed to broadcast through for this chain. At least one provider must remain enabled.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
     var body: some View {
-        let selectedCoin = store.selectedSendCoin
+        let selectedCoin = selectedNetworkSendCoin
 
         ZStack {
             SpectraBackdrop()
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
-                    primarySendSections
+                    SendPrimarySectionsView(
+                        store: store,
+                        flowState: flowState,
+                        selectedAddressBookEntryID: $selectedAddressBookEntryID,
+                        isShowingQRScanner: $isShowingQRScanner,
+                        qrScannerErrorMessage: $qrScannerErrorMessage
+                    )
                     if hasNetworkSendSections(for: selectedCoin) {
                         VStack(alignment: .leading, spacing: 18) {
                             networkSendSections(selectedCoin: selectedCoin)
@@ -943,9 +960,6 @@ struct SendView: View {
                 .padding(20)
             }
             .navigationTitle("Send")
-            .task(id: sendPreviewTaskID) {
-                await store.refreshSendPreview()
-            }
             .sheet(isPresented: $isShowingQRScanner) {
                 SendQRScannerSheet { payload in
                     applyScannedRecipientPayload(payload)
@@ -960,43 +974,6 @@ struct SendView: View {
             }
             .onChange(of: flowState.sendHoldingKey) { _, _ in
                 selectedAddressBookEntryID = ""
-            }
-            .onChange(of: isSendBusy) { _, isBusy in
-                guard isBusy, let snapshot = sendLiveActivitySnapshot else { return }
-                Task {
-                    await SendTransactionLiveActivityManager.shared.startSending(
-                        walletName: snapshot.walletName,
-                        chainName: snapshot.chainName,
-                        symbol: snapshot.symbol,
-                        amountText: snapshot.amountText,
-                        destinationAddress: snapshot.destinationAddress
-                    )
-                }
-            }
-            .onChange(of: sendState.lastSentTransaction?.id) { _, _ in
-                guard let transaction = sendState.lastSentTransaction,
-                      transaction.kind == .send else { return }
-                Task {
-                    let walletName = transaction.walletID.flatMap { walletID in
-                        store.wallet(for: walletID.uuidString)?.name
-                    } ?? "Wallet"
-                    await SendTransactionLiveActivityManager.shared.complete(
-                        walletName: walletName,
-                        transactionHash: transaction.transactionHash,
-                        chainName: transaction.chainName,
-                        symbol: transaction.symbol,
-                        amountText: String(format: "%.8f", transaction.amount),
-                        destinationAddress: transaction.address
-                    )
-                }
-            }
-            .onChange(of: flowState.sendError) { _, sendError in
-                guard !isSendBusy,
-                      let sendError,
-                      !sendError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                Task {
-                    await SendTransactionLiveActivityManager.shared.fail(message: sendError)
-                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -1172,5 +1149,273 @@ struct SendView: View {
         case .priority:
             return "Priority (faster confirmation bias)"
         }
+    }
+}
+
+private struct SendPrimarySectionsView: View {
+    let store: WalletStore
+    @ObservedObject var flowState: WalletFlowState
+    @Binding var selectedAddressBookEntryID: String
+    @Binding var isShowingQRScanner: Bool
+    @Binding var qrScannerErrorMessage: String?
+
+    private struct Presentation {
+        let sendWallets: [ImportedWallet]
+        let selectedWallet: ImportedWallet?
+        let availableSendCoins: [Coin]
+        let selectedCoin: Coin?
+        let selectedCoinAmountText: String?
+        let selectedCoinApproximateFiatText: String?
+        let addressBookEntries: [AddressBookEntry]
+    }
+
+    private var presentation: Presentation {
+        let sendWallets = store.sendEnabledWallets
+        let selectedWallet = sendWallets.first(where: { $0.id.uuidString == flowState.sendWalletID })
+        let availableSendCoins = store.availableSendCoins(for: flowState.sendWalletID)
+        let selectedCoin = availableSendCoins.first(where: { $0.holdingKey == flowState.sendHoldingKey })
+        let selectedCoinAmountText = selectedCoin.map {
+            store.formattedAssetAmount($0.amount, symbol: $0.symbol, chainName: $0.chainName)
+        }
+        let sendAmount = Double(flowState.sendAmount) ?? 0
+        let selectedCoinApproximateFiatText: String?
+        if let selectedCoin, !sendAmount.isZero {
+            selectedCoinApproximateFiatText = store.formattedFiatAmount(fromNative: sendAmount, symbol: selectedCoin.symbol)
+        } else {
+            selectedCoinApproximateFiatText = nil
+        }
+
+        return Presentation(
+            sendWallets: sendWallets,
+            selectedWallet: selectedWallet,
+            availableSendCoins: availableSendCoins,
+            selectedCoin: selectedCoin,
+            selectedCoinAmountText: selectedCoinAmountText,
+            selectedCoinApproximateFiatText: selectedCoinApproximateFiatText,
+            addressBookEntries: store.sendAddressBookEntries
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            sendSummarySection
+            walletAssetSection
+            recipientSection
+            amountSection
+        }
+    }
+
+    private var sendSummarySection: some View {
+        sendDetailCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    if let selectedCoin = presentation.selectedCoin {
+                        CoinBadge(
+                            assetIdentifier: selectedCoin.iconIdentifier,
+                            fallbackText: selectedCoin.mark,
+                            color: selectedCoin.color,
+                            size: 42
+                        )
+                    } else {
+                        Image(systemName: "arrow.up.right.circle.fill")
+                            .font(.system(size: 38))
+                            .foregroundStyle(.mint)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Send")
+                            .font(.title3.weight(.bold))
+                        if let wallet = presentation.selectedWallet {
+                            Text(wallet.name)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    if let selectedCoin = presentation.selectedCoin {
+                        Text(selectedCoin.symbol)
+                            .font(.caption.weight(.bold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(selectedCoin.color.opacity(0.18), in: Capsule())
+                            .foregroundStyle(selectedCoin.color)
+                    }
+                }
+
+                if let selectedCoin = presentation.selectedCoin {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Available")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(presentation.selectedCoinAmountText ?? "")
+                                .font(.headline.weight(.semibold))
+                                .spectraNumericTextLayout()
+                        }
+
+                        Spacer()
+
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("Network")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(selectedCoin.chainName)
+                                .font(.subheadline.weight(.semibold))
+                        }
+                    }
+                } else {
+                    Text("Choose a wallet and asset to prepare a transfer with live fee previews and risk checks.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var walletAssetSection: some View {
+        sendDetailCard(title: "Wallet & Asset") {
+            VStack(alignment: .leading, spacing: 12) {
+                Picker("Wallet", selection: store.sendWalletIDBinding) {
+                    ForEach(presentation.sendWallets) { wallet in
+                        Text(wallet.name).tag(wallet.id.uuidString)
+                    }
+                }
+                .onChange(of: flowState.sendWalletID) { _, _ in
+                    store.syncSendAssetSelection()
+                }
+
+                Picker("Asset", selection: store.sendHoldingKeyBinding) {
+                    ForEach(presentation.availableSendCoins, id: \.holdingKey) { coin in
+                        Text("\(coin.name) on \(coin.chainName)").tag(coin.holdingKey)
+                    }
+                }
+            }
+        }
+    }
+
+    private var recipientSection: some View {
+        sendDetailCard(title: "Recipient") {
+            VStack(alignment: .leading, spacing: 12) {
+                if !presentation.addressBookEntries.isEmpty {
+                    Picker("Saved Recipient", selection: $selectedAddressBookEntryID) {
+                        Text("None").tag("")
+                        ForEach(presentation.addressBookEntries) { entry in
+                            Text("\(entry.name) • \(entry.chainName)").tag(entry.id.uuidString)
+                        }
+                    }
+                    .onChange(of: selectedAddressBookEntryID) { _, newValue in
+                        guard let selectedEntry = presentation.addressBookEntries.first(where: { $0.id.uuidString == newValue }) else {
+                            return
+                        }
+                        store.sendAddress = selectedEntry.address
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    TextField("Recipient address", text: store.sendAddressBinding)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    Button {
+                        guard DataScannerViewController.isSupported else {
+                            qrScannerErrorMessage = "QR scanning is not supported on this device."
+                            return
+                        }
+                        guard DataScannerViewController.isAvailable else {
+                            qrScannerErrorMessage = "QR scanning is unavailable right now. Check camera permission and try again."
+                            return
+                        }
+                        isShowingQRScanner = true
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.title3.weight(.semibold))
+                            .frame(width: 40, height: 40)
+                    }
+                    .buttonStyle(.glass)
+                    .accessibilityLabel("Scan QR Code")
+                }
+
+                if let qrScannerErrorMessage {
+                    Text(qrScannerErrorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                if flowState.isCheckingSendDestinationBalance {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("Checking destination on-chain balance...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let sendDestinationRiskWarning = flowState.sendDestinationRiskWarning {
+                    Text(sendDestinationRiskWarning)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                if let sendDestinationInfoMessage = flowState.sendDestinationInfoMessage {
+                    Text(sendDestinationInfoMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var amountSection: some View {
+        sendDetailCard(title: "Amount") {
+            VStack(alignment: .leading, spacing: 12) {
+                TextField("Amount", text: store.sendAmountBinding)
+                    .keyboardType(.decimalPad)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                if let selectedCoin = presentation.selectedCoin {
+                    HStack {
+                        Text("Using")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(selectedCoin.symbol)
+                            .font(.subheadline.weight(.semibold))
+                    }
+
+                    if let fiatAmount = presentation.selectedCoinApproximateFiatText {
+                        HStack {
+                            Text("Approx. Value")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(fiatAmount)
+                                .font(.subheadline.weight(.semibold))
+                                .spectraNumericTextLayout()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func sendDetailCard(title: String? = nil, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let title {
+                Text(NSLocalizedString(title, comment: ""))
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.primary)
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                content()
+            }
+        }
+        .padding(18)
+        .spectraBubbleFill()
+        .glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }
 }

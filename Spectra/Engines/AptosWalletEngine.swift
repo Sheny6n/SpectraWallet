@@ -38,19 +38,26 @@ struct AptosSendPreview: Equatable {
     let estimatedNetworkFeeAPT: Double
     let maxGasAmount: UInt64
     let gasUnitPriceOctas: UInt64
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct AptosSendResult: Equatable {
     let transactionHash: String
     let estimatedNetworkFeeAPT: Double
+    let signedTransactionJSON: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
 enum AptosWalletEngine {
-    private static let endpoint = ChainBackendRegistry.AptosRuntimeEndpoints.primaryRPCURL
     private static let chainID: UInt64 = 1
     private static let defaultMaxGasAmount: UInt64 = 2_000
     private static let expirationWindowSeconds: UInt64 = 600
+    private static let endpointReliabilityNamespace = "aptos.rpc"
 
     private struct GasEstimate: Decodable {
         let gasEstimate: String?
@@ -107,10 +114,18 @@ enum AptosWalletEngine {
 
         let gasUnitPrice = try await fetchGasUnitPrice()
         let estimatedFee = Double(defaultMaxGasAmount * gasUnitPrice) / 100_000_000.0
+        let balanceAPT = try await AptosBalanceService.fetchBalance(for: normalizedOwner)
+        let maxSendable = max(0, balanceAPT - estimatedFee)
         return AptosSendPreview(
             estimatedNetworkFeeAPT: estimatedFee,
             maxGasAmount: defaultMaxGasAmount,
-            gasUnitPriceOctas: gasUnitPrice
+            gasUnitPriceOctas: gasUnitPrice,
+            spendableBalance: maxSendable,
+            feeRateDescription: "\(gasUnitPrice) octas/unit",
+            estimatedTransactionBytes: nil,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: maxSendable
         )
     }
 
@@ -173,12 +188,42 @@ enum AptosWalletEngine {
             throw AptosWalletEngineError.signingFailed("WalletCore returned empty Aptos transaction JSON.")
         }
 
-        let digest = try await submitTransaction(jsonPayload: output.json)
+        let digest: String
+        do {
+            digest = try await submitTransaction(jsonPayload: output.json)
+        } catch {
+            guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                  let recoveredHash = await recoverRecentTransactionHashIfAvailable(
+                      ownerAddress: normalizedOwner,
+                      destinationAddress: normalizedDestination,
+                      amount: amount
+                  ) else {
+                throw error
+            }
+            digest = recoveredHash
+        }
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(transactionHash: digest)
         return AptosSendResult(
             transactionHash: digest,
             estimatedNetworkFeeAPT: preview.estimatedNetworkFeeAPT,
+            signedTransactionJSON: output.json,
             verificationStatus: verificationStatus
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        signedTransactionJSON: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> AptosSendResult {
+        let digest = try await submitTransaction(jsonPayload: signedTransactionJSON)
+        let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : digest
+        return AptosSendResult(
+            transactionHash: transactionHash,
+            estimatedNetworkFeeAPT: 0,
+            signedTransactionJSON: signedTransactionJSON,
+            verificationStatus: await verifyBroadcastedTransactionIfAvailable(transactionHash: transactionHash)
         )
     }
 
@@ -236,40 +281,97 @@ enum AptosWalletEngine {
     }
 
     private static func fetchGasUnitPrice() async throws -> UInt64 {
-        var request = URLRequest(url: endpoint.appendingPathComponent("estimate_gas_price"))
-        request.httpMethod = "GET"
-        let result: GasEstimate = try await get(request)
-        guard let value = result.gasEstimate, let parsed = UInt64(value), parsed > 0 else {
-            throw AptosWalletEngineError.invalidResponse
+        var lastError: Error?
+        for endpoint in orderedRPCEndpoints() {
+            do {
+                var request = URLRequest(url: endpoint.appendingPathComponent("estimate_gas_price"))
+                request.httpMethod = "GET"
+                let result: GasEstimate = try await get(request)
+                guard let value = result.gasEstimate, let parsed = UInt64(value), parsed > 0 else {
+                    throw AptosWalletEngineError.invalidResponse
+                }
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                return parsed
+            } catch {
+                lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+            }
         }
-        return parsed
+        throw lastError ?? AptosWalletEngineError.invalidResponse
     }
 
     private static func fetchSequenceNumber(for address: String) async throws -> UInt64 {
-        var request = URLRequest(url: endpoint.appendingPathComponent("accounts/\(address)"))
-        request.httpMethod = "GET"
-        let result: AccountSnapshot = try await get(request)
-        guard let value = result.sequenceNumber, let parsed = UInt64(value) else {
-            throw AptosWalletEngineError.invalidResponse
+        var lastError: Error?
+        for endpoint in orderedRPCEndpoints() {
+            do {
+                var request = URLRequest(url: endpoint.appendingPathComponent("accounts/\(address)"))
+                request.httpMethod = "GET"
+                let result: AccountSnapshot = try await get(request)
+                guard let value = result.sequenceNumber, let parsed = UInt64(value) else {
+                    throw AptosWalletEngineError.invalidResponse
+                }
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                return parsed
+            } catch {
+                lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+            }
         }
-        return parsed
+        throw lastError ?? AptosWalletEngineError.invalidResponse
     }
 
     private static func submitTransaction(jsonPayload: String) async throws -> String {
         guard let data = jsonPayload.data(using: .utf8) else {
             throw AptosWalletEngineError.signingFailed("WalletCore returned non-UTF8 Aptos transaction JSON.")
         }
-        var request = URLRequest(url: endpoint.appendingPathComponent("transactions"))
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = data
+        var lastError: Error?
+        for endpoint in orderedRPCEndpoints() {
+            for attempt in 0 ..< 2 {
+                do {
+                    var request = URLRequest(url: endpoint.appendingPathComponent("transactions"))
+                    request.httpMethod = "POST"
+                    request.timeoutInterval = 20
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    request.httpBody = data
 
-        let result: SubmitResponse = try await send(request)
-        guard let hash = result.hash?.trimmingCharacters(in: .whitespacesAndNewlines), !hash.isEmpty else {
-            throw AptosWalletEngineError.broadcastFailed("Missing Aptos transaction hash from submit response.")
+                    let result: SubmitResponse = try await send(request)
+                    guard let hash = result.hash?.trimmingCharacters(in: .whitespacesAndNewlines), !hash.isEmpty else {
+                        throw AptosWalletEngineError.broadcastFailed("Missing Aptos transaction hash from submit response.")
+                    }
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                    return hash
+                } catch {
+                    lastError = error
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                    if attempt < 1, classifySendBroadcastFailure(error.localizedDescription) == .retryable {
+                        continue
+                    }
+                    break
+                }
+            }
         }
-        return hash
+        throw lastError ?? AptosWalletEngineError.broadcastFailed("Aptos transaction submission failed.")
+    }
+
+    private static func orderedRPCEndpoints() -> [URL] {
+        let ordered = ChainEndpointReliability.orderedEndpoints(
+            namespace: endpointReliabilityNamespace,
+            candidates: AptosBalanceService.endpointCatalog()
+        )
+        return ordered.compactMap(URL.init(string:))
+    }
+
+    private static func recoverRecentTransactionHashIfAvailable(
+        ownerAddress: String,
+        destinationAddress: String,
+        amount: Double
+    ) async -> String? {
+        let result = await AptosBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 20)
+        return result.snapshots.first {
+            $0.kind == .send
+                && abs($0.amount - amount) < 0.00000001
+                && normalizeAddress($0.counterpartyAddress) == normalizeAddress(destinationAddress)
+        }?.transactionHash
     }
 
     private static func get<ResultType: Decodable>(_ request: URLRequest) async throws -> ResultType {

@@ -1756,6 +1756,9 @@
         }
       }
     },
+    "Aptos Network" : {
+
+    },
     "Aptos network request failed: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2439,6 +2442,9 @@
           }
         }
       }
+    },
+    "Broadcast Providers" : {
+
     },
     "Broadcast Reliability" : {
       "localizations" : {
@@ -3571,6 +3577,9 @@
           }
         }
       }
+    },
+    "Choose which providers Spectra is allowed to broadcast through for this chain. At least one provider must remain enabled." : {
+
     },
     "Circulation Model" : {
       "extractionState" : "manual",
@@ -5641,6 +5650,7 @@
       }
     },
     "Economy" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6804,6 +6814,9 @@
         }
       }
     },
+    "Enter an amount to load a Monero fee preview. Add a valid destination address before sending." : {
+
+    },
     "Enter an amount to load a NEAR fee preview. Add a valid destination address before sending." : {
       "localizations" : {
         "en" : {
@@ -6848,6 +6861,9 @@
         }
       }
     },
+    "Enter an amount to load a Solana fee preview. Add a valid destination address before sending." : {
+
+    },
     "Enter an amount to load a Stellar fee preview. Add a valid destination address before sending." : {
       "localizations" : {
         "en" : {
@@ -6870,6 +6886,12 @@
         }
       }
     },
+    "Enter an amount to load a Sui fee preview. Add a valid destination address before sending." : {
+
+    },
+    "Enter an amount to load a TON fee preview. Add a valid destination address before sending." : {
+
+    },
     "Enter an amount to load a Tron fee preview. Add a valid destination address before sending." : {
       "localizations" : {
         "en" : {
@@ -6891,6 +6913,9 @@
           }
         }
       }
+    },
+    "Enter an amount to load an Aptos fee preview. Add a valid destination address before sending." : {
+
     },
     "Enter an amount to load an ICP fee preview. Add a valid destination address before sending." : {
       "localizations" : {
@@ -7232,6 +7257,19 @@
         }
       }
     },
+    "Estimated Network Fee: %.6f APT" : {
+
+    },
+    "Estimated Network Fee: %.6f APT (~%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Estimated Network Fee: %1$.6f APT (~%2$@)"
+          }
+        }
+      }
+    },
     "Estimated Network Fee: %.6f DOT" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7324,6 +7362,45 @@
         }
       }
     },
+    "Estimated Network Fee: %.6f SOL" : {
+
+    },
+    "Estimated Network Fee: %.6f SOL (~%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Estimated Network Fee: %1$.6f SOL (~%2$@)"
+          }
+        }
+      }
+    },
+    "Estimated Network Fee: %.6f SUI" : {
+
+    },
+    "Estimated Network Fee: %.6f SUI (~%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Estimated Network Fee: %1$.6f SUI (~%2$@)"
+          }
+        }
+      }
+    },
+    "Estimated Network Fee: %.6f TON" : {
+
+    },
+    "Estimated Network Fee: %.6f TON (~%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Estimated Network Fee: %1$.6f TON (~%2$@)"
+          }
+        }
+      }
+    },
     "Estimated Network Fee: %.6f TRX" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7366,6 +7443,19 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預估網絡費：%1$.6f TRX（約 %2$@）"
+          }
+        }
+      }
+    },
+    "Estimated Network Fee: %.6f XMR" : {
+
+    },
+    "Estimated Network Fee: %.6f XMR (~%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Estimated Network Fee: %1$.6f XMR (~%2$@)"
           }
         }
       }
@@ -8441,6 +8531,9 @@
         }
       }
     },
+    "Fee Rate: %@" : {
+
+    },
     "Fee-rate data was missing from BlockCypher." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8667,6 +8760,9 @@
         }
       }
     },
+    "Gas Budget: %llu MIST" : {
+
+    },
     "Gas limit is too low for this transaction." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8712,6 +8808,9 @@
           }
         }
       }
+    },
+    "Gas Unit Price: %llu octas" : {
+
     },
     "Gas Used" : {
       "localizations" : {
@@ -11317,6 +11416,9 @@
         }
       }
     },
+    "Loading Aptos fee estimate..." : {
+
+    },
     "Loading Cardano fee estimate..." : {
       "localizations" : {
         "en" : {
@@ -11360,6 +11462,9 @@
           }
         }
       }
+    },
+    "Loading Monero fee estimate..." : {
+
     },
     "Loading NEAR fee estimate..." : {
       "localizations" : {
@@ -11427,6 +11532,9 @@
         }
       }
     },
+    "Loading Solana fee estimate..." : {
+
+    },
     "Loading Stellar fee estimate..." : {
       "localizations" : {
         "en" : {
@@ -11448,6 +11556,12 @@
           }
         }
       }
+    },
+    "Loading Sui fee estimate..." : {
+
+    },
+    "Loading TON fee estimate..." : {
+
     },
     "Loading Tron fee estimate..." : {
       "localizations" : {
@@ -11810,6 +11924,9 @@
         }
       }
     },
+    "Max Gas Amount: %llu" : {
+
+    },
     "Max Inputs: %@" : {
       "localizations" : {
         "en" : {
@@ -11854,6 +11971,9 @@
           }
         }
       }
+    },
+    "Max Sendable: %@" : {
+
     },
     "Medium" : {
       "extractionState" : "manual",
@@ -12239,6 +12359,9 @@
           }
         }
       }
+    },
+    "Monero Network" : {
+
     },
     "My Assets" : {
       "extractionState" : "manual",
@@ -12650,6 +12773,9 @@
         }
       }
     },
+    "Next change index: %lld" : {
+
+    },
     "Next Page" : {
       "localizations" : {
         "en" : {
@@ -12672,7 +12798,14 @@
         }
       }
     },
+    "Next receive index: %lld" : {
+
+    },
+    "No" : {
+
+    },
     "No (dust-safe fee absorption)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13031,6 +13164,9 @@
         }
       }
     },
+    "No operational events recorded yet." : {
+
+    },
     "No operational events yet." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13053,6 +13189,9 @@
           }
         }
       }
+    },
+    "No owned-address management state recorded yet." : {
+
     },
     "No pending Ethereum send found for this wallet. Replacement and cancel are available only for pending transactions." : {
       "extractionState" : "manual",
@@ -13418,6 +13557,9 @@
         }
       }
     },
+    "Nonce: %lld" : {
+
+    },
     "None" : {
       "localizations" : {
         "en" : {
@@ -13441,6 +13583,7 @@
       }
     },
     "Normal" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13710,6 +13853,9 @@
         }
       }
     },
+    "Operational Events" : {
+
+    },
     "Operational Logs" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13823,6 +13969,9 @@
           }
         }
       }
+    },
+    "Owned Address Management" : {
+
     },
     "Page %lld" : {
       "extractionState" : "manual",
@@ -14322,6 +14471,9 @@
         }
       }
     },
+    "Preview Details" : {
+
+    },
     "Price Alerts" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14461,6 +14613,7 @@
       }
     },
     "Priority" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14526,6 +14679,9 @@
           }
         }
       }
+    },
+    "Priority: %@" : {
+
     },
     "Private Key" : {
       "extractionState" : "manual",
@@ -15159,6 +15315,9 @@
           }
         }
       }
+    },
+    "Reference Gas Price: %llu" : {
+
     },
     "Refresh %@" : {
       "extractionState" : "manual",
@@ -16515,6 +16674,9 @@
         }
       }
     },
+    "Reserved receive index: %lld" : {
+
+    },
     "Reset" : {
       "localizations" : {
         "en" : {
@@ -17780,6 +17942,9 @@
         }
       }
     },
+    "Sequence Number: %u" : {
+
+    },
     "Sequence: %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -18168,6 +18333,9 @@
         }
       }
     },
+    "Solana Network" : {
+
+    },
     "Solana RPC failed: %@" : {
       "localizations" : {
         "en" : {
@@ -18417,6 +18585,9 @@
         }
       }
     },
+    "Spectra prepares Monero sends in-app using the configured backend fee quote." : {
+
+    },
     "Spectra signs and broadcasts ADA transfers in-app." : {
       "localizations" : {
         "en" : {
@@ -18438,6 +18609,9 @@
           }
         }
       }
+    },
+    "Spectra signs and broadcasts Aptos transfers in-app." : {
+
     },
     "Spectra signs and broadcasts Dogecoin in-app. The preview shows estimated network fee and max sendable DOGE for this wallet." : {
       "localizations" : {
@@ -18527,6 +18701,9 @@
         }
       }
     },
+    "Spectra signs and broadcasts Solana transfers in-app, including SOL and supported SPL assets." : {
+
+    },
     "Spectra signs and broadcasts Stellar payments in-app." : {
       "localizations" : {
         "en" : {
@@ -18548,6 +18725,9 @@
           }
         }
       }
+    },
+    "Spectra signs and broadcasts Sui transfers in-app." : {
+
     },
     "Spectra signs and broadcasts supported %@ transfers. This preview is the live nonce and fee estimate for the transaction you are about to send." : {
       "extractionState" : "manual",
@@ -18571,6 +18751,9 @@
           }
         }
       }
+    },
+    "Spectra signs and broadcasts TON transfers in-app." : {
+
     },
     "Spectra signs and broadcasts Tron transfers in-app, including TRX and TRC-20 USDT." : {
       "localizations" : {
@@ -18615,6 +18798,12 @@
           }
         }
       }
+    },
+    "Spectra stores fee priority separately for each UTXO chain. Bitcoin and Litecoin currently apply it directly to fee estimation in this build." : {
+
+    },
+    "Spectra stores this preference per chain. Some networks still use provider-managed fee estimation in this build." : {
+
     },
     "Spectra will prioritize non-custodial staking workflows where you keep control of your keys and can choose how your stake supports network decentralization." : {
       "localizations" : {
@@ -18704,6 +18893,9 @@
           }
         }
       }
+    },
+    "Spendable Balance: %@" : {
+
     },
     "SQLite error: %@" : {
       "localizations" : {
@@ -19131,6 +19323,9 @@
           }
         }
       }
+    },
+    "Sui Network" : {
+
     },
     "Sui network request failed: %@" : {
       "extractionState" : "stale",
@@ -21796,6 +21991,9 @@
         }
       }
     },
+    "Token transfers on Solana still use SOL for network fees." : {
+
+    },
     "TON" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -21864,6 +22062,9 @@
           }
         }
       }
+    },
+    "TON Network" : {
+
     },
     "TON network request failed: %@" : {
       "extractionState" : "stale",

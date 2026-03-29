@@ -4,6 +4,10 @@ import WalletCore
 
 
 extension EthereumWalletEngine {
+private static func reliabilityNamespace(for chain: EVMChainContext) -> String {
+    "evm.\(chain.displayName.lowercased().replacingOccurrences(of: " ", with: "-")).rpc"
+}
+
 static func fetchSendPreview(
     from fromAddress: String,
     to toAddress: String,
@@ -24,12 +28,24 @@ static func fetchSendPreview(
         chain: chain
     )
     let estimatedNetworkFeeWei = Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei
+    let accountSnapshot = try await fetchAccountSnapshot(
+        for: fromAddress,
+        rpcEndpoint: resolvedRPCEndpoints(preferred: rpcEndpoint, chain: chain).first,
+        chain: chain
+    )
+    let spendableBalance = max(0, nativeBalanceETH(from: accountSnapshot) - eth(fromWei: estimatedNetworkFeeWei))
     return EthereumSendPreview(
         nonce: parameters.nonce,
         gasLimit: parameters.gasLimit,
         maxFeePerGasGwei: gwei(fromWei: parameters.maxFeePerGasWei),
         maxPriorityFeePerGasGwei: gwei(fromWei: parameters.maxPriorityFeePerGasWei),
-        estimatedNetworkFeeETH: eth(fromWei: estimatedNetworkFeeWei)
+        estimatedNetworkFeeETH: eth(fromWei: estimatedNetworkFeeWei),
+        spendableBalance: spendableBalance,
+        feeRateDescription: String(format: "Max %.2f gwei / Priority %.2f gwei", gwei(fromWei: parameters.maxFeePerGasWei), gwei(fromWei: parameters.maxPriorityFeePerGasWei)),
+        estimatedTransactionBytes: nil,
+        selectedInputCount: nil,
+        usesChangeOutput: nil,
+        maxSendable: spendableBalance
     )
 }
 
@@ -66,7 +82,13 @@ static func send(
         gasLimit: parameters.gasLimit,
         maxFeePerGasGwei: gwei(fromWei: parameters.maxFeePerGasWei),
         maxPriorityFeePerGasGwei: gwei(fromWei: parameters.maxPriorityFeePerGasWei),
-        estimatedNetworkFeeETH: eth(fromWei: Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei)
+        estimatedNetworkFeeETH: eth(fromWei: Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei),
+        spendableBalance: nil,
+        feeRateDescription: String(format: "Max %.2f gwei / Priority %.2f gwei", gwei(fromWei: parameters.maxFeePerGasWei), gwei(fromWei: parameters.maxPriorityFeePerGasWei)),
+        estimatedTransactionBytes: nil,
+        selectedInputCount: nil,
+        usesChangeOutput: nil,
+        maxSendable: nil
     )
 
     let rawTransaction = try signTransaction(
@@ -92,6 +114,7 @@ static func send(
     return EthereumSendResult(
         fromAddress: normalizedFromAddress,
         transactionHash: transactionHash,
+        rawTransactionHex: encodedSignedTransactionHex(from: rawTransaction),
         preview: preview,
         verificationStatus: verificationStatus
     )
@@ -129,7 +152,13 @@ static func send(
         gasLimit: parameters.gasLimit,
         maxFeePerGasGwei: gwei(fromWei: parameters.maxFeePerGasWei),
         maxPriorityFeePerGasGwei: gwei(fromWei: parameters.maxPriorityFeePerGasWei),
-        estimatedNetworkFeeETH: eth(fromWei: Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei)
+        estimatedNetworkFeeETH: eth(fromWei: Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei),
+        spendableBalance: nil,
+        feeRateDescription: String(format: "Max %.2f gwei / Priority %.2f gwei", gwei(fromWei: parameters.maxFeePerGasWei), gwei(fromWei: parameters.maxPriorityFeePerGasWei)),
+        estimatedTransactionBytes: nil,
+        selectedInputCount: nil,
+        usesChangeOutput: nil,
+        maxSendable: nil
     )
 
     let rawTransaction = try signTransaction(
@@ -154,6 +183,7 @@ static func send(
     return EthereumSendResult(
         fromAddress: normalizedFromAddress,
         transactionHash: transactionHash,
+        rawTransactionHex: encodedSignedTransactionHex(from: rawTransaction),
         preview: preview,
         verificationStatus: verificationStatus
     )
@@ -185,12 +215,25 @@ static func fetchTokenSendPreview(
         chain: chain
     )
     let estimatedNetworkFeeWei = Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei
+    let tokenBalance = try await plannedTokenBalances(
+        for: fromAddress,
+        tokenContracts: [token.contractAddress],
+        rpcEndpoint: resolvedRPCEndpoints(preferred: rpcEndpoint, chain: chain).first,
+        chain: chain
+    ).first?.balance
+    let spendableBalance = tokenBalance.map { NSDecimalNumber(decimal: $0).doubleValue }
     return EthereumSendPreview(
         nonce: parameters.nonce,
         gasLimit: parameters.gasLimit,
         maxFeePerGasGwei: gwei(fromWei: parameters.maxFeePerGasWei),
         maxPriorityFeePerGasGwei: gwei(fromWei: parameters.maxPriorityFeePerGasWei),
-        estimatedNetworkFeeETH: eth(fromWei: estimatedNetworkFeeWei)
+        estimatedNetworkFeeETH: eth(fromWei: estimatedNetworkFeeWei),
+        spendableBalance: spendableBalance,
+        feeRateDescription: String(format: "Max %.2f gwei / Priority %.2f gwei", gwei(fromWei: parameters.maxFeePerGasWei), gwei(fromWei: parameters.maxPriorityFeePerGasWei)),
+        estimatedTransactionBytes: nil,
+        selectedInputCount: nil,
+        usesChangeOutput: nil,
+        maxSendable: spendableBalance
     )
 }
 
@@ -233,7 +276,13 @@ static func sendToken(
         gasLimit: parameters.gasLimit,
         maxFeePerGasGwei: gwei(fromWei: parameters.maxFeePerGasWei),
         maxPriorityFeePerGasGwei: gwei(fromWei: parameters.maxPriorityFeePerGasWei),
-        estimatedNetworkFeeETH: eth(fromWei: Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei)
+        estimatedNetworkFeeETH: eth(fromWei: Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei),
+        spendableBalance: nil,
+        feeRateDescription: String(format: "Max %.2f gwei / Priority %.2f gwei", gwei(fromWei: parameters.maxFeePerGasWei), gwei(fromWei: parameters.maxPriorityFeePerGasWei)),
+        estimatedTransactionBytes: nil,
+        selectedInputCount: nil,
+        usesChangeOutput: nil,
+        maxSendable: nil
     )
 
     let amountUnits = scaledUnitDecimal(fromAmount: amount, decimals: token.decimals)
@@ -261,6 +310,7 @@ static func sendToken(
     return EthereumSendResult(
         fromAddress: normalizedFromAddress,
         transactionHash: transactionHash,
+        rawTransactionHex: encodedSignedTransactionHex(from: rawTransaction),
         preview: preview,
         verificationStatus: verificationStatus
     )
@@ -304,7 +354,13 @@ static func sendToken(
         gasLimit: parameters.gasLimit,
         maxFeePerGasGwei: gwei(fromWei: parameters.maxFeePerGasWei),
         maxPriorityFeePerGasGwei: gwei(fromWei: parameters.maxPriorityFeePerGasWei),
-        estimatedNetworkFeeETH: eth(fromWei: Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei)
+        estimatedNetworkFeeETH: eth(fromWei: Decimal(parameters.gasLimit) * parameters.maxFeePerGasWei),
+        spendableBalance: nil,
+        feeRateDescription: String(format: "Max %.2f gwei / Priority %.2f gwei", gwei(fromWei: parameters.maxFeePerGasWei), gwei(fromWei: parameters.maxPriorityFeePerGasWei)),
+        estimatedTransactionBytes: nil,
+        selectedInputCount: nil,
+        usesChangeOutput: nil,
+        maxSendable: nil
     )
 
     let amountUnits = scaledUnitDecimal(fromAmount: amount, decimals: token.decimals)
@@ -331,8 +387,26 @@ static func sendToken(
     return EthereumSendResult(
         fromAddress: normalizedFromAddress,
         transactionHash: transactionHash,
+        rawTransactionHex: encodedSignedTransactionHex(from: rawTransaction),
         preview: preview,
         verificationStatus: verificationStatus
+    )
+}
+
+static func rebroadcastSignedTransaction(
+    rawTransactionHex: String,
+    preferredRPCEndpoint: URL? = nil,
+    chain: EVMChainContext
+) async throws -> String {
+    let normalized = rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
+    let hex = normalized.hasPrefix("0x") ? String(normalized.dropFirst(2)) : normalized
+    guard let rawTransaction = Data(hexEncoded: hex) else {
+        throw EthereumWalletEngineError.invalidResponse
+    }
+    return try await broadcastRawTransaction(
+        rawTransaction,
+        preferredRPCEndpoint: preferredRPCEndpoint,
+        chain: chain
     )
 }
 
@@ -634,12 +708,36 @@ static func broadcastRawTransaction(
     chain: EVMChainContext = .ethereum
 ) async throws -> String {
     let rawHex = "0x" + rawTransaction.map { String(format: "%02x", $0) }.joined()
-    return try await performRPC(
-        method: "eth_sendRawTransaction",
-        params: [rawHex],
-        rpcEndpoint: resolvedRPCEndpoints(preferred: preferredRPCEndpoint, chain: chain).first!,
-        requestID: 12
-    )
+    let fallbackTransactionHash = "0x" + Hash.keccak256(data: rawTransaction).map { String(format: "%02x", $0) }.joined()
+    let rpcEndpoint = resolvedRPCEndpoints(preferred: preferredRPCEndpoint, chain: chain).first!
+    let attempts = 2
+    var lastError: Error?
+
+    for _ in 0 ..< attempts {
+        do {
+            return try await performRPC(
+                method: "eth_sendRawTransaction",
+                params: [rawHex],
+                rpcEndpoint: rpcEndpoint,
+                requestID: 12
+            )
+        } catch {
+            let disposition = classifySendBroadcastFailure(error.localizedDescription)
+            if disposition == .alreadyBroadcast {
+                return fallbackTransactionHash
+            }
+            lastError = error
+            if disposition != .retryable {
+                break
+            }
+        }
+    }
+
+    throw lastError ?? EthereumWalletEngineError.invalidResponse
+}
+
+private static func encodedSignedTransactionHex(from rawTransaction: Data) -> String {
+    "0x" + rawTransaction.map { String(format: "%02x", $0) }.joined()
 }
 
 static func performRPC<Params: Encodable>(
@@ -654,14 +752,25 @@ static func performRPC<Params: Encodable>(
     var nextRequestID = requestID
     for endpoint in endpoints {
         do {
-            return try await performRPCOnce(
+            let result = try await performRPCOnce(
                 method: method,
                 params: params,
                 rpcEndpoint: endpoint,
                 requestID: nextRequestID
             )
+            ChainEndpointReliability.recordAttempt(
+                namespace: reliabilityNamespace(for: inferredChainContext(for: endpoint)),
+                endpoint: endpoint.absoluteString,
+                success: true
+            )
+            return result
         } catch {
             lastError = error
+            ChainEndpointReliability.recordAttempt(
+                namespace: reliabilityNamespace(for: inferredChainContext(for: endpoint)),
+                endpoint: endpoint.absoluteString,
+                success: false
+            )
             nextRequestID += 1
         }
     }
@@ -715,14 +824,25 @@ static func performRPCDecoded<Params: Encodable, Result: Decodable>(
     var nextRequestID = requestID
     for endpoint in endpoints {
         do {
-            return try await performRPCDecodedOnce(
+            let result: Result = try await performRPCDecodedOnce(
                 method: method,
                 params: params,
                 rpcEndpoint: endpoint,
                 requestID: nextRequestID
             )
+            ChainEndpointReliability.recordAttempt(
+                namespace: reliabilityNamespace(for: inferredChainContext(for: endpoint)),
+                endpoint: endpoint.absoluteString,
+                success: true
+            )
+            return result
         } catch {
             lastError = error
+            ChainEndpointReliability.recordAttempt(
+                namespace: reliabilityNamespace(for: inferredChainContext(for: endpoint)),
+                endpoint: endpoint.absoluteString,
+                success: false
+            )
             nextRequestID += 1
         }
     }

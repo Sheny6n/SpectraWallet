@@ -66,6 +66,9 @@ struct DogecoinWalletEngine {
         let usesChangeOutput: Bool
         let feePriority: FeePriority
         let maxSendableDOGE: Double
+        let spendableBalance: Double
+        let feeRateDescription: String?
+        let maxSendable: Double
     }
 
     enum PostBroadcastVerificationStatus: Equatable {
@@ -355,7 +358,10 @@ struct DogecoinWalletEngine {
             selectedInputCount: spendPlan.utxos.count,
             usesChangeOutput: spendPlan.usesChangeOutput,
             feePriority: feePriority,
-            maxSendableDOGE: maxSendableDOGE
+            maxSendableDOGE: maxSendableDOGE,
+            spendableBalance: spendableBalanceDOGE,
+            feeRateDescription: String(format: "%.4f DOGE/KB", feeRateDOGEPerKB),
+            maxSendable: maxSendableDOGE
         )
     }
 
@@ -1174,31 +1180,22 @@ struct DogecoinWalletEngine {
     }
 
     private static func isAlreadyBroadcastedError(_ message: String) -> Bool {
+        if classifySendBroadcastFailure(message) == .alreadyBroadcast {
+            return true
+        }
         let normalized = message.lowercased()
-        return normalized.contains("already known")
-            || normalized.contains("already in blockchain")
+        return normalized.contains("already in blockchain")
             || normalized.contains("already in block chain")
-            || normalized.contains("already exists")
-            || normalized.contains("already have transaction")
             || normalized.contains("txn-already")
             || normalized.contains("already spent")
     }
 
     private static func isRetryableBroadcastError(_ message: String) -> Bool {
+        if classifySendBroadcastFailure(message) == .retryable {
+            return true
+        }
         let normalized = message.lowercased()
-        return normalized.contains("timed out")
-            || normalized.contains("timeout")
-            || normalized.contains("temporarily")
-            || normalized.contains("connection")
-            || normalized.contains("network")
-            || normalized.contains("server error")
-            || normalized.contains("bad gateway")
-            || normalized.contains("service unavailable")
-            || normalized.contains("too many requests")
-            || normalized.contains("429")
-            || normalized.contains("502")
-            || normalized.contains("503")
-            || normalized.contains("504")
+        return normalized.contains("network")
     }
 
     private static func orderedBroadcastProviders(

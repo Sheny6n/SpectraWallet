@@ -1,16 +1,10 @@
 import Foundation
 import SwiftUI
-import CoreImage
-import CoreImage.CIFilterBuiltins
 import UIKit
-import Vision
-import VisionKit
-
 
 struct ReceiveView: View {
     let store: WalletStore
     @ObservedObject private var flowState: WalletFlowState
-    @ObservedObject private var portfolioState: WalletPortfolioState
     @State private var didCopyReceiveAddress: Bool = false
     @State private var isShowingReceiveQRShareSheet: Bool = false
     @State private var receiveQRExportMessage: String?
@@ -28,7 +22,6 @@ struct ReceiveView: View {
     init(store: WalletStore) {
         self.store = store
         _flowState = ObservedObject(wrappedValue: store.flowState)
-        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
     }
 
     private var presentation: Presentation {

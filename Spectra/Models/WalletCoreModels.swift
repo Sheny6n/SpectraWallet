@@ -4,6 +4,77 @@ import SwiftUI
 import UIKit
 #endif
 
+enum ChainFeePriorityOption: String, CaseIterable, Codable, Identifiable {
+    case economy
+    case normal
+    case priority
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .economy:
+            return "Economy"
+        case .normal:
+            return "Normal"
+        case .priority:
+            return "Priority"
+        }
+    }
+}
+
+struct SendPreviewDetails: Equatable {
+    let spendableBalance: Double?
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double?
+
+    var hasVisibleContent: Bool {
+        spendableBalance != nil
+            || feeRateDescription != nil
+            || estimatedTransactionBytes != nil
+            || selectedInputCount != nil
+            || usesChangeOutput != nil
+            || maxSendable != nil
+    }
+}
+
+enum WalletAddressInventoryRole: String, Codable {
+    case primary
+    case external
+    case change
+    case alternate
+}
+
+struct WalletAddressInventoryEntry: Equatable, Codable, Identifiable {
+    let address: String
+    let derivationPath: String?
+    let account: UInt32?
+    let branchIndex: UInt32?
+    let addressIndex: UInt32?
+    let role: WalletAddressInventoryRole
+
+    var id: String {
+        if let derivationPath {
+            return "\(role.rawValue)|\(derivationPath.lowercased())|\(address.lowercased())"
+        }
+        return "\(role.rawValue)|\(address.lowercased())"
+    }
+}
+
+struct WalletAddressInventory: Equatable, Codable {
+    let entries: [WalletAddressInventoryEntry]
+    let supportsDiscoveryScan: Bool
+    let supportsChangeBranch: Bool
+    let scanLimit: UInt32?
+
+    var primaryEntry: WalletAddressInventoryEntry? {
+        entries.first(where: { $0.role == .primary || $0.role == .external })
+    }
+}
+
 struct Coin: Identifiable {
     let id = UUID()
     let name: String
@@ -940,16 +1011,22 @@ struct TransactionRecord: Identifiable {
     let receiptGasUsed: String?
     let receiptEffectiveGasPriceGwei: Double?
     let receiptNetworkFeeETH: Double?
+    let feePriorityRaw: String?
+    let feeRateDescription: String?
+    let confirmationCount: Int?
     let dogecoinConfirmedNetworkFeeDOGE: Double?
     let dogecoinConfirmations: Int?
     let dogecoinFeePriorityRaw: String?
     let dogecoinEstimatedFeeRateDOGEPerKB: Double?
+    let usedChangeOutput: Bool?
     let dogecoinUsedChangeOutput: Bool?
     let sourceDerivationPath: String?
     let changeDerivationPath: String?
     let sourceAddress: String?
     let changeAddress: String?
     let dogecoinRawTransactionHex: String?
+    let signedTransactionPayload: String?
+    let signedTransactionPayloadFormat: String?
     let failureReason: String?
     let transactionHistorySource: String?
     let createdAt: Date
@@ -971,16 +1048,22 @@ struct TransactionRecord: Identifiable {
         receiptGasUsed: String? = nil,
         receiptEffectiveGasPriceGwei: Double? = nil,
         receiptNetworkFeeETH: Double? = nil,
+        feePriorityRaw: String? = nil,
+        feeRateDescription: String? = nil,
+        confirmationCount: Int? = nil,
         dogecoinConfirmedNetworkFeeDOGE: Double? = nil,
         dogecoinConfirmations: Int? = nil,
         dogecoinFeePriorityRaw: String? = nil,
         dogecoinEstimatedFeeRateDOGEPerKB: Double? = nil,
+        usedChangeOutput: Bool? = nil,
         dogecoinUsedChangeOutput: Bool? = nil,
         sourceDerivationPath: String? = nil,
         changeDerivationPath: String? = nil,
         sourceAddress: String? = nil,
         changeAddress: String? = nil,
         dogecoinRawTransactionHex: String? = nil,
+        signedTransactionPayload: String? = nil,
+        signedTransactionPayloadFormat: String? = nil,
         failureReason: String? = nil,
         transactionHistorySource: String? = nil,
         createdAt: Date = Date()
@@ -1001,16 +1084,22 @@ struct TransactionRecord: Identifiable {
         self.receiptGasUsed = receiptGasUsed
         self.receiptEffectiveGasPriceGwei = receiptEffectiveGasPriceGwei
         self.receiptNetworkFeeETH = receiptNetworkFeeETH
+        self.feePriorityRaw = feePriorityRaw
+        self.feeRateDescription = feeRateDescription
+        self.confirmationCount = confirmationCount
         self.dogecoinConfirmedNetworkFeeDOGE = dogecoinConfirmedNetworkFeeDOGE
         self.dogecoinConfirmations = dogecoinConfirmations
         self.dogecoinFeePriorityRaw = dogecoinFeePriorityRaw
         self.dogecoinEstimatedFeeRateDOGEPerKB = dogecoinEstimatedFeeRateDOGEPerKB
+        self.usedChangeOutput = usedChangeOutput
         self.dogecoinUsedChangeOutput = dogecoinUsedChangeOutput
         self.sourceDerivationPath = sourceDerivationPath
         self.changeDerivationPath = changeDerivationPath
         self.sourceAddress = sourceAddress
         self.changeAddress = changeAddress
         self.dogecoinRawTransactionHex = dogecoinRawTransactionHex
+        self.signedTransactionPayload = signedTransactionPayload
+        self.signedTransactionPayloadFormat = signedTransactionPayloadFormat
         self.failureReason = failureReason
         self.transactionHistorySource = transactionHistorySource
         self.createdAt = createdAt
@@ -1051,6 +1140,78 @@ enum SendBroadcastVerificationStatus: Equatable {
     case verified
     case deferred
     case failed(String)
+}
+
+enum SendBroadcastFailureDisposition: Equatable {
+    case alreadyBroadcast
+    case retryable
+    case terminal
+}
+
+func classifySendBroadcastFailure(_ rawMessage: String) -> SendBroadcastFailureDisposition {
+    let normalized = rawMessage
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+
+    guard !normalized.isEmpty else {
+        return .terminal
+    }
+
+    let alreadyBroadcastPatterns = [
+        "already known",
+        "already exists",
+        "already imported",
+        "already in mempool",
+        "txn-already-known",
+        "known transaction",
+        "duplicate transaction",
+        "duplicate tx",
+        "tx already exists",
+        "transaction already exists",
+        "transaction already imported",
+        "already have transaction",
+        "already submitted",
+        "already processed",
+        "already confirmed",
+        "tefalready"
+    ]
+    if alreadyBroadcastPatterns.contains(where: { normalized.contains($0) }) {
+        return .alreadyBroadcast
+    }
+
+    let retryablePatterns = [
+        "timeout",
+        "timed out",
+        "temporary",
+        "temporarily unavailable",
+        "service unavailable",
+        "try again",
+        "too many requests",
+        "rate limit",
+        "429",
+        "500",
+        "502",
+        "503",
+        "504",
+        "connection reset",
+        "network connection was lost",
+        "cannot connect",
+        "could not connect",
+        "connection refused",
+        "broken pipe",
+        "econnreset",
+        "econnrefused",
+        "gateway timeout",
+        "internal error",
+        "internal server error",
+        "bad gateway",
+        "transport error"
+    ]
+    if retryablePatterns.contains(where: { normalized.contains($0) }) {
+        return .retryable
+    }
+
+    return .terminal
 }
 
 extension ImportedWallet {
@@ -1136,16 +1297,22 @@ extension TransactionRecord {
             receiptGasUsed: snapshot.receiptGasUsed,
             receiptEffectiveGasPriceGwei: snapshot.receiptEffectiveGasPriceGwei,
             receiptNetworkFeeETH: snapshot.receiptNetworkFeeETH,
+            feePriorityRaw: snapshot.feePriorityRaw,
+            feeRateDescription: snapshot.feeRateDescription,
+            confirmationCount: snapshot.confirmationCount,
             dogecoinConfirmedNetworkFeeDOGE: snapshot.dogecoinConfirmedNetworkFeeDOGE,
             dogecoinConfirmations: snapshot.dogecoinConfirmations,
             dogecoinFeePriorityRaw: snapshot.dogecoinFeePriorityRaw,
             dogecoinEstimatedFeeRateDOGEPerKB: snapshot.dogecoinEstimatedFeeRateDOGEPerKB,
+            usedChangeOutput: snapshot.usedChangeOutput,
             dogecoinUsedChangeOutput: snapshot.dogecoinUsedChangeOutput,
             sourceDerivationPath: snapshot.sourceDerivationPath,
             changeDerivationPath: snapshot.changeDerivationPath,
             sourceAddress: snapshot.sourceAddress,
             changeAddress: snapshot.changeAddress,
             dogecoinRawTransactionHex: snapshot.dogecoinRawTransactionHex,
+            signedTransactionPayload: snapshot.signedTransactionPayload,
+            signedTransactionPayloadFormat: snapshot.signedTransactionPayloadFormat,
             failureReason: snapshot.failureReason,
             transactionHistorySource: snapshot.transactionHistorySource,
             createdAt: snapshot.createdAt
@@ -1170,16 +1337,22 @@ extension TransactionRecord {
             receiptGasUsed: receiptGasUsed,
             receiptEffectiveGasPriceGwei: receiptEffectiveGasPriceGwei,
             receiptNetworkFeeETH: receiptNetworkFeeETH,
+            feePriorityRaw: feePriorityRaw,
+            feeRateDescription: feeRateDescription,
+            confirmationCount: confirmationCount,
             dogecoinConfirmedNetworkFeeDOGE: dogecoinConfirmedNetworkFeeDOGE,
             dogecoinConfirmations: dogecoinConfirmations,
             dogecoinFeePriorityRaw: dogecoinFeePriorityRaw,
             dogecoinEstimatedFeeRateDOGEPerKB: dogecoinEstimatedFeeRateDOGEPerKB,
+            usedChangeOutput: usedChangeOutput,
             dogecoinUsedChangeOutput: dogecoinUsedChangeOutput,
             sourceDerivationPath: sourceDerivationPath,
             changeDerivationPath: changeDerivationPath,
             sourceAddress: sourceAddress,
             changeAddress: changeAddress,
             dogecoinRawTransactionHex: dogecoinRawTransactionHex,
+            signedTransactionPayload: signedTransactionPayload,
+            signedTransactionPayloadFormat: signedTransactionPayloadFormat,
             failureReason: failureReason,
             transactionHistorySource: transactionHistorySource,
             createdAt: createdAt
@@ -1311,6 +1484,107 @@ extension TransactionRecord {
         return String(format: "%.8f ETH", receiptNetworkFeeETH)
     }
 
+    var storedFeePriorityText: String? {
+        if let feePriorityRaw {
+            let trimmed = feePriorityRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed.capitalized
+            }
+        }
+
+        if let dogecoinFeePriorityRaw {
+            let trimmed = dogecoinFeePriorityRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed.capitalized
+            }
+        }
+
+        return nil
+    }
+
+    var storedFeeRateText: String? {
+        if let feeRateDescription {
+            let trimmed = feeRateDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        if let dogecoinEstimatedFeeRateDOGEPerKB {
+            return String(format: "%.4f DOGE/KB", dogecoinEstimatedFeeRateDOGEPerKB)
+        }
+
+        return nil
+    }
+
+    var storedConfirmationCountText: String? {
+        if let confirmationCount {
+            return "\(confirmationCount) conf"
+        }
+
+        if let dogecoinConfirmations {
+            return "\(dogecoinConfirmations) conf"
+        }
+
+        return nil
+    }
+
+    var storedUsedChangeOutputText: String? {
+        if let usedChangeOutput {
+            return usedChangeOutput ? "Yes" : "No"
+        }
+
+        if let dogecoinUsedChangeOutput {
+            return dogecoinUsedChangeOutput ? "Yes" : "No"
+        }
+
+        return nil
+    }
+
+    var rawTransactionHexText: String? {
+        if let dogecoinRawTransactionHex {
+            let trimmed = dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        guard let signedTransactionPayload,
+              let signedTransactionPayloadFormat else { return nil }
+        guard signedTransactionPayloadFormat.lowercased().contains("hex") else { return nil }
+
+        let trimmed = signedTransactionPayload.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var rawTransactionFormatText: String? {
+        guard let signedTransactionPayloadFormat else { return nil }
+        let trimmed = signedTransactionPayloadFormat.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var historyMetadataText: String? {
+        var parts: [String] = []
+
+        if let storedFeePriorityText {
+            parts.append("Fee \(storedFeePriorityText)")
+        }
+
+        if let storedFeeRateText {
+            parts.append(storedFeeRateText)
+        }
+
+        if let storedConfirmationCountText {
+            parts.append(storedConfirmationCountText)
+        }
+
+        if let usedChangeOutput = usedChangeOutput ?? dogecoinUsedChangeOutput, kind == .send {
+            parts.append(usedChangeOutput ? "change output" : "no change output")
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " • ")
+    }
+
     var dogecoinConfirmationsText: String? {
         guard chainName == "Dogecoin",
               let dogecoinConfirmations else { return nil }
@@ -1329,6 +1603,44 @@ extension TransactionRecord {
     var transactionExplorerLabel: String? {
         guard transactionHash != nil else { return nil }
         return ChainBackendRegistry.ExplorerRegistry.transactionLabel(for: chainName)
+    }
+
+    var rebroadcastPayload: String? {
+        if let signedTransactionPayload {
+            let trimmed = signedTransactionPayload.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        if let dogecoinRawTransactionHex {
+            let trimmed = dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        return nil
+    }
+
+    var rebroadcastPayloadFormat: String? {
+        if let signedTransactionPayloadFormat {
+            let trimmed = signedTransactionPayloadFormat.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        if let dogecoinRawTransactionHex,
+           !dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "dogecoin.raw_hex"
+        }
+
+        return nil
+    }
+
+    var supportsSignedRebroadcast: Bool {
+        kind == .send && rebroadcastPayload != nil && rebroadcastPayloadFormat != nil
     }
 }
 

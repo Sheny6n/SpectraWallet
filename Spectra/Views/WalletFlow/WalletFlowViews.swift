@@ -336,7 +336,6 @@ struct QRCodeImage: View {
 struct WalletDetailView: View {
     let store: WalletStore
     @ObservedObject private var portfolioState: WalletPortfolioState
-    @ObservedObject private var transactionState: WalletTransactionState
     @ObservedObject private var flowState: WalletFlowState
     let wallet: ImportedWallet
     @Environment(\.dismiss) private var dismiss
@@ -349,12 +348,12 @@ struct WalletDetailView: View {
     @State private var isRevealingSeedPhrase: Bool = false
     @State private var didCopyWalletAddress: Bool = false
     @State private var isShowingDeleteWalletAlert: Bool = false
+    @State private var isShowingAdvancedPage: Bool = false
 
     init(store: WalletStore, wallet: ImportedWallet) {
         self.store = store
         self.wallet = wallet
         _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
-        _transactionState = ObservedObject(wrappedValue: store.transactionState)
         _flowState = ObservedObject(wrappedValue: store.flowState)
     }
 
@@ -567,13 +566,9 @@ struct WalletDetailView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     detailRow(label: "Mode", value: isWatchOnly ? "Watch Addresses" : (isPrivateKeyWallet ? "Private Key" : "Seed-Based"))
-                    if let derivationPathsText = detailPresentation.derivationPathsText {
-                        detailRow(label: "Derivation Paths", value: derivationPathsText)
-                    }
                     detailRow(label: "Current Value", value: detailPresentation.walletTotalValueText)
                     detailRow(label: "Asset Count", value: "\(detailPresentation.nonZeroAssetCount)")
                     detailRow(label: "First Activity", value: firstActivityDateText)
-                    detailRow(label: "Wallet ID", value: detailPresentation.wallet.id.uuidString)
                 }
                 .padding(16)
                 .spectraBubbleFill()
@@ -721,6 +716,19 @@ struct WalletDetailView: View {
         }
         .navigationTitle("Wallet Details")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Advanced") {
+                    isShowingAdvancedPage = true
+                }
+            }
+        }
+        .navigationDestination(isPresented: $isShowingAdvancedPage) {
+            WalletAdvancedDetailsView(
+                walletID: detailPresentation.wallet.id.uuidString,
+                derivationPathsText: detailPresentation.derivationPathsText
+            )
+        }
         .navigationDestination(isPresented: Binding(
             get: { flowState.isShowingWalletImporter && flowState.editingWalletID == wallet.id },
             set: { isPresented in
@@ -879,6 +887,47 @@ struct WalletDetailView: View {
             seedPhraseErrorMessage = error.localizedDescription
         }
     }
+}
+
+private struct WalletAdvancedDetailsView: View {
+    let walletID: String
+    let derivationPathsText: String?
+
+    var body: some View {
+        ZStack {
+            SpectraBackdrop()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        walletDetailRow(label: "Wallet ID", value: walletID)
+                        if let derivationPathsText {
+                            walletDetailRow(label: "Derivation Paths", value: derivationPathsText)
+                        }
+                    }
+                    .padding(16)
+                    .spectraBubbleFill()
+                    .glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }
+                .padding(20)
+            }
+        }
+        .navigationTitle("Advanced")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private func walletDetailRow(label: String, value: String) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+        Text(NSLocalizedString(label, comment: ""))
+            .font(.caption)
+            .foregroundStyle(Color.primary.opacity(0.65))
+        Text(value)
+            .font(.subheadline)
+            .foregroundStyle(Color.primary)
+            .textSelection(.enabled)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
 }
 
 func walletFlowLocalizedFormat(_ key: String, _ arguments: CVarArg...) -> String {

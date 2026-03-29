@@ -40,6 +40,7 @@ struct ICPHistoryDiagnostics: Equatable {
 
 enum ICPBalanceService {
     static let rosettaEndpoints = ChainBackendRegistry.ICPRuntimeEndpoints.rosettaBaseURLs
+    private static let endpointReliabilityNamespace = "icp.rosetta"
 
     private static let networkIdentifier = NetworkIdentifier(
         blockchain: "Internet Computer",
@@ -111,6 +112,7 @@ enum ICPBalanceService {
                 let request = SearchTransactionsRequest(
                     networkIdentifier: networkIdentifier,
                     accountIdentifier: AccountIdentifier(address: normalized),
+                    transactionIdentifier: nil,
                     limit: boundedLimit
                 )
                 let response: SearchTransactionsResponse = try await post(
@@ -151,7 +153,7 @@ enum ICPBalanceService {
         }
 
         var lastError: Error?
-        for endpoint in rosettaEndpoints {
+        for endpoint in orderedRosettaEndpoints() {
             do {
                 let request = ConstructionSubmitRequest(
                     networkIdentifier: networkIdentifier,
@@ -166,13 +168,51 @@ enum ICPBalanceService {
                       !hash.isEmpty else {
                     throw ICPBalanceServiceError.invalidResponse
                 }
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
                 return hash
             } catch {
                 lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
 
         throw lastError ?? ICPBalanceServiceError.invalidResponse
+    }
+
+    static func verifyTransactionIfAvailable(_ transactionHash: String) async -> SendBroadcastVerificationStatus {
+        let normalizedHash = transactionHash.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedHash.isEmpty else {
+            return .deferred
+        }
+
+        var lastError: String?
+        for endpoint in orderedRosettaEndpoints() {
+            do {
+                let request = SearchTransactionsRequest(
+                    networkIdentifier: networkIdentifier,
+                    accountIdentifier: nil,
+                    transactionIdentifier: TransactionIdentifier(hash: normalizedHash),
+                    limit: 1
+                )
+                let response: SearchTransactionsResponse = try await post(
+                    endpoint: endpoint,
+                    path: "/search/transactions",
+                    requestBody: request
+                )
+                if response.transactions.contains(where: {
+                    $0.transaction.transactionIdentifier.hash?.caseInsensitiveCompare(normalizedHash) == .orderedSame
+                }) {
+                    return .verified
+                }
+            } catch {
+                lastError = error.localizedDescription
+            }
+        }
+
+        if let lastError {
+            return .failed(lastError)
+        }
+        return .deferred
     }
 
     private static func snapshot(from entry: SearchTransactionEntry, ownerAddress: String) -> ICPHistorySnapshot? {
@@ -248,6 +288,13 @@ enum ICPBalanceService {
         NSDecimalNumber(decimal: decimal).doubleValue
     }
 
+    private static func orderedRosettaEndpoints() -> [String] {
+        ChainEndpointReliability.orderedEndpoints(
+            namespace: endpointReliabilityNamespace,
+            candidates: rosettaEndpoints
+        )
+    }
+
 }
 
 private struct NetworkIdentifier: Codable {
@@ -279,12 +326,14 @@ private struct AccountBalanceResponse: Codable {
 
 private struct SearchTransactionsRequest: Codable {
     let networkIdentifier: NetworkIdentifier
-    let accountIdentifier: AccountIdentifier
+    let accountIdentifier: AccountIdentifier?
+    let transactionIdentifier: TransactionIdentifier?
     let limit: Int
 
     enum CodingKeys: String, CodingKey {
         case networkIdentifier = "network_identifier"
         case accountIdentifier = "account_identifier"
+        case transactionIdentifier = "transaction_identifier"
         case limit
     }
 }

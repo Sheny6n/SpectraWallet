@@ -172,6 +172,7 @@ enum BitcoinBalanceService {
         case blockstream
         case mempool
         case mempoolEmzy
+        case maestro
     }
 
     private static func baseURL(for provider: EsploraProvider, networkMode: BitcoinNetworkMode) -> String {
@@ -183,6 +184,8 @@ enum BitcoinBalanceService {
             return endpoints[1]
         case .mempoolEmzy:
             return endpoints.count > 2 ? endpoints[2] : endpoints[1]
+        case .maestro:
+            return endpoints.count > 3 ? endpoints[3] : endpoints[0]
         }
     }
 

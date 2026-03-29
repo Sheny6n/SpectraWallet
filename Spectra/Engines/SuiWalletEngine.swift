@@ -39,18 +39,25 @@ struct SuiSendPreview: Equatable {
     let estimatedNetworkFeeSUI: Double
     let gasBudgetMist: UInt64
     let referenceGasPrice: UInt64
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct SuiSendResult: Equatable {
     let transactionHash: String
     let estimatedNetworkFeeSUI: Double
+    let signedTransactionPayloadJSON: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
 enum SuiWalletEngine {
-    private static let endpoint = ChainBackendRegistry.SuiRuntimeEndpoints.primaryRPCURL
     private static let suiCoinType = "0x2::sui::SUI"
     private static let defaultGasBudgetMist: UInt64 = 3_000_000
+    private static let endpointReliabilityNamespace = "sui.rpc"
 
     private struct RPCEnvelope<ResultType: Decodable>: Decodable {
         let result: ResultType?
@@ -135,10 +142,18 @@ enum SuiWalletEngine {
 
         let gasPrice = try await fetchReferenceGasPrice()
         let estimatedFee = Double(defaultGasBudgetMist) * Double(gasPrice) / 1_000_000_000.0
+        let balanceSUI = try await SuiBalanceService.fetchBalance(for: normalizedOwner)
+        let maxSendable = max(0, balanceSUI - estimatedFee)
         return SuiSendPreview(
             estimatedNetworkFeeSUI: estimatedFee,
             gasBudgetMist: defaultGasBudgetMist,
-            referenceGasPrice: gasPrice
+            referenceGasPrice: gasPrice,
+            spendableBalance: maxSendable,
+            feeRateDescription: "Reference gas price: \(gasPrice)",
+            estimatedTransactionBytes: nil,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: maxSendable
         )
     }
 
@@ -218,11 +233,52 @@ enum SuiWalletEngine {
             throw SuiWalletEngineError.signingFailed("WalletCore returned empty transaction or signature payload.")
         }
 
-        let digest = try await executeTransactionBlock(txBytesBase64: unsignedTx, signatureBase64: signature)
+        let digest: String
+        do {
+            digest = try await executeTransactionBlock(txBytesBase64: unsignedTx, signatureBase64: signature)
+        } catch {
+            guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                  let recoveredDigest = await recoverRecentTransactionHashIfAvailable(
+                      ownerAddress: normalizedOwner,
+                      destinationAddress: normalizedDestination,
+                      amount: amount
+                  ) else {
+                throw error
+            }
+            digest = recoveredDigest
+        }
         return SuiSendResult(
             transactionHash: digest,
             estimatedNetworkFeeSUI: preview.estimatedNetworkFeeSUI,
-            verificationStatus: .verified
+            signedTransactionPayloadJSON: "{\"txBytesBase64\":\"\(unsignedTx)\",\"signatureBase64\":\"\(signature)\"}",
+            verificationStatus: await verifyBroadcastedTransactionIfAvailable(
+                ownerAddress: normalizedOwner,
+                transactionHash: digest
+            )
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        signedTransactionPayloadJSON: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> SuiSendResult {
+        let payloadData = Data(signedTransactionPayloadJSON.utf8)
+        guard let payload = try JSONSerialization.jsonObject(with: payloadData) as? [String: String],
+              let txBytesBase64 = payload["txBytesBase64"],
+              let signatureBase64 = payload["signatureBase64"],
+              Data(base64Encoded: txBytesBase64) != nil,
+              Data(base64Encoded: signatureBase64) != nil else {
+            throw SuiWalletEngineError.invalidResponse
+        }
+        let digest = try await executeTransactionBlock(txBytesBase64: txBytesBase64, signatureBase64: signatureBase64)
+        let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : digest
+        return SuiSendResult(
+            transactionHash: transactionHash,
+            estimatedNetworkFeeSUI: 0,
+            signedTransactionPayloadJSON: signedTransactionPayloadJSON,
+            verificationStatus: await verifyBroadcastedTransactionByHashIfAvailable(transactionHash: transactionHash)
         )
     }
 
@@ -310,49 +366,124 @@ enum SuiWalletEngine {
             ]
         ]
 
-        let result: ExecuteResult = try await postRPC(payload: payload, profile: .chainWrite)
-        let status = result.effects?.status?.status?.lowercased()
-        if let status, status != "success" {
-            let message = result.effects?.status?.error ?? "Sui execute reported status: \(status)."
-            throw SuiWalletEngineError.broadcastFailed(message)
-        }
+        var lastError: Error?
+        for attempt in 0 ..< 2 {
+            do {
+                let result: ExecuteResult = try await postRPC(payload: payload, profile: .chainWrite)
+                let status = result.effects?.status?.status?.lowercased()
+                if let status, status != "success" {
+                    let message = result.effects?.status?.error ?? "Sui execute reported status: \(status)."
+                    throw SuiWalletEngineError.broadcastFailed(message)
+                }
 
-        guard let digest = result.digest?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !digest.isEmpty else {
-            throw SuiWalletEngineError.broadcastFailed("Missing transaction digest from Sui execute response.")
+                guard let digest = result.digest?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !digest.isEmpty else {
+                    throw SuiWalletEngineError.broadcastFailed("Missing transaction digest from Sui execute response.")
+                }
+                return digest
+            } catch {
+                lastError = error
+                if attempt < 1, classifySendBroadcastFailure(error.localizedDescription) == .retryable {
+                    continue
+                }
+                break
+            }
         }
-        return digest
+        throw lastError ?? SuiWalletEngineError.broadcastFailed("Sui transaction execution failed.")
+    }
+
+    private static func verifyBroadcastedTransactionIfAvailable(
+        ownerAddress: String,
+        transactionHash: String
+    ) async -> SendBroadcastVerificationStatus {
+        let normalizedHash = transactionHash.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedHash.isEmpty else { return .deferred }
+        let result = await SuiBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 40)
+        if result.snapshots.contains(where: { $0.transactionHash.lowercased() == normalizedHash }) {
+            return .verified
+        }
+        if let error = result.diagnostics.error, !error.isEmpty {
+            return .failed(error)
+        }
+        return .deferred
+    }
+
+    private static func recoverRecentTransactionHashIfAvailable(
+        ownerAddress: String,
+        destinationAddress: String,
+        amount: Double
+    ) async -> String? {
+        let result = await SuiBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 20)
+        return result.snapshots.first {
+            $0.kind == .send
+                && abs($0.amount - amount) < 0.000000001
+                && $0.counterpartyAddress.lowercased() == destinationAddress.lowercased()
+        }?.transactionHash
+    }
+
+    private static func verifyBroadcastedTransactionByHashIfAvailable(
+        transactionHash: String
+    ) async -> SendBroadcastVerificationStatus {
+        let normalizedHash = transactionHash.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedHash.isEmpty else { return .deferred }
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sui_getTransactionBlock",
+            "params": [normalizedHash, ["showEffects": true]]
+        ]
+        do {
+            let _: ExecuteResult = try await postRPC(payload: payload, profile: .chainRead)
+            return .verified
+        } catch {
+            return .failed(error.localizedDescription)
+        }
     }
 
     private static func postRPC<ResultType: Decodable>(
         payload: [String: Any],
         profile: NetworkRetryProfile
     ) async throws -> ResultType {
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
+        let body = try JSONSerialization.data(withJSONObject: payload, options: [])
+        var lastError: Error?
 
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: profile)
-        } catch {
-            throw SuiWalletEngineError.networkError(error.localizedDescription)
+        for endpoint in orderedRPCEndpoints() {
+            var request = URLRequest(url: endpoint)
+            request.httpMethod = "POST"
+            request.timeoutInterval = 20
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+
+            do {
+                let (data, response): (Data, URLResponse) = try await SpectraNetworkRouter.shared.data(for: request, profile: profile)
+                guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+                    let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                    throw SuiWalletEngineError.networkError("HTTP \(code)")
+                }
+
+                let decoded = try JSONDecoder().decode(RPCEnvelope<ResultType>.self, from: data)
+                if let result = decoded.result {
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                    return result
+                }
+
+                let message = decoded.error?.message ?? "Unknown Sui RPC error"
+                throw SuiWalletEngineError.networkError(message)
+            } catch {
+                lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+            }
         }
 
-        guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw SuiWalletEngineError.networkError("HTTP \(code)")
-        }
+        throw lastError ?? SuiWalletEngineError.networkError("Unknown Sui RPC error")
+    }
 
-        let decoded = try JSONDecoder().decode(RPCEnvelope<ResultType>.self, from: data)
-        if let result = decoded.result {
-            return result
-        }
-
-        let message = decoded.error?.message ?? "Unknown Sui RPC error"
-        throw SuiWalletEngineError.networkError(message)
+    private static func orderedRPCEndpoints() -> [URL] {
+        let ordered = ChainEndpointReliability.orderedEndpoints(
+            namespace: endpointReliabilityNamespace,
+            candidates: ChainBackendRegistry.SuiRuntimeEndpoints.rpcBaseURLs
+        )
+        return ordered.compactMap(URL.init(string:))
     }
 
     private static func normalizeAddress(_ address: String) -> String {

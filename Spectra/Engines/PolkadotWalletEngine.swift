@@ -33,16 +33,24 @@ enum PolkadotWalletEngineError: LocalizedError {
 
 struct PolkadotSendPreview: Equatable {
     let estimatedNetworkFeeDOT: Double
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct PolkadotSendResult: Equatable {
     let transactionHash: String
     let estimatedNetworkFeeDOT: Double
+    let signedExtrinsicHex: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
 enum PolkadotWalletEngine {
     private static let dotDivisor = Decimal(string: "10000000000")!
+    private static let endpointReliabilityNamespace = "polkadot.sidecar"
 
     static func derivedAddress(for seedPhrase: String, derivationPath: String = "m/44'/354'/0'") throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
@@ -72,7 +80,17 @@ enum PolkadotWalletEngine {
             derivationPath: derivationPath
         )
         let fee = try await fetchFeeEstimate(for: prepared.encodedExtrinsicHex)
-        return PolkadotSendPreview(estimatedNetworkFeeDOT: fee)
+        let balanceDOT = try await PolkadotBalanceService.fetchBalance(for: ownerAddress)
+        let maxSendable = max(0, balanceDOT - fee)
+        return PolkadotSendPreview(
+            estimatedNetworkFeeDOT: fee,
+            spendableBalance: maxSendable,
+            feeRateDescription: nil,
+            estimatedTransactionBytes: prepared.encodedExtrinsicHex.count / 2,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: maxSendable
+        )
     }
 
     static func sendInBackground(
@@ -90,7 +108,20 @@ enum PolkadotWalletEngine {
             derivationPath: derivationPath
         )
         let fee = (try? await fetchFeeEstimate(for: prepared.encodedExtrinsicHex)) ?? 0
-        let transactionHash = try await broadcastExtrinsic(prepared.encodedExtrinsicHex)
+        let transactionHash: String
+        do {
+            transactionHash = try await broadcastExtrinsic(prepared.encodedExtrinsicHex)
+        } catch {
+            guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                  let recoveredHash = await recoverRecentTransactionHashIfAvailable(
+                      ownerAddress: ownerAddress,
+                      destinationAddress: destinationAddress,
+                      amount: amount
+                  ) else {
+                throw error
+            }
+            transactionHash = recoveredHash
+        }
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(
             ownerAddress: ownerAddress,
             transactionHash: transactionHash
@@ -98,7 +129,30 @@ enum PolkadotWalletEngine {
         return PolkadotSendResult(
             transactionHash: transactionHash,
             estimatedNetworkFeeDOT: fee,
+            signedExtrinsicHex: prepared.encodedExtrinsicHex,
             verificationStatus: verificationStatus
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        signedExtrinsicHex: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> PolkadotSendResult {
+        let normalizedExtrinsic = signedExtrinsicHex.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hexPayload = normalizedExtrinsic.hasPrefix("0x") ? String(normalizedExtrinsic.dropFirst(2)) : normalizedExtrinsic
+        guard !hexPayload.isEmpty,
+              Data(hexString: hexPayload) != nil else {
+            throw PolkadotWalletEngineError.invalidResponse
+        }
+        let transactionHash = try await broadcastExtrinsic(normalizedExtrinsic)
+        let recoveredHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : transactionHash
+        return PolkadotSendResult(
+            transactionHash: recoveredHash,
+            estimatedNetworkFeeDOT: 0,
+            signedExtrinsicHex: normalizedExtrinsic,
+            verificationStatus: await PolkadotBalanceService.verifyTransactionIfAvailable(recoveredHash)
         )
     }
 
@@ -236,7 +290,7 @@ enum PolkadotWalletEngine {
 
     private static func fetchTransactionMaterial() async throws -> TransactionMaterial {
         var lastError: Error?
-        for endpoint in PolkadotBalanceService.sidecarEndpointCatalog() {
+        for endpoint in orderedSidecarEndpoints() {
             guard let url = URL(string: "\(endpoint)/transaction/material") else { continue }
             do {
                 let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
@@ -244,9 +298,12 @@ enum PolkadotWalletEngine {
                       (200 ... 299).contains(http.statusCode) else {
                     throw PolkadotWalletEngineError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
-                return try JSONDecoder().decode(TransactionMaterial.self, from: data)
+                let decoded = try JSONDecoder().decode(TransactionMaterial.self, from: data)
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                return decoded
             } catch {
                 lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
         throw lastError ?? PolkadotWalletEngineError.invalidResponse
@@ -254,7 +311,7 @@ enum PolkadotWalletEngine {
 
     private static func fetchNonce(for address: String) async throws -> Int {
         var lastError: Error?
-        for endpoint in PolkadotBalanceService.sidecarEndpointCatalog() {
+        for endpoint in orderedSidecarEndpoints() {
             guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
                   let url = URL(string: "\(endpoint)/accounts/\(encoded)/balance-info") else { continue }
             do {
@@ -264,9 +321,11 @@ enum PolkadotWalletEngine {
                     throw PolkadotWalletEngineError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
                 let info = try JSONDecoder().decode(SidecarBalanceInfo.self, from: data)
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
                 return info.nonce ?? 0
             } catch {
                 lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
         throw lastError ?? PolkadotWalletEngineError.invalidResponse
@@ -275,7 +334,7 @@ enum PolkadotWalletEngine {
     private static func fetchFeeEstimate(for extrinsicHex: String) async throws -> Double {
         let payload = try JSONSerialization.data(withJSONObject: ["tx": extrinsicHex], options: [])
         var lastError: Error?
-        for endpoint in PolkadotBalanceService.sidecarEndpointCatalog() {
+        for endpoint in orderedSidecarEndpoints() {
             guard let url = URL(string: "\(endpoint)/transaction/fee-estimate") else { continue }
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
@@ -292,6 +351,7 @@ enum PolkadotWalletEngine {
                 let envelope = try JSONDecoder().decode(FeeEstimateEnvelope.self, from: data)
                 if let feeText = envelope.estimatedFee ?? envelope.partialFee,
                    let fee = Decimal(string: feeText) {
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
                     return decimalToDouble(fee / dotDivisor)
                 }
                 if let inclusion = envelope.inclusionFee {
@@ -300,12 +360,14 @@ enum PolkadotWalletEngine {
                     let adjusted = Decimal(string: inclusion.adjustedWeightFee ?? "0") ?? 0
                     let total = base + len + adjusted
                     if total > 0 {
+                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
                         return decimalToDouble(total / dotDivisor)
                     }
                 }
                 throw PolkadotWalletEngineError.invalidResponse
             } catch {
                 lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
         throw lastError ?? PolkadotWalletEngineError.invalidResponse
@@ -314,36 +376,60 @@ enum PolkadotWalletEngine {
     private static func broadcastExtrinsic(_ extrinsicHex: String) async throws -> String {
         let payload = try JSONSerialization.data(withJSONObject: ["tx": extrinsicHex], options: [])
         var lastError: Error?
-        for endpoint in PolkadotBalanceService.sidecarEndpointCatalog() {
+        for endpoint in orderedSidecarEndpoints() {
             guard let url = URL(string: "\(endpoint)/transaction") else { continue }
-            var request = URLRequest(url: url)
-            request.httpMethod = "POST"
-            request.timeoutInterval = 20
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = payload
+            for attempt in 0 ..< 2 {
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.timeoutInterval = 20
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = payload
 
-            do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
-                guard let http = response as? HTTPURLResponse,
-                      (200 ... 299).contains(http.statusCode) else {
-                    throw PolkadotWalletEngineError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                do {
+                    let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                    guard let http = response as? HTTPURLResponse,
+                          (200 ... 299).contains(http.statusCode) else {
+                        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+                        let body = String(data: data, encoding: .utf8) ?? "HTTP \(statusCode)"
+                        throw PolkadotWalletEngineError.networkError(body)
+                    }
+                    if let envelope = try? JSONDecoder().decode(BroadcastEnvelope.self, from: data),
+                       let hash = envelope.hash ?? envelope.txHash,
+                       !hash.isEmpty {
+                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                        return hash
+                    }
+                    if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let hash = object["hash"] as? String ?? object["txHash"] as? String,
+                       !hash.isEmpty {
+                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                        return hash
+                    }
+                    throw PolkadotWalletEngineError.invalidResponse
+                } catch {
+                    lastError = error
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
+                    if attempt < 1, classifySendBroadcastFailure(error.localizedDescription) == .retryable {
+                        continue
+                    }
+                    break
                 }
-                if let envelope = try? JSONDecoder().decode(BroadcastEnvelope.self, from: data),
-                   let hash = envelope.hash ?? envelope.txHash,
-                   !hash.isEmpty {
-                    return hash
-                }
-                if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let hash = object["hash"] as? String ?? object["txHash"] as? String,
-                   !hash.isEmpty {
-                    return hash
-                }
-                throw PolkadotWalletEngineError.invalidResponse
-            } catch {
-                lastError = error
             }
         }
         throw lastError ?? PolkadotWalletEngineError.broadcastFailed("All Polkadot broadcast endpoints failed.")
+    }
+
+    private static func recoverRecentTransactionHashIfAvailable(
+        ownerAddress: String,
+        destinationAddress: String,
+        amount: Double
+    ) async -> String? {
+        let result = await PolkadotBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 20)
+        return result.snapshots.first {
+            $0.kind == .send
+                && abs($0.amount - amount) < 0.0000000001
+                && $0.counterpartyAddress.lowercased() == destinationAddress.lowercased()
+        }?.transactionHash
     }
 
     private static func planckData(fromDOT amount: Double) throws -> Data {
@@ -375,9 +461,32 @@ enum PolkadotWalletEngine {
     private static func decimalToDouble(_ value: Decimal) -> Double {
         NSDecimalNumber(decimal: value).doubleValue
     }
+
+    private static func orderedSidecarEndpoints() -> [String] {
+        ChainEndpointReliability.orderedEndpoints(
+            namespace: endpointReliabilityNamespace,
+            candidates: PolkadotBalanceService.sidecarEndpointCatalog()
+        )
+    }
 }
 
 private extension Data {
+    init?(hexString: String) {
+        let cleaned = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count.isMultiple(of: 2) else { return nil }
+        var data = Data(capacity: cleaned.count / 2)
+        var index = cleaned.startIndex
+        while index < cleaned.endIndex {
+            let next = cleaned.index(index, offsetBy: 2)
+            guard let byte = UInt8(cleaned[index ..< next], radix: 16) else {
+                return nil
+            }
+            data.append(byte)
+            index = next
+        }
+        self = data
+    }
+
     var hexString: String {
         map { String(format: "%02x", $0) }.joined()
     }

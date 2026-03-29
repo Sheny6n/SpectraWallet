@@ -37,11 +37,18 @@ enum NearWalletEngineError: LocalizedError {
 struct NearSendPreview: Equatable {
     let estimatedNetworkFeeNEAR: Double
     let gasPriceYoctoNear: String
+    let spendableBalance: Double
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double
 }
 
 struct NearSendResult: Equatable {
     let transactionHash: String
     let estimatedNetworkFeeNEAR: Double
+    let signedTransactionBase64: String
     let verificationStatus: SendBroadcastVerificationStatus
 }
 
@@ -50,6 +57,7 @@ enum NearWalletEngine {
     private static let defaultGasPriceYocto = Decimal(string: "100000000")!
     private static let estimatedTransferGasUnits = Decimal(string: "450000000000")!
     private static let base58Alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+    private static let endpointReliabilityNamespace = "near.rpc"
 
     private struct RPCEnvelope<ResultType: Decodable>: Decodable {
         let result: ResultType?
@@ -108,6 +116,11 @@ enum NearWalletEngine {
         let depositYocto: String
     }
 
+    private struct BroadcastOutcome {
+        let transactionHash: String
+        let isCommitted: Bool
+    }
+
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
             seedPhrase: seedPhrase,
@@ -135,9 +148,17 @@ enum NearWalletEngine {
         let gasPriceYocto = try await fetchGasPriceYocto()
         let estimatedFeeYocto = gasPriceYocto * estimatedTransferGasUnits
         let estimatedFeeNEAR = decimalToDouble(estimatedFeeYocto / yoctoMultiplier)
+        let balanceNEAR = try await NearBalanceService.fetchBalance(for: normalizedOwner)
+        let maxSendable = max(0, balanceNEAR - estimatedFeeNEAR)
         return NearSendPreview(
             estimatedNetworkFeeNEAR: estimatedFeeNEAR,
-            gasPriceYoctoNear: NSDecimalNumber(decimal: gasPriceYocto).stringValue
+            gasPriceYoctoNear: NSDecimalNumber(decimal: gasPriceYocto).stringValue,
+            spendableBalance: maxSendable,
+            feeRateDescription: NSDecimalNumber(decimal: gasPriceYocto).stringValue,
+            estimatedTransactionBytes: nil,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: maxSendable
         )
     }
 
@@ -195,16 +216,57 @@ enum NearWalletEngine {
         }
 
         let signedTransaction = try serializeSignedTransaction(transaction: transaction, signature: signature)
-        let transactionHash = try await broadcastSignedTransaction(signedTransaction)
+        let broadcastOutcome: BroadcastOutcome
+        do {
+            broadcastOutcome = try await broadcastSignedTransaction(signedTransaction)
+        } catch {
+            guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
+                  let recoveredHash = await recoverRecentTransactionHashIfAvailable(
+                      ownerAddress: normalizedOwner,
+                      destinationAddress: normalizedDestination,
+                      amount: amount
+                  ) else {
+                throw error
+            }
+            broadcastOutcome = BroadcastOutcome(transactionHash: recoveredHash, isCommitted: false)
+        }
         let preview = try await estimateSendPreview(
             from: normalizedOwner,
             to: normalizedDestination,
             amount: amount
         )
         return NearSendResult(
-            transactionHash: transactionHash,
+            transactionHash: broadcastOutcome.transactionHash,
             estimatedNetworkFeeNEAR: preview.estimatedNetworkFeeNEAR,
-            verificationStatus: .verified
+            signedTransactionBase64: signedTransaction.base64EncodedString(),
+            verificationStatus: broadcastOutcome.isCommitted
+                ? .verified
+                : await verifyBroadcastedTransactionIfAvailable(
+                    ownerAddress: normalizedOwner,
+                    transactionHash: broadcastOutcome.transactionHash
+                )
+        )
+    }
+
+    static func rebroadcastSignedTransactionInBackground(
+        signedTransactionBase64: String,
+        expectedTransactionHash: String? = nil
+    ) async throws -> NearSendResult {
+        let normalizedPayload = signedTransactionBase64.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedPayload.isEmpty,
+              let signedTransaction = Data(base64Encoded: normalizedPayload),
+              !signedTransaction.isEmpty else {
+            throw NearWalletEngineError.invalidResponse
+        }
+        let broadcastOutcome = try await broadcastSignedTransaction(signedTransaction)
+        let recoveredHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : broadcastOutcome.transactionHash
+        return NearSendResult(
+            transactionHash: recoveredHash,
+            estimatedNetworkFeeNEAR: 0,
+            signedTransactionBase64: normalizedPayload,
+            verificationStatus: broadcastOutcome.isCommitted ? .verified : .deferred
         )
     }
 
@@ -222,17 +284,21 @@ enum NearWalletEngine {
         ]
 
         var lastError: Error?
-        for endpoint in NearBalanceService.rpcEndpointCatalog() {
+        for endpoint in orderedRPCEndpoints() {
             do {
-                return try await postRPC(payload: payload, endpoint: endpoint)
+                let result: AccessKeyResult = try await postRPC(payload: payload, endpoint: endpoint)
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                return result
             } catch let error as NearWalletEngineError {
                 if case .broadcastFailed(let message) = error,
                    message.localizedCaseInsensitiveContains("does not exist") {
                     throw NearWalletEngineError.accessKeyUnavailable
                 }
                 lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
             } catch {
                 lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
         throw lastError ?? NearWalletEngineError.accessKeyUnavailable
@@ -246,21 +312,24 @@ enum NearWalletEngine {
             "params": [NSNull()]
         ]
 
-        for endpoint in NearBalanceService.rpcEndpointCatalog() {
+        for endpoint in orderedRPCEndpoints() {
             do {
                 let result: GasPriceResult = try await postRPC(payload: payload, endpoint: endpoint)
                 if let decimal = Decimal(string: result.gasPrice) {
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
                     return decimal
                 }
             } catch {
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
                 continue
             }
         }
         return defaultGasPriceYocto
     }
 
-    private static func broadcastSignedTransaction(_ payload: Data) async throws -> String {
+    private static func broadcastSignedTransaction(_ payload: Data) async throws -> BroadcastOutcome {
         let encodedTransaction = payload.base64EncodedString()
+        let fallbackHash = signedTransactionHash(payload)
         let requestPayload: [String: Any] = [
             "jsonrpc": "2.0",
             "id": "spectra-near-broadcast",
@@ -269,55 +338,106 @@ enum NearWalletEngine {
         ]
 
         var lastError: Error?
-        for endpoint in NearBalanceService.rpcEndpointCatalog() {
+        for endpoint in orderedRPCEndpoints() {
             guard let url = URL(string: endpoint) else { continue }
-            do {
-                var request = URLRequest(url: url)
-                request.httpMethod = "POST"
-                request.timeoutInterval = 30
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.httpBody = try JSONSerialization.data(withJSONObject: requestPayload, options: [])
+            for attempt in 0 ..< 2 {
+                do {
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "POST"
+                    request.timeoutInterval = 30
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    request.httpBody = try JSONSerialization.data(withJSONObject: requestPayload, options: [])
 
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
-                guard let http = response as? HTTPURLResponse else {
-                    throw NearWalletEngineError.invalidResponse
-                }
-                guard (200 ... 299).contains(http.statusCode) else {
-                    throw NearWalletEngineError.networkError("NEAR RPC returned HTTP \(http.statusCode).")
-                }
+                    let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw NearWalletEngineError.invalidResponse
+                    }
+                    guard (200 ... 299).contains(http.statusCode) else {
+                        throw NearWalletEngineError.networkError("NEAR RPC returned HTTP \(http.statusCode).")
+                    }
 
-                guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                        throw NearWalletEngineError.invalidResponse
+                    }
+                    if let error = root["error"] as? [String: Any] {
+                        let message = (error["message"] as? String)
+                            ?? ((error["cause"] as? [String: Any])?["info"] as? String)
+                            ?? "Unknown NEAR RPC error."
+                        let failure = NearWalletEngineError.broadcastFailed(message)
+                        if classifySendBroadcastFailure(message) == .alreadyBroadcast {
+                            return BroadcastOutcome(transactionHash: fallbackHash, isCommitted: false)
+                        }
+                        throw failure
+                    }
+                    guard let result = root["result"] as? [String: Any] else {
+                        throw NearWalletEngineError.invalidResponse
+                    }
+                    if let status = result["status"] as? [String: Any],
+                       let failure = status["Failure"] {
+                        let message = String(describing: failure)
+                        if classifySendBroadcastFailure(message) == .alreadyBroadcast {
+                            return BroadcastOutcome(transactionHash: fallbackHash, isCommitted: false)
+                        }
+                        throw NearWalletEngineError.broadcastFailed(message)
+                    }
+                    if let transaction = result["transaction"] as? [String: Any],
+                       let hash = transaction["hash"] as? String,
+                       !hash.isEmpty {
+                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                        return BroadcastOutcome(transactionHash: hash, isCommitted: true)
+                    }
+                    if let outcome = result["transaction_outcome"] as? [String: Any],
+                       let id = outcome["id"] as? String,
+                       !id.isEmpty {
+                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                        return BroadcastOutcome(transactionHash: id, isCommitted: true)
+                    }
                     throw NearWalletEngineError.invalidResponse
+                } catch {
+                    lastError = error
+                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
+                    if attempt < 1, classifySendBroadcastFailure(error.localizedDescription) == .retryable {
+                        continue
+                    }
+                    break
                 }
-                if let error = root["error"] as? [String: Any] {
-                    let message = (error["message"] as? String)
-                        ?? ((error["cause"] as? [String: Any])?["info"] as? String)
-                        ?? "Unknown NEAR RPC error."
-                    throw NearWalletEngineError.broadcastFailed(message)
-                }
-                guard let result = root["result"] as? [String: Any] else {
-                    throw NearWalletEngineError.invalidResponse
-                }
-                if let status = result["status"] as? [String: Any],
-                   let failure = status["Failure"] {
-                    throw NearWalletEngineError.broadcastFailed(String(describing: failure))
-                }
-                if let transaction = result["transaction"] as? [String: Any],
-                   let hash = transaction["hash"] as? String,
-                   !hash.isEmpty {
-                    return hash
-                }
-                if let outcome = result["transaction_outcome"] as? [String: Any],
-                   let id = outcome["id"] as? String,
-                   !id.isEmpty {
-                    return id
-                }
-                throw NearWalletEngineError.invalidResponse
-            } catch {
-                lastError = error
             }
         }
         throw lastError ?? NearWalletEngineError.broadcastFailed("All NEAR broadcast endpoints failed.")
+    }
+
+    private static func verifyBroadcastedTransactionIfAvailable(
+        ownerAddress: String,
+        transactionHash: String
+    ) async -> SendBroadcastVerificationStatus {
+        let normalizedHash = transactionHash.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedHash.isEmpty else { return .deferred }
+        let result = await NearBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 40)
+        if result.snapshots.contains(where: { $0.transactionHash.lowercased() == normalizedHash }) {
+            return .verified
+        }
+        if let error = result.diagnostics.error, !error.isEmpty {
+            return .failed(error)
+        }
+        return .deferred
+    }
+
+    private static func recoverRecentTransactionHashIfAvailable(
+        ownerAddress: String,
+        destinationAddress: String,
+        amount: Double
+    ) async -> String? {
+        let result = await NearBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 20)
+        return result.snapshots.first {
+            $0.kind == .send
+                && abs($0.amount - amount) < 0.000000000001
+                && $0.counterpartyAddress.lowercased() == destinationAddress.lowercased()
+        }?.transactionHash
+    }
+
+    private static func signedTransactionHash(_ payload: Data) -> String {
+        let digest = Data(SHA256.hash(data: payload))
+        return base58Encode(digest)
     }
 
     private static func postRPC<ResultType: Decodable>(payload: [String: Any], endpoint: String) async throws -> ResultType {
@@ -347,6 +467,13 @@ enum NearWalletEngine {
             throw NearWalletEngineError.invalidResponse
         }
         return result
+    }
+
+    private static func orderedRPCEndpoints() -> [String] {
+        ChainEndpointReliability.orderedEndpoints(
+            namespace: endpointReliabilityNamespace,
+            candidates: NearBalanceService.rpcEndpointCatalog()
+        )
     }
 
     private static func serialize(transaction: NearTransaction) throws -> Data {
