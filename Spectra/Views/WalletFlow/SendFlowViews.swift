@@ -390,7 +390,8 @@ struct SendView: View {
            ((selectedCoin.chainName == "Bitcoin" && selectedCoin.symbol == "BTC")
                || (selectedCoin.chainName == "Bitcoin Cash" && selectedCoin.symbol == "BCH")
                || (selectedCoin.chainName == "Bitcoin SV" && selectedCoin.symbol == "BSV")
-               || (selectedCoin.chainName == "Litecoin" && selectedCoin.symbol == "LTC")) {
+               || (selectedCoin.chainName == "Litecoin" && selectedCoin.symbol == "LTC")
+               || (selectedCoin.chainName == "Dogecoin" && selectedCoin.symbol == "DOGE")) {
             let feeSymbol = selectedCoin.symbol
             let utxoPreview = utxoPreview(for: selectedCoin)
             Section("\(selectedCoin.chainName) Network") {
@@ -401,11 +402,24 @@ struct SendView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text("Spectra stores fee priority separately for each UTXO chain. Bitcoin and Litecoin currently apply it directly to fee estimation in this build.")
+                Text("Spectra stores fee priority separately for each UTXO chain and applies it to live send previews for supported chains.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if let utxoPreview {
+                if selectedCoin.chainName == "Dogecoin", runtimeState.isPreparingDogecoinSend {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                        Text("Loading UTXOs and fee estimate...")
+                            .font(.caption)
+                    }
+                } else if selectedCoin.chainName == "Dogecoin", let dogecoinSendPreview = store.dogecoinSendPreview {
+                    if let fiatFee = store.formattedFiatAmount(fromNative: dogecoinSendPreview.estimatedNetworkFeeDOGE, symbol: feeSymbol) {
+                        Text("Estimated Network Fee: \(dogecoinSendPreview.estimatedNetworkFeeDOGE, specifier: "%.6f") \(feeSymbol) (~\(fiatFee))")
+                    } else {
+                        Text("Estimated Network Fee: \(dogecoinSendPreview.estimatedNetworkFeeDOGE, specifier: "%.6f") \(feeSymbol)")
+                    }
+                    Text("Confirmation Preference: \(confirmationPreferenceText(for: dogecoinSendPreview.feePriority))")
+                } else if let utxoPreview {
                     Text("Estimated Fee Rate: \(utxoPreview.estimatedFeeRateSatVb) sat/vB")
                     if let fiatFee = store.formattedFiatAmount(fromNative: utxoPreview.estimatedNetworkFeeBTC, symbol: feeSymbol) {
                         Text("Estimated Network Fee: \(utxoPreview.estimatedNetworkFeeBTC, specifier: "%.8f") \(feeSymbol) (~\(fiatFee))")
@@ -869,41 +883,6 @@ struct SendView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        }
-
-        if let selectedCoin, selectedCoin.chainName == "Dogecoin" {
-            Section("Dogecoin Send") {
-                Picker("Fee Priority", selection: chainFeePriorityBinding(for: selectedCoin.chainName)) {
-                    ForEach(ChainFeePriorityOption.allCases) { priority in
-                        Text(priority.displayName).tag(priority)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                if runtimeState.isPreparingDogecoinSend {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("Loading UTXOs and fee estimate...")
-                            .font(.caption)
-                    }
-                } else if let dogecoinSendPreview = store.dogecoinSendPreview {
-                    if let fiatFee = store.formattedFiatAmount(fromNative: dogecoinSendPreview.estimatedNetworkFeeDOGE, symbol: "DOGE") {
-                        Text("Estimated Fee: \(dogecoinSendPreview.estimatedNetworkFeeDOGE, specifier: "%.6f") DOGE (~\(fiatFee))")
-                    } else {
-                        Text("Estimated Fee: \(dogecoinSendPreview.estimatedNetworkFeeDOGE, specifier: "%.6f") DOGE")
-                    }
-                    Text("Confirmation Preference: \(confirmationPreferenceText(for: dogecoinSendPreview.feePriority))")
-                } else {
-                    Text("Enter an amount to load a live UTXO and fee preview. Add a valid destination address before sending.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text("Spectra signs and broadcasts Dogecoin in-app. The preview shows estimated network fee and max sendable DOGE for this wallet.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
         }
 
         if let selectedCoin {

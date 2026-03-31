@@ -167,7 +167,8 @@ enum NearWalletEngine {
         ownerAddress: String,
         destinationAddress: String,
         amount: Double,
-        derivationAccount: UInt32 = 0
+        derivationAccount: UInt32 = 0,
+        providerIDs: Set<String>? = nil
     ) async throws -> NearSendResult {
         let normalizedOwner = normalizeAddress(ownerAddress)
         let normalizedDestination = normalizeAddress(destinationAddress)
@@ -218,7 +219,7 @@ enum NearWalletEngine {
         let signedTransaction = try serializeSignedTransaction(transaction: transaction, signature: signature)
         let broadcastOutcome: BroadcastOutcome
         do {
-            broadcastOutcome = try await broadcastSignedTransaction(signedTransaction)
+            broadcastOutcome = try await broadcastSignedTransaction(signedTransaction, providerIDs: providerIDs)
         } catch {
             guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
                   let recoveredHash = await recoverRecentTransactionHashIfAvailable(
@@ -250,7 +251,8 @@ enum NearWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         signedTransactionBase64: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> NearSendResult {
         let normalizedPayload = signedTransactionBase64.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedPayload.isEmpty,
@@ -258,7 +260,7 @@ enum NearWalletEngine {
               !signedTransaction.isEmpty else {
             throw NearWalletEngineError.invalidResponse
         }
-        let broadcastOutcome = try await broadcastSignedTransaction(signedTransaction)
+        let broadcastOutcome = try await broadcastSignedTransaction(signedTransaction, providerIDs: providerIDs)
         let recoveredHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
             : broadcastOutcome.transactionHash
@@ -327,7 +329,7 @@ enum NearWalletEngine {
         return defaultGasPriceYocto
     }
 
-    private static func broadcastSignedTransaction(_ payload: Data) async throws -> BroadcastOutcome {
+    private static func broadcastSignedTransaction(_ payload: Data, providerIDs: Set<String>? = nil) async throws -> BroadcastOutcome {
         let encodedTransaction = payload.base64EncodedString()
         let fallbackHash = signedTransactionHash(payload)
         let requestPayload: [String: Any] = [
@@ -338,7 +340,7 @@ enum NearWalletEngine {
         ]
 
         var lastError: Error?
-        for endpoint in orderedRPCEndpoints() {
+        for endpoint in orderedRPCEndpoints(providerIDs: providerIDs) {
             guard let url = URL(string: endpoint) else { continue }
             for attempt in 0 ..< 2 {
                 do {
@@ -469,11 +471,28 @@ enum NearWalletEngine {
         return result
     }
 
-    private static func orderedRPCEndpoints() -> [String] {
+    private static func orderedRPCEndpoints(providerIDs: Set<String>? = nil) -> [String] {
         ChainEndpointReliability.orderedEndpoints(
             namespace: endpointReliabilityNamespace,
-            candidates: NearBalanceService.rpcEndpointCatalog()
+            candidates: filteredRPCEndpoints(providerIDs: providerIDs)
         )
+    }
+
+    private static func filteredRPCEndpoints(providerIDs: Set<String>? = nil) -> [String] {
+        let candidates = NearBalanceService.rpcEndpointCatalog()
+        guard let providerIDs, !providerIDs.isEmpty else { return candidates }
+        return candidates.filter { endpoint in
+            switch endpoint {
+            case "https://rpc.mainnet.near.org":
+                return providerIDs.contains("near-mainnet-rpc")
+            case "https://free.rpc.fastnear.com":
+                return providerIDs.contains("fastnear-rpc")
+            case "https://near.lava.build":
+                return providerIDs.contains("lava-near-rpc")
+            default:
+                return false
+            }
+        }
     }
 
     private static func serialize(transaction: NearTransaction) throws -> Data {

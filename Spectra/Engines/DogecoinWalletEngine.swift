@@ -200,7 +200,6 @@ struct DogecoinWalletEngine {
         let providerID: String
         let successCount: Int
         let failureCount: Int
-        let successRate: Double
 
         var id: String { providerID }
     }
@@ -213,12 +212,10 @@ struct DogecoinWalletEngine {
                 failureCount: 0,
                 lastUpdatedAt: 0
             )
-            let attempts = max(1, counter.successCount + counter.failureCount)
             return BroadcastProviderReliability(
                 providerID: provider.rawValue,
                 successCount: counter.successCount,
-                failureCount: counter.failureCount,
-                successRate: Double(counter.successCount) / Double(attempts)
+                failureCount: counter.failureCount
             )
         }
     }
@@ -239,12 +236,6 @@ struct DogecoinWalletEngine {
 
     static func resetBroadcastProviderReliability() {
         UserDefaults.standard.removeObject(forKey: broadcastReliabilityDefaultsKey)
-    }
-
-    static func resetBroadcastProviderSelection() {
-        broadcastProviderSelectionLock.lock()
-        defer { broadcastProviderSelectionLock.unlock() }
-        UserDefaults.standard.removeObject(forKey: broadcastProviderSelectionDefaultsKey)
     }
 
     static func resetUTXOCache() {

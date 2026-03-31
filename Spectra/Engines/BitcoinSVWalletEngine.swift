@@ -121,7 +121,8 @@ enum BitcoinSVWalletEngine {
         to destinationAddress: String,
         amountBSV: Double,
         options: SendOptions? = nil,
-        derivationPath: String = "m/44'/236'/0'/0/0"
+        derivationPath: String = "m/44'/236'/0'/0/0",
+        providerIDs: Set<String>? = nil
     ) async throws -> SendResult {
         let effectiveOptions = options ?? SendOptions(maxInputCount: nil, enableRBF: false)
         guard AddressValidation.isValidBitcoinSVAddress(destinationAddress) else {
@@ -196,8 +197,12 @@ enum BitcoinSVWalletEngine {
         }
 
         let rawHex = output.encoded.map { String(format: "%02x", $0) }.joined()
-        let txid = try await broadcast(rawTransactionHex: rawHex, fallbackTransactionHash: computeTransactionHash(fromRawHex: rawHex))
-        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
+        let txid = try await broadcast(
+            rawTransactionHex: rawHex,
+            fallbackTransactionHash: computeTransactionHash(fromRawHex: rawHex),
+            providerIDs: providerIDs
+        )
+        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
         return SendResult(
             transactionHash: txid,
             rawTransactionHex: rawHex,
@@ -207,7 +212,8 @@ enum BitcoinSVWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         rawTransactionHex: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> SendResult {
         let normalizedRawHex = rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let rawData = Data(hexEncoded: normalizedRawHex), !rawData.isEmpty else {
@@ -221,9 +227,10 @@ enum BitcoinSVWalletEngine {
             : computeTransactionHash(fromRawHex: normalizedRawHex)
         let txid = try await broadcast(
             rawTransactionHex: normalizedRawHex,
-            fallbackTransactionHash: fallbackTransactionHash
+            fallbackTransactionHash: fallbackTransactionHash,
+            providerIDs: providerIDs
         )
-        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
+        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
         return SendResult(
             transactionHash: txid,
             rawTransactionHex: normalizedRawHex,
@@ -317,8 +324,12 @@ enum BitcoinSVWalletEngine {
         return script.data
     }
 
-    private static func broadcast(rawTransactionHex: String, fallbackTransactionHash: String) async throws -> String {
-        try await runWithFallback(candidates: orderedProviders(candidates: Provider.allCases)) { provider in
+    private static func broadcast(
+        rawTransactionHex: String,
+        fallbackTransactionHash: String,
+        providerIDs: Set<String>? = nil
+    ) async throws -> String {
+        try await runWithFallback(candidates: orderedProviders(candidates: filteredProviders(providerIDs: providerIDs))) { provider in
             switch provider {
             case .whatsonchain:
                 return try await broadcastViaWhatsOnChain(
@@ -341,13 +352,16 @@ enum BitcoinSVWalletEngine {
         return Data(secondHash).reversed().map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func verifyBroadcastedTransactionIfAvailable(txid: String) async -> SendBroadcastVerificationStatus {
+    private static func verifyBroadcastedTransactionIfAvailable(
+        txid: String,
+        providerIDs: Set<String>? = nil
+    ) async -> SendBroadcastVerificationStatus {
         let attempts = 3
         var lastError: Error?
 
         for attempt in 0 ..< attempts {
             do {
-                if try await verifyPresenceOnlyIfAvailable(txid: txid) {
+                if try await verifyPresenceOnlyIfAvailable(txid: txid, providerIDs: providerIDs) {
                     return .verified
                 }
             } catch {
@@ -365,13 +379,16 @@ enum BitcoinSVWalletEngine {
         return .deferred
     }
 
-    private static func verifyPresenceOnlyIfAvailable(txid: String) async throws -> Bool {
+    private static func verifyPresenceOnlyIfAvailable(
+        txid: String,
+        providerIDs: Set<String>? = nil
+    ) async throws -> Bool {
         let trimmed = txid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw URLError(.badURL)
         }
 
-        return try await runWithFallback(candidates: orderedProviders(candidates: Provider.allCases)) { provider in
+        return try await runWithFallback(candidates: orderedProviders(candidates: filteredProviders(providerIDs: providerIDs))) { provider in
             let url: URL
             switch provider {
             case .whatsonchain:
@@ -506,6 +523,15 @@ enum BitcoinSVWalletEngine {
             }
             return leftScore > rightScore
         }
+    }
+
+    private static func filteredProviders(providerIDs: Set<String>? = nil) -> [Provider] {
+        guard let providerIDs, !providerIDs.isEmpty else {
+            return Provider.allCases
+        }
+        let normalized = Set(providerIDs.map { $0.lowercased() })
+        let providers = Provider.allCases.filter { normalized.contains($0.rawValue) }
+        return providers.isEmpty ? Provider.allCases : providers
     }
 
     private static func providerScore(_ counter: ProviderReliabilityCounter?) -> Double {

@@ -379,31 +379,45 @@ enum ChainBackendRegistry {
             ]
         case "Solana":
             return [
-                ChainBroadcastProviderOption(id: "rpc", title: "Solana RPC")
+                ChainBroadcastProviderOption(id: "solana-mainnet-beta", title: "Solana Mainnet RPC"),
+                ChainBroadcastProviderOption(id: "solana-ankr", title: "Ankr Solana RPC")
             ]
         case "Cardano":
             return [
-                ChainBroadcastProviderOption(id: "koios", title: "Koios")
+                ChainBroadcastProviderOption(id: "koios", title: "Koios"),
+                ChainBroadcastProviderOption(id: "xray-koios", title: "Xray Koios"),
+                ChainBroadcastProviderOption(id: "happystaking-koios", title: "HappyStake Koios")
             ]
         case "XRP Ledger":
             return [
-                ChainBroadcastProviderOption(id: "xrpl-rpc", title: "XRPL RPC")
+                ChainBroadcastProviderOption(id: "ripple-s1", title: "Ripple RPC S1"),
+                ChainBroadcastProviderOption(id: "ripple-s2", title: "Ripple RPC S2"),
+                ChainBroadcastProviderOption(id: "xrplcluster", title: "XRPL Cluster")
             ]
         case "Stellar":
             return [
-                ChainBroadcastProviderOption(id: "horizon", title: "Horizon")
+                ChainBroadcastProviderOption(id: "stellar-horizon", title: "Stellar Horizon"),
+                ChainBroadcastProviderOption(id: "lobstr-horizon", title: "LOBSTR Horizon")
             ]
         case "Monero":
             return [
-                ChainBroadcastProviderOption(id: "trusted-backend", title: "Trusted Backend")
+                ChainBroadcastProviderOption(id: "edge-lws-1", title: "Edge Monero LWS 1"),
+                ChainBroadcastProviderOption(id: "edge-lws-2", title: "Edge Monero LWS 2"),
+                ChainBroadcastProviderOption(id: "edge-lws-3", title: "Edge Monero LWS 3")
             ]
         case "Sui":
             return [
-                ChainBroadcastProviderOption(id: "sui-rpc", title: "Sui RPC")
+                ChainBroadcastProviderOption(id: "sui-mainnet", title: "Sui Mainnet"),
+                ChainBroadcastProviderOption(id: "sui-publicnode", title: "PublicNode Sui"),
+                ChainBroadcastProviderOption(id: "sui-blockvision", title: "BlockVision Sui"),
+                ChainBroadcastProviderOption(id: "sui-blockpi", title: "BlockPI Sui"),
+                ChainBroadcastProviderOption(id: "sui-suiscan", title: "SuiScan RPC")
             ]
         case "Aptos":
             return [
-                ChainBroadcastProviderOption(id: "aptos-rpc", title: "Aptos RPC")
+                ChainBroadcastProviderOption(id: "aptoslabs-api", title: "Aptos Labs API"),
+                ChainBroadcastProviderOption(id: "blastapi-aptos", title: "BlastAPI Aptos"),
+                ChainBroadcastProviderOption(id: "aptoslabs-mainnet", title: "Aptos Mainnet")
             ]
         case "TON":
             return [
@@ -415,7 +429,9 @@ enum ChainBackendRegistry {
             ]
         case "NEAR":
             return [
-                ChainBroadcastProviderOption(id: "near-rpc", title: "NEAR RPC")
+                ChainBroadcastProviderOption(id: "near-mainnet-rpc", title: "NEAR Mainnet RPC"),
+                ChainBroadcastProviderOption(id: "fastnear-rpc", title: "FastNEAR RPC"),
+                ChainBroadcastProviderOption(id: "lava-near-rpc", title: "Lava NEAR RPC")
             ]
         case "Polkadot":
             return [

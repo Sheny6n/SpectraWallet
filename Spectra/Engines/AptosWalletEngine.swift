@@ -134,7 +134,8 @@ enum AptosWalletEngine {
         ownerAddress: String,
         destinationAddress: String,
         amount: Double,
-        derivationAccount: UInt32 = 0
+        derivationAccount: UInt32 = 0,
+        providerIDs: Set<String>? = nil
     ) async throws -> AptosSendResult {
         let normalizedOwner = normalizeAddress(ownerAddress)
         let normalizedDestination = normalizeAddress(destinationAddress)
@@ -190,7 +191,7 @@ enum AptosWalletEngine {
 
         let digest: String
         do {
-            digest = try await submitTransaction(jsonPayload: output.json)
+            digest = try await submitTransaction(jsonPayload: output.json, providerIDs: providerIDs)
         } catch {
             guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
                   let recoveredHash = await recoverRecentTransactionHashIfAvailable(
@@ -213,9 +214,10 @@ enum AptosWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         signedTransactionJSON: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> AptosSendResult {
-        let digest = try await submitTransaction(jsonPayload: signedTransactionJSON)
+        let digest = try await submitTransaction(jsonPayload: signedTransactionJSON, providerIDs: providerIDs)
         let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
             : digest
@@ -320,12 +322,12 @@ enum AptosWalletEngine {
         throw lastError ?? AptosWalletEngineError.invalidResponse
     }
 
-    private static func submitTransaction(jsonPayload: String) async throws -> String {
+    private static func submitTransaction(jsonPayload: String, providerIDs: Set<String>? = nil) async throws -> String {
         guard let data = jsonPayload.data(using: .utf8) else {
             throw AptosWalletEngineError.signingFailed("WalletCore returned non-UTF8 Aptos transaction JSON.")
         }
         var lastError: Error?
-        for endpoint in orderedRPCEndpoints() {
+        for endpoint in orderedRPCEndpoints(providerIDs: providerIDs) {
             for attempt in 0 ..< 2 {
                 do {
                     var request = URLRequest(url: endpoint.appendingPathComponent("transactions"))
@@ -353,12 +355,29 @@ enum AptosWalletEngine {
         throw lastError ?? AptosWalletEngineError.broadcastFailed("Aptos transaction submission failed.")
     }
 
-    private static func orderedRPCEndpoints() -> [URL] {
+    private static func orderedRPCEndpoints(providerIDs: Set<String>? = nil) -> [URL] {
         let ordered = ChainEndpointReliability.orderedEndpoints(
             namespace: endpointReliabilityNamespace,
-            candidates: AptosBalanceService.endpointCatalog()
+            candidates: filteredRPCEndpoints(providerIDs: providerIDs)
         )
         return ordered.compactMap(URL.init(string:))
+    }
+
+    private static func filteredRPCEndpoints(providerIDs: Set<String>? = nil) -> [String] {
+        let candidates = AptosBalanceService.endpointCatalog()
+        guard let providerIDs, !providerIDs.isEmpty else { return candidates }
+        return candidates.filter { endpoint in
+            switch endpoint {
+            case "https://api.mainnet.aptoslabs.com/v1":
+                return providerIDs.contains("aptoslabs-api")
+            case "https://aptos-mainnet.public.blastapi.io/v1":
+                return providerIDs.contains("blastapi-aptos")
+            case "https://mainnet.aptoslabs.com/v1":
+                return providerIDs.contains("aptoslabs-mainnet")
+            default:
+                return false
+            }
+        }
     }
 
     private static func recoverRecentTransactionHashIfAvailable(

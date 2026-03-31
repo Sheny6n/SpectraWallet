@@ -181,14 +181,14 @@ enum StellarBalanceService {
         throw lastError ?? StellarBalanceServiceError.invalidResponse
     }
 
-    static func submitTransaction(xdrEnvelope: String) async throws -> String {
+    static func submitTransaction(xdrEnvelope: String, providerIDs: Set<String>? = nil) async throws -> String {
         let trimmedEnvelope = xdrEnvelope.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedEnvelope.isEmpty else {
             throw StellarBalanceServiceError.invalidResponse
         }
 
         var lastError: Error?
-        for endpoint in orderedHorizonEndpoints() {
+        for endpoint in orderedHorizonEndpoints(providerIDs: providerIDs) {
             guard let url = URL(string: "\(endpoint)/transactions") else { continue }
             do {
                 var request = URLRequest(url: url)
@@ -226,11 +226,25 @@ enum StellarBalanceService {
         throw lastError ?? StellarBalanceServiceError.invalidResponse
     }
 
-    private static func orderedHorizonEndpoints() -> [String] {
+    private static func orderedHorizonEndpoints(providerIDs: Set<String>? = nil) -> [String] {
         ChainEndpointReliability.orderedEndpoints(
             namespace: endpointReliabilityNamespace,
-            candidates: horizonEndpoints
+            candidates: filteredHorizonEndpoints(providerIDs: providerIDs)
         )
+    }
+
+    private static func filteredHorizonEndpoints(providerIDs: Set<String>? = nil) -> [String] {
+        guard let providerIDs, !providerIDs.isEmpty else { return horizonEndpoints }
+        return horizonEndpoints.filter { endpoint in
+            switch endpoint {
+            case "https://horizon.stellar.org":
+                return providerIDs.contains("stellar-horizon")
+            case "https://horizon.stellar.lobstr.co":
+                return providerIDs.contains("lobstr-horizon")
+            default:
+                return false
+            }
+        }
     }
 
     private struct AccountResponse: Decodable {

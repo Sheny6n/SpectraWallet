@@ -162,7 +162,8 @@ enum SuiWalletEngine {
         ownerAddress: String,
         destinationAddress: String,
         amount: Double,
-        derivationAccount: UInt32 = 0
+        derivationAccount: UInt32 = 0,
+        providerIDs: Set<String>? = nil
     ) async throws -> SuiSendResult {
         let normalizedOwner = normalizeAddress(ownerAddress)
         let normalizedDestination = normalizeAddress(destinationAddress)
@@ -235,7 +236,11 @@ enum SuiWalletEngine {
 
         let digest: String
         do {
-            digest = try await executeTransactionBlock(txBytesBase64: unsignedTx, signatureBase64: signature)
+            digest = try await executeTransactionBlock(
+                txBytesBase64: unsignedTx,
+                signatureBase64: signature,
+                providerIDs: providerIDs
+            )
         } catch {
             guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
                   let recoveredDigest = await recoverRecentTransactionHashIfAvailable(
@@ -260,7 +265,8 @@ enum SuiWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         signedTransactionPayloadJSON: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> SuiSendResult {
         let payloadData = Data(signedTransactionPayloadJSON.utf8)
         guard let payload = try JSONSerialization.jsonObject(with: payloadData) as? [String: String],
@@ -270,7 +276,11 @@ enum SuiWalletEngine {
               Data(base64Encoded: signatureBase64) != nil else {
             throw SuiWalletEngineError.invalidResponse
         }
-        let digest = try await executeTransactionBlock(txBytesBase64: txBytesBase64, signatureBase64: signatureBase64)
+        let digest = try await executeTransactionBlock(
+            txBytesBase64: txBytesBase64,
+            signatureBase64: signatureBase64,
+            providerIDs: providerIDs
+        )
         let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
             : digest
@@ -353,7 +363,11 @@ enum SuiWalletEngine {
         return parsed
     }
 
-    private static func executeTransactionBlock(txBytesBase64: String, signatureBase64: String) async throws -> String {
+    private static func executeTransactionBlock(
+        txBytesBase64: String,
+        signatureBase64: String,
+        providerIDs: Set<String>? = nil
+    ) async throws -> String {
         let payload: [String: Any] = [
             "jsonrpc": "2.0",
             "id": 1,
@@ -369,7 +383,7 @@ enum SuiWalletEngine {
         var lastError: Error?
         for attempt in 0 ..< 2 {
             do {
-                let result: ExecuteResult = try await postRPC(payload: payload, profile: .chainWrite)
+                let result: ExecuteResult = try await postRPC(payload: payload, profile: .chainWrite, providerIDs: providerIDs)
                 let status = result.effects?.status?.status?.lowercased()
                 if let status, status != "success" {
                     let message = result.effects?.status?.error ?? "Sui execute reported status: \(status)."
@@ -442,12 +456,13 @@ enum SuiWalletEngine {
 
     private static func postRPC<ResultType: Decodable>(
         payload: [String: Any],
-        profile: NetworkRetryProfile
+        profile: NetworkRetryProfile,
+        providerIDs: Set<String>? = nil
     ) async throws -> ResultType {
         let body = try JSONSerialization.data(withJSONObject: payload, options: [])
         var lastError: Error?
 
-        for endpoint in orderedRPCEndpoints() {
+        for endpoint in orderedRPCEndpoints(providerIDs: providerIDs) {
             var request = URLRequest(url: endpoint)
             request.httpMethod = "POST"
             request.timeoutInterval = 20
@@ -478,12 +493,33 @@ enum SuiWalletEngine {
         throw lastError ?? SuiWalletEngineError.networkError("Unknown Sui RPC error")
     }
 
-    private static func orderedRPCEndpoints() -> [URL] {
+    private static func orderedRPCEndpoints(providerIDs: Set<String>? = nil) -> [URL] {
         let ordered = ChainEndpointReliability.orderedEndpoints(
             namespace: endpointReliabilityNamespace,
-            candidates: ChainBackendRegistry.SuiRuntimeEndpoints.rpcBaseURLs
+            candidates: filteredRPCEndpoints(providerIDs: providerIDs)
         )
         return ordered.compactMap(URL.init(string:))
+    }
+
+    private static func filteredRPCEndpoints(providerIDs: Set<String>? = nil) -> [String] {
+        let candidates = ChainBackendRegistry.SuiRuntimeEndpoints.rpcBaseURLs
+        guard let providerIDs, !providerIDs.isEmpty else { return candidates }
+        return candidates.filter { endpoint in
+            switch endpoint {
+            case "https://fullnode.mainnet.sui.io:443":
+                return providerIDs.contains("sui-mainnet")
+            case "https://sui-rpc.publicnode.com":
+                return providerIDs.contains("sui-publicnode")
+            case "https://sui-mainnet-endpoint.blockvision.org":
+                return providerIDs.contains("sui-blockvision")
+            case "https://sui.blockpi.network/v1/rpc/public":
+                return providerIDs.contains("sui-blockpi")
+            case "https://rpc-mainnet.suiscan.xyz":
+                return providerIDs.contains("sui-suiscan")
+            default:
+                return false
+            }
+        }
     }
 
     private static func normalizeAddress(_ address: String) -> String {

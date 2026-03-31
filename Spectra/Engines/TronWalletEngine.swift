@@ -63,6 +63,14 @@ enum TronWalletEngine {
     private static let defaultEnergyPriceSun = 420.0
     private static let defaultBandwidthFeeTRX = 0.30
 
+    private static func estimatedTRC20FeeTRX(energyUsed: Int64?) -> Double {
+        guard let energyUsed else {
+            return defaultTRC20FeeTRX
+        }
+        let energyFeeTRX = (Double(energyUsed) * defaultEnergyPriceSun) / 1_000_000.0
+        return max(defaultBandwidthFeeTRX, energyFeeTRX + defaultBandwidthFeeTRX)
+    }
+
     static func estimateSendPreview(
         from ownerAddress: String,
         to destinationAddress: String,
@@ -113,18 +121,10 @@ enum TronWalletEngine {
             parameter: parameter
         )
 
-        let estimatedFeeTRX: Double
-        if let usedEnergy = simulation.energyUsed {
-            let energyFeeTRX = (Double(usedEnergy) * defaultEnergyPriceSun) / 1_000_000.0
-            estimatedFeeTRX = max(defaultBandwidthFeeTRX, energyFeeTRX + defaultBandwidthFeeTRX)
-        } else {
-            estimatedFeeTRX = defaultTRC20FeeTRX
-        }
-
         let balances = try await TronBalanceService.fetchBalances(for: ownerAddress)
         let tokenBalance = balances.tokenBalances.first(where: { $0.symbol == symbol })?.balance ?? 0
         return TronSendPreview(
-            estimatedNetworkFeeTRX: estimatedFeeTRX,
+            estimatedNetworkFeeTRX: estimatedTRC20FeeTRX(energyUsed: simulation.energyUsed),
             feeLimitSun: simulation.feeLimitSun,
             simulationUsed: simulation.energyUsed != nil,
             spendableBalance: tokenBalance,
@@ -151,7 +151,8 @@ enum TronWalletEngine {
         symbol: String,
         amount: Double,
         contractAddress: String?,
-        derivationAccount: UInt32 = 0
+        derivationAccount: UInt32 = 0,
+        providerIDs: Set<String>? = nil
     ) async throws -> TronSendResult {
         guard AddressValidation.isValidTronAddress(ownerAddress),
               AddressValidation.isValidTronAddress(destinationAddress) else {
@@ -184,8 +185,8 @@ enum TronWalletEngine {
                 amountSun: amountSun
             )
             let signedTransaction = try signRawTransaction(unsignedTx, privateKey: material.privateKeyData)
-            let txid = try await broadcastSignedTransaction(signedTransaction)
-            let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
+            let txid = try await broadcastSignedTransaction(signedTransaction, providerIDs: providerIDs)
+            let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
             return TronSendResult(
                 transactionHash: txid,
                 estimatedNetworkFeeTRX: defaultTRXFeeTRX,
@@ -220,20 +221,12 @@ enum TronWalletEngine {
             feeLimitSun: simulation.feeLimitSun
         )
         let signedTransaction = try signRawTransaction(unsignedTx, privateKey: material.privateKeyData)
-        let txid = try await broadcastSignedTransaction(signedTransaction)
-        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
-
-        let estimatedFeeTRX: Double
-        if let usedEnergy = simulation.energyUsed {
-            let energyFeeTRX = (Double(usedEnergy) * defaultEnergyPriceSun) / 1_000_000.0
-            estimatedFeeTRX = max(defaultBandwidthFeeTRX, energyFeeTRX + defaultBandwidthFeeTRX)
-        } else {
-            estimatedFeeTRX = defaultTRC20FeeTRX
-        }
+        let txid = try await broadcastSignedTransaction(signedTransaction, providerIDs: providerIDs)
+        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
 
         return TronSendResult(
             transactionHash: txid,
-            estimatedNetworkFeeTRX: estimatedFeeTRX,
+            estimatedNetworkFeeTRX: estimatedTRC20FeeTRX(energyUsed: simulation.energyUsed),
             signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
             verificationStatus: verificationStatus
         )
@@ -245,7 +238,8 @@ enum TronWalletEngine {
         destinationAddress: String,
         symbol: String,
         amount: Double,
-        contractAddress: String?
+        contractAddress: String?,
+        providerIDs: Set<String>? = nil
     ) async throws -> TronSendResult {
         guard AddressValidation.isValidTronAddress(ownerAddress),
               AddressValidation.isValidTronAddress(destinationAddress) else {
@@ -274,8 +268,8 @@ enum TronWalletEngine {
                 amountSun: amountSun
             )
             let signedTransaction = try signRawTransaction(unsignedTx, privateKey: material.privateKeyData)
-            let txid = try await broadcastSignedTransaction(signedTransaction)
-            let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
+            let txid = try await broadcastSignedTransaction(signedTransaction, providerIDs: providerIDs)
+            let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
             return TronSendResult(
                 transactionHash: txid,
                 estimatedNetworkFeeTRX: defaultTRXFeeTRX,
@@ -310,20 +304,12 @@ enum TronWalletEngine {
             feeLimitSun: simulation.feeLimitSun
         )
         let signedTransaction = try signRawTransaction(unsignedTx, privateKey: material.privateKeyData)
-        let txid = try await broadcastSignedTransaction(signedTransaction)
-        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
-
-        let estimatedFeeTRX: Double
-        if let usedEnergy = simulation.energyUsed {
-            let energyFeeTRX = (Double(usedEnergy) * defaultEnergyPriceSun) / 1_000_000.0
-            estimatedFeeTRX = max(defaultBandwidthFeeTRX, energyFeeTRX + defaultBandwidthFeeTRX)
-        } else {
-            estimatedFeeTRX = defaultTRC20FeeTRX
-        }
+        let txid = try await broadcastSignedTransaction(signedTransaction, providerIDs: providerIDs)
+        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
 
         return TronSendResult(
             transactionHash: txid,
-            estimatedNetworkFeeTRX: estimatedFeeTRX,
+            estimatedNetworkFeeTRX: estimatedTRC20FeeTRX(energyUsed: simulation.energyUsed),
             signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
             verificationStatus: verificationStatus
         )
@@ -331,13 +317,14 @@ enum TronWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         signedTransactionJSON: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> TronSendResult {
         guard let data = signedTransactionJSON.data(using: .utf8),
               let signedTransaction = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw TronWalletEngineError.broadcastFailed("Invalid signed Tron transaction payload.")
         }
-        let txid = try await broadcastSignedTransaction(signedTransaction)
+        let txid = try await broadcastSignedTransaction(signedTransaction, providerIDs: providerIDs)
         let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
             : txid
@@ -345,17 +332,20 @@ enum TronWalletEngine {
             transactionHash: transactionHash,
             estimatedNetworkFeeTRX: 0,
             signedTransactionJSON: signedTransactionJSON,
-            verificationStatus: await verifyBroadcastedTransactionIfAvailable(txid: transactionHash)
+            verificationStatus: await verifyBroadcastedTransactionIfAvailable(txid: transactionHash, providerIDs: providerIDs)
         )
     }
 
-    private static func verifyBroadcastedTransactionIfAvailable(txid: String) async -> SendBroadcastVerificationStatus {
+    private static func verifyBroadcastedTransactionIfAvailable(
+        txid: String,
+        providerIDs: Set<String>? = nil
+    ) async -> SendBroadcastVerificationStatus {
         let attempts = 3
         var lastError: Error?
 
         for attempt in 0 ..< attempts {
             do {
-                if try await transactionExists(txid: txid) {
+                if try await transactionExists(txid: txid, providerIDs: providerIDs) {
                     return .verified
                 }
             } catch {
@@ -373,7 +363,10 @@ enum TronWalletEngine {
         return .deferred
     }
 
-    private static func transactionExists(txid: String) async throws -> Bool {
+    private static func transactionExists(
+        txid: String,
+        providerIDs: Set<String>? = nil
+    ) async throws -> Bool {
         var lastError: Error?
         for baseURL in orderedBroadcastBaseURLs() {
             guard let url = URL(string: baseURL + "/walletsolidity/gettransactioninfobyid") else {
@@ -537,7 +530,10 @@ enum TronWalletEngine {
         return signed
     }
 
-    private static func broadcastSignedTransaction(_ signedTransaction: [String: Any]) async throws -> String {
+    private static func broadcastSignedTransaction(
+        _ signedTransaction: [String: Any],
+        providerIDs: Set<String>? = nil
+    ) async throws -> String {
         let response = try await postJSON(
             path: "/wallet/broadcasttransaction",
             payload: signedTransaction,
@@ -620,11 +616,31 @@ enum TronWalletEngine {
         throw lastError ?? TronWalletEngineError.createTransactionFailed("\(errorPrefix): all providers failed.")
     }
 
-    private static func orderedBroadcastBaseURLs() -> [String] {
+    private static func orderedBroadcastBaseURLs(providerIDs: Set<String>? = nil) -> [String] {
         ChainEndpointReliability.orderedEndpoints(
             namespace: endpointReliabilityNamespace,
-            candidates: tronGridBaseURLs
+            candidates: filteredBroadcastBaseURLs(providerIDs: providerIDs)
         )
+    }
+
+    private static func filteredBroadcastBaseURLs(providerIDs: Set<String>? = nil) -> [String] {
+        guard let providerIDs, !providerIDs.isEmpty else {
+            return tronGridBaseURLs
+        }
+        let normalized = Set(providerIDs.map { $0.lowercased() })
+        let filtered = tronGridBaseURLs.filter { baseURL in
+            if baseURL.contains("api.trongrid.io") {
+                return normalized.contains("trongrid-io")
+            }
+            if baseURL.contains("api.trongrid.pro") {
+                return normalized.contains("trongrid-pro")
+            }
+            if baseURL.contains("api.trongrid.network") {
+                return normalized.contains("trongrid-network")
+            }
+            return false
+        }
+        return filtered.isEmpty ? tronGridBaseURLs : filtered
     }
 
     private static func bestProviderMessage(from object: [String: Any]) -> String? {

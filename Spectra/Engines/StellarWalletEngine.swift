@@ -111,7 +111,8 @@ enum StellarWalletEngine {
         ownerAddress: String,
         destinationAddress: String,
         amount: Double,
-        derivationPath: String = "m/44'/148'/0'"
+        derivationPath: String = "m/44'/148'/0'",
+        providerIDs: Set<String>? = nil
     ) async throws -> StellarSendResult {
         let preview = try await estimateSendPreview(from: ownerAddress, to: destinationAddress, amount: amount)
         let material = try WalletCoreDerivation.deriveMaterial(
@@ -135,7 +136,7 @@ enum StellarWalletEngine {
         )
         let hash: String
         do {
-            hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: envelope)
+            hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: envelope, providerIDs: providerIDs)
         } catch {
             guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
                   let recoveredHash = await recoverRecentTransactionHashIfAvailable(
@@ -160,7 +161,8 @@ enum StellarWalletEngine {
         privateKeyHex: String,
         ownerAddress: String,
         destinationAddress: String,
-        amount: Double
+        amount: Double,
+        providerIDs: Set<String>? = nil
     ) async throws -> StellarSendResult {
         let preview = try await estimateSendPreview(from: ownerAddress, to: destinationAddress, amount: amount)
         let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .stellar)
@@ -177,7 +179,7 @@ enum StellarWalletEngine {
         )
         let hash: String
         do {
-            hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: envelope)
+            hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: envelope, providerIDs: providerIDs)
         } catch {
             guard classifySendBroadcastFailure(error.localizedDescription) == .alreadyBroadcast,
                   let recoveredHash = await recoverRecentTransactionHashIfAvailable(
@@ -200,13 +202,14 @@ enum StellarWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         signedEnvelopeXDR: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> StellarSendResult {
         let normalizedEnvelope = signedEnvelopeXDR.trimmingCharacters(in: .whitespacesAndNewlines)
         guard Data(base64Encoded: normalizedEnvelope) != nil else {
             throw StellarWalletEngineError.invalidResponse
         }
-        let hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: normalizedEnvelope)
+        let hash = try await StellarBalanceService.submitTransaction(xdrEnvelope: normalizedEnvelope, providerIDs: providerIDs)
         let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
             : hash

@@ -134,7 +134,8 @@ enum MoneroWalletEngine {
     static func sendInBackground(
         ownerAddress: String,
         destinationAddress: String,
-        amount: Double
+        amount: Double,
+        providerIDs: Set<String>? = nil
     ) async throws -> MoneroSendResult {
         let source = ownerAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         let destination = destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -145,7 +146,7 @@ enum MoneroWalletEngine {
         guard amount > 0 else {
             throw MoneroWalletEngineError.invalidAmount
         }
-        let candidates = MoneroBalanceService.candidateBackendBaseURLs()
+        let candidates = filteredBackendBaseURLs(providerIDs: providerIDs)
         guard !candidates.isEmpty else {
             throw MoneroWalletEngineError.backendNotConfigured
         }
@@ -244,5 +245,22 @@ enum MoneroWalletEngine {
                 && abs($0.amount - amount) < 0.000000000001
                 && $0.counterpartyAddress.lowercased() == destinationAddress.lowercased()
         }?.transactionHash
+    }
+
+    private static func filteredBackendBaseURLs(providerIDs: Set<String>? = nil) -> [URL] {
+        let candidates = MoneroBalanceService.candidateBackendBaseURLs()
+        guard let providerIDs, !providerIDs.isEmpty else { return candidates }
+        return candidates.filter { endpoint in
+            switch endpoint.absoluteString {
+            case "https://monerolws1.edge.app":
+                return providerIDs.contains("edge-lws-1")
+            case "https://monerolws2.edge.app":
+                return providerIDs.contains("edge-lws-2")
+            case "https://monerolws3.edge.app":
+                return providerIDs.contains("edge-lws-3")
+            default:
+                return false
+            }
+        }
     }
 }

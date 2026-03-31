@@ -196,7 +196,8 @@ enum LitecoinWalletEngine {
         amountLTC: Double,
         feePriority: BitcoinFeePriority,
         options: SendOptions? = nil,
-        derivationPath: String = "m/44'/2'/0'/0/0"
+        derivationPath: String = "m/44'/2'/0'/0/0",
+        providerIDs: Set<String>? = nil
     ) async throws -> LitecoinSendResult {
         let effectiveOptions = options ?? SendOptions(
             maxInputCount: nil,
@@ -285,9 +286,10 @@ enum LitecoinWalletEngine {
         let rawHex = output.encoded.map { String(format: "%02x", $0) }.joined()
         let txid = try await broadcast(
             rawTransactionHex: rawHex,
-            fallbackTransactionHash: computeTransactionHash(fromRawHex: rawHex)
+            fallbackTransactionHash: computeTransactionHash(fromRawHex: rawHex),
+            providerIDs: providerIDs
         )
-        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
+        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
         return LitecoinSendResult(
             transactionHash: txid,
             rawTransactionHex: rawHex,
@@ -297,7 +299,8 @@ enum LitecoinWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         rawTransactionHex: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> LitecoinSendResult {
         let normalizedRawHex = rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let rawData = Data(hexEncoded: normalizedRawHex), !rawData.isEmpty else {
@@ -311,9 +314,10 @@ enum LitecoinWalletEngine {
             : computeTransactionHash(fromRawHex: normalizedRawHex)
         let txid = try await broadcast(
             rawTransactionHex: normalizedRawHex,
-            fallbackTransactionHash: fallbackTransactionHash
+            fallbackTransactionHash: fallbackTransactionHash,
+            providerIDs: providerIDs
         )
-        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid)
+        let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
         return LitecoinSendResult(
             transactionHash: txid,
             rawTransactionHex: normalizedRawHex,
@@ -541,8 +545,12 @@ enum LitecoinWalletEngine {
         }
     }
 
-    private static func broadcast(rawTransactionHex: String, fallbackTransactionHash: String) async throws -> String {
-        try await runWithFallback(candidates: orderedProviders(candidates: [.litecoinspace, .blockcypher])) { provider in
+    private static func broadcast(
+        rawTransactionHex: String,
+        fallbackTransactionHash: String,
+        providerIDs: Set<String>? = nil
+    ) async throws -> String {
+        try await runWithFallback(candidates: orderedProviders(candidates: filteredProviders(providerIDs: providerIDs))) { provider in
             switch provider {
             case .litecoinspace:
                 return try await broadcastViaLitecoinspace(
@@ -641,6 +649,15 @@ enum LitecoinWalletEngine {
         }
     }
 
+    private static func filteredProviders(providerIDs: Set<String>? = nil) -> [Provider] {
+        guard let providerIDs, !providerIDs.isEmpty else {
+            return [.litecoinspace, .blockcypher]
+        }
+        let normalized = Set(providerIDs.map { $0.lowercased() })
+        let providers = [Provider.litecoinspace, .blockcypher].filter { normalized.contains($0.rawValue) }
+        return providers.isEmpty ? [.litecoinspace, .blockcypher] : providers
+    }
+
     private static func providerScore(_ counter: ProviderReliabilityCounter?) -> Double {
         guard let counter else { return 0.5 }
         let attempts = max(1, counter.successCount + counter.failureCount)
@@ -673,13 +690,16 @@ enum LitecoinWalletEngine {
         saveProviderReliabilityCounters(counters)
     }
 
-    private static func verifyBroadcastedTransactionIfAvailable(txid: String) async -> SendBroadcastVerificationStatus {
+    private static func verifyBroadcastedTransactionIfAvailable(
+        txid: String,
+        providerIDs: Set<String>? = nil
+    ) async -> SendBroadcastVerificationStatus {
         let attempts = 3
         var lastError: Error?
 
         for attempt in 0 ..< attempts {
             do {
-                if try await verifyPresenceOnlyIfAvailable(txid: txid) {
+                if try await verifyPresenceOnlyIfAvailable(txid: txid, providerIDs: providerIDs) {
                     return .verified
                 }
             } catch {
@@ -697,11 +717,14 @@ enum LitecoinWalletEngine {
         return .deferred
     }
 
-    private static func verifyPresenceOnlyIfAvailable(txid: String) async throws -> Bool {
+    private static func verifyPresenceOnlyIfAvailable(
+        txid: String,
+        providerIDs: Set<String>? = nil
+    ) async throws -> Bool {
         let trimmed = txid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
 
-        return try await runWithFallback(candidates: orderedProviders(candidates: [.litecoinspace, .blockcypher])) { provider in
+        return try await runWithFallback(candidates: orderedProviders(candidates: filteredProviders(providerIDs: providerIDs))) { provider in
             switch provider {
             case .litecoinspace:
                 guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),

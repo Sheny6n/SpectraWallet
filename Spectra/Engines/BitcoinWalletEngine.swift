@@ -369,7 +369,8 @@ struct BitcoinWalletEngine {
         seedPhrase: String,
         to recipientAddress: String,
         amountBTC: Double,
-        feePriority: BitcoinFeePriority
+        feePriority: BitcoinFeePriority,
+        providerIDs: Set<String>? = nil
     ) throws -> (transactionHash: String, rawTransactionHex: String) {
         let session = try makeSession(for: importedWallet, seedPhrase: seedPhrase)
         try sync(session: session)
@@ -399,7 +400,7 @@ struct BitcoinWalletEngine {
         let transaction = try psbt.extractTx()
         let txid = String(describing: transaction.computeTxid())
         let rawTransactionHex = transaction.serialize().map { String(format: "%02x", $0) }.joined()
-        try broadcastWithRecovery(transaction: transaction, txid: txid)
+        try broadcastWithRecovery(transaction: transaction, txid: txid, providerIDs: providerIDs)
         _ = try session.wallet.persist(persister: session.persister)
         try sync(session: session)
 
@@ -411,7 +412,8 @@ struct BitcoinWalletEngine {
         seedPhrase: String,
         to recipientAddress: String,
         amountBTC: Double,
-        feePriority: BitcoinFeePriority
+        feePriority: BitcoinFeePriority,
+        providerIDs: Set<String>? = nil
     ) throws -> (transactionHash: String, rawTransactionHex: String) {
         let session = try makeSession(for: walletID, seedPhrase: seedPhrase)
         try sync(session: session)
@@ -441,7 +443,7 @@ struct BitcoinWalletEngine {
         let transaction = try psbt.extractTx()
         let txid = String(describing: transaction.computeTxid())
         let rawTransactionHex = transaction.serialize().map { String(format: "%02x", $0) }.joined()
-        try broadcastWithRecovery(transaction: transaction, txid: txid)
+        try broadcastWithRecovery(transaction: transaction, txid: txid, providerIDs: providerIDs)
         _ = try session.wallet.persist(persister: session.persister)
         try sync(session: session)
 
@@ -465,7 +467,8 @@ struct BitcoinWalletEngine {
         seedPhrase: String,
         to recipientAddress: String,
         amountBTC: Double,
-        feePriority: BitcoinFeePriority
+        feePriority: BitcoinFeePriority,
+        providerIDs: Set<String>? = nil
     ) async throws -> BitcoinSendResult {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -475,12 +478,13 @@ struct BitcoinWalletEngine {
                         seedPhrase: seedPhrase,
                         to: recipientAddress,
                         amountBTC: amountBTC,
-                        feePriority: feePriority
+                        feePriority: feePriority,
+                        providerIDs: providerIDs
                     )
                     continuation.resume(returning: BitcoinSendResult(
                         transactionHash: sent.transactionHash,
                         rawTransactionHex: sent.rawTransactionHex,
-                        verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: sent.transactionHash)
+                        verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: sent.transactionHash, providerIDs: providerIDs)
                     ))
                 } catch {
                     continuation.resume(throwing: error)
@@ -494,7 +498,8 @@ struct BitcoinWalletEngine {
         seedPhrase: String,
         to recipientAddress: String,
         amountBTC: Double,
-        feePriority: BitcoinFeePriority = .normal
+        feePriority: BitcoinFeePriority = .normal,
+        providerIDs: Set<String>? = nil
     ) async throws -> BitcoinSendResult {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -504,12 +509,13 @@ struct BitcoinWalletEngine {
                         seedPhrase: seedPhrase,
                         to: recipientAddress,
                         amountBTC: amountBTC,
-                        feePriority: feePriority
+                        feePriority: feePriority,
+                        providerIDs: providerIDs
                     )
                     continuation.resume(returning: BitcoinSendResult(
                         transactionHash: sent.transactionHash,
                         rawTransactionHex: sent.rawTransactionHex,
-                        verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: sent.transactionHash)
+                        verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: sent.transactionHash, providerIDs: providerIDs)
                     ))
                 } catch {
                     continuation.resume(throwing: error)
@@ -848,9 +854,12 @@ struct BitcoinWalletEngine {
         return defaultEsploraEndpoints(for: mode)
     }
 
-    private static func performWithClientFallback<T>(_ operation: (EsploraClient) throws -> T) throws -> T {
+    private static func performWithClientFallback<T>(
+        providerIDs: Set<String>? = nil,
+        _ operation: (EsploraClient) throws -> T
+    ) throws -> T {
         var lastError: Error?
-        for endpoint in orderedEsploraEndpoints() {
+        for endpoint in orderedEsploraEndpoints(providerIDs: providerIDs) {
             let client = EsploraClient(url: endpoint)
             do {
                 let value = try operation(client)
@@ -867,25 +876,28 @@ struct BitcoinWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         rawTransactionHex: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> BitcoinSendResult {
         let fallbackTransactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
             : ""
         let transactionHash = try await broadcastRawTransactionHex(
             rawTransactionHex,
-            fallbackTransactionHash: fallbackTransactionHash
+            fallbackTransactionHash: fallbackTransactionHash,
+            providerIDs: providerIDs
         )
         return BitcoinSendResult(
             transactionHash: transactionHash,
             rawTransactionHex: rawTransactionHex,
-            verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: transactionHash)
+            verificationStatus: verifyBroadcastedTransactionIfAvailable(txid: transactionHash, providerIDs: providerIDs)
         )
     }
 
     private static func broadcastRawTransactionHex(
         _ rawTransactionHex: String,
-        fallbackTransactionHash: String
+        fallbackTransactionHash: String,
+        providerIDs: Set<String>? = nil
     ) async throws -> String {
         let trimmedRawHex = rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedRawHex.isEmpty,
@@ -898,7 +910,7 @@ struct BitcoinWalletEngine {
         }
 
         var lastError: Error?
-        for endpoint in orderedEsploraEndpoints() {
+        for endpoint in orderedEsploraEndpoints(providerIDs: providerIDs) {
             guard let url = URL(string: "\(endpoint)/tx") else {
                 continue
             }
@@ -941,13 +953,17 @@ struct BitcoinWalletEngine {
         throw lastError ?? URLError(.cannotConnectToHost)
     }
 
-    private static func broadcastWithRecovery(transaction: Transaction, txid: String) throws {
+    private static func broadcastWithRecovery(
+        transaction: Transaction,
+        txid: String,
+        providerIDs: Set<String>? = nil
+    ) throws {
         let attempts = 2
         var lastError: Error?
 
         for _ in 0 ..< attempts {
             do {
-                try performWithClientFallback { client in
+                try performWithClientFallback(providerIDs: providerIDs) { client in
                     try client.broadcast(transaction: transaction)
                 }
                 return
@@ -966,14 +982,17 @@ struct BitcoinWalletEngine {
         throw lastError ?? URLError(.cannotConnectToHost)
     }
 
-    private static func verifyBroadcastedTransactionIfAvailable(txid: String) -> SendBroadcastVerificationStatus {
+    private static func verifyBroadcastedTransactionIfAvailable(
+        txid: String,
+        providerIDs: Set<String>? = nil
+    ) -> SendBroadcastVerificationStatus {
         let trimmed = txid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .deferred }
 
         var sawNotFound = false
         var lastError: Error?
 
-        for endpoint in resolvedEsploraEndpoints() {
+        for endpoint in orderedEsploraEndpoints(providerIDs: providerIDs) {
             guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
                   let url = URL(string: "\(endpoint)/tx/\(encoded)") else {
                 continue
@@ -1018,9 +1037,9 @@ struct BitcoinWalletEngine {
         return .deferred
     }
 
-    private static func orderedEsploraEndpoints() -> [String] {
+    private static func orderedEsploraEndpoints(providerIDs: Set<String>? = nil) -> [String] {
         let counters = loadEndpointReliabilityCounters()
-        return resolvedEsploraEndpoints().sorted { lhs, rhs in
+        return filteredEsploraEndpoints(providerIDs: providerIDs).sorted { lhs, rhs in
             let leftScore = endpointScore(counters[lhs])
             let rightScore = endpointScore(counters[rhs])
             if leftScore == rightScore {
@@ -1028,6 +1047,22 @@ struct BitcoinWalletEngine {
             }
             return leftScore > rightScore
         }
+    }
+
+    private static func filteredEsploraEndpoints(providerIDs: Set<String>? = nil) -> [String] {
+        let allEndpoints = resolvedEsploraEndpoints()
+        guard let providerIDs, !providerIDs.isEmpty else {
+            return allEndpoints
+        }
+
+        let normalized = Set(providerIDs.map { $0.lowercased() })
+        let allowEsplora = normalized.contains("esplora")
+        let allowMaestro = normalized.contains("maestro-esplora")
+        let filtered = allEndpoints.filter { endpoint in
+            let isMaestro = endpoint.contains("gomaestro-api.org")
+            return isMaestro ? allowMaestro : allowEsplora
+        }
+        return filtered.isEmpty ? allEndpoints : filtered
     }
 
     private static func endpointScore(_ counter: EndpointReliabilityCounter?) -> Double {

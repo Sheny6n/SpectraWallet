@@ -5,6 +5,18 @@ final class WalletChainDiagnosticsState: ObservableObject {
     @Published var dogecoinSelfTestResults: [ChainSelfTestResult] = []
     @Published var isRunningDogecoinSelfTests: Bool = false
     @Published var dogecoinSelfTestsLastRunAt: Date?
+    @Published var bitcoinSelfTestResults: [ChainSelfTestResult] = []
+    @Published var isRunningBitcoinSelfTests: Bool = false
+    @Published var bitcoinSelfTestsLastRunAt: Date?
+    @Published var bitcoinCashSelfTestResults: [ChainSelfTestResult] = []
+    @Published var isRunningBitcoinCashSelfTests: Bool = false
+    @Published var bitcoinCashSelfTestsLastRunAt: Date?
+    @Published var bitcoinSVSelfTestResults: [ChainSelfTestResult] = []
+    @Published var isRunningBitcoinSVSelfTests: Bool = false
+    @Published var bitcoinSVSelfTestsLastRunAt: Date?
+    @Published var litecoinSelfTestResults: [ChainSelfTestResult] = []
+    @Published var isRunningLitecoinSelfTests: Bool = false
+    @Published var litecoinSelfTestsLastRunAt: Date?
     @Published var dogecoinHistoryDiagnosticsByWallet: [UUID: BitcoinHistoryDiagnostics] = [:]
     @Published var dogecoinHistoryDiagnosticsLastUpdatedAt: Date?
     @Published var isRunningDogecoinHistoryDiagnostics: Bool = false

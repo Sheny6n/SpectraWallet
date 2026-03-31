@@ -64,9 +64,12 @@ enum SolanaWalletEngine {
         JSONRPCAPIClient(endpoint: APIEndPoint(address: baseURL, network: .mainnetBeta))
     }
 
-    private static func withRPCClient<T>(_ operation: (SolanaAPIClient) async throws -> T) async throws -> T {
+    private static func withRPCClient<T>(
+        providerIDs: Set<String>? = nil,
+        _ operation: (SolanaAPIClient) async throws -> T
+    ) async throws -> T {
         var lastError: Error?
-        for baseURL in orderedRPCBases() {
+        for baseURL in orderedRPCBases(providerIDs: providerIDs) {
             do {
                 let result = try await operation(rpcClient(baseURL: baseURL))
                 ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: true)
@@ -124,7 +127,8 @@ enum SolanaWalletEngine {
         destinationAddress: String,
         amount: Double,
         preference: DerivationPreference = .standard,
-        account: UInt32 = 0
+        account: UInt32 = 0,
+        providerIDs: Set<String>? = nil
     ) async throws -> SolanaSendResult {
         let normalizedOwner = ownerAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedDestination = destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -150,7 +154,7 @@ enum SolanaWalletEngine {
         )
         let privateKey = resolvedKey.privateKeyData
 
-        let latestBlockhash = try await fetchLatestBlockhash()
+        let latestBlockhash = try await fetchLatestBlockhash(providerIDs: providerIDs)
 
         var transfer = SolanaTransfer()
         transfer.recipient = normalizedDestination
@@ -174,7 +178,7 @@ enum SolanaWalletEngine {
         }
         try validateSerializedTransactionPolicy(encodedTransaction)
 
-        let txHash = try await broadcastSignedTransaction(encodedTransaction)
+        let txHash = try await broadcastSignedTransaction(encodedTransaction, providerIDs: providerIDs)
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(signature: txHash)
         return SolanaSendResult(
             transactionHash: txHash,
@@ -193,7 +197,8 @@ enum SolanaWalletEngine {
         amount: Double,
         sourceTokenAccountAddress: String?,
         preference: DerivationPreference = .standard,
-        account: UInt32 = 0
+        account: UInt32 = 0,
+        providerIDs: Set<String>? = nil
     ) async throws -> SolanaSendResult {
         let normalizedOwner = ownerAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedDestination = destinationAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -242,7 +247,7 @@ enum SolanaWalletEngine {
             account: account
         )
         let privateKey = resolvedKey.privateKeyData
-        let latestBlockhash = try await fetchLatestBlockhash()
+        let latestBlockhash = try await fetchLatestBlockhash(providerIDs: providerIDs)
 
         var message = SolanaCreateAndTransferToken()
         message.recipientMainAddress = normalizedDestination
@@ -270,7 +275,7 @@ enum SolanaWalletEngine {
         }
         try validateSerializedTransactionPolicy(encodedTransaction)
 
-        let txHash = try await broadcastSignedTransaction(encodedTransaction)
+        let txHash = try await broadcastSignedTransaction(encodedTransaction, providerIDs: providerIDs)
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(signature: txHash)
         return SolanaSendResult(
             transactionHash: txHash,
@@ -282,11 +287,12 @@ enum SolanaWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         signedTransactionBase64: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> SolanaSendResult {
         let normalizedPayload = signedTransactionBase64.trimmingCharacters(in: .whitespacesAndNewlines)
         try validateSerializedTransactionPolicy(normalizedPayload)
-        let txHash = try await broadcastSignedTransaction(normalizedPayload)
+        let txHash = try await broadcastSignedTransaction(normalizedPayload, providerIDs: providerIDs)
         let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
             : txHash
@@ -364,8 +370,8 @@ enum SolanaWalletEngine {
         return .deferred
     }
 
-    private static func fetchLatestBlockhash() async throws -> String {
-        let hash = try await withRPCClient { client in
+    private static func fetchLatestBlockhash(providerIDs: Set<String>? = nil) async throws -> String {
+        let hash = try await withRPCClient(providerIDs: providerIDs) { client in
             try await client.getRecentBlockhash(commitment: "confirmed")
         }.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !hash.isEmpty else {
@@ -374,7 +380,10 @@ enum SolanaWalletEngine {
         return hash
     }
 
-    private static func broadcastSignedTransaction(_ encodedTransactionBase64: String) async throws -> String {
+    private static func broadcastSignedTransaction(
+        _ encodedTransactionBase64: String,
+        providerIDs: Set<String>? = nil
+    ) async throws -> String {
         try validateSerializedTransactionPolicy(encodedTransactionBase64)
         guard let config = RequestConfiguration(
             commitment: "confirmed",
@@ -390,7 +399,7 @@ enum SolanaWalletEngine {
 
         for _ in 0 ..< attempts {
             do {
-                let signature = try await withRPCClient { client in
+                let signature = try await withRPCClient(providerIDs: providerIDs) { client in
                     try await client.sendTransaction(
                         transaction: encodedTransactionBase64,
                         configs: config
@@ -582,10 +591,24 @@ enum SolanaWalletEngine {
         }
     }
 
-    private static func orderedRPCBases() -> [String] {
+    private static func orderedRPCBases(providerIDs: Set<String>? = nil) -> [String] {
         ChainEndpointReliability.orderedEndpoints(
             namespace: endpointReliabilityNamespace,
-            candidates: solanaRPCBases
+            candidates: filteredRPCBases(providerIDs: providerIDs)
         )
+    }
+
+    private static func filteredRPCBases(providerIDs: Set<String>? = nil) -> [String] {
+        guard let providerIDs, !providerIDs.isEmpty else { return solanaRPCBases }
+        return solanaRPCBases.filter { endpoint in
+            switch endpoint {
+            case "https://api.mainnet-beta.solana.com":
+                return providerIDs.contains("solana-mainnet-beta")
+            case "https://rpc.ankr.com/solana":
+                return providerIDs.contains("solana-ankr")
+            default:
+                return false
+            }
+        }
     }
 }

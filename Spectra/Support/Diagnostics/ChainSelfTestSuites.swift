@@ -393,6 +393,29 @@ enum LitecoinSelfTestSuite {
 }
 
 @MainActor
+enum BitcoinSVSelfTestSuite {
+    static func runAll() -> [ChainSelfTestResult] {
+        [
+            GenericChainSelfTestHelpers.addressAccepts(
+                chainLabel: "Bitcoin SV",
+                address: "1MirQ9bwyQcGVJPwKUgapu5ouK2E2Ey4gX",
+                validator: AddressValidation.isValidBitcoinSVAddress
+            ),
+            GenericChainSelfTestHelpers.addressRejects(
+                chainLabel: "Bitcoin SV",
+                invalidAddress: "bsv_not_valid",
+                validator: AddressValidation.isValidBitcoinSVAddress
+            ),
+            GenericChainSelfTestHelpers.derivationProducesValidAddress(
+                chainLabel: "Bitcoin SV",
+                derive: { try BitcoinSVWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                validator: AddressValidation.isValidBitcoinSVAddress
+            )
+        ]
+    }
+}
+
+@MainActor
 enum CardanoSelfTestSuite {
     static func runAll() -> [ChainSelfTestResult] {
         [

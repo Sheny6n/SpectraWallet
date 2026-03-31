@@ -902,27 +902,22 @@ struct StandardChainDiagnosticsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section(NSLocalizedString("Providers", comment: "")) {
-                Toggle(NSLocalizedString("Broadcast via Blockchair", comment: ""), isOn: dogecoinBroadcastBlockchairBinding)
-                Toggle(NSLocalizedString("Broadcast via BlockCypher", comment: ""), isOn: dogecoinBroadcastBlockcypherBinding)
-                Toggle(NSLocalizedString("Status via Blockchair", comment: ""), isOn: dogecoinStatusBlockchairBinding)
-                Toggle(NSLocalizedString("Status via BlockCypher", comment: ""), isOn: dogecoinStatusBlockcypherBinding)
-            }
+        }
 
-            Section(NSLocalizedString("DOGE Exclusive Actions", comment: "")) {
-                Button(store.isRunningDogecoinSelfTests ? NSLocalizedString("Running Self-Tests...", comment: "") : NSLocalizedString("Run DOGE Self-Tests", comment: "")) {
-                    store.runDogecoinSelfTests()
+        if supportsUTXOChainActions {
+            Section(NSLocalizedString("Chain Actions", comment: "")) {
+                Button(isRunningChainSelfTests ? NSLocalizedString("Running Self-Tests...", comment: "") : chainSelfTestButtonTitle) {
+                    runChainSelfTests()
                 }
-                .disabled(store.isRunningDogecoinSelfTests)
+                .disabled(isRunningChainSelfTests)
 
-                Button(store.isRunningDogecoinRescan ? NSLocalizedString("Rescanning DOGE...", comment: "") : NSLocalizedString("Run DOGE Rescan", comment: "")) {
+                Button(isRunningChainRescan ? chainRescanInFlightTitle : chainRescanButtonTitle) {
                     Task {
-                        await store.runDogecoinRescan()
+                        await runChainRescan()
                     }
                 }
-                .disabled(store.isRunningDogecoinRescan)
+                .disabled(isRunningChainRescan)
             }
-
         }
 
         if !store.availableBroadcastProviders(for: chain.title).isEmpty {
@@ -1032,45 +1027,104 @@ struct StandardChainDiagnosticsView: View {
         "\(Int((value * 100).rounded()))%"
     }
 
-    private var dogecoinBroadcastBlockchairBinding: Binding<Bool> {
-        Binding(
-            get: { store.dogecoinBroadcastUseBlockchair },
-            set: { newValue in
-                if !newValue && !store.dogecoinBroadcastUseBlockcypher { return }
-                store.dogecoinBroadcastUseBlockchair = newValue
-            }
-        )
+    private var supportsUTXOChainActions: Bool {
+        switch chain {
+        case .bitcoin, .bitcoinCash, .bitcoinSV, .litecoin, .dogecoin:
+            return true
+        default:
+            return false
+        }
     }
 
-    private var dogecoinBroadcastBlockcypherBinding: Binding<Bool> {
-        Binding(
-            get: { store.dogecoinBroadcastUseBlockcypher },
-            set: { newValue in
-                if !newValue && !store.dogecoinBroadcastUseBlockchair { return }
-                store.dogecoinBroadcastUseBlockcypher = newValue
-            }
-        )
+    private var isRunningChainSelfTests: Bool {
+        switch chain {
+        case .bitcoin: return store.isRunningBitcoinSelfTests
+        case .bitcoinCash: return store.isRunningBitcoinCashSelfTests
+        case .bitcoinSV: return store.isRunningBitcoinSVSelfTests
+        case .litecoin: return store.isRunningLitecoinSelfTests
+        case .dogecoin: return store.isRunningDogecoinSelfTests
+        default: return false
+        }
     }
 
-    private var dogecoinStatusBlockchairBinding: Binding<Bool> {
-        Binding(
-            get: { store.dogecoinStatusUseBlockchair },
-            set: { newValue in
-                if !newValue && !store.dogecoinStatusUseBlockcypher { return }
-                store.dogecoinStatusUseBlockchair = newValue
-            }
-        )
+    private var isRunningChainRescan: Bool {
+        switch chain {
+        case .bitcoin: return store.isRunningBitcoinRescan
+        case .bitcoinCash: return store.isRunningBitcoinCashRescan
+        case .bitcoinSV: return store.isRunningBitcoinSVRescan
+        case .litecoin: return store.isRunningLitecoinRescan
+        case .dogecoin: return store.isRunningDogecoinRescan
+        default: return false
+        }
     }
 
-    private var dogecoinStatusBlockcypherBinding: Binding<Bool> {
-        Binding(
-            get: { store.dogecoinStatusUseBlockcypher },
-            set: { newValue in
-                if !newValue && !store.dogecoinStatusUseBlockchair { return }
-                store.dogecoinStatusUseBlockcypher = newValue
-            }
-        )
+    private var chainSelfTestButtonTitle: String {
+        switch chain {
+        case .bitcoin: return NSLocalizedString("Run BTC Self-Tests", comment: "")
+        case .bitcoinCash: return NSLocalizedString("Run BCH Self-Tests", comment: "")
+        case .bitcoinSV: return NSLocalizedString("Run BSV Self-Tests", comment: "")
+        case .litecoin: return NSLocalizedString("Run LTC Self-Tests", comment: "")
+        case .dogecoin: return NSLocalizedString("Run DOGE Self-Tests", comment: "")
+        default: return NSLocalizedString("Run Self-Tests", comment: "")
+        }
     }
+
+    private var chainRescanButtonTitle: String {
+        switch chain {
+        case .bitcoin: return NSLocalizedString("Run BTC Rescan", comment: "")
+        case .bitcoinCash: return NSLocalizedString("Run BCH Rescan", comment: "")
+        case .bitcoinSV: return NSLocalizedString("Run BSV Rescan", comment: "")
+        case .litecoin: return NSLocalizedString("Run LTC Rescan", comment: "")
+        case .dogecoin: return NSLocalizedString("Run DOGE Rescan", comment: "")
+        default: return NSLocalizedString("Run Rescan", comment: "")
+        }
+    }
+
+    private var chainRescanInFlightTitle: String {
+        switch chain {
+        case .bitcoin: return NSLocalizedString("Rescanning BTC...", comment: "")
+        case .bitcoinCash: return NSLocalizedString("Rescanning BCH...", comment: "")
+        case .bitcoinSV: return NSLocalizedString("Rescanning BSV...", comment: "")
+        case .litecoin: return NSLocalizedString("Rescanning LTC...", comment: "")
+        case .dogecoin: return NSLocalizedString("Rescanning DOGE...", comment: "")
+        default: return NSLocalizedString("Rescanning...", comment: "")
+        }
+    }
+
+    private func runChainSelfTests() {
+        switch chain {
+        case .bitcoin:
+            store.runBitcoinSelfTests()
+        case .bitcoinCash:
+            store.runBitcoinCashSelfTests()
+        case .bitcoinSV:
+            store.runBitcoinSVSelfTests()
+        case .litecoin:
+            store.runLitecoinSelfTests()
+        case .dogecoin:
+            store.runDogecoinSelfTests()
+        default:
+            break
+        }
+    }
+
+    private func runChainRescan() async {
+        switch chain {
+        case .bitcoin:
+            await store.runBitcoinRescan()
+        case .bitcoinCash:
+            await store.runBitcoinCashRescan()
+        case .bitcoinSV:
+            await store.runBitcoinSVRescan()
+        case .litecoin:
+            await store.runLitecoinRescan()
+        case .dogecoin:
+            await store.runDogecoinRescan()
+        default:
+            break
+        }
+    }
+
 }
 
 struct HistorySourceConfidenceDiagnosticsView: View {

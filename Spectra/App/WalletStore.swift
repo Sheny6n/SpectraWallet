@@ -203,20 +203,6 @@ class WalletStore: ObservableObject {
     let logger = Logger(subsystem: "com.spectra.wallet", category: "dogecoin")
     private let balanceTelemetryLogger = Logger(subsystem: "com.spectra.wallet", category: "balance.telemetry")
     let transactionState = WalletTransactionState()
-    struct DogecoinOperationalEvent: Codable, Identifiable {
-        enum Level: String, Codable {
-            case info
-            case warning
-            case error
-        }
-
-        let id: UUID
-        let timestamp: Date
-        let level: Level
-        let message: String
-        let transactionHash: String?
-    }
-
     struct ChainOperationalEvent: Codable, Identifiable {
         enum Level: String, Codable {
             case info
@@ -772,50 +758,6 @@ class WalletStore: ObservableObject {
             persistChainOperationalEvents()
         }
     }
-    @Published var dogecoinBroadcastProviderReliability: [DogecoinWalletEngine.BroadcastProviderReliability] = []
-    @Published var dogecoinOperationalEvents: [DogecoinOperationalEvent] = [] {
-        didSet {
-            persistDogecoinOperationalEvents()
-        }
-    }
-    @Published var dogecoinBroadcastUseBlockchair: Bool = true {
-        didSet {
-            UserDefaults.standard.set(dogecoinBroadcastUseBlockchair, forKey: Self.dogecoinBroadcastUseBlockchairDefaultsKey)
-            DogecoinWalletEngine.configureBroadcastProviders(
-                useBlockchair: dogecoinBroadcastUseBlockchair,
-                useBlockCypher: dogecoinBroadcastUseBlockcypher
-            )
-            refreshDogecoinBroadcastProviderReliability()
-        }
-    }
-    @Published var dogecoinBroadcastUseBlockcypher: Bool = true {
-        didSet {
-            UserDefaults.standard.set(dogecoinBroadcastUseBlockcypher, forKey: Self.dogecoinBroadcastUseBlockcypherDefaultsKey)
-            DogecoinWalletEngine.configureBroadcastProviders(
-                useBlockchair: dogecoinBroadcastUseBlockchair,
-                useBlockCypher: dogecoinBroadcastUseBlockcypher
-            )
-            refreshDogecoinBroadcastProviderReliability()
-        }
-    }
-    @Published var dogecoinStatusUseBlockchair: Bool = true {
-        didSet {
-            UserDefaults.standard.set(dogecoinStatusUseBlockchair, forKey: Self.dogecoinStatusUseBlockchairDefaultsKey)
-            DogecoinBalanceService.configureStatusProviders(
-                useBlockchair: dogecoinStatusUseBlockchair,
-                useBlockCypher: dogecoinStatusUseBlockcypher
-            )
-        }
-    }
-    @Published var dogecoinStatusUseBlockcypher: Bool = true {
-        didSet {
-            UserDefaults.standard.set(dogecoinStatusUseBlockcypher, forKey: Self.dogecoinStatusUseBlockcypherDefaultsKey)
-            DogecoinBalanceService.configureStatusProviders(
-                useBlockchair: dogecoinStatusUseBlockchair,
-                useBlockCypher: dogecoinStatusUseBlockcypher
-            )
-        }
-    }
     @Published var selectedFeePriorityOptionRawByChain: [String: String] = [:] {
         didSet {
             persistSelectedFeePriorityOptions()
@@ -826,6 +768,14 @@ class WalletStore: ObservableObject {
             persistSelectedBroadcastProviders()
         }
     }
+    @Published var isRunningBitcoinRescan: Bool = false
+    @Published var bitcoinRescanLastRunAt: Date?
+    @Published var isRunningBitcoinCashRescan: Bool = false
+    @Published var bitcoinCashRescanLastRunAt: Date?
+    @Published var isRunningBitcoinSVRescan: Bool = false
+    @Published var bitcoinSVRescanLastRunAt: Date?
+    @Published var isRunningLitecoinRescan: Bool = false
+    @Published var litecoinRescanLastRunAt: Date?
     @Published var isRunningDogecoinRescan: Bool = false
     @Published var dogecoinRescanLastRunAt: Date?
     private var suppressWalletSideEffects = false
@@ -880,13 +830,8 @@ class WalletStore: ObservableObject {
     private static let backgroundSyncProfileDefaultsKey = "settings.backgroundSyncProfile"
     private static let largeMovementAlertPercentThresholdDefaultsKey = "settings.largeMovementAlertPercentThreshold"
     private static let largeMovementAlertUSDThresholdDefaultsKey = "settings.largeMovementAlertUSDThreshold"
-    private static let dogecoinBroadcastUseBlockchairDefaultsKey = "settings.dogecoin.broadcast.useBlockchair"
-    private static let dogecoinBroadcastUseBlockcypherDefaultsKey = "settings.dogecoin.broadcast.useBlockcypher"
-    private static let dogecoinStatusUseBlockchairDefaultsKey = "settings.dogecoin.status.useBlockchair"
-    private static let dogecoinStatusUseBlockcypherDefaultsKey = "settings.dogecoin.status.useBlockcypher"
     private static let selectedFeePriorityOptionsByChainDefaultsKey = "settings.feePriorityOptionsByChain.v1"
     private static let selectedBroadcastProvidersByChainDefaultsKey = "settings.broadcastProvidersByChain.v1"
-    private static let dogecoinOperationalEventsDefaultsKey = "dogecoin.operational.events.v1"
     private static let chainOperationalEventsDefaultsKey = "chain.operational.events.v1"
     private static let chainBroadcastProviderReliabilityDefaultsKey = "chain.broadcast.provider.reliability.v1"
     private static let operationalLogsDefaultsKey = "operational.logs.v1"
@@ -1313,10 +1258,8 @@ class WalletStore: ObservableObject {
         chainKeypoolByChain = loadChainKeypoolState()
         chainOwnedAddressMapByChain = loadChainOwnedAddressMap()
         chainOperationalEventsByChain = loadChainOperationalEvents()
-        dogecoinOperationalEvents = loadDogecoinOperationalEvents()
         syncChainOwnedAddressManagementState()
         refreshAllBroadcastProviderReliability()
-        refreshDogecoinBroadcastProviderReliability()
         applyBitcoinRuntimeConfiguration()
         
         if UserDefaults.standard.object(forKey: Self.hideBalancesDefaultsKey) != nil {
@@ -1370,32 +1313,13 @@ class WalletStore: ObservableObject {
             largeMovementAlertUSDThreshold = UserDefaults.standard.double(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
         }
 
-        if UserDefaults.standard.object(forKey: Self.dogecoinBroadcastUseBlockchairDefaultsKey) != nil {
-            dogecoinBroadcastUseBlockchair = UserDefaults.standard.bool(forKey: Self.dogecoinBroadcastUseBlockchairDefaultsKey)
-        }
-        if UserDefaults.standard.object(forKey: Self.dogecoinBroadcastUseBlockcypherDefaultsKey) != nil {
-            dogecoinBroadcastUseBlockcypher = UserDefaults.standard.bool(forKey: Self.dogecoinBroadcastUseBlockcypherDefaultsKey)
-        }
-        if UserDefaults.standard.object(forKey: Self.dogecoinStatusUseBlockchairDefaultsKey) != nil {
-            dogecoinStatusUseBlockchair = UserDefaults.standard.bool(forKey: Self.dogecoinStatusUseBlockchairDefaultsKey)
-        }
-        if UserDefaults.standard.object(forKey: Self.dogecoinStatusUseBlockcypherDefaultsKey) != nil {
-            dogecoinStatusUseBlockcypher = UserDefaults.standard.bool(forKey: Self.dogecoinStatusUseBlockcypherDefaultsKey)
-        }
         if let storedFeePrioritySelections = UserDefaults.standard.dictionary(forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey) as? [String: String] {
             selectedFeePriorityOptionRawByChain = storedFeePrioritySelections
         }
         if let storedSelections = UserDefaults.standard.dictionary(forKey: Self.selectedBroadcastProvidersByChainDefaultsKey) as? [String: [String]] {
             selectedBroadcastProviderIDsByChain = storedSelections
         }
-        DogecoinWalletEngine.configureBroadcastProviders(
-            useBlockchair: dogecoinBroadcastUseBlockchair,
-            useBlockCypher: dogecoinBroadcastUseBlockcypher
-        )
-        DogecoinBalanceService.configureStatusProviders(
-            useBlockchair: dogecoinStatusUseBlockchair,
-            useBlockCypher: dogecoinStatusUseBlockcypher
-        )
+        synchronizeDogecoinBroadcastProviderSelection()
         suppressWalletSideEffects = false
         applyWalletCollectionSideEffects()
 
@@ -3431,7 +3355,6 @@ func resetImportForm() {
     private func resetHistoryAndCacheState() {
         HistoryDatabaseStore.shared.hardResetStorage()
         UserDefaults.standard.removeObject(forKey: Self.chainSyncStateDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.dogecoinOperationalEventsDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.operationalLogsDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.dogecoinKeypoolDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.dogecoinOwnedAddressMapDefaultsKey)
@@ -3458,6 +3381,14 @@ func resetImportForm() {
         exhaustedHyperliquidHistoryWalletIDs = []
         tronHistoryCursorByWallet = [:]
         exhaustedTronHistoryWalletIDs = []
+        bitcoinSelfTestResults = []
+        bitcoinSelfTestsLastRunAt = nil
+        bitcoinCashSelfTestResults = []
+        bitcoinCashSelfTestsLastRunAt = nil
+        bitcoinSVSelfTestResults = []
+        bitcoinSVSelfTestsLastRunAt = nil
+        litecoinSelfTestResults = []
+        litecoinSelfTestsLastRunAt = nil
         dogecoinSelfTestResults = []
         dogecoinSelfTestsLastRunAt = nil
         dogecoinHistoryDiagnosticsByWallet = [:]
@@ -3537,10 +3468,12 @@ func resetImportForm() {
         diagnostics.chainDegradedMessages = [:]
         diagnostics.lastGoodChainSyncByName = [:]
         chainOperationalEventsByChain = [:]
-        dogecoinOperationalEvents = []
         diagnostics.clearOperationalLogs()
         chainBroadcastProviderReliabilityByChain = [:]
-        dogecoinBroadcastProviderReliability = []
+        isRunningBitcoinSelfTests = false
+        isRunningBitcoinCashSelfTests = false
+        isRunningBitcoinSVSelfTests = false
+        isRunningLitecoinSelfTests = false
         isRunningDogecoinSelfTests = false
         isRunningDogecoinHistoryDiagnostics = false
         isCheckingDogecoinEndpointHealth = false
@@ -3588,6 +3521,14 @@ func resetImportForm() {
         lastChainBalanceRefreshAt = nil
         lastHistoryRefreshAtByChain = [:]
         lastObservedPortfolioTotalUSD = nil
+        isRunningBitcoinRescan = false
+        bitcoinRescanLastRunAt = nil
+        isRunningBitcoinCashRescan = false
+        bitcoinCashRescanLastRunAt = nil
+        isRunningBitcoinSVRescan = false
+        bitcoinSVRescanLastRunAt = nil
+        isRunningLitecoinRescan = false
+        litecoinRescanLastRunAt = nil
         isRunningDogecoinRescan = false
         dogecoinRescanLastRunAt = nil
         persistTransactionsFullSync()
@@ -3637,10 +3578,6 @@ func resetImportForm() {
         UserDefaults.standard.removeObject(forKey: Self.backgroundSyncProfileDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.dogecoinBroadcastUseBlockchairDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.dogecoinBroadcastUseBlockcypherDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.dogecoinStatusUseBlockchairDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.dogecoinStatusUseBlockcypherDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.selectedBroadcastProvidersByChainDefaultsKey)
         UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.defaultsKey)
@@ -3679,10 +3616,6 @@ func resetImportForm() {
         backgroundSyncProfile = .balanced
         largeMovementAlertPercentThreshold = 10
         largeMovementAlertUSDThreshold = 50
-        dogecoinBroadcastUseBlockchair = true
-        dogecoinBroadcastUseBlockcypher = true
-        dogecoinStatusUseBlockchair = true
-        dogecoinStatusUseBlockcypher = true
         selectedFeePriorityOptionRawByChain = [:]
         selectedBroadcastProviderIDsByChain = [:]
     }
@@ -3691,13 +3624,11 @@ func resetImportForm() {
         await SpectraNetworkRouter.shared.resetToDefault()
         clearNetworkAndTransportCaches()
         UserDefaults.standard.removeObject(forKey: Self.chainBroadcastProviderReliabilityDefaultsKey)
-        DogecoinWalletEngine.resetBroadcastProviderSelection()
         DogecoinWalletEngine.resetBroadcastProviderReliability()
-        DogecoinBalanceService.resetStatusProviderSelection()
         DogecoinBalanceService.resetProviderReliability()
         DogecoinWalletEngine.resetUTXOCache()
         chainBroadcastProviderReliabilityByChain = [:]
-        dogecoinBroadcastProviderReliability = []
+        synchronizeDogecoinBroadcastProviderSelection(["blockchair", "blockcypher"])
     }
 
     // Clears URL/network-level caches that can leak stale RPC/API responses across resets.
@@ -3713,6 +3644,62 @@ func resetImportForm() {
         }
     }
 
+    func runBitcoinSelfTests() {
+        guard !isRunningBitcoinSelfTests else { return }
+        isRunningBitcoinSelfTests = true
+        bitcoinSelfTestResults = BitcoinSelfTestSuite.runAll()
+        bitcoinSelfTestsLastRunAt = Date()
+        isRunningBitcoinSelfTests = false
+        let failedCount = bitcoinSelfTestResults.filter { !$0.passed }.count
+        if failedCount == 0 {
+            appendChainOperationalEvent(.info, chainName: "Bitcoin", message: "BTC self-tests passed (\(bitcoinSelfTestResults.count) checks).")
+        } else {
+            appendChainOperationalEvent(.warning, chainName: "Bitcoin", message: "BTC self-tests completed with \(failedCount) failure(s).")
+        }
+    }
+
+    func runBitcoinCashSelfTests() {
+        guard !isRunningBitcoinCashSelfTests else { return }
+        isRunningBitcoinCashSelfTests = true
+        bitcoinCashSelfTestResults = BitcoinCashSelfTestSuite.runAll()
+        bitcoinCashSelfTestsLastRunAt = Date()
+        isRunningBitcoinCashSelfTests = false
+        let failedCount = bitcoinCashSelfTestResults.filter { !$0.passed }.count
+        if failedCount == 0 {
+            appendChainOperationalEvent(.info, chainName: "Bitcoin Cash", message: "BCH self-tests passed (\(bitcoinCashSelfTestResults.count) checks).")
+        } else {
+            appendChainOperationalEvent(.warning, chainName: "Bitcoin Cash", message: "BCH self-tests completed with \(failedCount) failure(s).")
+        }
+    }
+
+    func runBitcoinSVSelfTests() {
+        guard !isRunningBitcoinSVSelfTests else { return }
+        isRunningBitcoinSVSelfTests = true
+        bitcoinSVSelfTestResults = BitcoinSVSelfTestSuite.runAll()
+        bitcoinSVSelfTestsLastRunAt = Date()
+        isRunningBitcoinSVSelfTests = false
+        let failedCount = bitcoinSVSelfTestResults.filter { !$0.passed }.count
+        if failedCount == 0 {
+            appendChainOperationalEvent(.info, chainName: "Bitcoin SV", message: "BSV self-tests passed (\(bitcoinSVSelfTestResults.count) checks).")
+        } else {
+            appendChainOperationalEvent(.warning, chainName: "Bitcoin SV", message: "BSV self-tests completed with \(failedCount) failure(s).")
+        }
+    }
+
+    func runLitecoinSelfTests() {
+        guard !isRunningLitecoinSelfTests else { return }
+        isRunningLitecoinSelfTests = true
+        litecoinSelfTestResults = LitecoinSelfTestSuite.runAll()
+        litecoinSelfTestsLastRunAt = Date()
+        isRunningLitecoinSelfTests = false
+        let failedCount = litecoinSelfTestResults.filter { !$0.passed }.count
+        if failedCount == 0 {
+            appendChainOperationalEvent(.info, chainName: "Litecoin", message: "LTC self-tests passed (\(litecoinSelfTestResults.count) checks).")
+        } else {
+            appendChainOperationalEvent(.warning, chainName: "Litecoin", message: "LTC self-tests completed with \(failedCount) failure(s).")
+        }
+    }
+
     func runDogecoinSelfTests() {
         guard !isRunningDogecoinSelfTests else { return }
         isRunningDogecoinSelfTests = true
@@ -3721,9 +3708,9 @@ func resetImportForm() {
         isRunningDogecoinSelfTests = false
         let failedCount = dogecoinSelfTestResults.filter { !$0.passed }.count
         if failedCount == 0 {
-            appendDogecoinOperationalEvent(.info, message: "DOGE self-tests passed (\(dogecoinSelfTestResults.count) checks).")
+            appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE self-tests passed (\(dogecoinSelfTestResults.count) checks).")
         } else {
-            appendDogecoinOperationalEvent(.warning, message: "DOGE self-tests completed with \(failedCount) failure(s).")
+            appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE self-tests completed with \(failedCount) failure(s).")
         }
     }
 
@@ -3830,8 +3817,7 @@ func resetImportForm() {
     }
 
     func refreshDogecoinBroadcastProviderReliability() {
-        dogecoinBroadcastProviderReliability = DogecoinWalletEngine.broadcastProviderReliabilitySnapshot()
-        let dogecoinItems = dogecoinBroadcastProviderReliability.map { item in
+        let dogecoinItems = DogecoinWalletEngine.broadcastProviderReliabilitySnapshot().map { item in
             ChainBroadcastProviderReliability(
                 chainName: "Dogecoin",
                 providerID: item.providerID,
@@ -3863,7 +3849,6 @@ func resetImportForm() {
         for chainName in chainNames where !chainName.isEmpty {
             refreshBroadcastProviderReliability(for: chainName)
         }
-        refreshDogecoinBroadcastProviderReliability()
     }
 
     func refreshBroadcastProviderReliability(for chainName: String) {
@@ -3985,17 +3970,6 @@ func resetImportForm() {
         let options = availableBroadcastProviders(for: chainName)
         guard !options.isEmpty else { return [] }
 
-        if chainName == ChainBackendRegistry.dogecoinChainName {
-            var selected: Set<String> = []
-            if dogecoinBroadcastUseBlockchair {
-                selected.insert("blockchair")
-            }
-            if dogecoinBroadcastUseBlockcypher {
-                selected.insert("blockcypher")
-            }
-            return selected.isEmpty ? Set(options.map(\.id)) : selected
-        }
-
         if let stored = selectedBroadcastProviderIDsByChain[chainName], !stored.isEmpty {
             let filtered = Set(stored).intersection(Set(options.map(\.id)))
             if !filtered.isEmpty {
@@ -4022,22 +3996,23 @@ func resetImportForm() {
             selected.remove(providerID)
         }
 
-        if chainName == ChainBackendRegistry.dogecoinChainName {
-            let useBlockchair = selected.contains("blockchair")
-            let useBlockcypher = selected.contains("blockcypher")
-            if dogecoinBroadcastUseBlockchair != useBlockchair {
-                dogecoinBroadcastUseBlockchair = useBlockchair
-            }
-            if dogecoinBroadcastUseBlockcypher != useBlockcypher {
-                dogecoinBroadcastUseBlockcypher = useBlockcypher
-            }
-        }
-
         selectedBroadcastProviderIDsByChain[chainName] = Array(selected).sorted()
+        if chainName == ChainBackendRegistry.dogecoinChainName {
+            synchronizeDogecoinBroadcastProviderSelection(selected)
+            refreshDogecoinBroadcastProviderReliability()
+        }
     }
 
     private func persistSelectedBroadcastProviders() {
         UserDefaults.standard.set(selectedBroadcastProviderIDsByChain, forKey: Self.selectedBroadcastProvidersByChainDefaultsKey)
+    }
+
+    private func synchronizeDogecoinBroadcastProviderSelection(_ selectedProviderIDs: Set<String>? = nil) {
+        let selected = selectedProviderIDs ?? selectedBroadcastProviderIDs(for: ChainBackendRegistry.dogecoinChainName)
+        DogecoinWalletEngine.configureBroadcastProviders(
+            useBlockchair: selected.contains("blockchair"),
+            useBlockCypher: selected.contains("blockcypher")
+        )
     }
 
     private func persistSelectedFeePriorityOptions() {
@@ -4049,7 +4024,7 @@ func resetImportForm() {
         isRunningDogecoinRescan = true
         defer { isRunningDogecoinRescan = false }
         logger.log("Starting Dogecoin rescan")
-        appendDogecoinOperationalEvent(.info, message: "DOGE rescan started.")
+        appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE rescan started.")
 
         await refreshDogecoinAddressDiscovery()
         await refreshDogecoinReceiveReservationState()
@@ -4059,7 +4034,55 @@ func resetImportForm() {
         dogecoinRescanLastRunAt = Date()
 
         logger.log("Completed Dogecoin rescan")
-        appendDogecoinOperationalEvent(.info, message: "DOGE rescan completed.")
+        appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE rescan completed.")
+    }
+
+    func runBitcoinRescan() async {
+        guard !isRunningBitcoinRescan else { return }
+        isRunningBitcoinRescan = true
+        defer { isRunningBitcoinRescan = false }
+        appendChainOperationalEvent(.info, chainName: "Bitcoin", message: "BTC rescan started.")
+        await refreshBitcoinBalances()
+        await refreshBitcoinTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+        await refreshPendingBitcoinTransactions()
+        bitcoinRescanLastRunAt = Date()
+        appendChainOperationalEvent(.info, chainName: "Bitcoin", message: "BTC rescan completed.")
+    }
+
+    func runBitcoinCashRescan() async {
+        guard !isRunningBitcoinCashRescan else { return }
+        isRunningBitcoinCashRescan = true
+        defer { isRunningBitcoinCashRescan = false }
+        appendChainOperationalEvent(.info, chainName: "Bitcoin Cash", message: "BCH rescan started.")
+        await refreshBitcoinCashBalances()
+        await refreshBitcoinCashTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+        await refreshPendingBitcoinCashTransactions()
+        bitcoinCashRescanLastRunAt = Date()
+        appendChainOperationalEvent(.info, chainName: "Bitcoin Cash", message: "BCH rescan completed.")
+    }
+
+    func runBitcoinSVRescan() async {
+        guard !isRunningBitcoinSVRescan else { return }
+        isRunningBitcoinSVRescan = true
+        defer { isRunningBitcoinSVRescan = false }
+        appendChainOperationalEvent(.info, chainName: "Bitcoin SV", message: "BSV rescan started.")
+        await refreshBitcoinSVBalances()
+        await refreshBitcoinSVTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+        await refreshPendingBitcoinSVTransactions()
+        bitcoinSVRescanLastRunAt = Date()
+        appendChainOperationalEvent(.info, chainName: "Bitcoin SV", message: "BSV rescan completed.")
+    }
+
+    func runLitecoinRescan() async {
+        guard !isRunningLitecoinRescan else { return }
+        isRunningLitecoinRescan = true
+        defer { isRunningLitecoinRescan = false }
+        appendChainOperationalEvent(.info, chainName: "Litecoin", message: "LTC rescan started.")
+        await refreshLitecoinBalances()
+        await refreshLitecoinTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+        await refreshPendingLitecoinTransactions()
+        litecoinRescanLastRunAt = Date()
+        appendChainOperationalEvent(.info, chainName: "Litecoin", message: "LTC rescan completed.")
     }
 
     func runDogecoinHistoryDiagnostics() async {
@@ -4114,17 +4137,12 @@ func resetImportForm() {
         guard !isCheckingDogecoinEndpointHealth else { return }
         isCheckingDogecoinEndpointHealth = true
         defer { isCheckingDogecoinEndpointHealth = false }
-
-        let checks = await DogecoinBalanceService.checkProviderHealth()
-        dogecoinEndpointHealthResults = checks.map { item in
-            BitcoinEndpointHealthResult(
-                endpoint: item.endpoint,
-                reachable: item.reachable,
-                statusCode: item.statusCode,
-                detail: item.message
-            )
-        }
-        dogecoinEndpointHealthLastUpdatedAt = Date()
+        await runSimpleEndpointReachabilityDiagnostics(
+            checks: DogecoinBalanceService.diagnosticsChecks(),
+            profile: .diagnostics,
+            setResults: { [weak self] in self?.dogecoinEndpointHealthResults = $0 },
+            markUpdated: { [weak self] in self?.dogecoinEndpointHealthLastUpdatedAt = Date() }
+        )
     }
 
     // Starts one network monitor used to gate maintenance tasks and degraded-mode messaging.
@@ -4254,23 +4272,43 @@ func resetImportForm() {
         }
     }
 
-    func retryDogecoinTransactionStatus(for transactionID: UUID) async -> String {
+    func retryUTXOTransactionStatus(for transactionID: UUID) async -> String {
         guard let transaction = transactions.first(where: { $0.id == transactionID }) else {
             return "Transaction not found."
         }
-        guard transaction.chainName == "Dogecoin", transaction.kind == .send else {
-            return "Status recheck is only supported for Dogecoin send transactions."
+        let supportedChains = Set(["Bitcoin", "Bitcoin Cash", "Bitcoin SV", "Litecoin", "Dogecoin"])
+        guard supportedChains.contains(transaction.chainName), transaction.kind == .send else {
+            return "Status recheck is only supported for UTXO send transactions."
         }
         guard transaction.transactionHash != nil else {
             return "This transaction has no hash to recheck."
         }
 
-        var tracker = dogecoinStatusTrackingByTransactionID[transactionID] ?? DogecoinStatusTrackingState.initial(now: Date())
-        tracker.nextCheckAt = Date.distantPast
-        tracker.reachedFinality = false
-        dogecoinStatusTrackingByTransactionID[transactionID] = tracker
+        if transaction.chainName == "Dogecoin" {
+            var tracker = dogecoinStatusTrackingByTransactionID[transactionID] ?? DogecoinStatusTrackingState.initial(now: Date())
+            tracker.nextCheckAt = Date.distantPast
+            tracker.reachedFinality = false
+            dogecoinStatusTrackingByTransactionID[transactionID] = tracker
+        } else {
+            var tracker = statusTrackingByTransactionID[transactionID] ?? TransactionStatusTrackingState.initial(now: Date())
+            tracker.nextCheckAt = Date.distantPast
+            statusTrackingByTransactionID[transactionID] = tracker
+        }
 
-        await refreshPendingDogecoinTransactions()
+        switch transaction.chainName {
+        case "Bitcoin":
+            await refreshPendingBitcoinTransactions()
+        case "Bitcoin Cash":
+            await refreshPendingBitcoinCashTransactions()
+        case "Bitcoin SV":
+            await refreshPendingBitcoinSVTransactions()
+        case "Litecoin":
+            await refreshPendingLitecoinTransactions()
+        case "Dogecoin":
+            await refreshPendingDogecoinTransactions()
+        default:
+            break
+        }
 
         guard let updated = transactions.first(where: { $0.id == transactionID }) else {
             return "Transaction status refresh completed."
@@ -4302,7 +4340,7 @@ func resetImportForm() {
               !rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return "This transaction cannot be rebroadcast because raw signed data was not saved."
         }
-        appendDogecoinOperationalEvent(.info, message: "DOGE rebroadcast requested.", transactionHash: transaction.transactionHash)
+        appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE rebroadcast requested.", transactionHash: transaction.transactionHash)
 
         do {
             let result = try await DogecoinWalletEngine.rebroadcastSignedTransactionInBackground(
@@ -4352,18 +4390,18 @@ func resetImportForm() {
             await refreshPendingDogecoinTransactions()
             switch result.verificationStatus {
             case .verified:
-                appendDogecoinOperationalEvent(.info, message: "DOGE rebroadcast verified by provider.", transactionHash: result.transactionHash)
+                appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE rebroadcast verified by provider.", transactionHash: result.transactionHash)
                 return "Transaction rebroadcasted and observed on network providers."
             case .deferred:
-                appendDogecoinOperationalEvent(.warning, message: "DOGE rebroadcast accepted; verification deferred.", transactionHash: result.transactionHash)
+                appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE rebroadcast accepted; verification deferred.", transactionHash: result.transactionHash)
                 return "Transaction rebroadcasted. Network indexers may take a moment to reflect it."
             case .failed(let message):
-                appendDogecoinOperationalEvent(.warning, message: "DOGE rebroadcast verification warning: \(message)", transactionHash: result.transactionHash)
+                appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE rebroadcast verification warning: \(message)", transactionHash: result.transactionHash)
                 return "Rebroadcast sent, but verification warning: \(message)"
             }
         } catch {
             refreshDogecoinBroadcastProviderReliability()
-            appendDogecoinOperationalEvent(.error, message: "DOGE rebroadcast failed: \(error.localizedDescription)", transactionHash: transaction.transactionHash)
+            appendChainOperationalEvent(.error, chainName: "Dogecoin", message: "DOGE rebroadcast failed: \(error.localizedDescription)", transactionHash: transaction.transactionHash)
             return error.localizedDescription
         }
     }
@@ -4461,25 +4499,29 @@ func resetImportForm() {
         case "bitcoin.raw_hex":
             let result = try await BitcoinWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "bitcoin_cash.raw_hex":
             let result = try await BitcoinCashWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "bitcoin_sv.raw_hex":
             let result = try await BitcoinSVWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "litecoin.raw_hex":
             let result = try await LitecoinWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "dogecoin.raw_hex":
@@ -4500,37 +4542,43 @@ func resetImportForm() {
         case "tron.signed_json":
             let result = try await TronWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionJSON: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "solana.base64":
             let result = try await SolanaWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionBase64: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "xrp.blob_hex":
             let result = try await XRPWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionBlobHex: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "stellar.xdr":
             let result = try await StellarWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedEnvelopeXDR: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "cardano.cbor_hex":
             let result = try await CardanoWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionCBORHex: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "near.base64":
             let result = try await NearWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionBase64: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "polkadot.extrinsic_hex":
@@ -4542,13 +4590,15 @@ func resetImportForm() {
         case "aptos.signed_json":
             let result = try await AptosWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionJSON: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "sui.signed_json":
             let result = try await SuiWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionPayloadJSON: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
             )
             return (result.transactionHash, result.verificationStatus)
         case "ton.boc":
@@ -7819,6 +7869,7 @@ func resetImportForm() {
         
         let wallet = wallets[walletIndex]
         let holding = wallet.holdings[holdingIndex]
+        let enabledBroadcastProviderIDs = selectedBroadcastProviderIDs(for: holding.chainName)
         let destinationInput = sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         var destinationAddress = destinationInput
         var usedENSResolution = false
@@ -7871,7 +7922,8 @@ func resetImportForm() {
                     ownerAddress: sourceAddress,
                     destinationAddress: destinationAddress,
                     amount: amount,
-                    derivationAccount: derivationAccount(for: wallet, chain: .sui)
+                    derivationAccount: derivationAccount(for: wallet, chain: .sui),
+                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -7939,7 +7991,8 @@ func resetImportForm() {
                     ownerAddress: sourceAddress,
                     destinationAddress: destinationAddress,
                     amount: amount,
-                    derivationAccount: derivationAccount(for: wallet, chain: .aptos)
+                    derivationAccount: derivationAccount(for: wallet, chain: .aptos),
+                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8183,7 +8236,8 @@ func resetImportForm() {
                     seedPhrase: seedPhrase,
                     to: destinationAddress,
                     amountBTC: amount,
-                    feePriority: bitcoinFeePriority(for: holding.chainName)
+                    feePriority: bitcoinFeePriority(for: holding.chainName),
+                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8244,7 +8298,8 @@ func resetImportForm() {
                         maxInputCount: sendAdvancedMode && sendUTXOMaxInputCount > 0 ? sendUTXOMaxInputCount : nil,
                         enableRBF: sendEnableRBF
                     ),
-                    derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinCash)
+                    derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinCash),
+                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8307,7 +8362,8 @@ func resetImportForm() {
                         maxInputCount: sendAdvancedMode && sendUTXOMaxInputCount > 0 ? sendUTXOMaxInputCount : nil,
                         enableRBF: sendEnableRBF
                     ),
-                    derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinSV)
+                    derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinSV),
+                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8372,7 +8428,8 @@ func resetImportForm() {
                         changeStrategy: sendLitecoinChangeStrategy,
                         enableRBF: sendEnableRBF
                     ),
-                    derivationPath: walletDerivationPath(for: wallet, chain: .litecoin)
+                    derivationPath: walletDerivationPath(for: wallet, chain: .litecoin),
+                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8418,7 +8475,7 @@ func resetImportForm() {
                 sendError = "Unable to resolve this wallet's Dogecoin signing address from the seed phrase."
                 return
             }
-            appendDogecoinOperationalEvent(.info, message: "DOGE send initiated.", transactionHash: nil)
+            appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE send initiated.")
 
             if dogecoinSendPreview == nil {
                 await refreshDogecoinSendPreview()
@@ -8445,7 +8502,7 @@ func resetImportForm() {
                 )
             } catch {
                 sendError = error.localizedDescription
-                appendDogecoinOperationalEvent(.error, message: "DOGE send failed: \(error.localizedDescription)")
+                appendChainOperationalEvent(.error, chainName: "Dogecoin", message: "DOGE send failed: \(error.localizedDescription)")
                 return
             }
 
@@ -8496,13 +8553,13 @@ func resetImportForm() {
             switch sendResult.verificationStatus {
             case .verified:
                 clearSendVerificationNotice()
-                appendDogecoinOperationalEvent(.info, message: "DOGE send broadcast verified.", transactionHash: sendResult.transactionHash)
+                appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE send broadcast verified.", transactionHash: sendResult.transactionHash)
             case .deferred:
                 setDeferredSendVerificationNotice(for: holding.chainName)
-                appendDogecoinOperationalEvent(.warning, message: "DOGE send broadcast accepted; verification deferred.", transactionHash: sendResult.transactionHash)
+                appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE send broadcast accepted; verification deferred.", transactionHash: sendResult.transactionHash)
             case .failed(let message):
                 setFailedSendVerificationNotice("Broadcast succeeded, but post-broadcast verification reported: \(message)")
-                appendDogecoinOperationalEvent(.warning, message: "DOGE send verification warning: \(message)", transactionHash: sendResult.transactionHash)
+                appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE send verification warning: \(message)", transactionHash: sendResult.transactionHash)
             }
             await refreshDogecoinTransactions()
             await refreshPendingDogecoinTransactions()
@@ -8561,7 +8618,8 @@ func resetImportForm() {
                         symbol: holding.symbol,
                         amount: amount,
                         contractAddress: holding.contractAddress,
-                        derivationAccount: derivationAccount(for: wallet, chain: .tron)
+                        derivationAccount: derivationAccount(for: wallet, chain: .tron),
+                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else if let privateKey {
                     sendResult = try await TronWalletEngine.sendInBackground(
@@ -8570,7 +8628,8 @@ func resetImportForm() {
                         destinationAddress: destinationAddress,
                         symbol: holding.symbol,
                         amount: amount,
-                        contractAddress: holding.contractAddress
+                        contractAddress: holding.contractAddress,
+                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else {
                     sendError = "This wallet's signing key is unavailable."
@@ -8654,7 +8713,8 @@ func resetImportForm() {
                         destinationAddress: destinationAddress,
                         amount: amount,
                         preference: solanaPreference,
-                        account: derivationAccount(for: wallet, chain: .solana)
+                        account: derivationAccount(for: wallet, chain: .solana),
+                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else {
                     let solanaTokenMetadataByMint = solanaTrackedTokens(includeDisabled: true)
@@ -8676,7 +8736,8 @@ func resetImportForm() {
                         amount: amount,
                         sourceTokenAccountAddress: sourceTokenAccount,
                         preference: solanaPreference,
-                        account: derivationAccount(for: wallet, chain: .solana)
+                        account: derivationAccount(for: wallet, chain: .solana),
+                        providerIDs: enabledBroadcastProviderIDs
                     )
                 }
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
@@ -8741,14 +8802,16 @@ func resetImportForm() {
                         ownerAddress: sourceAddress,
                         destinationAddress: destinationAddress,
                         amount: amount,
-                        derivationAccount: derivationAccount(for: wallet, chain: .xrp)
+                        derivationAccount: derivationAccount(for: wallet, chain: .xrp),
+                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else if let privateKey {
                     sendResult = try await XRPWalletEngine.sendInBackground(
                         privateKeyHex: privateKey,
                         ownerAddress: sourceAddress,
                         destinationAddress: destinationAddress,
-                        amount: amount
+                        amount: amount,
+                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else {
                     sendError = "This wallet's signing key is unavailable."
@@ -8816,14 +8879,16 @@ func resetImportForm() {
                         ownerAddress: sourceAddress,
                         destinationAddress: destinationAddress,
                         amount: amount,
-                        derivationPath: wallet.seedDerivationPaths.stellar
+                        derivationPath: wallet.seedDerivationPaths.stellar,
+                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else if let privateKey {
                     sendResult = try await StellarWalletEngine.sendInBackground(
                         privateKeyHex: privateKey,
                         ownerAddress: sourceAddress,
                         destinationAddress: destinationAddress,
-                        amount: amount
+                        amount: amount,
+                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else {
                     sendError = "This wallet's signing key is unavailable."
@@ -8881,7 +8946,8 @@ func resetImportForm() {
                 let sendResult = try await MoneroWalletEngine.sendInBackground(
                     ownerAddress: sourceAddress,
                     destinationAddress: destinationAddress,
-                    amount: amount
+                    amount: amount,
+                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8941,7 +9007,8 @@ func resetImportForm() {
                     ownerAddress: sourceAddress,
                     destinationAddress: destinationAddress,
                     amount: amount,
-                    derivationPath: walletDerivationPath(for: wallet, chain: .cardano)
+                    derivationPath: walletDerivationPath(for: wallet, chain: .cardano),
+                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -9001,7 +9068,8 @@ func resetImportForm() {
                     ownerAddress: sourceAddress,
                     destinationAddress: destinationAddress,
                     amount: amount,
-                    derivationAccount: derivationAccount(for: wallet, chain: .near)
+                    derivationAccount: derivationAccount(for: wallet, chain: .near),
+                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -17897,12 +17965,86 @@ func resetImportForm() {
         isCheckingNearEndpointHealth = true
         defer { isCheckingNearEndpointHealth = false }
 
-        await runSimpleEndpointReachabilityDiagnostics(
-            checks: NearBalanceService.diagnosticsChecks(),
-            profile: .litecoinDiagnostics,
-            setResults: { self.nearEndpointHealthResults = $0 },
-            markUpdated: { self.nearEndpointHealthLastUpdatedAt = Date() }
-        )
+        var results: [BitcoinEndpointHealthResult] = []
+        let rpcEndpoints = Set(NearBalanceService.rpcEndpointCatalog())
+
+        for (endpoint, probeURL) in NearBalanceService.diagnosticsChecks() {
+            if rpcEndpoints.contains(endpoint) {
+                guard let url = URL(string: endpoint) else {
+                    results.append(
+                        BitcoinEndpointHealthResult(
+                            endpoint: endpoint,
+                            reachable: false,
+                            statusCode: nil,
+                            detail: "Invalid URL"
+                        )
+                    )
+                    continue
+                }
+                do {
+                    let payload = try JSONSerialization.data(withJSONObject: [
+                        "jsonrpc": "2.0",
+                        "id": "spectra-near-health",
+                        "method": "status",
+                        "params": []
+                    ])
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "POST"
+                    request.timeoutInterval = 15
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    request.httpBody = payload
+                    let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .litecoinDiagnostics)
+                    let http = response as? HTTPURLResponse
+                    let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+                    let reachable = http.map { (200 ... 299).contains($0.statusCode) } == true && json?["result"] != nil
+                    let detail = reachable
+                        ? "OK"
+                        : ((json?["error"] as? [String: Any]).flatMap { $0["message"] as? String } ?? "HTTP \(http?.statusCode ?? -1)")
+                    results.append(
+                        BitcoinEndpointHealthResult(
+                            endpoint: endpoint,
+                            reachable: reachable,
+                            statusCode: http?.statusCode,
+                            detail: detail
+                        )
+                    )
+                } catch {
+                    results.append(
+                        BitcoinEndpointHealthResult(
+                            endpoint: endpoint,
+                            reachable: false,
+                            statusCode: nil,
+                            detail: error.localizedDescription
+                        )
+                    )
+                }
+                continue
+            }
+
+            guard let url = URL(string: probeURL) else {
+                results.append(
+                    BitcoinEndpointHealthResult(
+                        endpoint: endpoint,
+                        reachable: false,
+                        statusCode: nil,
+                        detail: "Invalid URL"
+                    )
+                )
+                continue
+            }
+            let probe = await probeHTTP(url, profile: .litecoinDiagnostics)
+            results.append(
+                BitcoinEndpointHealthResult(
+                    endpoint: endpoint,
+                    reachable: probe.reachable,
+                    statusCode: probe.statusCode,
+                    detail: probe.detail
+                )
+            )
+        }
+
+        nearEndpointHealthResults = results
+        nearEndpointHealthLastUpdatedAt = Date()
     }
 
     func runPolkadotEndpointReachabilityDiagnostics() async {
@@ -19917,8 +20059,9 @@ func resetImportForm() {
             }
 
             if oldTransaction.status != .confirmed, status.confirmed {
-                appendDogecoinOperationalEvent(
+                appendChainOperationalEvent(
                     .info,
+                    chainName: "Dogecoin",
                     message: localizedStoreString("DOGE transaction confirmed."),
                     transactionHash: newTransaction.transactionHash
                 )
@@ -19930,8 +20073,9 @@ func resetImportForm() {
                let confirmations = newTransaction.dogecoinConfirmations,
                confirmations >= Self.standardFinalityConfirmations,
                oldTransaction.dogecoinConfirmations ?? 0 < Self.standardFinalityConfirmations {
-                appendDogecoinOperationalEvent(
+                appendChainOperationalEvent(
                     .info,
+                    chainName: "Dogecoin",
                     message: localizedStoreFormat("DOGE transaction reached finality (%d confirmations).", confirmations),
                     transactionHash: newTransaction.transactionHash
                 )
@@ -19944,8 +20088,9 @@ func resetImportForm() {
                   oldTransaction.status != .failed else {
                 continue
             }
-            appendDogecoinOperationalEvent(
+            appendChainOperationalEvent(
                 .error,
+                chainName: "Dogecoin",
                 message: localizedStoreString("DOGE transaction marked failed after extended retries."),
                 transactionHash: oldTransaction.transactionHash
             )
@@ -20111,56 +20256,6 @@ func resetImportForm() {
         diagnostics.exportOperationalLogsText(
             networkSyncStatusText: networkSyncStatusText,
             events: events
-        )
-    }
-
-    private func appendDogecoinOperationalEvent(
-        _ level: DogecoinOperationalEvent.Level,
-        message: String,
-        transactionHash: String? = nil
-    ) {
-        let event = DogecoinOperationalEvent(
-            id: UUID(),
-            timestamp: Date(),
-            level: level,
-            message: message,
-            transactionHash: transactionHash?.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
-        dogecoinOperationalEvents.insert(event, at: 0)
-        if dogecoinOperationalEvents.count > 200 {
-            dogecoinOperationalEvents = Array(dogecoinOperationalEvents.prefix(200))
-        }
-
-        let mappedLevel: OperationalLogEvent.Level
-        switch level {
-        case .info:
-            mappedLevel = .info
-        case .warning:
-            mappedLevel = .warning
-        case .error:
-            mappedLevel = .error
-        }
-        appendOperationalLog(
-            mappedLevel,
-            category: "Dogecoin",
-            message: message,
-            chainName: "Dogecoin",
-            transactionHash: transactionHash
-        )
-        let genericLevel: ChainOperationalEvent.Level
-        switch level {
-        case .info:
-            genericLevel = .info
-        case .warning:
-            genericLevel = .warning
-        case .error:
-            genericLevel = .error
-        }
-        appendChainOperationalEvent(
-            genericLevel,
-            chainName: "Dogecoin",
-            message: message,
-            transactionHash: transactionHash
         )
     }
 
@@ -20375,34 +20470,6 @@ func resetImportForm() {
         )
     }
 
-    private func registerPendingDogecoinSelfSendConfirmation(
-        walletID: UUID,
-        destinationAddress: String,
-        amountDOGE: Double
-    ) {
-        registerPendingSelfSendConfirmation(
-            walletID: walletID,
-            chainName: "Dogecoin",
-            symbol: "DOGE",
-            destinationAddress: destinationAddress,
-            amount: amountDOGE
-        )
-    }
-
-    private func consumePendingDogecoinSelfSendConfirmation(
-        walletID: UUID,
-        destinationAddress: String,
-        amountDOGE: Double
-    ) -> Bool {
-        consumePendingSelfSendConfirmation(
-            walletID: walletID,
-            chainName: "Dogecoin",
-            symbol: "DOGE",
-            destinationAddress: destinationAddress,
-            amount: amountDOGE
-        )
-    }
-
     private func registerPendingSelfSendConfirmation(
         walletID: UUID,
         chainName: String,
@@ -20482,22 +20549,9 @@ func resetImportForm() {
         )
         sendError = "This \(holding.symbol) destination belongs to your wallet. Tap Send again within \(Int(Self.selfSendConfirmationWindowSeconds))s to confirm intentional self-send."
         if holding.chainName == "Dogecoin" {
-            appendDogecoinOperationalEvent(.warning, message: "DOGE self-send confirmation required.")
+            appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE self-send confirmation required.")
         }
         return true
-    }
-
-    private func loadDogecoinOperationalEvents() -> [DogecoinOperationalEvent] {
-        guard let data = UserDefaults.standard.data(forKey: Self.dogecoinOperationalEventsDefaultsKey),
-              let decoded = try? JSONDecoder().decode([DogecoinOperationalEvent].self, from: data) else {
-            return []
-        }
-        return decoded.sorted { $0.timestamp > $1.timestamp }
-    }
-
-    private func persistDogecoinOperationalEvents() {
-        guard let data = try? JSONEncoder().encode(dogecoinOperationalEvents) else { return }
-        UserDefaults.standard.set(data, forKey: Self.dogecoinOperationalEventsDefaultsKey)
     }
 
     private func finalityConfirmations(for chainName: String) -> Int {

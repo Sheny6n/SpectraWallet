@@ -1,6 +1,66 @@
 import Foundation
 
 extension WalletStore {
+    var bitcoinSelfTestResults: [ChainSelfTestResult] {
+        get { chainDiagnosticsState.bitcoinSelfTestResults }
+        set { chainDiagnosticsState.bitcoinSelfTestResults = newValue }
+    }
+
+    var isRunningBitcoinSelfTests: Bool {
+        get { chainDiagnosticsState.isRunningBitcoinSelfTests }
+        set { chainDiagnosticsState.isRunningBitcoinSelfTests = newValue }
+    }
+
+    var bitcoinSelfTestsLastRunAt: Date? {
+        get { chainDiagnosticsState.bitcoinSelfTestsLastRunAt }
+        set { chainDiagnosticsState.bitcoinSelfTestsLastRunAt = newValue }
+    }
+
+    var bitcoinCashSelfTestResults: [ChainSelfTestResult] {
+        get { chainDiagnosticsState.bitcoinCashSelfTestResults }
+        set { chainDiagnosticsState.bitcoinCashSelfTestResults = newValue }
+    }
+
+    var isRunningBitcoinCashSelfTests: Bool {
+        get { chainDiagnosticsState.isRunningBitcoinCashSelfTests }
+        set { chainDiagnosticsState.isRunningBitcoinCashSelfTests = newValue }
+    }
+
+    var bitcoinCashSelfTestsLastRunAt: Date? {
+        get { chainDiagnosticsState.bitcoinCashSelfTestsLastRunAt }
+        set { chainDiagnosticsState.bitcoinCashSelfTestsLastRunAt = newValue }
+    }
+
+    var bitcoinSVSelfTestResults: [ChainSelfTestResult] {
+        get { chainDiagnosticsState.bitcoinSVSelfTestResults }
+        set { chainDiagnosticsState.bitcoinSVSelfTestResults = newValue }
+    }
+
+    var isRunningBitcoinSVSelfTests: Bool {
+        get { chainDiagnosticsState.isRunningBitcoinSVSelfTests }
+        set { chainDiagnosticsState.isRunningBitcoinSVSelfTests = newValue }
+    }
+
+    var bitcoinSVSelfTestsLastRunAt: Date? {
+        get { chainDiagnosticsState.bitcoinSVSelfTestsLastRunAt }
+        set { chainDiagnosticsState.bitcoinSVSelfTestsLastRunAt = newValue }
+    }
+
+    var litecoinSelfTestResults: [ChainSelfTestResult] {
+        get { chainDiagnosticsState.litecoinSelfTestResults }
+        set { chainDiagnosticsState.litecoinSelfTestResults = newValue }
+    }
+
+    var isRunningLitecoinSelfTests: Bool {
+        get { chainDiagnosticsState.isRunningLitecoinSelfTests }
+        set { chainDiagnosticsState.isRunningLitecoinSelfTests = newValue }
+    }
+
+    var litecoinSelfTestsLastRunAt: Date? {
+        get { chainDiagnosticsState.litecoinSelfTestsLastRunAt }
+        set { chainDiagnosticsState.litecoinSelfTestsLastRunAt = newValue }
+    }
+
     var dogecoinSelfTestResults: [ChainSelfTestResult] {
         get { chainDiagnosticsState.dogecoinSelfTestResults }
         set { chainDiagnosticsState.dogecoinSelfTestResults = newValue }

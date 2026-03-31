@@ -151,7 +151,8 @@ enum XRPWalletEngine {
         ownerAddress: String,
         destinationAddress: String,
         amount: Double,
-        derivationAccount: UInt32 = 0
+        derivationAccount: UInt32 = 0,
+        providerIDs: Set<String>? = nil
     ) async throws -> XRPSendResult {
         guard AddressValidation.isValidXRPAddress(ownerAddress),
               AddressValidation.isValidXRPAddress(destinationAddress) else {
@@ -198,7 +199,7 @@ enum XRPWalletEngine {
             throw XRPWalletEngineError.signingFailed("WalletCore produced an empty transaction payload.")
         }
 
-        let submit = try await submitTransaction(txBlobHex: txBlobHex)
+        let submit = try await submitTransaction(txBlobHex: txBlobHex, providerIDs: providerIDs)
         let resultCode = submit.engineResult ?? ""
         let txHash = submit.txJSON?.hash?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard resultCode.hasPrefix("tes") || isAlreadyBroadcastSubmit(resultCode: resultCode, message: submit.engineResultMessage) else {
@@ -230,7 +231,8 @@ enum XRPWalletEngine {
         privateKeyHex: String,
         ownerAddress: String,
         destinationAddress: String,
-        amount: Double
+        amount: Double,
+        providerIDs: Set<String>? = nil
     ) async throws -> XRPSendResult {
         guard AddressValidation.isValidXRPAddress(ownerAddress),
               AddressValidation.isValidXRPAddress(destinationAddress) else {
@@ -276,7 +278,7 @@ enum XRPWalletEngine {
             throw XRPWalletEngineError.signingFailed("WalletCore produced an empty transaction payload.")
         }
 
-        let submit = try await submitTransaction(txBlobHex: txBlobHex)
+        let submit = try await submitTransaction(txBlobHex: txBlobHex, providerIDs: providerIDs)
         let resultCode = submit.engineResult ?? ""
         let txHash = submit.txJSON?.hash?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard resultCode.hasPrefix("tes") || isAlreadyBroadcastSubmit(resultCode: resultCode, message: submit.engineResultMessage) else {
@@ -298,13 +300,14 @@ enum XRPWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         signedTransactionBlobHex: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> XRPSendResult {
         let normalizedBlob = signedTransactionBlobHex.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let blob = Data(hexEncoded: normalizedBlob), !blob.isEmpty else {
             throw XRPWalletEngineError.signingFailed("Invalid signed XRP transaction payload.")
         }
-        let submit = try await submitTransaction(txBlobHex: normalizedBlob)
+        let submit = try await submitTransaction(txBlobHex: normalizedBlob, providerIDs: providerIDs)
         let returnedHash = submit.txJSON?.hash?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let transactionHash = expectedTransactionHash?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? expectedTransactionHash!.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -431,14 +434,14 @@ enum XRPWalletEngine {
         return result
     }
 
-    private static func submitTransaction(txBlobHex: String) async throws -> SubmitResult {
+    private static func submitTransaction(txBlobHex: String, providerIDs: Set<String>? = nil) async throws -> SubmitResult {
         let payload: [String: Any] = [
             "method": "submit",
             "params": [[
                 "tx_blob": txBlobHex
             ]]
         ]
-        let result: SubmitResult = try await postRPC(payload: payload)
+        let result: SubmitResult = try await postRPC(payload: payload, providerIDs: providerIDs)
         return result
     }
 
@@ -450,11 +453,11 @@ enum XRPWalletEngine {
         return classifySendBroadcastFailure(message ?? resultCode) == .alreadyBroadcast
     }
 
-    private static func postRPC<ResultType: Decodable>(payload: [String: Any]) async throws -> ResultType {
+    private static func postRPC<ResultType: Decodable>(payload: [String: Any], providerIDs: Set<String>? = nil) async throws -> ResultType {
         let body = try JSONSerialization.data(withJSONObject: payload, options: [])
         var lastError: Error?
 
-        for endpoint in orderedRPCEndpoints() {
+        for endpoint in orderedRPCEndpoints(providerIDs: providerIDs) {
             var request = URLRequest(url: endpoint)
             request.httpMethod = "POST"
             request.timeoutInterval = 20
@@ -496,11 +499,28 @@ enum XRPWalletEngine {
         return material.address
     }
 
-    private static func orderedRPCEndpoints() -> [URL] {
+    private static func orderedRPCEndpoints(providerIDs: Set<String>? = nil) -> [URL] {
         let ordered = ChainEndpointReliability.orderedEndpoints(
             namespace: endpointReliabilityNamespace,
-            candidates: xrpJSONRPCEndpoints.map(\.absoluteString)
+            candidates: filteredRPCEndpoints(providerIDs: providerIDs)
         )
         return ordered.compactMap(URL.init(string:))
+    }
+
+    private static func filteredRPCEndpoints(providerIDs: Set<String>? = nil) -> [String] {
+        let candidates = xrpJSONRPCEndpoints.map(\.absoluteString)
+        guard let providerIDs, !providerIDs.isEmpty else { return candidates }
+        return candidates.filter { endpoint in
+            switch endpoint {
+            case "https://s1.ripple.com:51234/":
+                return providerIDs.contains("ripple-s1")
+            case "https://s2.ripple.com:51234/":
+                return providerIDs.contains("ripple-s2")
+            case "https://xrplcluster.com/":
+                return providerIDs.contains("xrplcluster")
+            default:
+                return false
+            }
+        }
     }
 }

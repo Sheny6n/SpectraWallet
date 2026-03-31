@@ -136,8 +136,6 @@ enum DogecoinBalanceService {
         return formatter
     }()
 
-    private static let statusProviderSelectionDefaultsKey = "dogecoin.status.provider.selection.v1"
-    private static let statusProviderSelectionLock = NSLock()
     private static let providerReliabilityDefaultsKey = "dogecoin.provider.reliability.v1"
     private static let providerReliabilityLock = NSLock()
     private static let blockchairAPIBaseURLString = ChainBackendRegistry.DogecoinRuntimeEndpoints.blockchairBaseURL
@@ -159,11 +157,6 @@ enum DogecoinBalanceService {
         case status
     }
 
-    private enum StatusProvider: String, CaseIterable {
-        case blockchair
-        case blockcypher
-    }
-
     private struct ProviderReliabilityCounter: Codable {
         var successCount: Int
         var failureCount: Int
@@ -171,16 +164,6 @@ enum DogecoinBalanceService {
         var cooldownUntil: TimeInterval
         var lastError: String?
         var lastUpdatedAt: TimeInterval
-    }
-
-    struct ProviderHealth: Identifiable, Equatable {
-        let providerID: String
-        let endpoint: String
-        let reachable: Bool
-        let statusCode: Int?
-        let message: String
-
-        var id: String { providerID }
     }
 
     struct ProviderReliability: Identifiable, Equatable {
@@ -560,14 +543,7 @@ enum DogecoinBalanceService {
 
     static func fetchTransactionStatus(txid: String) async throws -> DogecoinTransactionStatus {
         var capturedError: Error?
-        let statusCandidates = enabledStatusProviders().map { provider -> ProviderEndpoint in
-            switch provider {
-            case .blockchair:
-                return .blockchair
-            case .blockcypher:
-                return .blockcypher
-            }
-        }
+        let statusCandidates: [ProviderEndpoint] = [.blockchair, .blockcypher]
 
         for provider in orderedProviders(for: .status, candidates: statusCandidates) {
             do {
@@ -663,26 +639,6 @@ enum DogecoinBalanceService {
         throw URLError(.cannotLoadFromNetwork)
     }
 
-    static func configureStatusProviders(useBlockchair: Bool, useBlockCypher: Bool) {
-        statusProviderSelectionLock.lock()
-        defer { statusProviderSelectionLock.unlock() }
-
-        var enabledProviderIDs: [String] = []
-        if useBlockchair {
-            enabledProviderIDs.append(StatusProvider.blockchair.rawValue)
-        }
-        if useBlockCypher {
-            enabledProviderIDs.append(StatusProvider.blockcypher.rawValue)
-        }
-        UserDefaults.standard.set(enabledProviderIDs, forKey: statusProviderSelectionDefaultsKey)
-    }
-
-    static func resetStatusProviderSelection() {
-        statusProviderSelectionLock.lock()
-        defer { statusProviderSelectionLock.unlock() }
-        UserDefaults.standard.removeObject(forKey: statusProviderSelectionDefaultsKey)
-    }
-
     static func endpointCatalog() -> [String] {
         [
             blockchairAPIBaseURLString,
@@ -691,70 +647,12 @@ enum DogecoinBalanceService {
         ]
     }
 
-    static func checkProviderHealth() async -> [ProviderHealth] {
-        let checks: [(String, URL?, String)] = [
-            ("blockchair", blockchairURL(path: "/stats"), currentBlockchairEndpoint()),
-            ("blockcypher", blockcypherURL(path: ""), currentBlockcypherEndpoint()),
-            ("dogechain", dogechainURL(path: "/"), currentDogechainEndpoint())
+    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
+        [
+            (endpoint: currentBlockchairEndpoint(), probeURL: currentBlockchairEndpoint() + "/stats"),
+            (endpoint: currentBlockcypherEndpoint(), probeURL: currentBlockcypherEndpoint()),
+            (endpoint: currentDogechainEndpoint(), probeURL: currentDogechainEndpoint() + "/"),
         ]
-
-        var results: [ProviderHealth] = []
-        for (providerID, url, endpoint) in checks {
-            guard let url else {
-                results.append(
-                    ProviderHealth(
-                        providerID: providerID,
-                        endpoint: endpoint,
-                        reachable: false,
-                        statusCode: nil,
-                        message: "Invalid endpoint URL"
-                    )
-                )
-                continue
-            }
-
-            var request = URLRequest(url: url)
-            request.httpMethod = "GET"
-            request.timeoutInterval = 8
-
-            do {
-                let (_, response) = try await fetchData(for: request)
-                let statusCode = (response as? HTTPURLResponse)?.statusCode
-                let reachable = statusCode.map { (200 ... 499).contains($0) } ?? false
-                results.append(
-                    ProviderHealth(
-                        providerID: providerID,
-                        endpoint: endpoint,
-                        reachable: reachable,
-                        statusCode: statusCode,
-                        message: reachable ? "Reachable" : "Unreachable response"
-                    )
-                )
-            } catch {
-                results.append(
-                    ProviderHealth(
-                        providerID: providerID,
-                        endpoint: endpoint,
-                        reachable: false,
-                        statusCode: nil,
-                        message: error.localizedDescription
-                    )
-                )
-            }
-        }
-
-        return results
-    }
-
-    private static func enabledStatusProviders() -> [StatusProvider] {
-        statusProviderSelectionLock.lock()
-        defer { statusProviderSelectionLock.unlock() }
-
-        guard let configuredProviderIDs = UserDefaults.standard.array(forKey: statusProviderSelectionDefaultsKey) as? [String] else {
-            return StatusProvider.allCases
-        }
-        let providers = configuredProviderIDs.compactMap(StatusProvider.init(rawValue:))
-        return providers.isEmpty ? StatusProvider.allCases : providers
     }
 
     private static func orderedProviders(

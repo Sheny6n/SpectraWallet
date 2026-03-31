@@ -112,7 +112,8 @@ enum CardanoWalletEngine {
         ownerAddress: String,
         destinationAddress: String,
         amount: Double,
-        derivationPath: String = "m/1852'/1815'/0'/0/0"
+        derivationPath: String = "m/1852'/1815'/0'/0/0",
+        providerIDs: Set<String>? = nil
     ) async throws -> CardanoSendResult {
         guard AddressValidation.isValidCardanoAddress(ownerAddress),
               AddressValidation.isValidCardanoAddress(destinationAddress) else {
@@ -189,7 +190,11 @@ enum CardanoWalletEngine {
             throw CardanoWalletEngineError.signingFailed("Missing transaction hash from signing output.")
         }
 
-        try await submitTransactionCBOR(cbor: output.encoded, fallbackTransactionHash: txHashHex)
+        try await submitTransactionCBOR(
+            cbor: output.encoded,
+            fallbackTransactionHash: txHashHex,
+            providerIDs: providerIDs
+        )
 
         return CardanoSendResult(
             transactionHash: txHashHex,
@@ -201,7 +206,8 @@ enum CardanoWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         signedTransactionCBORHex: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        providerIDs: Set<String>? = nil
     ) async throws -> CardanoSendResult {
         let normalized = signedTransactionCBORHex.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let cbor = Data(hexEncoded: normalized), !cbor.isEmpty else {
@@ -211,7 +217,7 @@ enum CardanoWalletEngine {
               !fallbackTransactionHash.isEmpty else {
             throw CardanoWalletEngineError.signingFailed("Missing prior Cardano transaction hash for rebroadcast recovery.")
         }
-        try await submitTransactionCBOR(cbor: cbor, fallbackTransactionHash: fallbackTransactionHash)
+        try await submitTransactionCBOR(cbor: cbor, fallbackTransactionHash: fallbackTransactionHash, providerIDs: providerIDs)
         return CardanoSendResult(
             transactionHash: fallbackTransactionHash,
             estimatedNetworkFeeADA: 0,
@@ -350,11 +356,15 @@ enum CardanoWalletEngine {
         throw lastError ?? CardanoWalletEngineError.networkError("Invalid Cardano UTXO response payload.")
     }
 
-    private static func submitTransactionCBOR(cbor: Data, fallbackTransactionHash: String) async throws {
+    private static func submitTransactionCBOR(
+        cbor: Data,
+        fallbackTransactionHash: String,
+        providerIDs: Set<String>? = nil
+    ) async throws {
         let attempts = 2
         var lastError: Error?
 
-        for endpoint in orderedKoiosBaseURLs() {
+        for endpoint in orderedKoiosBaseURLs(providerIDs: providerIDs) {
             let url = endpoint.appendingPathComponent("submittx")
             for _ in 0 ..< attempts {
                 var request = URLRequest(url: url)
@@ -410,12 +420,29 @@ enum CardanoWalletEngine {
         throw lastError ?? CardanoWalletEngineError.broadcastFailed("Cardano submit failed.")
     }
 
-    private static func orderedKoiosBaseURLs() -> [URL] {
+    private static func orderedKoiosBaseURLs(providerIDs: Set<String>? = nil) -> [URL] {
         let ordered = ChainEndpointReliability.orderedEndpoints(
             namespace: endpointReliabilityNamespace,
-            candidates: ChainBackendRegistry.CardanoRuntimeEndpoints.koiosBaseURLs
+            candidates: filteredKoiosBaseURLs(providerIDs: providerIDs)
         )
         return ordered.compactMap(URL.init(string:))
+    }
+
+    private static func filteredKoiosBaseURLs(providerIDs: Set<String>? = nil) -> [String] {
+        let candidates = ChainBackendRegistry.CardanoRuntimeEndpoints.koiosBaseURLs
+        guard let providerIDs, !providerIDs.isEmpty else { return candidates }
+        return candidates.filter { endpoint in
+            switch endpoint {
+            case "https://api.koios.rest/api/v1":
+                return providerIDs.contains("koios")
+            case "https://graph.xray.app/output/services/koios/mainnet/api/v1":
+                return providerIDs.contains("xray-koios")
+            case "https://koios.happystaking.io:8453/api/v1":
+                return providerIDs.contains("happystaking-koios")
+            default:
+                return false
+            }
+        }
     }
 
     private static func scaledSignedAmount(_ amount: Double, decimals: Int) throws -> Int64 {

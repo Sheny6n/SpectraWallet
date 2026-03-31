@@ -84,20 +84,6 @@ enum TronBalanceService {
         }
     }
 
-    private struct TronScanAddressInfoResponse: Decodable {
-        let balance: FlexibleInt64?
-        let tokens: [TronScanTokenBalance]?
-    }
-
-    private struct TronScanTokenBalance: Decodable {
-        let tokenId: String?
-        let tokenName: String?
-        let tokenAbbr: String?
-        let tokenDecimal: Int?
-        let tokenType: String?
-        let balance: String?
-    }
-
     private struct TronGridTRC20HistoryResponse: Decodable {
         let data: [TronGridTRC20HistoryItem]?
     }
@@ -113,33 +99,6 @@ enum TronBalanceService {
 
     private struct TronGridTokenInfo: Decodable {
         let address: String?
-    }
-
-    private struct FlexibleInt64: Decodable {
-        let value: Int64
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            if let intValue = try? container.decode(Int64.self) {
-                value = intValue
-                return
-            }
-            if let stringValue = try? container.decode(String.self) {
-                let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard let intValue = Int64(trimmed) else {
-                    throw DecodingError.dataCorruptedError(
-                        in: container,
-                        debugDescription: "Expected an Int64-compatible string."
-                    )
-                }
-                value = intValue
-                return
-            }
-            throw DecodingError.dataCorruptedError(
-                in: container,
-                debugDescription: "Expected Int64 or string-backed Int64."
-            )
-        }
     }
 
     private static func normalizedAddress(_ address: String) -> String {
@@ -235,30 +194,7 @@ enum TronBalanceService {
                 return rows
             }
         }
-        return flattenedJSONObjectRows(from: object)
-    }
-
-    private static func flattenedJSONObjectRows(from raw: Any) -> [[String: Any]] {
-        var results: [[String: Any]] = []
-
-        func visit(_ value: Any) {
-            if let dictionary = value as? [String: Any] {
-                results.append(dictionary)
-                for nestedValue in dictionary.values {
-                    visit(nestedValue)
-                }
-                return
-            }
-
-            if let array = value as? [Any] {
-                for nestedValue in array {
-                    visit(nestedValue)
-                }
-            }
-        }
-
-        visit(raw)
-        return results
+        return []
     }
 
     private static func tronScanRowContractAddress(_ row: [String: Any]) -> String? {
@@ -349,213 +285,6 @@ enum TronBalanceService {
         }
     }
 
-    private static func tronScanNativeBalanceFallback(from tokens: [TronScanTokenBalance]) -> Double? {
-        guard let nativeRow = tokens.first(where: { token in
-            if token.tokenId == "_" { return true }
-            if token.tokenAbbr?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "trx" { return true }
-            if token.tokenName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "trx" { return true }
-            return false
-        }) else {
-            return nil
-        }
-        return normalizedTokenAmount(nativeRow.balance, decimals: nativeRow.tokenDecimal ?? 6)
-    }
-
-    private static func tronScanResourceURL(from accountInfoBase: String) -> URL? {
-        guard var components = URLComponents(string: accountInfoBase) else {
-            return nil
-        }
-        components.path = "/api/account/resourcev2"
-        return components.url
-    }
-
-    private static func tronScanTokenOverviewURL(from accountInfoBase: String) -> URL? {
-        guard var components = URLComponents(string: accountInfoBase) else {
-            return nil
-        }
-        components.path = "/api/account/token_asset_overview"
-        return components.url
-    }
-
-    private static func tronScanTokenOverviewBalanceFallback(for address: String, accountInfoBase: String) async -> Double? {
-        guard let overviewBaseURL = tronScanTokenOverviewURL(from: accountInfoBase),
-              var components = URLComponents(url: overviewBaseURL, resolvingAgainstBaseURL: false) else {
-            return nil
-        }
-        components.queryItems = [URLQueryItem(name: "address", value: address)]
-        guard let url = components.url else {
-            return nil
-        }
-
-        do {
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 20
-            let (data, response) = try await fetchData(for: request)
-            guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode),
-                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let rows = object["data"] as? [[String: Any]] else {
-                return nil
-            }
-
-            guard let nativeRow = rows.first(where: { row in
-                if (row["tokenId"] as? String) == "_" { return true }
-                if (row["tokenAbbr"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "trx" { return true }
-                if (row["tokenName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "trx" { return true }
-                return false
-            }) else {
-                return nil
-            }
-
-            let decimals = normalizedInt64(nativeRow["tokenDecimal"]).map(Int.init) ?? 6
-            if let rawBalance = nativeRow["balance"] as? String {
-                return normalizedTokenAmount(rawBalance, decimals: decimals)
-            }
-            if let rawBalance = normalizedInt64(nativeRow["balance"]) {
-                return normalizedTokenAmount(String(rawBalance), decimals: decimals)
-            }
-            return nil
-        } catch {
-            return nil
-        }
-    }
-
-    private static func tronScanStakedBalanceFallback(for address: String, accountInfoBase: String) async -> Double? {
-        guard let resourceBaseURL = tronScanResourceURL(from: accountInfoBase),
-              var components = URLComponents(url: resourceBaseURL, resolvingAgainstBaseURL: false) else {
-            return nil
-        }
-        components.queryItems = [URLQueryItem(name: "address", value: address)]
-        guard let url = components.url else {
-            return nil
-        }
-
-        do {
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 20
-            let (data, response) = try await fetchData(for: request)
-            guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode),
-                  let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return nil
-            }
-
-            if let rows = object["data"] as? [[String: Any]] {
-                let stakedSun = rows.reduce(into: Int64(0)) { partialResult, row in
-                    partialResult += normalizedInt64(row["balance"]) ?? 0
-                }
-                if stakedSun > 0 {
-                    return Double(stakedSun) / 1_000_000.0
-                }
-            }
-
-            let fallbackKeys = [
-                "frozenBalance",
-                "frozen_balance",
-                "frozenBalanceForBandwidth",
-                "frozenBalanceForEnergy"
-            ]
-            let fallbackSun = fallbackKeys.reduce(into: Int64(0)) { partialResult, key in
-                partialResult += normalizedInt64(object[key]) ?? 0
-            }
-            guard fallbackSun > 0 else {
-                return nil
-            }
-            return Double(fallbackSun) / 1_000_000.0
-        } catch {
-            return nil
-        }
-    }
-
-    private static func tronGridRPCNativeBalanceFallback(for address: String) async -> Double? {
-        for base in tronGridRPCBases {
-            guard let nowBlockURL = URL(string: "\(base)/wallet/getnowblock"),
-                  let accountBalanceURL = URL(string: "\(base)/wallet/getaccountbalance"),
-                  let accountURL = URL(string: "\(base)/wallet/getaccount") else {
-                continue
-            }
-
-            do {
-                var nowBlockRequest = URLRequest(url: nowBlockURL)
-                nowBlockRequest.httpMethod = "POST"
-                nowBlockRequest.timeoutInterval = 20
-                nowBlockRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                nowBlockRequest.httpBody = try JSONSerialization.data(withJSONObject: [:])
-
-                let (nowBlockData, nowBlockResponse) = try await fetchData(for: nowBlockRequest)
-                if let http = nowBlockResponse as? HTTPURLResponse,
-                   (200 ... 299).contains(http.statusCode),
-                   let blockObject = try JSONSerialization.jsonObject(with: nowBlockData) as? [String: Any],
-                   let blockID = normalizedString(blockObject["blockID"]),
-                   let blockHeader = blockObject["block_header"] as? [String: Any],
-                   let rawData = blockHeader["raw_data"] as? [String: Any],
-                   let blockNumber = normalizedInt64(rawData["number"]) {
-                    var accountBalanceRequest = URLRequest(url: accountBalanceURL)
-                    accountBalanceRequest.httpMethod = "POST"
-                    accountBalanceRequest.timeoutInterval = 20
-                    accountBalanceRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    accountBalanceRequest.httpBody = try JSONSerialization.data(withJSONObject: [
-                        "account_identifier": [
-                            "address": address
-                        ],
-                        "block_identifier": [
-                            "hash": blockID,
-                            "number": blockNumber
-                        ],
-                        "visible": true
-                    ])
-
-                    let (accountBalanceData, accountBalanceResponse) = try await fetchData(for: accountBalanceRequest)
-                    if let accountBalanceHTTP = accountBalanceResponse as? HTTPURLResponse,
-                       (200 ... 299).contains(accountBalanceHTTP.statusCode),
-                       let object = try JSONSerialization.jsonObject(with: accountBalanceData) as? [String: Any] {
-                        let liquidSun = normalizedInt64(object["balance"]) ?? 0
-                        let frozenSun = (object["frozen"] as? [[String: Any]])?.reduce(into: Int64(0)) { partialResult, row in
-                            partialResult += normalizedInt64(row["frozen_balance"]) ?? normalizedInt64(row["balance"]) ?? 0
-                        } ?? 0
-                        let delegatedFrozenV2Sun = (object["delegated_frozenV2"] as? [[String: Any]])?.reduce(into: Int64(0)) { partialResult, row in
-                            partialResult += normalizedInt64(row["frozen_balance"]) ?? normalizedInt64(row["balance"]) ?? 0
-                        } ?? 0
-                        let totalSun = liquidSun + frozenSun + delegatedFrozenV2Sun
-                        if totalSun > 0 {
-                            return Double(totalSun) / 1_000_000.0
-                        }
-                    }
-                }
-
-                var request = URLRequest(url: accountURL)
-                request.httpMethod = "POST"
-                request.timeoutInterval = 20
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.httpBody = try JSONSerialization.data(withJSONObject: [
-                    "address": address,
-                    "visible": true
-                ])
-
-                let (data, response) = try await fetchData(for: request)
-                guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode),
-                      let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                    continue
-                }
-
-                let liquidSun = normalizedInt64(object["balance"]) ?? 0
-                let frozenV2Sun = (object["frozenV2"] as? [[String: Any]])?.reduce(into: Int64(0)) { partialResult, row in
-                    partialResult += normalizedInt64(row["amount"]) ?? normalizedInt64(row["balance"]) ?? 0
-                } ?? 0
-                let frozenSun = (object["frozen"] as? [[String: Any]])?.reduce(into: Int64(0)) { partialResult, row in
-                    partialResult += normalizedInt64(row["frozen_balance"]) ?? normalizedInt64(row["balance"]) ?? 0
-                } ?? 0
-
-                let totalSun = liquidSun + frozenV2Sun + frozenSun
-                if totalSun > 0 {
-                    return Double(totalSun) / 1_000_000.0
-                }
-            } catch {
-                continue
-            }
-        }
-
-        return nil
-    }
-
     static func isValidAddress(_ address: String) -> Bool {
         AddressValidation.isValidTronAddress(address)
     }
@@ -571,32 +300,6 @@ enum TronBalanceService {
         let normalized = normalizedAddress(address)
         guard isValidAddress(normalized) else {
             throw TronBalanceServiceError.invalidAddress
-        }
-
-        let tronScanResult = try? await fetchBalancesFromTronScan(for: normalized, trackedTokens: trackedTokens)
-        let tronGridResult = try? await fetchBalancesFromTronGrid(for: normalized, trackedTokens: trackedTokens)
-
-        if let tronScanResult, let tronGridResult {
-            let tronScanHasTokenBalances = tronScanResult.tokenBalances.contains { $0.balance > 0 }
-            let tronGridHasTokenBalances = tronGridResult.tokenBalances.contains { $0.balance > 0 }
-            if tronGridResult.trxBalance > tronScanResult.trxBalance {
-                return tronGridResult
-            }
-            if tronScanResult.trxBalance > tronGridResult.trxBalance {
-                return tronScanResult
-            }
-            if tronGridHasTokenBalances && !tronScanHasTokenBalances {
-                return tronGridResult
-            }
-            return tronScanResult
-        }
-
-        if let tronScanResult {
-            return tronScanResult
-        }
-
-        if let tronGridResult {
-            return tronGridResult
         }
 
         do {
@@ -637,26 +340,9 @@ enum TronBalanceService {
                 let topLevelTRXBalance = Double(trxSun) / 1_000_000.0
                 let tokenRows = tronScanTokenRows(from: object)
                 let tokenFallbackTRXBalance = tronScanNativeBalanceFallback(from: tokenRows)
-                let tokenOverviewFallbackTRXBalance: Double?
-                if topLevelTRXBalance <= 0, (tokenFallbackTRXBalance ?? 0) <= 0 {
-                    tokenOverviewFallbackTRXBalance = await tronScanTokenOverviewBalanceFallback(
-                        for: address,
-                        accountInfoBase: base
-                    )
-                } else {
-                    tokenOverviewFallbackTRXBalance = nil
-                }
-                let stakedFallbackTRXBalance: Double?
-                if topLevelTRXBalance <= 0,
-                   (tokenFallbackTRXBalance ?? 0) <= 0,
-                   (tokenOverviewFallbackTRXBalance ?? 0) <= 0 {
-                    stakedFallbackTRXBalance = await tronScanStakedBalanceFallback(for: address, accountInfoBase: base)
-                } else {
-                    stakedFallbackTRXBalance = nil
-                }
                 let trxBalance = topLevelTRXBalance > 0
                     ? topLevelTRXBalance
-                    : (tokenFallbackTRXBalance ?? tokenOverviewFallbackTRXBalance ?? stakedFallbackTRXBalance ?? topLevelTRXBalance)
+                    : (tokenFallbackTRXBalance ?? topLevelTRXBalance)
 
                 let tokenBalances = tronScanTrackedTokenBalances(from: tokenRows, trackedTokens: trackedTokens)
 
@@ -708,14 +394,7 @@ enum TronBalanceService {
                 }
 
                 let trxSun = normalizedInt64(account["balance"]) ?? 0
-                let topLevelTRXBalance = Double(trxSun) / 1_000_000.0
-                let rpcFallbackTRXBalance: Double?
-                if topLevelTRXBalance <= 0 {
-                    rpcFallbackTRXBalance = await tronGridRPCNativeBalanceFallback(for: address)
-                } else {
-                    rpcFallbackTRXBalance = nil
-                }
-                let trxBalance = rpcFallbackTRXBalance ?? topLevelTRXBalance
+                let trxBalance = Double(trxSun) / 1_000_000.0
 
                 var balancesByContract: [String: Double] = [:]
                 let tokenLookup = Dictionary(uniqueKeysWithValues: trackedTokens.map { ($0.contractAddress.lowercased(), $0) })

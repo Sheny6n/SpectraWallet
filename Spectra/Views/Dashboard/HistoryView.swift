@@ -85,10 +85,10 @@ struct HistoryView: View {
                                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                                     if row.transaction.kind == .send,
                                                        row.transaction.status == .pending || row.transaction.status == .failed {
-                                                        if row.transaction.chainName == "Dogecoin" {
+                                                        if ["Bitcoin", "Bitcoin Cash", "Bitcoin SV", "Litecoin", "Dogecoin"].contains(row.transaction.chainName) {
                                                             Button {
                                                                 Task {
-                                                                    _ = await store.retryDogecoinTransactionStatus(for: row.transaction.id)
+                                                                    _ = await store.retryUTXOTransactionStatus(for: row.transaction.id)
                                                                 }
                                                             } label: {
                                                                 Label("Recheck", systemImage: "arrow.clockwise")
