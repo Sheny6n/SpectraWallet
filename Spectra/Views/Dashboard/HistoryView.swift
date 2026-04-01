@@ -33,7 +33,7 @@ struct HistoryView: View {
     @State private var visibleRows: [HistoryRowPresentation] = []
     @State private var groupedSectionsCache: [HistoryPresentationSection] = []
 
-    private let entriesPerPage = 20
+    private let entriesPerPage = 10
 
     init(store: WalletStore) {
         self.store = store
@@ -163,6 +163,7 @@ struct HistoryView: View {
             }
             .onChange(of: currentPageIndex) { _, _ in
                 rebuildGroupedSections()
+                prefetchHistoryIfNeeded()
             }
         }
     }
@@ -261,8 +262,16 @@ struct HistoryView: View {
         clampedPageIndex < totalLoadedPages - 1
     }
 
+    private var loadedHistoryWalletIDs: Set<UUID> {
+        Set(visibleTransactions.compactMap(\.walletID))
+    }
+
+    private var canLoadMoreVisibleHistory: Bool {
+        store.canLoadMoreOnChainHistory(for: loadedHistoryWalletIDs)
+    }
+
     private var shouldShowPagingControls: Bool {
-        !visibleRows.isEmpty && (clampedPageIndex > 0 || hasNextLoadedPage || store.canLoadMoreOnChainHistory || store.isLoadingMoreOnChainHistory)
+        !visibleRows.isEmpty && (clampedPageIndex > 0 || hasNextLoadedPage || canLoadMoreVisibleHistory || store.isLoadingMoreOnChainHistory)
     }
 
     private var pagedRows: [HistoryRowPresentation] {
@@ -366,59 +375,95 @@ struct HistoryView: View {
         }
     }
 
+    private func prefetchHistoryIfNeeded() {
+        let candidateWalletIDs = historyPrefetchCandidateWalletIDs()
+        guard !candidateWalletIDs.isEmpty else { return }
+
+        Task {
+            await store.loadMoreOnChainHistory(for: candidateWalletIDs)
+        }
+    }
+
+    private func historyPrefetchCandidateWalletIDs() -> Set<UUID> {
+        let currentPageWalletIDs = Set(pagedRows.compactMap(\.transaction.walletID))
+        guard !currentPageWalletIDs.isEmpty else { return [] }
+
+        let nextLoadedTransactions = Array(visibleTransactions.dropFirst((clampedPageIndex + 1) * entriesPerPage))
+        var remainingCountByWallet: [UUID: Int] = [:]
+        for transaction in nextLoadedTransactions {
+            guard let walletID = transaction.walletID else { continue }
+            remainingCountByWallet[walletID, default: 0] += 1
+        }
+
+        let candidateWalletIDs = currentPageWalletIDs.filter { walletID in
+            remainingCountByWallet[walletID, default: 0] <= entriesPerPage
+        }
+        return Set(candidateWalletIDs.filter { store.canLoadMoreOnChainHistory(for: [$0]) })
+    }
+
     private var historyPagingControls: some View {
-        VStack(spacing: 12) {
+        HStack(spacing: 14) {
+            Button {
+                currentPageIndex = max(0, clampedPageIndex - 1)
+                pendingScrollToTopToken = UUID()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                    Text("Last")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.primary)
+            }
+            .buttonStyle(.plain)
+            .disabled(clampedPageIndex == 0 || store.isLoadingMoreOnChainHistory)
+            .opacity((clampedPageIndex == 0 || store.isLoadingMoreOnChainHistory) ? 0.4 : 1)
+
             Text(localizedFormat("Page %lld", clampedPageIndex + 1))
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.primary.opacity(0.72))
+                .foregroundStyle(Color.primary.opacity(0.78))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.06), in: Capsule())
 
-            HStack(spacing: 12) {
-                Button {
-                    currentPageIndex = max(0, clampedPageIndex - 1)
-                    pendingScrollToTopToken = UUID()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "chevron.left")
-                        Text("Last Page")
+            Button {
+                Task {
+                    if hasNextLoadedPage {
+                        currentPageIndex = clampedPageIndex + 1
+                        pendingScrollToTopToken = UUID()
+                        return
                     }
-                    .frame(maxWidth: .infinity)
+
+                    let candidateWalletIDs = historyPrefetchCandidateWalletIDs()
+                    guard !candidateWalletIDs.isEmpty else { return }
+                    let previousPageCount = totalLoadedPages
+                    await store.loadMoreOnChainHistory(for: candidateWalletIDs)
+                    if totalLoadedPages > previousPageCount {
+                        currentPageIndex = min(clampedPageIndex + 1, totalLoadedPages - 1)
+                        pendingScrollToTopToken = UUID()
+                    }
                 }
-                .buttonStyle(.glassProminent)
-                .disabled(clampedPageIndex == 0 || store.isLoadingMoreOnChainHistory)
-
-                Button {
-                    Task {
-                        if hasNextLoadedPage {
-                            currentPageIndex = clampedPageIndex + 1
-                            pendingScrollToTopToken = UUID()
-                            return
-                        }
-
-                        guard store.canLoadMoreOnChainHistory else { return }
-                        let previousPageCount = totalLoadedPages
-                        await store.loadMoreOnChainHistory()
-                        if totalLoadedPages > previousPageCount {
-                            currentPageIndex = min(clampedPageIndex + 1, totalLoadedPages - 1)
-                            pendingScrollToTopToken = UUID()
-                        }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(store.isLoadingMoreOnChainHistory ? "Loading" : "Next")
+                    if store.isLoadingMoreOnChainHistory {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "chevron.right")
                     }
-                } label: {
-                    HStack(spacing: 8) {
-                        if store.isLoadingMoreOnChainHistory {
-                            ProgressView()
-                                .tint(.white)
-                        }
-                        Text(store.isLoadingMoreOnChainHistory ? "Loading..." : "Next Page")
-                        if !store.isLoadingMoreOnChainHistory {
-                            Image(systemName: "chevron.right")
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
-                .disabled((!hasNextLoadedPage && !store.canLoadMoreOnChainHistory) || store.isLoadingMoreOnChainHistory)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.primary)
             }
+            .buttonStyle(.plain)
+            .disabled((!hasNextLoadedPage && !canLoadMoreVisibleHistory) || store.isLoadingMoreOnChainHistory)
+            .opacity(((!hasNextLoadedPage && !canLoadMoreVisibleHistory) || store.isLoadingMoreOnChainHistory) ? 0.4 : 1)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .glassEffect(.regular.tint(.white.opacity(0.028)), in: .capsule)
     }
     
     private var emptyStateTitle: String {

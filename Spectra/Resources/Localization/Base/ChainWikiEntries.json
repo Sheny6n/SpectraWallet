@@ -257,11 +257,10 @@
     "primaryUse": "High-throughput transfers, SPL tokens, and latency-sensitive on-chain applications.",
     "slip44CoinType": "501 (Solana)",
     "derivationPath": "m/44'/501'/0'/0'",
-    "alternateDerivationPath": "Legacy compatibility path supported in Spectra: m/44'/501'/0'",
+    "alternateDerivationPath": null,
     "totalCirculationModel": "No fixed maximum supply. Inflation, staking economics, and unlock schedules make long-run live circulation dynamic.",
     "notableDetails": [
       "SPL token balances live in associated token accounts, not in the owner wallet account directly.",
-      "Spectra supports both the current Solana default path and a legacy compatibility path.",
       "A wallet can show correct history even when token-account balance discovery is degraded, which is why Spectra has Solana-specific fallback logic."
     ]
   },

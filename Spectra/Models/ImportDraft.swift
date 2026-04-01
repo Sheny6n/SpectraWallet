@@ -62,7 +62,6 @@ final class WalletImportDraft: ObservableObject {
     }
     @Published var privateKeyInput: String = ""
     @Published var seedDerivationPreset: SeedDerivationPreset = .standard
-    @Published var usesCustomDerivationPaths: Bool = true
     @Published var seedDerivationPaths: SeedDerivationPaths = .defaults
     @Published var seedPhraseEntries: [String] = Array(repeating: "", count: 12)
     @Published var selectedSeedPhraseWordCount: Int = 12 {
@@ -202,19 +201,6 @@ final class WalletImportDraft: ObservableObject {
         refreshSelectionState()
     }
 
-    var selectableDerivationChains: [SeedDerivationChain] {
-        let selectedChainNameSet = Set(selectedChainNames)
-        return SeedDerivationChain.allCases.filter { selectedChainNameSet.contains($0.rawValue) }
-    }
-
-    func applyDerivationPreset(_ preset: SeedDerivationPreset, keepCustomEnabled: Bool? = nil) {
-        seedDerivationPreset = preset
-        seedDerivationPaths = .applyingPreset(
-            preset,
-            keepCustomEnabled: keepCustomEnabled ?? seedDerivationPaths.isCustomEnabled
-        )
-    }
-
     func watchOnlyEntries(from rawValue: String) -> [String] {
         rawValue
             .split(whereSeparator: \.isNewline)
@@ -224,7 +210,7 @@ final class WalletImportDraft: ObservableObject {
 
     var canImportWallet: Bool {
         let hasChains = !selectedChainNames.isEmpty
-        let shouldValidateWatchAddresses = isWatchOnlyMode || isEditingWallet
+        let shouldValidateWatchAddresses = isWatchOnlyMode
         let requiresEVMWatchAddress = wantsEthereum || wantsEthereumClassic || wantsArbitrum || wantsOptimism || wantsBNBChain || wantsAvalanche || wantsHyperliquid
         let bitcoinAddressEntries = shouldValidateWatchAddresses && wantsBitcoin ? watchOnlyEntries(from: bitcoinAddressInput) : []
         let trimmedBitcoinXPub = shouldValidateWatchAddresses && wantsBitcoin
@@ -327,27 +313,7 @@ final class WalletImportDraft: ObservableObject {
                 && (!wantsPolkadot || !polkadotAddressEntries.isEmpty)
         )
         if isEditingWallet {
-            return hasChains
-                && hasValidBitcoinAddress
-                && hasValidBitcoinCashAddress
-                && hasValidBitcoinSVAddress
-                && hasValidLitecoinAddress
-                && hasValidDogecoinAddress
-                && hasValidEthereumAddress
-                && hasValidTronAddress
-                && hasValidSolanaAddress
-                && hasValidStellarAddress
-                && hasValidXRPAddress
-                && hasValidMoneroAddress
-                && hasValidCardanoAddress
-                && hasValidSuiAddress
-                && hasValidAptosAddress
-                && hasValidTONAddress
-                && hasValidICPAddress
-                && hasValidNearAddress
-                && hasValidPolkadotAddress
-                && hasWatchOnlyAddresses
-                && !walletName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return !walletName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
         if isCreateMode {
             let hasValidSeedPhrase = seedPhraseWords.count == selectedSeedPhraseWordCount
@@ -370,6 +336,7 @@ final class WalletImportDraft: ObservableObject {
             && hasValidEthereumAddress
             && hasValidTronAddress
             && hasValidSolanaAddress
+            && hasValidStellarAddress
             && hasValidXRPAddress
             && hasValidMoneroAddress
             && hasValidCardanoAddress
@@ -444,39 +411,14 @@ final class WalletImportDraft: ObservableObject {
         regenerateSeedPhrase()
     }
 
-    func configureForEditing(wallet: ImportedWallet, seedWordCount: Int) {
+    func configureForEditing(wallet: ImportedWallet) {
         // Force reset in import mode to avoid create-mode seed regeneration side effects.
         mode = .importExisting
         isEditingWallet = false
         reset()
         mode = .editExisting
         isEditingWallet = true
-        secretImportMode = .seedPhrase
         walletName = wallet.name
-        seedDerivationPreset = wallet.seedDerivationPreset
-        usesCustomDerivationPaths = true
-        seedDerivationPaths = wallet.seedDerivationPaths
-        selectedSeedPhraseWordCount = BitcoinWalletEngine.validMnemonicWordCounts.contains(seedWordCount) ? seedWordCount : 12
-        bitcoinAddressInput = wallet.bitcoinAddress ?? ""
-        bitcoinXPubInput = wallet.bitcoinXPub ?? ""
-        bitcoinCashAddressInput = wallet.bitcoinCashAddress ?? ""
-        bitcoinSVAddressInput = wallet.bitcoinSVAddress ?? ""
-        litecoinAddressInput = wallet.litecoinAddress ?? ""
-        dogecoinAddressInput = wallet.dogecoinAddress ?? ""
-        ethereumAddressInput = wallet.ethereumAddress ?? ""
-        tronAddressInput = wallet.tronAddress ?? ""
-        solanaAddressInput = wallet.solanaAddress ?? ""
-        xrpAddressInput = wallet.xrpAddress ?? ""
-        stellarAddressInput = wallet.stellarAddress ?? ""
-        moneroAddressInput = wallet.moneroAddress ?? ""
-        cardanoAddressInput = wallet.cardanoAddress ?? ""
-        suiAddressInput = wallet.suiAddress ?? ""
-        aptosAddressInput = wallet.aptosAddress ?? ""
-        tonAddressInput = wallet.tonAddress ?? ""
-        icpAddressInput = wallet.icpAddress ?? ""
-        nearAddressInput = wallet.nearAddress ?? ""
-        polkadotAddressInput = wallet.polkadotAddress ?? ""
-        selectedChainNamesStorage = [wallet.selectedChain]
     }
 
     func reset() {
@@ -487,7 +429,6 @@ final class WalletImportDraft: ObservableObject {
         secretImportMode = .seedPhrase
         privateKeyInput = ""
         seedDerivationPreset = .standard
-        usesCustomDerivationPaths = true
         seedDerivationPaths = .defaults
         seedPhraseEntries = Array(repeating: "", count: 12)
         selectedSeedPhraseWordCount = 12

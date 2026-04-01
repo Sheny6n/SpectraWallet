@@ -1162,12 +1162,7 @@ struct AdvancedSettingsView: View {
             wrappedValue: ViewRefreshSignal([
                 store.$requireBiometricForSendActions.asVoidSignal(),
                 store.$dogecoinAllowTestnet.asVoidSignal(),
-                store.$useStrictRPCOnly.asVoidSignal(),
-                store.$bitcoinHistoryFetchLimit.asVoidSignal(),
-                store.$litecoinHistoryFetchLimit.asVoidSignal(),
-                store.$dogecoinHistoryFetchLimit.asVoidSignal(),
-                store.$ethereumTokenHistoryFetchLimit.asVoidSignal(),
-                store.$moneroHistoryFetchLimit.asVoidSignal()
+                store.$useStrictRPCOnly.asVoidSignal()
             ])
         )
     }
@@ -1211,29 +1206,6 @@ struct AdvancedSettingsView: View {
                 } label: {
                     Label(localizedSettingsString("Endpoints"), systemImage: "network")
                 }
-            }
-
-            Section(localizedSettingsString("Performance Tuning")) {
-                Stepper(localizedSettingsFormat("Bitcoin History Page Size: %lld", store.bitcoinHistoryFetchLimit), value: Binding(
-                    get: { store.bitcoinHistoryFetchLimit },
-                    set: { store.bitcoinHistoryFetchLimit = $0 }
-                ), in: 10 ... 200, step: 10)
-                Stepper(localizedSettingsFormat("Litecoin History Page Size: %lld", store.litecoinHistoryFetchLimit), value: Binding(
-                    get: { store.litecoinHistoryFetchLimit },
-                    set: { store.litecoinHistoryFetchLimit = $0 }
-                ), in: 10 ... 200, step: 10)
-                Stepper(localizedSettingsFormat("Dogecoin History Page Size: %lld", store.dogecoinHistoryFetchLimit), value: Binding(
-                    get: { store.dogecoinHistoryFetchLimit },
-                    set: { store.dogecoinHistoryFetchLimit = $0 }
-                ), in: 10 ... 200, step: 10)
-                Stepper(localizedSettingsFormat("Ethereum Token History Page Size: %lld", store.ethereumTokenHistoryFetchLimit), value: Binding(
-                    get: { store.ethereumTokenHistoryFetchLimit },
-                    set: { store.ethereumTokenHistoryFetchLimit = $0 }
-                ), in: 50 ... 500, step: 25)
-                Stepper(localizedSettingsFormat("Monero History Page Size: %lld", store.moneroHistoryFetchLimit), value: Binding(
-                    get: { store.moneroHistoryFetchLimit },
-                    set: { store.moneroHistoryFetchLimit = $0 }
-                ), in: 20 ... 300, step: 10)
             }
 
             Section(localizedSettingsString("Quick Maintenance")) {

@@ -247,7 +247,7 @@
     "totalCirculationModel": "這裡未給出固定供應上限。有效流通量會隨時間變化，因此被視為不可靜態估算。"
   },
   {
-    "alternateDerivationPath": "Spectra 支持的舊兼容路徑：m/44'/501'/0'",
+    "alternateDerivationPath": null,
     "consensus": "權益證明 + 歷史證明時間機制",
     "derivationPath": "m/44'/501'/0'/0'",
     "family": "賬戶式高吞吐網絡",
@@ -256,7 +256,6 @@
     "tags": ["PoS", "高吞吐", "智能合約"],
     "notableDetails": [
       "SPL 代幣餘額存放在關聯代幣賬戶中，而不是直接存放在錢包所有者賬戶里。",
-      "Spectra 同時支持當前默認的 Solana 路徑和舊版兼容路徑。",
       "即使代幣賬戶餘額發現退化，錢包仍可能顯示正確歷史，因此 Spectra 對 Solana 有專門回退邏輯。"
     ],
     "primaryUse": "用於高吞吐轉賬、SPL 代幣以及低延遲鏈上應用。",

@@ -257,11 +257,10 @@
     "primaryUse": "用于高吞吐转账、SPL 代币以及低延迟链上应用。",
     "slip44CoinType": "501（Solana）",
     "derivationPath": "m/44'/501'/0'/0'",
-    "alternateDerivationPath": "Spectra 支持的旧兼容路径：m/44'/501'/0'",
+    "alternateDerivationPath": null,
     "totalCirculationModel": "没有固定最大供应。通胀、质押经济和解锁计划会使长期流通量动态变化。",
     "notableDetails": [
       "SPL 代币余额存放在关联代币账户中，而不是直接存放在钱包所有者账户里。",
-      "Spectra 同时支持当前默认的 Solana 路径和旧版兼容路径。",
       "即使代币账户余额发现退化，钱包仍可能显示正确历史，因此 Spectra 对 Solana 有专门回退逻辑。"
     ]
   },

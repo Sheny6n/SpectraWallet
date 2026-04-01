@@ -196,39 +196,39 @@ extension WalletStore {
             switch chainName {
             case "Bitcoin":
                 await refreshBitcoinBalances()
-                await refreshBitcoinTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+                await refreshBitcoinTransactions(limit: 20)
             case "Bitcoin Cash":
                 await refreshBitcoinCashBalances()
-                await refreshBitcoinCashTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+                await refreshBitcoinCashTransactions(limit: 20)
             case "Bitcoin SV":
                 await refreshBitcoinSVBalances()
-                await refreshBitcoinSVTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+                await refreshBitcoinSVTransactions(limit: 20)
             case "Litecoin":
                 await refreshLitecoinBalances()
-                await refreshLitecoinTransactions(limit: max(40, litecoinHistoryFetchLimit))
+                await refreshLitecoinTransactions(limit: 20)
             case "Dogecoin":
                 await refreshDogecoinBalances()
-                await refreshDogecoinTransactions(limit: max(40, dogecoinHistoryFetchLimit))
+                await refreshDogecoinTransactions(limit: 20)
             case "Ethereum":
                 await refreshEthereumBalances()
-                await refreshEVMTokenTransactions(chainName: "Ethereum", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
+                await refreshEVMTokenTransactions(chainName: "Ethereum", maxResults: 20, loadMore: false)
             case "Arbitrum":
                 await refreshArbitrumBalances()
-                await refreshEVMTokenTransactions(chainName: "Arbitrum", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
+                await refreshEVMTokenTransactions(chainName: "Arbitrum", maxResults: 20, loadMore: false)
             case "Optimism":
                 await refreshOptimismBalances()
-                await refreshEVMTokenTransactions(chainName: "Optimism", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
+                await refreshEVMTokenTransactions(chainName: "Optimism", maxResults: 20, loadMore: false)
             case "Ethereum Classic":
                 await refreshETCBalances()
             case "BNB Chain":
                 await refreshBNBBalances()
-                await refreshEVMTokenTransactions(chainName: "BNB Chain", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
+                await refreshEVMTokenTransactions(chainName: "BNB Chain", maxResults: 20, loadMore: false)
             case "Avalanche":
                 await refreshAvalancheBalances()
-                await refreshEVMTokenTransactions(chainName: "Avalanche", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
+                await refreshEVMTokenTransactions(chainName: "Avalanche", maxResults: 20, loadMore: false)
             case "Hyperliquid":
                 await refreshHyperliquidBalances()
-                await refreshEVMTokenTransactions(chainName: "Hyperliquid", maxResults: max(80, ethereumTokenHistoryFetchLimit), loadMore: false)
+                await refreshEVMTokenTransactions(chainName: "Hyperliquid", maxResults: 20, loadMore: false)
             case "Tron":
                 await refreshTronBalances()
                 await refreshTronTransactions(loadMore: false)

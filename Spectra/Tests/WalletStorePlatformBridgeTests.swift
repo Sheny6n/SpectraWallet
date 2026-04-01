@@ -7,6 +7,49 @@ import XCTest
 
 @MainActor
 final class WalletStorePlatformBridgeTests: XCTestCase {
+    func testEditingWalletNamePreservesExistingHoldings() async {
+        let store = WalletStore()
+        let existingHolding = Coin(
+            name: "Ethereum",
+            symbol: "ETH",
+            marketDataID: "1027",
+            coinGeckoID: "ethereum",
+            chainName: "Ethereum",
+            tokenStandard: "Native",
+            contractAddress: nil,
+            amount: 2,
+            priceUSD: 3000,
+            mark: "E",
+            color: .blue
+        )
+        let wallet = ImportedWallet(
+            id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+            name: "Primary ETH",
+            ethereumAddress: "0xabc123",
+            selectedChain: "Ethereum",
+            holdings: [existingHolding],
+            includeInPortfolioTotal: false
+        )
+
+        store.wallets = [wallet]
+        store.editingWalletID = wallet.id
+        store.importDraft.configureForEditing(wallet: wallet)
+        store.importDraft.walletName = "Renamed ETH"
+        store.importDraft.selectedChainNamesStorage = []
+
+        await store.importWallet()
+
+        XCTAssertEqual(store.wallets.count, 1)
+        XCTAssertEqual(store.wallets[0].name, "Renamed ETH")
+        XCTAssertEqual(store.wallets[0].holdings.count, 1)
+        XCTAssertEqual(store.wallets[0].holdings[0].amount, existingHolding.amount)
+        XCTAssertEqual(store.wallets[0].holdings[0].priceUSD, existingHolding.priceUSD)
+        XCTAssertFalse(store.wallets[0].includeInPortfolioTotal)
+        XCTAssertNil(store.editingWalletID)
+        XCTAssertFalse(store.isShowingWalletImporter)
+        XCTAssertNil(store.importError)
+    }
+
     func testExportsPlatformSnapshotEnvelopeWithStableFoundationModels() throws {
         let store = WalletStore()
         let wallet = ImportedWallet(

@@ -32,7 +32,7 @@ extension WalletStore {
                 executeRefresh: { store, refreshHistory in
                     await store.refreshBitcoinBalances()
                     if refreshHistory {
-                        await store.refreshBitcoinTransactions(limit: store.bitcoinHistoryFetchLimit, loadMore: false)
+                        await store.refreshBitcoinTransactions(limit: 20, loadMore: false)
                     }
                     await store.refreshPendingBitcoinTransactions()
                 },
@@ -48,7 +48,7 @@ extension WalletStore {
                     await store.refreshUTXOReceiveReservationState(chainName: "Bitcoin Cash")
                     await store.refreshBitcoinCashBalances()
                     if refreshHistory {
-                        await store.refreshBitcoinCashTransactions(limit: store.bitcoinHistoryFetchLimit, loadMore: false)
+                        await store.refreshBitcoinCashTransactions(limit: 20, loadMore: false)
                     }
                     await store.refreshPendingBitcoinCashTransactions()
                 },
@@ -64,7 +64,7 @@ extension WalletStore {
                     await store.refreshUTXOReceiveReservationState(chainName: "Bitcoin SV")
                     await store.refreshBitcoinSVBalances()
                     if refreshHistory {
-                        await store.refreshBitcoinSVTransactions(limit: store.bitcoinHistoryFetchLimit, loadMore: false)
+                        await store.refreshBitcoinSVTransactions(limit: 20, loadMore: false)
                     }
                     await store.refreshPendingBitcoinSVTransactions()
                 },
@@ -80,7 +80,7 @@ extension WalletStore {
                     await store.refreshUTXOReceiveReservationState(chainName: "Litecoin")
                     await store.refreshLitecoinBalances()
                     if refreshHistory {
-                        await store.refreshLitecoinTransactions(limit: store.litecoinHistoryFetchLimit, loadMore: false)
+                        await store.refreshLitecoinTransactions(limit: 20, loadMore: false)
                     }
                     await store.refreshPendingLitecoinTransactions()
                 },

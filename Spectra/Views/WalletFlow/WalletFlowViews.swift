@@ -663,7 +663,7 @@ struct WalletDetailView: View {
                             store.beginEditingWallet(wallet)
                         }
                     } label: {
-                        Label("Edit Wallet", systemImage: "pencil")
+                        Label("Edit Name", systemImage: "pencil")
                             .font(.subheadline.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
@@ -933,122 +933,6 @@ private func walletDetailRow(label: String, value: String) -> some View {
 func walletFlowLocalizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
     let format = AppLocalization.string(key)
     return String(format: format, locale: AppLocalization.locale, arguments: arguments)
-}
-
-struct SeedPathSlotEditor: View {
-    let title: String
-    @Binding var path: String
-    let defaultPath: String
-    let presetOptions: [SeedDerivationPathPreset]
-
-    private var segments: [DerivationPathSegment] {
-        DerivationPathParser.parse(path) ?? DerivationPathParser.parse(defaultPath) ?? []
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(localizedWalletFlowString(title))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.primary)
-                Spacer()
-                Button("Reset") {
-                    path = defaultPath
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.primary.opacity(0.72))
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    Text("m")
-                        .font(.caption.monospaced().weight(.semibold))
-                        .foregroundStyle(Color.primary.opacity(0.72))
-
-                    ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
-                        HStack(spacing: 4) {
-                            Text(verbatim: "/")
-                                .font(.caption.monospaced())
-                                .foregroundStyle(Color.primary.opacity(0.52))
-                            TextField(
-                                "0",
-                                text: Binding(
-                                    get: { String(segment.value) },
-                                    set: { updateSegment(at: index, value: $0) }
-                                )
-                            )
-                            .keyboardType(.numberPad)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(Color.primary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .spectraInputFieldStyle(cornerRadius: 12)
-
-                            if segment.isHardened {
-                                Text(verbatim: "'")
-                                    .font(.caption.monospaced().weight(.bold))
-                                    .foregroundStyle(Color.primary.opacity(0.72))
-                            }
-                        }
-                    }
-                }
-            }
-
-            if !presetOptions.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(localizedWalletFlowString("Derivation Paths"))
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.primary.opacity(0.72))
-
-                    VStack(spacing: 8) {
-                        ForEach(presetOptions) { preset in
-                            Button {
-                                path = preset.path
-                            } label: {
-                                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                    Text(preset.title)
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(Color.primary)
-                                        .lineLimit(1)
-
-                                    Spacer(minLength: 0)
-
-                                    Text(preset.detail)
-                                        .font(.caption2.monospaced())
-                                        .foregroundStyle(Color.primary.opacity(0.68))
-                                        .lineLimit(1)
-                                        .truncationMode(.middle)
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(preset.path == path ? Color.orange.opacity(0.16) : Color.white.opacity(0.04))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(
-                                            preset.path == path ? Color.orange.opacity(0.65) : Color.white.opacity(0.08),
-                                            lineWidth: 1
-                                        )
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func updateSegment(at index: Int, value: String) {
-        guard var resolvedSegments = DerivationPathParser.parse(path) ?? DerivationPathParser.parse(defaultPath),
-              resolvedSegments.indices.contains(index),
-              let numericValue = UInt32(value.filter(\.isNumber)) else { return }
-        resolvedSegments[index].value = numericValue
-        path = DerivationPathParser.string(from: resolvedSegments)
-    }
 }
 
 struct AssetRowView: View {

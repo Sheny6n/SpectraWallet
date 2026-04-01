@@ -238,9 +238,7 @@ extension TronWalletEngine {
 extension SolanaWalletEngine {
     static func addressInventory(for seedPhrase: String, account: UInt32 = 0) throws -> WalletAddressInventory {
         let standardPath = "m/44'/501'/\(account)'/0'"
-        let legacyPath = "m/44'/501'/\(account)'"
         let primaryAddress = try derivedAddress(for: seedPhrase, preference: .standard, account: account)
-        let alternateAddress = try derivedAddress(for: seedPhrase, preference: .legacy, account: account)
         return WalletAddressInventory(
             entries: [
                 WalletAddressInventoryFactory.entry(
@@ -250,19 +248,11 @@ extension SolanaWalletEngine {
                     branchIndex: nil,
                     addressIndex: nil,
                     role: .primary
-                ),
-                WalletAddressInventoryFactory.entry(
-                    address: alternateAddress,
-                    derivationPath: legacyPath,
-                    account: account,
-                    branchIndex: nil,
-                    addressIndex: nil,
-                    role: .alternate
                 )
             ],
             supportsDiscoveryScan: true,
             supportsChangeBranch: false,
-            scanLimit: 2
+            scanLimit: 1
         )
     }
 }

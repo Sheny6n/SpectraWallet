@@ -87,6 +87,11 @@ enum MainAppTab: Hashable {
 
 @MainActor
 class WalletStore: ObservableObject {
+    private enum HistoryPaging {
+        static let endpointBatchSize = 20
+        static let uiPageSize = 10
+    }
+
     static let persistenceEncoder = JSONEncoder()
     static let persistenceDecoder = JSONDecoder()
     private static let diagnosticsBundleEncoder: JSONEncoder = {
@@ -745,11 +750,6 @@ class WalletStore: ObservableObject {
     @Published private var exhaustedHyperliquidHistoryWalletIDs: Set<UUID> = []
     @Published private var tronHistoryCursorByWallet: [UUID: String] = [:]
     @Published private var exhaustedTronHistoryWalletIDs: Set<UUID> = []
-    @Published var bitcoinHistoryFetchLimit: Int = 20
-    @Published var litecoinHistoryFetchLimit: Int = 20
-    @Published var dogecoinHistoryFetchLimit: Int = 20
-    @Published var ethereumTokenHistoryFetchLimit: Int = 50
-    @Published var moneroHistoryFetchLimit: Int = 80
     @Published var isLoadingMoreOnChainHistory: Bool = false
     let diagnostics = WalletDiagnosticsState()
     @Published var chainBroadcastProviderReliabilityByChain: [String: [ChainBroadcastProviderReliability]] = [:]
@@ -1887,12 +1887,7 @@ func resetImportForm() {
         editingWalletID = wallet.id
         importError = nil
         isImportingWallet = false
-        let storedSeedPhrase = storedSeedPhrase(for: wallet.id)
-        let storedPrivateKey = storedPrivateKey(for: wallet.id)
-        let storedWordCount = BitcoinWalletEngine.normalizedMnemonicWords(from: storedSeedPhrase ?? "").count
-        importDraft.configureForEditing(wallet: wallet, seedWordCount: storedWordCount)
-        importDraft.secretImportMode = storedPrivateKey == nil ? .seedPhrase : .privateKey
-        importDraft.isWatchOnlyMode = (storedSeedPhrase == nil && storedPrivateKey == nil)
+        importDraft.configureForEditing(wallet: wallet)
         isShowingWalletImporter = true
     }
     
@@ -4046,7 +4041,7 @@ func resetImportForm() {
         await refreshDogecoinAddressDiscovery()
         await refreshDogecoinReceiveReservationState()
         await refreshDogecoinBalances()
-        await refreshDogecoinTransactions(limit: max(40, dogecoinHistoryFetchLimit))
+        await refreshDogecoinTransactions(limit: HistoryPaging.endpointBatchSize)
         await refreshPendingDogecoinTransactions()
         dogecoinRescanLastRunAt = Date()
 
@@ -4060,7 +4055,7 @@ func resetImportForm() {
         defer { isRunningBitcoinRescan = false }
         appendChainOperationalEvent(.info, chainName: "Bitcoin", message: "BTC rescan started.")
         await refreshBitcoinBalances()
-        await refreshBitcoinTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+        await refreshBitcoinTransactions(limit: HistoryPaging.endpointBatchSize)
         await refreshPendingBitcoinTransactions()
         bitcoinRescanLastRunAt = Date()
         appendChainOperationalEvent(.info, chainName: "Bitcoin", message: "BTC rescan completed.")
@@ -4072,7 +4067,7 @@ func resetImportForm() {
         defer { isRunningBitcoinCashRescan = false }
         appendChainOperationalEvent(.info, chainName: "Bitcoin Cash", message: "BCH rescan started.")
         await refreshBitcoinCashBalances()
-        await refreshBitcoinCashTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+        await refreshBitcoinCashTransactions(limit: HistoryPaging.endpointBatchSize)
         await refreshPendingBitcoinCashTransactions()
         bitcoinCashRescanLastRunAt = Date()
         appendChainOperationalEvent(.info, chainName: "Bitcoin Cash", message: "BCH rescan completed.")
@@ -4084,7 +4079,7 @@ func resetImportForm() {
         defer { isRunningBitcoinSVRescan = false }
         appendChainOperationalEvent(.info, chainName: "Bitcoin SV", message: "BSV rescan started.")
         await refreshBitcoinSVBalances()
-        await refreshBitcoinSVTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+        await refreshBitcoinSVTransactions(limit: HistoryPaging.endpointBatchSize)
         await refreshPendingBitcoinSVTransactions()
         bitcoinSVRescanLastRunAt = Date()
         appendChainOperationalEvent(.info, chainName: "Bitcoin SV", message: "BSV rescan completed.")
@@ -4096,7 +4091,7 @@ func resetImportForm() {
         defer { isRunningLitecoinRescan = false }
         appendChainOperationalEvent(.info, chainName: "Litecoin", message: "LTC rescan started.")
         await refreshLitecoinBalances()
-        await refreshLitecoinTransactions(limit: max(40, bitcoinHistoryFetchLimit))
+        await refreshLitecoinTransactions(limit: HistoryPaging.endpointBatchSize)
         await refreshPendingLitecoinTransactions()
         litecoinRescanLastRunAt = Date()
         appendChainOperationalEvent(.info, chainName: "Litecoin", message: "LTC rescan completed.")
@@ -4124,7 +4119,7 @@ func resetImportForm() {
                 let page = try await withTimeout(seconds: 20) {
                     try await DogecoinBalanceService.fetchTransactionPage(
                         for: address,
-                        limit: max(10, min(self.dogecoinHistoryFetchLimit, 100)),
+                        limit: HistoryPaging.endpointBatchSize,
                         cursor: nil
                     )
                 }
@@ -9532,7 +9527,7 @@ func resetImportForm() {
                 return bitcoinAddress
             }
             if storedSeedPhrase(for: wallet.id) == nil {
-                return "Bitcoin receive unavailable. Open Edit Wallet and add the seed phrase or BTC watch address."
+                return "Bitcoin receive unavailable. Open Edit Name and add the seed phrase or BTC watch address."
             }
             return isResolvingReceiveAddress
                 ? "Loading Bitcoin receive address..."
@@ -9548,7 +9543,7 @@ func resetImportForm() {
                 return bitcoinCashAddress
             }
             if storedSeedPhrase(for: wallet.id) == nil {
-                return "Bitcoin Cash receive unavailable. Open Edit Wallet and add the seed phrase or BCH watch address."
+                return "Bitcoin Cash receive unavailable. Open Edit Name and add the seed phrase or BCH watch address."
             }
             return isResolvingReceiveAddress
                 ? "Loading Bitcoin Cash receive address..."
@@ -9564,7 +9559,7 @@ func resetImportForm() {
                 return bitcoinSVAddress
             }
             if storedSeedPhrase(for: wallet.id) == nil {
-                return "Bitcoin SV receive unavailable. Open Edit Wallet and add the seed phrase or BSV watch address."
+                return "Bitcoin SV receive unavailable. Open Edit Name and add the seed phrase or BSV watch address."
             }
             return isResolvingReceiveAddress
                 ? "Loading Bitcoin SV receive address..."
@@ -9580,7 +9575,7 @@ func resetImportForm() {
                 return litecoinAddress
             }
             if storedSeedPhrase(for: wallet.id) == nil {
-                return "Litecoin receive unavailable. Open Edit Wallet and add the seed phrase or LTC watch address."
+                return "Litecoin receive unavailable. Open Edit Name and add the seed phrase or LTC watch address."
             }
             return isResolvingReceiveAddress
                 ? "Loading Litecoin receive address..."
@@ -9594,7 +9589,7 @@ func resetImportForm() {
             let hasSeed = storedSeedPhrase(for: wallet.id) != nil
             let hasWatchAddress = wallet.dogecoinAddress?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             guard hasSeed || hasWatchAddress else {
-                return "Dogecoin receive unavailable. Open Edit Wallet and add a seed phrase or DOGE watch address."
+                return "Dogecoin receive unavailable. Open Edit Name and add a seed phrase or DOGE watch address."
             }
             return isResolvingReceiveAddress
                 ? "Loading Dogecoin receive address..."
@@ -9603,91 +9598,91 @@ func resetImportForm() {
 
         if isEVMChain(receiveCoin.chainName) {
             guard let evmAddress = resolvedEVMAddress(for: wallet, chainName: receiveCoin.chainName) else {
-                return "\(receiveCoin.chainName) receive unavailable. Open Edit Wallet and add the seed phrase."
+                return "\(receiveCoin.chainName) receive unavailable. Open Edit Name and add the seed phrase."
             }
             return receiveResolvedAddress.isEmpty ? evmAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "Tron" {
             guard let tronAddress = resolvedTronAddress(for: wallet) else {
-                return "Tron receive unavailable. Open Edit Wallet and add the seed phrase or TRON watch address."
+                return "Tron receive unavailable. Open Edit Name and add the seed phrase or TRON watch address."
             }
             return receiveResolvedAddress.isEmpty ? tronAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "Solana" {
             guard let solanaAddress = resolvedSolanaAddress(for: wallet) else {
-                return "Solana receive unavailable. Open Edit Wallet and add the seed phrase or SOL watch address."
+                return "Solana receive unavailable. Open Edit Name and add the seed phrase or SOL watch address."
             }
             return receiveResolvedAddress.isEmpty ? solanaAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "Cardano" {
             guard let cardanoAddress = resolvedCardanoAddress(for: wallet) else {
-                return "Cardano receive unavailable. Open Edit Wallet and add the seed phrase."
+                return "Cardano receive unavailable. Open Edit Name and add the seed phrase."
             }
             return receiveResolvedAddress.isEmpty ? cardanoAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "XRP Ledger" {
             guard let xrpAddress = resolvedXRPAddress(for: wallet) else {
-                return "XRP receive unavailable. Open Edit Wallet and add the seed phrase or XRP watch address."
+                return "XRP receive unavailable. Open Edit Name and add the seed phrase or XRP watch address."
             }
             return receiveResolvedAddress.isEmpty ? xrpAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "Stellar" {
             guard let stellarAddress = resolvedStellarAddress(for: wallet) else {
-                return "Stellar receive unavailable. Open Edit Wallet and add the seed phrase or Stellar watch address."
+                return "Stellar receive unavailable. Open Edit Name and add the seed phrase or Stellar watch address."
             }
             return receiveResolvedAddress.isEmpty ? stellarAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "Monero" {
             guard let moneroAddress = resolvedMoneroAddress(for: wallet) else {
-                return "Monero receive unavailable. Open Edit Wallet and add a Monero address."
+                return "Monero receive unavailable. Open Edit Name and add a Monero address."
             }
             return receiveResolvedAddress.isEmpty ? moneroAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "Sui" {
             guard let suiAddress = resolvedSuiAddress(for: wallet) else {
-                return "Sui receive unavailable. Open Edit Wallet and add the seed phrase or Sui watch address."
+                return "Sui receive unavailable. Open Edit Name and add the seed phrase or Sui watch address."
             }
             return receiveResolvedAddress.isEmpty ? suiAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "Aptos" {
             guard let aptosAddress = resolvedAptosAddress(for: wallet) else {
-                return "Aptos receive unavailable. Open Edit Wallet and add the seed phrase or Aptos watch address."
+                return "Aptos receive unavailable. Open Edit Name and add the seed phrase or Aptos watch address."
             }
             return receiveResolvedAddress.isEmpty ? aptosAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "TON" {
             guard let tonAddress = resolvedTONAddress(for: wallet) else {
-                return "TON receive unavailable. Open Edit Wallet and add the seed phrase or TON watch address."
+                return "TON receive unavailable. Open Edit Name and add the seed phrase or TON watch address."
             }
             return receiveResolvedAddress.isEmpty ? tonAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "Internet Computer" {
             guard let icpAddress = resolvedICPAddress(for: wallet) else {
-                return "Internet Computer receive unavailable. Open Edit Wallet and add the seed phrase or ICP watch address."
+                return "Internet Computer receive unavailable. Open Edit Name and add the seed phrase or ICP watch address."
             }
             return receiveResolvedAddress.isEmpty ? icpAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "NEAR" {
             guard let nearAddress = resolvedNearAddress(for: wallet) else {
-                return "NEAR receive unavailable. Open Edit Wallet and add the seed phrase or NEAR watch address."
+                return "NEAR receive unavailable. Open Edit Name and add the seed phrase or NEAR watch address."
             }
             return receiveResolvedAddress.isEmpty ? nearAddress : receiveResolvedAddress
         }
 
         if receiveCoin.chainName == "Polkadot" {
             guard let polkadotAddress = resolvedPolkadotAddress(for: wallet) else {
-                return "Polkadot receive unavailable. Open Edit Wallet and add the seed phrase or Polkadot watch address."
+                return "Polkadot receive unavailable. Open Edit Name and add the seed phrase or Polkadot watch address."
             }
             return receiveResolvedAddress.isEmpty ? polkadotAddress : receiveResolvedAddress
         }
@@ -9924,9 +9919,15 @@ func resetImportForm() {
     // Handles validation, optional watched-address mode, deterministic address derivation,
     // initial portfolio hydration, secure seed persistence, and post-import sync kick-off.
     func importWallet() async {
-        let coins = importDraft.selectedCoins
         guard canImportWallet else { return }
         guard !isImportingWallet else { return }
+
+        let trimmedWalletName = importDraft.walletName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let editingWalletID {
+            renameWallet(id: editingWalletID, to: trimmedWalletName)
+            return
+        }
+
         if importDraft.requiresBackupVerification && !importDraft.isBackupVerificationComplete {
             importError = "Confirm your seed backup words before importing the wallet."
             return
@@ -9935,10 +9936,10 @@ func resetImportForm() {
         isImportingWallet = true
         defer { isImportingWallet = false }
 
+        let coins = importDraft.selectedCoins
         let trimmedSeedPhrase = BitcoinWalletEngine.normalizedMnemonicPhrase(from: importDraft.seedPhrase)
         let trimmedPrivateKey = WalletCoreDerivation.normalizedPrivateKeyHex(from: importDraft.privateKeyInput)
         let trimmedWalletPassword = importDraft.normalizedWalletPassword
-        let trimmedWalletName = importDraft.walletName.trimmingCharacters(in: .whitespacesAndNewlines)
         let bitcoinAddressEntries = importDraft.watchOnlyEntries(from: importDraft.bitcoinAddressInput)
         let trimmedBitcoinAddress = importDraft.bitcoinAddressInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBitcoinXPub = importDraft.bitcoinXPubInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -9999,12 +10000,8 @@ func resetImportForm() {
         let wantsICPImport = importDraft.wantsICP
         let wantsNearImport = importDraft.wantsNear
         let wantsPolkadotImport = importDraft.wantsPolkadot
-        let selectedDerivationPreset = importDraft.seedDerivationPreset
-        let selectedDerivationPaths: SeedDerivationPaths = {
-            var paths = importDraft.seedDerivationPaths
-            paths.isCustomEnabled = true
-            return paths
-        }()
+        let selectedDerivationPreset: SeedDerivationPreset = .standard
+        let selectedDerivationPaths: SeedDerivationPaths = .defaults
         let isWatchOnlyImport = importDraft.isWatchOnlyMode
         let isPrivateKeyImport = importDraft.isPrivateKeyImportMode
         let selectedChainNames = importDraft.selectedChainNames
@@ -10207,173 +10204,7 @@ func resetImportForm() {
                 return
             }
         }
-        if let editingWalletID, let index = wallets.firstIndex(where: { $0.id == editingWalletID }) {
-            let existingWallet = wallets[index]
-            let seedPhraseForImport: String?
-            if requiresSeedPhrase {
-                guard let storedSeedPhrase = storedSeedPhrase(for: existingWallet.id) else {
-                    importError = "This wallet's seed phrase is unavailable."
-                    return
-                }
-                seedPhraseForImport = storedSeedPhrase
-            } else {
-                seedPhraseForImport = nil
-            }
-
-            let bitcoinCashAddress: String?
-            let bitcoinSVAddress: String?
-            let litecoinAddress: String?
-            let dogecoinAddress: String?
-            let ethereumAddress: String?
-            let ethereumClassicAddress: String?
-            let tronAddress: String?
-            let solanaAddress: String?
-            let xrpAddress: String?
-            let stellarAddress: String?
-            let moneroAddress: String?
-            let cardanoAddress: String?
-            let suiAddress: String?
-            let aptosAddress: String?
-            let tonAddress: String?
-            let icpAddress: String?
-            let nearAddress: String?
-            let polkadotAddress: String?
-            let derivedBitcoinAddress: String?
-            if let seedPhraseForImport {
-                async let derivedBitcoinCashAddressTask: String? = wantsBitcoinCashImport ? deriveBitcoinCashAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.bitcoinCash) : nil
-                async let derivedBitcoinSVAddressTask: String? = wantsBitcoinSVImport ? deriveBitcoinSVAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.bitcoinSV) : nil
-                async let derivedLitecoinAddressTask: String? = wantsLitecoinImport ? deriveLitecoinAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.litecoin) : nil
-                async let derivedDogecoinAddressTask: String? = wantsDogecoinImport ? deriveDogecoinAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.dogecoin) : nil
-                async let derivedEthereumAddressTask: String? = (wantsEthereumImport || wantsArbitrumImport || wantsOptimismImport || wantsBNBImport || wantsAvalancheImport || wantsHyperliquidImport) ? deriveEthereumAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.ethereum) : nil
-                async let derivedEthereumClassicAddressTask: String? = wantsEthereumClassicImport ? deriveEthereumAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.ethereumClassic) : nil
-                async let derivedTronAddressTask: String? = wantsTronImport ? deriveTronAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.tron) : nil
-                async let derivedSolanaAddressTask: String? = wantsSolanaImport
-                    ? deriveSolanaAddressInBackground(
-                        seedPhrase: seedPhraseForImport,
-                        derivationPath: selectedDerivationPaths.solana
-                    )
-                    : nil
-                async let derivedCardanoAddressTask: String? = wantsCardanoImport ? deriveCardanoAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.cardano) : nil
-                async let derivedXRPAddressTask: String? = wantsXRPImport ? deriveXRPAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.xrp) : nil
-                async let derivedStellarAddressTask: String? = wantsStellarImport ? deriveStellarAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.stellar) : nil
-                async let derivedSuiAddressTask: String? = wantsSuiImport ? deriveSuiAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.sui) : nil
-                async let derivedAptosAddressTask: String? = wantsAptosImport ? deriveAptosAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.aptos) : nil
-                async let derivedTONAddressTask: String? = wantsTONImport ? deriveTONAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.ton) : nil
-                async let derivedICPAddressTask: String? = wantsICPImport ? deriveICPAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.internetComputer) : nil
-                async let derivedNearAddressTask: String? = wantsNearImport ? deriveNearAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.near) : nil
-                async let derivedPolkadotAddressTask: String? = wantsPolkadotImport ? derivePolkadotAddressInBackground(seedPhrase: seedPhraseForImport, derivationPath: selectedDerivationPaths.polkadot) : nil
-
-                do {
-                    derivedBitcoinAddress = wantsBitcoinImport ? (try? BitcoinWalletEngine.nextReceiveAddress(
-                        for: existingWallet.id,
-                        seedPhrase: seedPhraseForImport,
-                        derivationPath: selectedDerivationPaths.bitcoin
-                    )) : nil
-                    bitcoinCashAddress = try await derivedBitcoinCashAddressTask
-                    bitcoinSVAddress = try await derivedBitcoinSVAddressTask
-                    litecoinAddress = try await derivedLitecoinAddressTask
-                    dogecoinAddress = try await derivedDogecoinAddressTask
-                    ethereumAddress = try await derivedEthereumAddressTask
-                    ethereumClassicAddress = try await derivedEthereumClassicAddressTask
-                    tronAddress = try await derivedTronAddressTask
-                    solanaAddress = try await derivedSolanaAddressTask
-                    cardanoAddress = try await derivedCardanoAddressTask
-                    xrpAddress = try await derivedXRPAddressTask
-                    stellarAddress = try await derivedStellarAddressTask
-                    suiAddress = try await derivedSuiAddressTask
-                    aptosAddress = try await derivedAptosAddressTask
-                    tonAddress = try await derivedTONAddressTask
-                    icpAddress = try await derivedICPAddressTask
-                    nearAddress = try await derivedNearAddressTask
-                    polkadotAddress = try await derivedPolkadotAddressTask
-                    moneroAddress = resolvedMoneroAddress
-                } catch {
-                    importError = "Wallet initialization failed. Check the seed phrase."
-                    return
-                }
-            } else {
-                let derivedPrivateKeyAddress = isPrivateKeyImport
-                    ? derivePrivateKeyImportAddress(privateKeyHex: trimmedPrivateKey, chainName: primarySelectedChainName)
-                    : PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
-                derivedBitcoinAddress = derivedPrivateKeyAddress.bitcoin
-                bitcoinCashAddress = derivedPrivateKeyAddress.bitcoinCash ?? (AddressValidation.isValidBitcoinCashAddress(typedBitcoinCashAddress) ? typedBitcoinCashAddress : nil)
-                bitcoinSVAddress = derivedPrivateKeyAddress.bitcoinSV ?? (AddressValidation.isValidBitcoinSVAddress(typedBitcoinSVAddress) ? typedBitcoinSVAddress : nil)
-                litecoinAddress = derivedPrivateKeyAddress.litecoin ?? (AddressValidation.isValidLitecoinAddress(typedLitecoinAddress) ? typedLitecoinAddress : nil)
-                dogecoinAddress = derivedPrivateKeyAddress.dogecoin ?? (isValidDogecoinAddressForPolicy(typedDogecoinAddress) ? typedDogecoinAddress : nil)
-                ethereumAddress = derivedPrivateKeyAddress.evm ?? (AddressValidation.isValidEthereumAddress(typedEthereumAddress)
-                    ? EthereumWalletEngine.normalizeAddress(typedEthereumAddress)
-                    : nil)
-                ethereumClassicAddress = ethereumAddress
-                tronAddress = derivedPrivateKeyAddress.tron ?? (AddressValidation.isValidTronAddress(typedTronAddress)
-                    ? typedTronAddress
-                    : nil)
-                solanaAddress = derivedPrivateKeyAddress.solana ?? (AddressValidation.isValidSolanaAddress(typedSolanaAddress)
-                    ? typedSolanaAddress
-                    : nil)
-                xrpAddress = derivedPrivateKeyAddress.xrp ?? (AddressValidation.isValidXRPAddress(typedXRPAddress)
-                    ? typedXRPAddress
-                    : nil)
-                stellarAddress = derivedPrivateKeyAddress.stellar ?? (AddressValidation.isValidStellarAddress(typedStellarAddress)
-                    ? typedStellarAddress
-                    : nil)
-                moneroAddress = AddressValidation.isValidMoneroAddress(typedMoneroAddress)
-                    ? typedMoneroAddress
-                    : nil
-                cardanoAddress = derivedPrivateKeyAddress.cardano ?? (AddressValidation.isValidCardanoAddress(typedCardanoAddress)
-                    ? typedCardanoAddress
-                    : nil)
-                suiAddress = derivedPrivateKeyAddress.sui ?? (AddressValidation.isValidSuiAddress(typedSuiAddress)
-                    ? typedSuiAddress.lowercased()
-                    : nil)
-                aptosAddress = derivedPrivateKeyAddress.aptos ?? (AddressValidation.isValidAptosAddress(typedAptosAddress)
-                    ? normalizedAddress(typedAptosAddress, for: "Aptos")
-                    : nil)
-                tonAddress = derivedPrivateKeyAddress.ton ?? (AddressValidation.isValidTONAddress(typedTonAddress)
-                    ? normalizedAddress(typedTonAddress, for: "TON")
-                    : nil)
-                icpAddress = derivedPrivateKeyAddress.icp ?? (AddressValidation.isValidICPAddress(typedICPAddress)
-                    ? normalizedAddress(typedICPAddress, for: "Internet Computer")
-                    : nil)
-                nearAddress = derivedPrivateKeyAddress.near ?? (AddressValidation.isValidNearAddress(typedNearAddress)
-                    ? typedNearAddress.lowercased()
-                    : nil)
-                polkadotAddress = derivedPrivateKeyAddress.polkadot ?? (AddressValidation.isValidPolkadotAddress(typedPolkadotAddress)
-                    ? typedPolkadotAddress
-                    : nil)
-            }
-
-            let updatedWallet = ImportedWallet(
-                id: existingWallet.id,
-                name: trimmedWalletName,
-                bitcoinAddress: resolvedBitcoinAddress ?? derivedBitcoinAddress,
-                bitcoinXPub: resolvedBitcoinXPub,
-                bitcoinCashAddress: resolvedBitcoinCashAddress ?? bitcoinCashAddress,
-                bitcoinSVAddress: resolvedBitcoinSVAddress ?? bitcoinSVAddress,
-                litecoinAddress: resolvedLitecoinAddress ?? litecoinAddress,
-                dogecoinAddress: dogecoinAddress,
-                ethereumAddress: selectedChainNames.contains("Ethereum Classic") && !selectedChainNames.contains("Ethereum") && !selectedChainNames.contains("Arbitrum") && !selectedChainNames.contains("Optimism") && !selectedChainNames.contains("BNB Chain") && !selectedChainNames.contains("Avalanche") && !selectedChainNames.contains("Hyperliquid")
-                    ? ethereumClassicAddress
-                    : ethereumAddress,
-                tronAddress: resolvedTronAddress ?? tronAddress,
-                solanaAddress: resolvedSolanaAddress ?? solanaAddress,
-                stellarAddress: resolvedStellarAddress ?? stellarAddress,
-                xrpAddress: resolvedXRPAddress ?? xrpAddress,
-                moneroAddress: resolvedMoneroAddress ?? moneroAddress,
-                cardanoAddress: resolvedCardanoAddress ?? cardanoAddress,
-                suiAddress: resolvedSuiAddress ?? suiAddress,
-                aptosAddress: resolvedAptosAddress ?? aptosAddress,
-                tonAddress: resolvedTONAddress ?? tonAddress,
-                icpAddress: resolvedICPAddress ?? icpAddress,
-                nearAddress: resolvedNearAddress ?? nearAddress,
-                polkadotAddress: resolvedPolkadotAddress ?? polkadotAddress,
-                seedDerivationPreset: selectedDerivationPreset,
-                seedDerivationPaths: selectedDerivationPaths,
-                selectedChain: primarySelectedChainName,
-                holdings: coins
-            )
-
-            wallets[index] = updatedWallet
-        } else {
+        if editingWalletID == nil {
             let bitcoinCashAddress: String?
             let bitcoinSVAddress: String?
             let litecoinAddress: String?
@@ -11079,16 +10910,54 @@ func resetImportForm() {
             importedWalletsForRefresh = createdWallets
         }
 
-        importError = nil
-        importDraft.clearSensitiveInputs()
-        resetImportForm()
-        editingWalletID = nil
-        isShowingWalletImporter = false
+        finishWalletImportFlow()
 
         withAnimation {
         }
 
         scheduleImportedWalletRefresh(importedWalletsForRefresh)
+    }
+
+    private func renameWallet(id: UUID, to newName: String) {
+        guard let index = wallets.firstIndex(where: { $0.id == id }) else { return }
+        let wallet = wallets[index]
+        wallets[index] = ImportedWallet(
+            id: wallet.id,
+            name: newName,
+            bitcoinAddress: wallet.bitcoinAddress,
+            bitcoinXPub: wallet.bitcoinXPub,
+            bitcoinCashAddress: wallet.bitcoinCashAddress,
+            bitcoinSVAddress: wallet.bitcoinSVAddress,
+            litecoinAddress: wallet.litecoinAddress,
+            dogecoinAddress: wallet.dogecoinAddress,
+            ethereumAddress: wallet.ethereumAddress,
+            tronAddress: wallet.tronAddress,
+            solanaAddress: wallet.solanaAddress,
+            stellarAddress: wallet.stellarAddress,
+            xrpAddress: wallet.xrpAddress,
+            moneroAddress: wallet.moneroAddress,
+            cardanoAddress: wallet.cardanoAddress,
+            suiAddress: wallet.suiAddress,
+            aptosAddress: wallet.aptosAddress,
+            tonAddress: wallet.tonAddress,
+            icpAddress: wallet.icpAddress,
+            nearAddress: wallet.nearAddress,
+            polkadotAddress: wallet.polkadotAddress,
+            seedDerivationPreset: wallet.seedDerivationPreset,
+            seedDerivationPaths: wallet.seedDerivationPaths,
+            selectedChain: wallet.selectedChain,
+            holdings: wallet.holdings,
+            includeInPortfolioTotal: wallet.includeInPortfolioTotal
+        )
+        finishWalletImportFlow()
+    }
+
+    private func finishWalletImportFlow() {
+        importError = nil
+        importDraft.clearSensitiveInputs()
+        resetImportForm()
+        editingWalletID = nil
+        isShowingWalletImporter = false
     }
 
     private enum WalletImportSyncError: Error {
@@ -12182,30 +12051,6 @@ func resetImportForm() {
         }
     }
 
-    private var hasMoreDogecoinHistoryPages: Bool {
-        hasMoreHistoryPages(for: "Dogecoin", exhaustedWalletIDs: exhaustedDogecoinHistoryWalletIDs)
-    }
-
-    private var hasMoreEthereumHistoryPages: Bool {
-        hasMoreHistoryPages(for: "Ethereum", exhaustedWalletIDs: exhaustedEthereumHistoryWalletIDs)
-    }
-
-    private var hasMoreArbitrumHistoryPages: Bool {
-        hasMoreHistoryPages(for: "Arbitrum", exhaustedWalletIDs: exhaustedArbitrumHistoryWalletIDs)
-    }
-
-    private var hasMoreOptimismHistoryPages: Bool {
-        hasMoreHistoryPages(for: "Optimism", exhaustedWalletIDs: exhaustedOptimismHistoryWalletIDs)
-    }
-
-    private var hasMoreBNBHistoryPages: Bool {
-        hasMoreHistoryPages(for: "BNB Chain", exhaustedWalletIDs: exhaustedBNBHistoryWalletIDs)
-    }
-
-    private var hasMoreMoneroHistoryPages: Bool {
-        hasMoneroWallets && moneroHistoryFetchLimit < 300
-    }
-
     var hasBitcoinWallets: Bool {
         wallets.contains { wallet in
             guard wallet.selectedChain == "Bitcoin" else { return false }
@@ -12239,104 +12084,113 @@ func resetImportForm() {
         }
     }
 
-    private var hasMoreBitcoinHistoryPages: Bool {
-        hasMoreHistoryPages(for: "Bitcoin", exhaustedWalletIDs: exhaustedBitcoinHistoryWalletIDs)
+    private func canLoadMoreHistory(for walletID: UUID) -> Bool {
+        guard let wallet = cachedWalletByID[walletID] else { return false }
+        switch wallet.selectedChain {
+        case "Bitcoin":
+            return !exhaustedBitcoinHistoryWalletIDs.contains(walletID)
+        case "Bitcoin Cash":
+            return !exhaustedBitcoinCashHistoryWalletIDs.contains(walletID)
+        case "Bitcoin SV":
+            return !exhaustedBitcoinSVHistoryWalletIDs.contains(walletID)
+        case "Litecoin":
+            return !exhaustedLitecoinHistoryWalletIDs.contains(walletID)
+        case "Dogecoin":
+            return !exhaustedDogecoinHistoryWalletIDs.contains(walletID)
+        case "Ethereum":
+            return !exhaustedEthereumHistoryWalletIDs.contains(walletID)
+        case "Arbitrum":
+            return !exhaustedArbitrumHistoryWalletIDs.contains(walletID)
+        case "Optimism":
+            return !exhaustedOptimismHistoryWalletIDs.contains(walletID)
+        case "BNB Chain":
+            return !exhaustedBNBHistoryWalletIDs.contains(walletID)
+        case "Hyperliquid":
+            return !exhaustedHyperliquidHistoryWalletIDs.contains(walletID)
+        case "Tron":
+            return !exhaustedTronHistoryWalletIDs.contains(walletID)
+        default:
+            return false
+        }
     }
 
-    private var hasMoreBitcoinCashHistoryPages: Bool {
-        hasMoreHistoryPages(for: "Bitcoin Cash", exhaustedWalletIDs: exhaustedBitcoinCashHistoryWalletIDs)
-    }
-
-    private var hasMoreBitcoinSVHistoryPages: Bool {
-        hasMoreHistoryPages(for: "Bitcoin SV", exhaustedWalletIDs: exhaustedBitcoinSVHistoryWalletIDs)
-    }
-
-    private var hasMoreLitecoinHistoryPages: Bool {
-        hasMoreHistoryPages(for: "Litecoin", exhaustedWalletIDs: exhaustedLitecoinHistoryWalletIDs)
-    }
-
-    private func hasMoreHistoryPages(for chainName: String, exhaustedWalletIDs: Set<UUID>) -> Bool {
-        let trackedWalletIDs = Set(wallets.filter { $0.selectedChain == chainName }.map(\.id))
-        let exhausted = exhaustedWalletIDs.intersection(trackedWalletIDs)
-        return exhausted.count < trackedWalletIDs.count
-    }
-
-    var canLoadMoreOnChainHistory: Bool {
-        ((hasBitcoinWallets && hasMoreBitcoinHistoryPages)
-            || (hasBitcoinCashWallets && hasMoreBitcoinCashHistoryPages)
-            || (hasBitcoinSVWallets && hasMoreBitcoinSVHistoryPages)
-            || (hasLitecoinWallets && hasMoreLitecoinHistoryPages)
-            || (hasDogecoinWallets && hasMoreDogecoinHistoryPages)
-            || (hasEthereumWallets && hasMoreEthereumHistoryPages)
-            || (hasArbitrumWallets && hasMoreArbitrumHistoryPages)
-            || (hasOptimismWallets && hasMoreOptimismHistoryPages)
-            || (hasBNBWallets && hasMoreBNBHistoryPages))
-            && !isLoadingMoreOnChainHistory
+    func canLoadMoreOnChainHistory(for walletIDs: Set<UUID>) -> Bool {
+        !isLoadingMoreOnChainHistory && walletIDs.contains(where: canLoadMoreHistory(for:))
     }
 
     // Pagination entry for history tab page stepping across chains that support fixed-size history pages.
     // MARK: - History Pagination and Global Refresh
-    func loadMoreOnChainHistory() async {
-        guard canLoadMoreOnChainHistory else { return }
+    func loadMoreOnChainHistory(for walletIDs: Set<UUID>) async {
+        guard canLoadMoreOnChainHistory(for: walletIDs) else { return }
         isLoadingMoreOnChainHistory = true
         defer { isLoadingMoreOnChainHistory = false }
 
+        let eligibleWalletIDs = Set(walletIDs.filter(canLoadMoreHistory(for:)))
+
         if hasBitcoinWallets {
-            await refreshBitcoinTransactions(limit: bitcoinHistoryFetchLimit, loadMore: true)
+            await refreshBitcoinTransactions(limit: HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
         }
         if hasBitcoinCashWallets {
-            await refreshBitcoinCashTransactions(limit: bitcoinHistoryFetchLimit, loadMore: true)
+            await refreshBitcoinCashTransactions(limit: HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
         }
         if hasBitcoinSVWallets {
-            await refreshBitcoinSVTransactions(limit: bitcoinHistoryFetchLimit, loadMore: true)
+            await refreshBitcoinSVTransactions(limit: HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
         }
         if hasLitecoinWallets {
-            await refreshLitecoinTransactions(limit: litecoinHistoryFetchLimit, loadMore: true)
+            await refreshLitecoinTransactions(limit: HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
         }
         if hasDogecoinWallets {
-            await refreshDogecoinTransactions(limit: dogecoinHistoryFetchLimit, loadMore: true)
+            await refreshDogecoinTransactions(limit: HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
         }
         if hasEthereumWallets {
             await refreshEVMTokenTransactions(
                 chainName: "Ethereum",
-                maxResults: ethereumTokenHistoryFetchLimit,
-                loadMore: true
+                maxResults: HistoryPaging.endpointBatchSize,
+                loadMore: true,
+                targetWalletIDs: eligibleWalletIDs
             )
         }
         if hasArbitrumWallets {
             await refreshEVMTokenTransactions(
                 chainName: "Arbitrum",
-                maxResults: ethereumTokenHistoryFetchLimit,
-                loadMore: true
+                maxResults: HistoryPaging.endpointBatchSize,
+                loadMore: true,
+                targetWalletIDs: eligibleWalletIDs
             )
         }
         if hasOptimismWallets {
             await refreshEVMTokenTransactions(
                 chainName: "Optimism",
-                maxResults: ethereumTokenHistoryFetchLimit,
-                loadMore: true
+                maxResults: HistoryPaging.endpointBatchSize,
+                loadMore: true,
+                targetWalletIDs: eligibleWalletIDs
             )
         }
         if hasBNBWallets {
             await refreshEVMTokenTransactions(
                 chainName: "BNB Chain",
-                maxResults: ethereumTokenHistoryFetchLimit,
-                loadMore: true
+                maxResults: HistoryPaging.endpointBatchSize,
+                loadMore: true,
+                targetWalletIDs: eligibleWalletIDs
             )
         }
         if hasAvalancheWallets {
             await refreshEVMTokenTransactions(
                 chainName: "Avalanche",
-                maxResults: ethereumTokenHistoryFetchLimit,
+                maxResults: HistoryPaging.endpointBatchSize,
                 loadMore: false
             )
         }
         if wallets.contains(where: { $0.selectedChain == "Hyperliquid" && resolvedEVMAddress(for: $0, chainName: "Hyperliquid") != nil }) {
             await refreshEVMTokenTransactions(
                 chainName: "Hyperliquid",
-                maxResults: ethereumTokenHistoryFetchLimit,
-                loadMore: false
+                maxResults: HistoryPaging.endpointBatchSize,
+                loadMore: true,
+                targetWalletIDs: eligibleWalletIDs
             )
+        }
+        if wallets.contains(where: { $0.selectedChain == "Tron" && resolvedTronAddress(for: $0) != nil }) {
+            await refreshTronTransactions(loadMore: true, targetWalletIDs: eligibleWalletIDs)
         }
     }
 
@@ -12773,11 +12627,15 @@ func resetImportForm() {
         }
     }
 
-    func refreshBitcoinTransactions(limit: Int? = nil, loadMore: Bool = false) async {
+    func refreshBitcoinTransactions(limit: Int? = nil, loadMore: Bool = false, targetWalletIDs: Set<UUID>? = nil) async {
         let walletSnapshot = wallets
-        let bitcoinWallets = walletSnapshot.filter { $0.selectedChain == "Bitcoin" }
+        let bitcoinWallets = walletSnapshot.filter { wallet in
+            guard wallet.selectedChain == "Bitcoin" else { return false }
+            guard let targetWalletIDs else { return true }
+            return targetWalletIDs.contains(wallet.id)
+        }
         guard !bitcoinWallets.isEmpty else { return }
-        let requestedLimit = max(10, min(limit ?? bitcoinHistoryFetchLimit, 100))
+        let requestedLimit = max(10, min(limit ?? HistoryPaging.endpointBatchSize, 100))
 
         if !loadMore {
             let walletIDs = Set(bitcoinWallets.map(\.id))
@@ -12941,13 +12799,18 @@ func resetImportForm() {
         }
     }
 
-    func refreshBitcoinCashTransactions(limit: Int? = nil, loadMore: Bool = false) async {
+    func refreshBitcoinCashTransactions(limit: Int? = nil, loadMore: Bool = false, targetWalletIDs: Set<UUID>? = nil) async {
         let walletSnapshot = wallets
         let bitcoinCashWallets = walletSnapshot.filter { wallet in
-            wallet.selectedChain == "Bitcoin Cash" && resolvedBitcoinCashAddress(for: wallet) != nil
+            guard wallet.selectedChain == "Bitcoin Cash",
+                  resolvedBitcoinCashAddress(for: wallet) != nil else {
+                return false
+            }
+            guard let targetWalletIDs else { return true }
+            return targetWalletIDs.contains(wallet.id)
         }
         guard !bitcoinCashWallets.isEmpty else { return }
-        let requestedLimit = max(10, min(limit ?? bitcoinHistoryFetchLimit, 100))
+        let requestedLimit = max(10, min(limit ?? HistoryPaging.endpointBatchSize, 100))
 
         if !loadMore {
             let walletIDs = Set(bitcoinCashWallets.map(\.id))
@@ -13055,13 +12918,18 @@ func resetImportForm() {
         }
     }
 
-    func refreshBitcoinSVTransactions(limit: Int? = nil, loadMore: Bool = false) async {
+    func refreshBitcoinSVTransactions(limit: Int? = nil, loadMore: Bool = false, targetWalletIDs: Set<UUID>? = nil) async {
         let walletSnapshot = wallets
         let bitcoinSVWallets = walletSnapshot.filter { wallet in
-            wallet.selectedChain == "Bitcoin SV" && resolvedBitcoinSVAddress(for: wallet) != nil
+            guard wallet.selectedChain == "Bitcoin SV",
+                  resolvedBitcoinSVAddress(for: wallet) != nil else {
+                return false
+            }
+            guard let targetWalletIDs else { return true }
+            return targetWalletIDs.contains(wallet.id)
         }
         guard !bitcoinSVWallets.isEmpty else { return }
-        let requestedLimit = max(10, min(limit ?? bitcoinHistoryFetchLimit, 100))
+        let requestedLimit = max(10, min(limit ?? HistoryPaging.endpointBatchSize, 100))
 
         if !loadMore {
             let walletIDs = Set(bitcoinSVWallets.map(\.id))
@@ -13204,13 +13072,18 @@ func resetImportForm() {
         }
     }
 
-    func refreshLitecoinTransactions(limit: Int? = nil, loadMore: Bool = false) async {
+    func refreshLitecoinTransactions(limit: Int? = nil, loadMore: Bool = false, targetWalletIDs: Set<UUID>? = nil) async {
         let walletSnapshot = wallets
         let litecoinWallets = walletSnapshot.filter { wallet in
-            wallet.selectedChain == "Litecoin" && resolvedLitecoinAddress(for: wallet) != nil
+            guard wallet.selectedChain == "Litecoin",
+                  resolvedLitecoinAddress(for: wallet) != nil else {
+                return false
+            }
+            guard let targetWalletIDs else { return true }
+            return targetWalletIDs.contains(wallet.id)
         }
         guard !litecoinWallets.isEmpty else { return }
-        let requestedLimit = max(10, min(limit ?? litecoinHistoryFetchLimit, 100))
+        let requestedLimit = max(10, min(limit ?? HistoryPaging.endpointBatchSize, 100))
 
         if !loadMore {
             let walletIDs = Set(litecoinWallets.map(\.id))
@@ -13694,10 +13567,15 @@ func resetImportForm() {
         }
     }
 
-    func refreshTronTransactions(loadMore: Bool = false) async {
+    func refreshTronTransactions(loadMore: Bool = false, targetWalletIDs: Set<UUID>? = nil) async {
         let walletSnapshot = wallets
         let tronWallets = walletSnapshot.filter { wallet in
-            wallet.selectedChain == "Tron" && resolvedTronAddress(for: wallet) != nil
+            guard wallet.selectedChain == "Tron",
+                  resolvedTronAddress(for: wallet) != nil else {
+                return false
+            }
+            guard let targetWalletIDs else { return true }
+            return targetWalletIDs.contains(wallet.id)
         }
         guard !tronWallets.isEmpty else { return }
 
@@ -13718,7 +13596,7 @@ func resetImportForm() {
                 continue
             }
             guard let tronAddress = resolvedTronAddress(for: wallet) else { continue }
-            let result = await TronBalanceService.fetchRecentHistoryWithDiagnostics(for: tronAddress, limit: 80)
+            let result = await TronBalanceService.fetchRecentHistoryWithDiagnostics(for: tronAddress, limit: HistoryPaging.endpointBatchSize)
             tronHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
             tronHistoryDiagnosticsLastUpdatedAt = Date()
 
@@ -13848,7 +13726,7 @@ func resetImportForm() {
 
         for wallet in solanaWallets {
             guard let solanaAddress = resolvedSolanaAddress(for: wallet) else { continue }
-            let result = await SolanaBalanceService.fetchRecentHistoryWithDiagnostics(for: solanaAddress, limit: 80)
+            let result = await SolanaBalanceService.fetchRecentHistoryWithDiagnostics(for: solanaAddress, limit: HistoryPaging.endpointBatchSize)
             solanaHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
             solanaHistoryDiagnosticsLastUpdatedAt = Date()
 
@@ -13969,7 +13847,7 @@ func resetImportForm() {
 
         for wallet in cardanoWallets {
             guard let cardanoAddress = resolvedCardanoAddress(for: wallet) else { continue }
-            let result = await CardanoBalanceService.fetchRecentHistoryWithDiagnostics(for: cardanoAddress, limit: 80)
+            let result = await CardanoBalanceService.fetchRecentHistoryWithDiagnostics(for: cardanoAddress, limit: HistoryPaging.endpointBatchSize)
 
             if let error = result.diagnostics.error, !error.isEmpty {
                 encounteredErrors = true
@@ -14077,7 +13955,7 @@ func resetImportForm() {
 
         for wallet in xrpWallets {
             guard let xrpAddress = resolvedXRPAddress(for: wallet) else { continue }
-            let result = await XRPBalanceService.fetchRecentHistoryWithDiagnostics(for: xrpAddress, limit: 80)
+            let result = await XRPBalanceService.fetchRecentHistoryWithDiagnostics(for: xrpAddress, limit: HistoryPaging.endpointBatchSize)
 
             if let error = result.diagnostics.error, !error.isEmpty {
                 encounteredErrors = true
@@ -14182,7 +14060,7 @@ func resetImportForm() {
 
         for wallet in stellarWallets {
             guard let stellarAddress = resolvedStellarAddress(for: wallet) else { continue }
-            let result = await StellarBalanceService.fetchRecentHistoryWithDiagnostics(for: stellarAddress, limit: 80)
+            let result = await StellarBalanceService.fetchRecentHistoryWithDiagnostics(for: stellarAddress, limit: HistoryPaging.endpointBatchSize)
 
             if let error = result.diagnostics.error, !error.isEmpty {
                 encounteredErrors = true
@@ -14284,7 +14162,7 @@ func resetImportForm() {
         }
         guard !moneroWallets.isEmpty else { return }
 
-        let requestedLimit = max(20, min(loadMore ? moneroHistoryFetchLimit : max(80, moneroHistoryFetchLimit), 300))
+        let requestedLimit = max(20, min(loadMore ? HistoryPaging.endpointBatchSize * 2 : HistoryPaging.endpointBatchSize, 300))
         var discoveredTransactions: [TransactionRecord] = []
         var encounteredErrors = false
 
@@ -14406,7 +14284,7 @@ func resetImportForm() {
 
         for wallet in suiWallets {
             guard let suiAddress = resolvedSuiAddress(for: wallet) else { continue }
-            let result = await SuiBalanceService.fetchRecentHistoryWithDiagnostics(for: suiAddress, limit: 80)
+            let result = await SuiBalanceService.fetchRecentHistoryWithDiagnostics(for: suiAddress, limit: HistoryPaging.endpointBatchSize)
 
             if let error = result.diagnostics.error, !error.isEmpty {
                 encounteredErrors = true
@@ -14607,7 +14485,7 @@ func resetImportForm() {
 
         for wallet in icpWallets {
             guard let address = resolvedICPAddress(for: wallet) else { continue }
-            let result = await ICPBalanceService.fetchRecentHistoryWithDiagnostics(for: address, limit: 80)
+            let result = await ICPBalanceService.fetchRecentHistoryWithDiagnostics(for: address, limit: HistoryPaging.endpointBatchSize)
             if let error = result.diagnostics.error, !error.isEmpty {
                 encounteredErrors = true
             }
@@ -14655,7 +14533,7 @@ func resetImportForm() {
 
         for wallet in aptosWallets {
             guard let aptosAddress = resolvedAptosAddress(for: wallet) else { continue }
-            let result = await AptosBalanceService.fetchRecentHistoryWithDiagnostics(for: aptosAddress, limit: 80)
+            let result = await AptosBalanceService.fetchRecentHistoryWithDiagnostics(for: aptosAddress, limit: HistoryPaging.endpointBatchSize)
 
             if let error = result.diagnostics.error, !error.isEmpty {
                 encounteredErrors = true
@@ -14704,7 +14582,7 @@ func resetImportForm() {
 
         for wallet in tonWallets {
             guard let address = resolvedTONAddress(for: wallet) else { continue }
-            let result = await TONBalanceService.fetchRecentHistoryWithDiagnostics(for: address, limit: 80)
+            let result = await TONBalanceService.fetchRecentHistoryWithDiagnostics(for: address, limit: HistoryPaging.endpointBatchSize)
             if let error = result.diagnostics.error, !error.isEmpty {
                 encounteredErrors = true
             }
@@ -14830,7 +14708,7 @@ func resetImportForm() {
 
         for wallet in nearWallets {
             guard let nearAddress = resolvedNearAddress(for: wallet) else { continue }
-            let result = await NearBalanceService.fetchRecentHistoryWithDiagnostics(for: nearAddress, limit: 80)
+            let result = await NearBalanceService.fetchRecentHistoryWithDiagnostics(for: nearAddress, limit: HistoryPaging.endpointBatchSize)
 
             if let error = result.diagnostics.error, !error.isEmpty {
                 encounteredErrors = true
@@ -14935,7 +14813,7 @@ func resetImportForm() {
 
         for wallet in polkadotWallets {
             guard let polkadotAddress = resolvedPolkadotAddress(for: wallet) else { continue }
-            let result = await PolkadotBalanceService.fetchRecentHistoryWithDiagnostics(for: polkadotAddress, limit: 80)
+            let result = await PolkadotBalanceService.fetchRecentHistoryWithDiagnostics(for: polkadotAddress, limit: HistoryPaging.endpointBatchSize)
 
             if let error = result.diagnostics.error, !error.isEmpty {
                 encounteredErrors = true
@@ -16438,13 +16316,17 @@ func resetImportForm() {
     func refreshEVMTokenTransactions(
         chainName: String,
         maxResults: Int? = nil,
-        loadMore: Bool = false
+        loadMore: Bool = false,
+        targetWalletIDs: Set<UUID>? = nil
     ) async {
         guard let chain = evmChainContext(for: chainName) else { return }
         let walletSnapshot = wallets
         let walletsToRefresh = walletSnapshot.compactMap { wallet -> (ImportedWallet, String)? in
             guard wallet.selectedChain == chainName,
                   let address = resolvedEVMAddress(for: wallet, chainName: chainName) else {
+                return nil
+            }
+            if let targetWalletIDs, !targetWalletIDs.contains(wallet.id) {
                 return nil
             }
             return (wallet, address)
@@ -16468,7 +16350,7 @@ func resetImportForm() {
         var syncedTransactions: [TransactionRecord] = []
         var encounteredErrors = false
         let unknownTimestamp = Date.distantPast
-        let requestedPageSize = max(50, min(maxResults ?? ethereumTokenHistoryFetchLimit, 500))
+        let requestedPageSize = max(20, min(maxResults ?? HistoryPaging.endpointBatchSize, 500))
         if !loadMore {
             let walletIDs = Set(walletsToRefresh.map { $0.0.id })
             if chain == .ethereum {
@@ -16854,7 +16736,7 @@ func resetImportForm() {
                         try await BitcoinBalanceService.fetchTransactionPage(
                             for: bitcoinAddress,
                             networkMode: self.bitcoinNetworkMode,
-                            limit: max(10, min(self.bitcoinHistoryFetchLimit, 100)),
+                            limit: HistoryPaging.endpointBatchSize,
                             cursor: nil
                         )
                     }
@@ -16864,7 +16746,7 @@ func resetImportForm() {
                     page = try await withTimeout(seconds: 20) {
                         try await BitcoinBalanceService.fetchTransactionPage(
                             forExtendedPublicKey: bitcoinXPub,
-                            limit: max(10, min(self.bitcoinHistoryFetchLimit, 100)),
+                            limit: HistoryPaging.endpointBatchSize,
                             cursor: nil
                         )
                     }
@@ -16920,7 +16802,7 @@ func resetImportForm() {
                     try await BitcoinBalanceService.fetchTransactionPage(
                         for: bitcoinAddress,
                         networkMode: self.bitcoinNetworkMode,
-                        limit: max(10, min(self.bitcoinHistoryFetchLimit, 100)),
+                        limit: HistoryPaging.endpointBatchSize,
                         cursor: nil
                     )
                 }
@@ -16930,7 +16812,7 @@ func resetImportForm() {
                 page = try await withTimeout(seconds: 20) {
                     try await BitcoinBalanceService.fetchTransactionPage(
                         forExtendedPublicKey: bitcoinXPub,
-                        limit: max(10, min(self.bitcoinHistoryFetchLimit, 100)),
+                        limit: HistoryPaging.endpointBatchSize,
                         cursor: nil
                     )
                 }
@@ -17033,7 +16915,7 @@ func resetImportForm() {
                 let page = try await withTimeout(seconds: 20) {
                     try await LitecoinBalanceService.fetchTransactionPage(
                         for: litecoinAddress,
-                        limit: max(10, min(self.litecoinHistoryFetchLimit, 100)),
+                        limit: HistoryPaging.endpointBatchSize,
                         cursor: nil
                     )
                 }
@@ -17071,7 +16953,7 @@ func resetImportForm() {
             let page = try await withTimeout(seconds: 20) {
                 try await LitecoinBalanceService.fetchTransactionPage(
                     for: litecoinAddress,
-                    limit: max(10, min(self.litecoinHistoryFetchLimit, 100)),
+                    limit: HistoryPaging.endpointBatchSize,
                     cursor: nil
                 )
             }
@@ -17141,7 +17023,7 @@ func resetImportForm() {
                 let page = try await withTimeout(seconds: 15) {
                     try await BitcoinCashBalanceService.fetchTransactionPage(
                         for: address,
-                        limit: max(10, min(self.bitcoinHistoryFetchLimit, 100))
+                        limit: HistoryPaging.endpointBatchSize
                     )
                 }
                 bitcoinCashHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
@@ -17212,7 +17094,7 @@ func resetImportForm() {
                 let page = try await withTimeout(seconds: 15) {
                     try await BitcoinSVBalanceService.fetchTransactionPage(
                         for: address,
-                        limit: max(10, min(self.bitcoinHistoryFetchLimit, 100))
+                        limit: HistoryPaging.endpointBatchSize
                     )
                 }
                 bitcoinSVHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
@@ -20747,11 +20629,14 @@ func resetImportForm() {
         markTransactionStatusPollFailure(for: transaction, now: now)
     }
 
-    func refreshDogecoinTransactions(limit: Int? = nil, loadMore: Bool = false) async {
+    func refreshDogecoinTransactions(limit: Int? = nil, loadMore: Bool = false, targetWalletIDs: Set<UUID>? = nil) async {
         let walletSnapshot = wallets
         let walletsToRefresh = walletSnapshot.compactMap { wallet -> (ImportedWallet, [String])? in
             guard wallet.selectedChain == "Dogecoin",
                   !knownDogecoinAddresses(for: wallet).isEmpty else {
+                return nil
+            }
+            if let targetWalletIDs, !targetWalletIDs.contains(wallet.id) {
                 return nil
             }
             return (wallet, knownDogecoinAddresses(for: wallet))
@@ -20759,7 +20644,7 @@ func resetImportForm() {
 
         guard !walletsToRefresh.isEmpty else { return }
 
-        let fetchLimit = max(10, min(limit ?? dogecoinHistoryFetchLimit, 200))
+        let fetchLimit = max(10, min(limit ?? HistoryPaging.endpointBatchSize, 200))
         if !loadMore {
             let walletIDs = Set(walletsToRefresh.map { $0.0.id })
             dogecoinHistoryCursorByWallet = dogecoinHistoryCursorByWallet.filter { walletIDs.contains($0.key) }

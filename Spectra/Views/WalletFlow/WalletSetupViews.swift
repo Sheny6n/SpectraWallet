@@ -72,7 +72,6 @@ struct SetupView: View {
         case watchAddresses
         case seedPhrase
         case password
-        case advanced
         case backupVerification
     }
 
@@ -146,16 +145,9 @@ struct SetupView: View {
         setupPage == .backupVerification
     }
 
-    private var isShowingAdvancedPage: Bool {
-        setupPage == .advanced
-    }
-
     private var setupTitle: String {
         if isShowingBackupVerificationPage {
             return copy.backupVerificationTitle
-        }
-        if isShowingAdvancedPage {
-            return copy.advancedTitle
         }
         if isShowingPasswordPage {
             return NSLocalizedString("import_flow.wallet_password_title", comment: "Setup page title for optional wallet password step")
@@ -181,9 +173,6 @@ struct SetupView: View {
     private var setupSubtitle: String {
         if isShowingBackupVerificationPage {
             return copy.backupVerificationSubtitle
-        }
-        if isShowingAdvancedPage {
-            return copy.advancedSubtitle
         }
         if isShowingPasswordPage {
             return NSLocalizedString("import_flow.wallet_password_subtitle", comment: "Setup page subtitle for optional wallet password step")
@@ -306,9 +295,6 @@ struct SetupView: View {
         if isShowingDetailsPage && (usesSeedPhraseFlow || usesWatchAddressesFlow) {
             return NSLocalizedString("import_flow.next", comment: "Primary action title for next step")
         }
-        if isShowingAdvancedPage {
-            return ""
-        }
         if isShowingSeedPhrasePage {
             return NSLocalizedString("import_flow.next", comment: "Primary action title for next step")
         }
@@ -316,7 +302,7 @@ struct SetupView: View {
             return NSLocalizedString("import_flow.continue_to_backup_verification", comment: "Primary action title to continue to seed backup verification")
         }
         if isEditingWallet {
-            return NSLocalizedString("import_flow.save_wallet", comment: "Primary action title to save wallet edits")
+            return NSLocalizedString("import_flow.save_wallet", comment: "Primary action title to save wallet name edits")
         }
         if isCreateMode {
             return NSLocalizedString("import_flow.create_wallet", comment: "Primary action title to create wallet")
@@ -329,9 +315,6 @@ struct SetupView: View {
     private var isPrimaryActionEnabled: Bool {
         if isShowingDetailsPage && (usesSeedPhraseFlow || usesWatchAddressesFlow) {
             return canAdvanceFromDetailsPage
-        }
-        if isShowingAdvancedPage {
-            return false
         }
         if isShowingSeedPhrasePage {
             return canContinueFromSecretStep
@@ -599,65 +582,6 @@ struct SetupView: View {
     }
 
     @ViewBuilder
-    private var derivationAdvancedContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Control the derivation path used for each selected chain.")
-                .font(.subheadline)
-                .foregroundStyle(Color.primary.opacity(0.76))
-
-            VStack(alignment: .leading, spacing: 16) {
-                ForEach(draft.selectableDerivationChains) { chain in
-                    SeedPathSlotEditor(
-                        title: chain.rawValue,
-                        path: Binding(
-                            get: { draft.seedDerivationPaths.path(for: chain) },
-                            set: { draft.seedDerivationPaths.setPath($0, for: chain) }
-                        ),
-                        defaultPath: chain.defaultPath,
-                        presetOptions: chain.presetOptions
-                    )
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var derivationAdvancedButton: some View {
-        if !isEditingWallet && !draft.selectedChainNames.isEmpty {
-            Button {
-                withAnimation {
-                    setupPage = .advanced
-                }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.orange)
-                        .frame(width: 26, height: 26)
-                        .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Advanced")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.primary)
-                        Text("Adjust derivation paths.")
-                            .font(.caption2)
-                            .foregroundStyle(Color.primary.opacity(0.68))
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.primary.opacity(0.72))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .spectraInputFieldStyle()
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    @ViewBuilder
     private var importSecretModePicker: some View {
         if !isEditingWallet && !isCreateMode && !draft.isWatchOnlyMode {
             VStack(alignment: .leading, spacing: 10) {
@@ -777,7 +701,6 @@ struct SetupView: View {
     private var walletSecretStepSection: some View {
         if isCreateMode {
             createWalletSeedPhraseSection
-            derivationAdvancedButton
         } else {
             importSecretModePicker
 
@@ -785,10 +708,7 @@ struct SetupView: View {
                 if isPrivateKeyImportMode {
                     privateKeyImportFields
                 } else {
-                    VStack(alignment: .leading, spacing: 16) {
-                        newWalletSeedPhraseSection
-                        derivationAdvancedButton
-                    }
+                    newWalletSeedPhraseSection
                 }
             }
             .id(draft.secretImportMode)
@@ -1270,12 +1190,26 @@ struct SetupView: View {
                                         .foregroundStyle(Color.primary.opacity(0.76))
                                 }
 
-                                TextField(NSLocalizedString("import_flow.wallet_name_placeholder", comment: "Wallet name placeholder"), text: $draft.walletName)
-                                    .textInputAutocapitalization(.words)
-                                    .autocorrectionDisabled()
-                                    .padding(14)
-                                    .spectraInputFieldStyle()
-                                    .foregroundStyle(Color.primary)
+                                HStack(spacing: 10) {
+                                    TextField(NSLocalizedString("import_flow.wallet_name_placeholder", comment: "Wallet name placeholder"), text: $draft.walletName)
+                                        .textInputAutocapitalization(.words)
+                                        .autocorrectionDisabled()
+                                        .foregroundStyle(Color.primary)
+
+                                    if isEditingWallet && !draft.walletName.isEmpty {
+                                        Button {
+                                            draft.walletName = ""
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .font(.system(size: 18, weight: .semibold))
+                                                .foregroundStyle(Color.primary.opacity(0.5))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Clear wallet name")
+                                    }
+                                }
+                                .padding(14)
+                                .spectraInputFieldStyle()
 
                             }
                         }
@@ -1292,12 +1226,6 @@ struct SetupView: View {
                     if isShowingPasswordPage {
                         setupCard {
                             walletPasswordStepSection
-                        }
-                    }
-
-                    if isShowingAdvancedPage {
-                        setupCard {
-                            derivationAdvancedContent
                         }
                     }
 
@@ -1318,63 +1246,54 @@ struct SetupView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
-                    if !isShowingAdvancedPage {
-                        Button(action: {
-                            if isShowingDetailsPage && usesWatchAddressesFlow {
-                                withAnimation {
-                                    setupPage = .watchAddresses
-                                }
-                                return
+                    Button(action: {
+                        if isShowingDetailsPage && usesWatchAddressesFlow {
+                            withAnimation {
+                                setupPage = .watchAddresses
                             }
-                            if isShowingDetailsPage && usesSeedPhraseFlow {
-                                withAnimation {
-                                    setupPage = .seedPhrase
-                                }
-                                return
-                            }
-                            if isShowingSeedPhrasePage {
-                                withAnimation {
-                                    setupPage = .password
-                                }
-                                return
-                            }
-                            if isShowingPasswordPage && isCreateMode {
-                                draft.prepareBackupVerificationChallenge()
-                                withAnimation {
-                                    setupPage = .backupVerification
-                                }
-                                return
-                            }
-                            Task {
-                                await store.importWallet()
-                            }
-                        }) {
-                            HStack {
-                                Text(primaryActionTitle)
-                                    .font(.headline)
-                                Spacer()
-                                SpectraLogo(size: 28)
-                            }
-                            .foregroundStyle(Color.primary)
-                            .padding()
-                            .frame(maxWidth: .infinity)
+                            return
                         }
-                        .buttonStyle(.glassProminent)
-                        .disabled(!isPrimaryActionEnabled)
-                        .opacity(isPrimaryActionEnabled ? 1.0 : 0.55)
+                        if isShowingDetailsPage && usesSeedPhraseFlow {
+                            withAnimation {
+                                setupPage = .seedPhrase
+                            }
+                            return
+                        }
+                        if isShowingSeedPhrasePage {
+                            withAnimation {
+                                setupPage = .password
+                            }
+                            return
+                        }
+                        if isShowingPasswordPage && isCreateMode {
+                            draft.prepareBackupVerificationChallenge()
+                            withAnimation {
+                                setupPage = .backupVerification
+                            }
+                            return
+                        }
+                        Task {
+                            await store.importWallet()
+                        }
+                    }) {
+                        HStack {
+                            Text(primaryActionTitle)
+                                .font(.headline)
+                            Spacer()
+                            SpectraLogo(size: 28)
+                        }
+                        .foregroundStyle(Color.primary)
+                        .padding()
+                        .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.glassProminent)
+                    .disabled(!isPrimaryActionEnabled)
+                    .opacity(isPrimaryActionEnabled ? 1.0 : 0.55)
 
                     if isShowingSeedPhrasePage || isShowingWatchAddressesPage {
                         Button(NSLocalizedString("import_flow.back", comment: "Back button title")) {
                             withAnimation {
                                 setupPage = .details
-                            }
-                        }
-                        .buttonStyle(.glass)
-                    } else if isShowingAdvancedPage {
-                        Button(NSLocalizedString("import_flow.back", comment: "Back button title")) {
-                            withAnimation {
-                                setupPage = .seedPhrase
                             }
                         }
                         .buttonStyle(.glass)
