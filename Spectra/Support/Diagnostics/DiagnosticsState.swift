@@ -229,16 +229,8 @@ final class WalletDiagnosticsState: ObservableObject {
                 "%@ refresh timed out. Using cached balances and history."
             ),
             (
-                " providers are partially reachable. Some balances are estimated from confirmed on-chain history.",
-                "%@ providers are partially reachable. Some balances are estimated from confirmed on-chain history."
-            ),
-            (
                 " providers are partially reachable. Showing the latest available balances.",
                 "%@ providers are partially reachable. Showing the latest available balances."
-            ),
-            (
-                " providers are unavailable. Using balance estimated from confirmed on-chain history.",
-                "%@ providers are unavailable. Using balance estimated from confirmed on-chain history."
             ),
             (
                 " providers are unavailable. Using cached balances and history.",

@@ -6,6 +6,7 @@
     "family": "UTXO / 基礎層結算網絡",
     "id": "bitcoin",
     "name": "Bitcoin",
+    "tags": ["UTXO", "PoW", "結算"],
     "notableDetails": [
       "Spectra 使用原生比特幣引擎，而不是通用的錢包核心庫（WalletCore）路徑輔助邏輯。",
       "這裡顯示的默認收款路徑是原生隔離見證（SegWit）的 BIP84 賬戶 0。",
@@ -24,6 +25,7 @@
     "family": "UTXO 支付網絡",
     "id": "bitcoin-cash",
     "name": "Bitcoin Cash",
+    "tags": ["UTXO", "PoW", "支付"],
     "notableDetails": [
       "比特幣現金保留了比特幣家族的 UTXO 模型，但在 Spectra 中使用 BCH 專用的地址校驗、歷史提供商和發送邏輯。",
       "CashAddr 地址格式是 BCH 用戶常見的展示形式，Spectra 會據此進行規範化處理。",
@@ -42,6 +44,7 @@
     "family": "UTXO 支付網絡",
     "id": "bitcoin-sv",
     "name": "Bitcoin SV",
+    "tags": ["UTXO", "PoW", "支付"],
     "notableDetails": [
       "比特幣SV 保留了比特幣家族的 UTXO 記賬模型，但在 Spectra 中使用自己的網絡規則、提供商和瀏覽器接口。",
       "其權威可花費餘額仍然來自可花費 UTXO，而不是賬戶式餘額字段。",
@@ -60,6 +63,7 @@
     "family": "UTXO 支付網絡",
     "id": "litecoin",
     "name": "Litecoin",
+    "tags": ["UTXO", "PoW", "支付"],
     "notableDetails": [
       "它與比特幣共享 UTXO 記賬模型，但地址與費用環境不同。",
       "Spectra 通過錢包核心庫（WalletCore）派生萊特幣，並使用萊特幣專用提供商進行刷新。",
@@ -78,6 +82,7 @@
     "family": "UTXO 支付網絡",
     "id": "dogecoin",
     "name": "Dogecoin",
+    "tags": ["UTXO", "PoW", "支付"],
     "notableDetails": [
       "相比其他 UTXO 鏈，Spectra 對 DOGE 增加了更多發現、keypool 與操作診斷邏輯。",
       "由於沒有終局供應上限，這裡刻意將其長期流通量視為無法由靜態設置頁面準確估算。",
@@ -96,6 +101,7 @@
     "family": "賬戶式智能合約網絡",
     "id": "ethereum",
     "name": "Ethereum",
+    "tags": ["EVM", "PoS", "智能合約"],
     "notableDetails": [
       "BNB Chain 在 Spectra 中復用了相同的 EVM 密鑰空間和默認派生路徑家族。",
       "ETH 餘額來自賬戶狀態；ERC-20 餘額來自代幣合約狀態。",
@@ -114,6 +120,7 @@
     "family": "賬戶式智能合約網絡",
     "id": "ethereum-classic",
     "name": "Ethereum Classic",
+    "tags": ["EVM", "PoW", "智能合約"],
     "notableDetails": [
       "Spectra 通過 EVM 引擎棧處理 ETC，但它擁有獨立的鏈上下文、鏈 ID、RPC 集合與派生路徑。",
       "ETC 與以太坊使用相同的 0x 地址格式，但它是獨立網絡，擁有自己的歷史與費用條件。",
@@ -132,6 +139,7 @@
     "family": "EVM 兼容智能合約網絡",
     "id": "bnb",
     "name": "BNB Chain",
+    "tags": ["EVM", "PoS", "智能合約"],
     "notableDetails": [
       "Spectra 將 BNB Chain 視為 EVM 網絡，並通過以太坊風格的引擎棧進行處理。",
       "它與以太坊共用地址格式和私鑰家族，但擁有不同的鏈上下文和 RPC 網絡。",
@@ -150,6 +158,7 @@
     "family": "EVM 兼容二層智能合約網絡",
     "id": "arbitrum",
     "name": "Arbitrum",
+    "tags": ["EVM", "L2", "Rollup"],
     "notableDetails": [
       "Spectra 將 Arbitrum 視為獨立 EVM 鏈上下文，擁有鏈 ID 42161、單獨的 RPC 輪換、瀏覽器鏈接、診斷和 ERC-20 跟蹤支持。",
       "Arbitrum 使用標準 0x 風格地址，但它與以太坊主網、BNB Chain 和 Avalanche 仍是不同網絡。",
@@ -168,6 +177,7 @@
     "family": "EVM 兼容二層智能合約網絡",
     "id": "optimism",
     "name": "Optimism",
+    "tags": ["EVM", "L2", "Rollup"],
     "notableDetails": [
       "Spectra 將 Optimism 視為獨立 EVM 鏈上下文，擁有鏈 ID 10、單獨的 RPC 輪換、瀏覽器鏈接、診斷和 ERC-20 跟蹤支持。",
       "Optimism 使用標準 0x 風格地址，但它與以太坊主網、Arbitrum、BNB Chain 和 Avalanche 仍是不同網絡。",
@@ -186,6 +196,7 @@
     "family": "EVM 兼容智能合約網絡",
     "id": "avalanche",
     "name": "Avalanche",
+    "tags": ["EVM", "PoS", "智能合約"],
     "notableDetails": [
       "Spectra 將 Avalanche C-Chain 視為獨立的 EVM 網絡，擁有自己的鏈上下文、鏈 ID、RPC 目錄和診斷接口。",
       "Avalanche 使用標準 0x 風格地址，但它是獨立於以太坊和 BNB Chain 的網絡。",
@@ -204,6 +215,7 @@
     "family": "EVM 兼容智能合約網絡",
     "id": "hyperliquid",
     "name": "Hyperliquid",
+    "tags": ["EVM", "PoS", "智能合約"],
     "notableDetails": [
       "Spectra 將 Hyperliquid HyperEVM 視為獨立的 EVM 鏈上下文，擁有自己的鏈 ID、RPC 目錄、瀏覽器鏈接和診斷接口。",
       "Hyperliquid 使用標準 0x 風格地址，但它與以太坊、BNB Chain 和 Avalanche 是不同網絡。",
@@ -222,6 +234,7 @@
     "family": "賬戶式智能合約網絡",
     "id": "tron",
     "name": "Tron",
+    "tags": ["PoS", "支付", "智能合約"],
     "notableDetails": [
       "波場的費用基於資源模型，依賴頻寬和能量，而不是純粹的燃料費模型。",
       "波場上的 USDT 是重要的現實使用路徑，在 Spectra 中被作為 TRC-20 跟蹤資產處理。",
@@ -240,6 +253,7 @@
     "family": "賬戶式高吞吐網絡",
     "id": "solana",
     "name": "Solana",
+    "tags": ["PoS", "高吞吐", "智能合約"],
     "notableDetails": [
       "SPL 代幣餘額存放在關聯代幣賬戶中，而不是直接存放在錢包所有者賬戶里。",
       "Spectra 同時支持當前默認的 Solana 路徑和舊版兼容路徑。",
@@ -258,6 +272,7 @@
     "family": "賬戶式 Move 智能合約網絡",
     "id": "aptos",
     "name": "Aptos",
+    "tags": ["Move", "PoS", "智能合約"],
     "notableDetails": [
       "從開發模型上看，Aptos 與 Sui 比與 EVM 鏈更接近，但其鏈上狀態是賬戶與資源模型，而不是對象中心模型。",
       "在當前構建中，Spectra 對 Aptos 的支持聚焦於原生資產，包括 APT 餘額、發送、歷史、診斷與瀏覽器支持。",
@@ -276,6 +291,7 @@
     "family": "賬戶式消息驅動智能合約網絡",
     "id": "ton",
     "name": "TON",
+    "tags": ["PoS", "訊息", "智能合約"],
     "notableDetails": [
       "TON 的轉賬和合約執行是基於消息的，因此其錢包行為不同於 UTXO 鏈和同步 EVM 調用。",
       "用戶常見的錢包地址往往是友善的 Base64URL 格式，而不是原始的 workchain:hash 形式。",
@@ -294,6 +310,7 @@
     "family": "擴展 UTXO 智能合約網絡",
     "id": "cardano",
     "name": "Cardano",
+    "tags": ["eUTXO", "PoS", "智能合約"],
     "notableDetails": [
       "Cardano 不是以太坊意義上的賬戶模型；它是在 UTXO 模型基礎上擴展出更豐富腳本語義的系統。",
       "剩餘儲備和獎勵分發會影響流通量，但最大供應量本身是固定的。",
@@ -312,6 +329,7 @@
     "family": "賬戶式支付賬本",
     "id": "xrp",
     "name": "XRP Ledger",
+    "tags": ["支付", "結算"],
     "notableDetails": [
       "沒有挖礦：所有 XRP 在創世時就已創建完成。",
       "XRPL 使用儲備要求來防止賬本垃圾和過度狀態膨脹。",
@@ -330,6 +348,7 @@
     "family": "隱私型賬戶 / 一次性輸出網絡",
     "id": "monero",
     "name": "Monero",
+    "tags": ["隱私", "PoW", "支付"],
     "notableDetails": [
       "門羅幣使用隱身地址、環簽名和機密金額，因此其賬本解釋方式與透明鏈完全不同。",
       "由於門羅幣天生強調隱私，餘額與歷史邏輯依賴門羅幣專用後端假設。",
@@ -348,6 +367,7 @@
     "family": "對象中心型智能合約網絡",
     "id": "sui",
     "name": "Sui",
+    "tags": ["Move", "對象", "PoS"],
     "notableDetails": [
       "Sui 並不只是賬戶模型；資產和其他資源被建模為可編程對象。",
       "Move 類型系統和對象所有權規則是其轉移和共享狀態機制的核心。",
@@ -366,6 +386,7 @@
     "family": "賬戶式智能合約網絡",
     "id": "near",
     "name": "NEAR",
+    "tags": ["PoS", "智能合約", "分片"],
     "notableDetails": [
       "NEAR 同時支持人類可讀的具名賬戶和 64 字符的隱式賬戶。",
       "賬戶和合約在網絡中都是一等實體，而不是單純附著在外部擁有賬戶（EOA）上的合約。",
@@ -384,6 +405,7 @@
     "family": "中繼鏈 / 提名權益證明網絡",
     "id": "polkadot",
     "name": "Polkadot",
+    "tags": ["中繼鏈", "PoS", "智能合約"],
     "notableDetails": [
       "Polkadot 地址使用 SS58 地址格式，而不是以太坊風格十六進制地址。",
       "Spectra 使用公開的 Polkadot Sidecar 和 RPC 端點進行餘額、歷史、端點診斷以及應用內發送支持。",
@@ -402,6 +424,7 @@
     "family": "賬戶式容器智能合約網絡",
     "id": "internet-computer",
     "name": "Internet Computer",
+    "tags": ["Canister", "PoS", "智能合約"],
     "notableDetails": [
       "當前 Spectra 主要通過網際網路電腦的 Rosetta 端點支持原生 ICP 轉賬，而不是容器智能合約代幣標準。",
       "ICP 賬戶使用 64 字符賬戶標識符，而不是以太坊風格的外部擁有賬戶（EOA）或對象式地址。",
@@ -420,6 +443,7 @@
     "family": "賬戶式支付網絡",
     "id": "stellar",
     "name": "Stellar",
+    "tags": ["支付", "結算"],
     "notableDetails": [
       "當前 Spectra 主要聚焦原生 XLM 轉賬，而不是恆星網路的發行資產和信任線管理。",
       "恆星網路使用 StrKey 編碼的公開地址，通常以 G 開頭，而不是十六進制或 SS58 風格格式。",

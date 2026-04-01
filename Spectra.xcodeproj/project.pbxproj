@@ -58,8 +58,8 @@
 		904319B92F756B1600DEB3EA /* Exceptions for "Spectra" folder in "SpectraLiveActivityExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				SharedLiveActivities/SendTransactionLiveActivityAttributes.swift,
-				SpectraLiveActivityExtension/SendTransactionLiveActivityWidget.swift,
+				SharedLiveActivities/SendLiveActivityAttributes.swift,
+				SpectraLiveActivityExtension/SendLiveActivityWidget.swift,
 			);
 			target = 91C100072F70000100AAA001 /* SpectraLiveActivityExtension */;
 		};
@@ -67,7 +67,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				SpectraLiveActivityExtension/Info.plist,
-				SpectraLiveActivityExtension/SendTransactionLiveActivityWidget.swift,
+				SpectraLiveActivityExtension/SendLiveActivityWidget.swift,
 				Tests/BitcoinBalanceServiceTests.swift,
 				Tests/CardanoBalanceServiceTests.swift,
 				Tests/DiagnosticsBundleTests.swift,

@@ -53,6 +53,7 @@ private func chainWikiEntry(id: String) throws -> ChainWikiEntry {
             id: $0.id,
             name: $0.name,
             symbol: $0.symbol,
+            tags: [],
             family: $0.family,
             consensus: $0.consensus,
             stateModel: $0.stateModel,

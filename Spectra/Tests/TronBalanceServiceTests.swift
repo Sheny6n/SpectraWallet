@@ -4,6 +4,8 @@ import XCTest
 @MainActor
 final class TronBalanceServiceTests: SpectraNetworkTestCase {
     private let validAddress = "T" + String(repeating: "A", count: 33)
+    private let ownerAddress = TronBalanceService.usdtTronContract
+    private let counterpartyAddress = TronBalanceService.usddTronContract
 
     func testFetchBalancesParsesTronScanNativeAndTokenBalances() async throws {
         let url = "https://apilist.tronscanapi.com/api/accountv2?address=\(validAddress)"
@@ -293,5 +295,43 @@ final class TronBalanceServiceTests: SpectraNetworkTestCase {
         let result = try await TronBalanceService.fetchBalances(for: validAddress)
         XCTAssertEqual(result.trxBalance, 4.25, accuracy: 0.0000001)
         XCTAssertEqual(result.tokenBalances.first(where: { $0.symbol == "USDT" })?.balance ?? 0, 2.0, accuracy: 0.0000001)
+    }
+
+    func testFetchRecentHistoryClassifiesNativeOutgoingTransferAsSendWhenRawDataAddressesAreHex() async throws {
+        let nativeURL = "https://api.trongrid.io/v1/accounts/\(ownerAddress)/transactions?limit=20&only_confirmed=false&order_by=block_timestamp,desc&visible=true"
+        let trc20URL = "https://api.trongrid.io/v1/accounts/\(ownerAddress)/transactions/trc20?limit=20&contract_address=\(TronBalanceService.usdtTronContract)&only_confirmed=false&order_by=block_timestamp,desc"
+
+        try await testNetworkClient.enqueueJSONResponse(
+            url: nativeURL,
+            object: [
+                "data": [[
+                    "txID": "native-send-hash",
+                    "from": ownerAddress,
+                    "to": counterpartyAddress,
+                    "block_timestamp": 1_700_000_000_000 as Int64,
+                    "raw_data": [
+                        "contract": [[
+                            "type": "TransferContract",
+                            "parameter": [
+                                "value": [
+                                    "owner_address": "41aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                    "to_address": "41bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                                    "amount": 1_500_000
+                                ]
+                            ]
+                        ]]
+                    ],
+                    "ret": [["contractRet": "SUCCESS"]]
+                ]]
+            ]
+        )
+        try await testNetworkClient.enqueueJSONResponse(url: trc20URL, object: ["data": []])
+
+        let result = await TronBalanceService.fetchRecentHistoryWithDiagnostics(for: ownerAddress, limit: 20)
+
+        XCTAssertEqual(result.snapshots.count, 1)
+        XCTAssertEqual(result.snapshots.first?.kind, .send)
+        XCTAssertEqual(result.snapshots.first?.counterpartyAddress, counterpartyAddress)
+        XCTAssertEqual(result.snapshots.first?.amount ?? 0, 1.5, accuracy: 0.0000001)
     }
 }

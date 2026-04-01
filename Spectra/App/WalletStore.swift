@@ -547,8 +547,8 @@ class WalletStore: ObservableObject {
     var cachedResolvedTokenPreferencesBySymbol: [String: [TokenPreferenceEntry]] = [:]
     var cachedEnabledTrackedTokenPreferences: [TokenPreferenceEntry] = []
     var cachedTokenPreferenceByChainAndSymbol: [String: TokenPreferenceEntry] = [:]
-    private var cachedCurrencyFormatters: [String: NumberFormatter] = [:]
-    private var cachedDecimalFormatters: [String: NumberFormatter] = [:]
+    var cachedCurrencyFormatters: [String: NumberFormatter] = [:]
+    var cachedDecimalFormatters: [String: NumberFormatter] = [:]
     @Published var useCustomEthereumFees: Bool = false
     @Published var customEthereumMaxFeeGwei: String = ""
     @Published var customEthereumPriorityFeeGwei: String = ""
@@ -1544,7 +1544,7 @@ class WalletStore: ObservableObject {
         enabledTrackedTokenPreferences.filter { $0.chain == chain }
     }
 
-    private func normalizedTrackedTokenIdentifier(for chain: TokenTrackingChain, contractAddress: String) -> String {
+    func normalizedTrackedTokenIdentifier(for chain: TokenTrackingChain, contractAddress: String) -> String {
         let trimmed = contractAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         switch chain {
         case .ethereum, .arbitrum, .bnb, .avalanche, .hyperliquid:
@@ -1911,8 +1911,12 @@ func resetImportForm() {
         }
         let deletedWalletID = walletPendingDeletion.id
         let deletedWalletIDString = deletedWalletID.uuidString
+        let deletedChainName = normalizedWalletChainName(walletPendingDeletion.selectedChain)
         deleteWalletSecrets(for: deletedWalletID)
         wallets.removeAll { $0.id == walletPendingDeletion.id }
+        let hasRemainingWalletsOnDeletedChain = wallets.contains {
+            normalizedWalletChainName($0.selectedChain) == deletedChainName
+        }
         resetLargeMovementAlertBaseline()
         transactions.removeAll { $0.walletID == walletPendingDeletion.id }
         dogecoinKeypoolByWalletID[walletPendingDeletion.id] = nil
@@ -1921,6 +1925,11 @@ func resetImportForm() {
             discoveredUTXOAddressesByChain[chainName]?[walletPendingDeletion.id] = nil
         }
         clearHistoryTracking(for: walletPendingDeletion.id)
+        clearDeletedWalletDiagnostics(
+            walletID: deletedWalletID,
+            chainName: deletedChainName,
+            hasRemainingWalletsOnChain: hasRemainingWalletsOnDeletedChain
+        )
         dogecoinOwnedAddressMap = dogecoinOwnedAddressMap.filter { _, value in
             value.walletID != walletPendingDeletion.id
         }
@@ -3365,6 +3374,8 @@ func resetImportForm() {
         exhaustedBitcoinHistoryWalletIDs = []
         bitcoinCashHistoryCursorByWallet = [:]
         exhaustedBitcoinCashHistoryWalletIDs = []
+        bitcoinSVHistoryCursorByWallet = [:]
+        exhaustedBitcoinSVHistoryWalletIDs = []
         litecoinHistoryCursorByWallet = [:]
         exhaustedLitecoinHistoryWalletIDs = []
         dogecoinHistoryCursorByWallet = [:]
@@ -3457,6 +3468,14 @@ func resetImportForm() {
         cardanoHistoryDiagnosticsLastUpdatedAt = nil
         cardanoEndpointHealthResults = []
         cardanoEndpointHealthLastUpdatedAt = nil
+        bitcoinCashHistoryDiagnosticsByWallet = [:]
+        bitcoinCashHistoryDiagnosticsLastUpdatedAt = nil
+        bitcoinCashEndpointHealthResults = []
+        bitcoinCashEndpointHealthLastUpdatedAt = nil
+        bitcoinSVHistoryDiagnosticsByWallet = [:]
+        bitcoinSVHistoryDiagnosticsLastUpdatedAt = nil
+        bitcoinSVEndpointHealthResults = []
+        bitcoinSVEndpointHealthLastUpdatedAt = nil
         bitcoinHistoryDiagnosticsByWallet = [:]
         bitcoinHistoryDiagnosticsLastUpdatedAt = nil
         bitcoinEndpointHealthResults = []
@@ -3578,7 +3597,6 @@ func resetImportForm() {
         UserDefaults.standard.removeObject(forKey: Self.backgroundSyncProfileDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.selectedBroadcastProvidersByChainDefaultsKey)
         UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.defaultsKey)
         UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.customImageRevisionDefaultsKey)
@@ -3616,7 +3634,6 @@ func resetImportForm() {
         backgroundSyncProfile = .balanced
         largeMovementAlertPercentThreshold = 10
         largeMovementAlertUSDThreshold = 50
-        selectedFeePriorityOptionRawByChain = [:]
         selectedBroadcastProviderIDsByChain = [:]
     }
 
@@ -12485,17 +12502,11 @@ func resetImportForm() {
                     for: address,
                     trackedTokenMetadataByMint: enabledSolanaTrackedTokens()
                 ) else { return }
-                var holdings = applySolanaPortfolio(
+                let holdings = applySolanaPortfolio(
                     nativeBalance: portfolio.nativeBalance,
                     tokenBalances: portfolio.tokenBalances,
                     to: wallet.holdings
                 )
-                if portfolio.tokenBalances.isEmpty {
-                    holdings = mergeSolanaHistoryFallbackHoldings(
-                        historyDerivedSolanaTrackedTokenHoldings(for: wallet.id),
-                        into: holdings
-                    )
-                }
                 updatedHoldings = holdings
             case "Cardano":
                 guard let address = resolvedCardanoAddress(for: wallet) else { return }
@@ -12749,13 +12760,13 @@ func resetImportForm() {
         } else if !resolvedBalances.isEmpty {
             noteChainSuccessfulSync("Bitcoin")
             if usedLedgerFallback {
-                markChainDegraded("Bitcoin", detail: "Bitcoin providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Bitcoin", detail: "Bitcoin providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Bitcoin", detail: "Bitcoin providers are partially reachable. Showing the latest available balances.")
             }
         } else if !walletsToRefresh.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Bitcoin", detail: "Bitcoin providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Bitcoin", detail: "Bitcoin providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Bitcoin", detail: "Bitcoin providers are unavailable. Using cached balances and history.")
             }
@@ -12917,13 +12928,13 @@ func resetImportForm() {
             markChainHealthy("Bitcoin Cash")
         } else if !resolvedBalances.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Bitcoin Cash", detail: "Bitcoin Cash providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Bitcoin Cash", detail: "Bitcoin Cash providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Bitcoin Cash", detail: "Bitcoin Cash providers are partially reachable. Showing the latest available balances.")
             }
         } else if !walletsToRefresh.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Bitcoin Cash", detail: "Bitcoin Cash providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Bitcoin Cash", detail: "Bitcoin Cash providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Bitcoin Cash", detail: "Bitcoin Cash providers are unavailable. Using cached balances and history.")
             }
@@ -13170,7 +13181,7 @@ func resetImportForm() {
             if usedLedgerFallback {
                 markChainDegraded(
                     "Litecoin",
-                    detail: "Litecoin network data is partially reachable. Some balances are estimated from confirmed on-chain history."
+                    detail: "Litecoin network data is partially reachable. Showing the latest available balances."
                 )
             } else {
                 markChainDegraded(
@@ -13182,7 +13193,7 @@ func resetImportForm() {
             if usedLedgerFallback {
                 markChainDegraded(
                     "Litecoin",
-                    detail: "Litecoin data providers are unavailable. Using balance estimated from confirmed on-chain history."
+                    detail: "Litecoin data providers are unavailable right now. Showing cached balances/history until connectivity recovers."
                 )
             } else {
                 markChainDegraded(
@@ -13332,13 +13343,13 @@ func resetImportForm() {
             markChainHealthy("Dogecoin")
         } else if !resolvedBalances.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Dogecoin", detail: "Dogecoin providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Dogecoin", detail: "Dogecoin providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Dogecoin", detail: "Dogecoin providers are partially reachable. Showing the latest available balances.")
             }
         } else if !walletsToRefresh.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Dogecoin", detail: "Dogecoin providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Dogecoin", detail: "Dogecoin providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Dogecoin", detail: "Dogecoin providers are unavailable. Using cached balances and history.")
             }
@@ -13354,22 +13365,10 @@ func resetImportForm() {
         chainName: String,
         symbol: String
     ) -> Double? {
-        guard !useStrictRPCOnly else { return nil }
-        var hasConfirmedLedgerEntry = false
-        let net = transactions.reduce(0.0) { running, transaction in
-            guard transaction.walletID == walletID,
-                  transaction.chainName == chainName,
-                  transaction.symbol == symbol,
-                  transaction.status == .confirmed else {
-                return running
-            }
-            hasConfirmedLedgerEntry = true
-            return transaction.kind == .receive
-                ? running + transaction.amount
-                : running - transaction.amount
-        }
-        guard hasConfirmedLedgerEntry else { return nil }
-        return max(net, 0)
+        _ = walletID
+        _ = chainName
+        _ = symbol
+        return nil
     }
 
     private func resolvedTronNativeBalance(
@@ -13377,31 +13376,9 @@ func resetImportForm() {
         tokenBalances: [TronTokenBalanceSnapshot],
         wallet: ImportedWallet
     ) -> Double {
-        guard fetchedNativeBalance <= 0 else {
-            return fetchedNativeBalance
-        }
-
-        let existingNativeBalance = wallet.holdings.first(where: {
-            $0.chainName == "Tron" && $0.symbol == "TRX"
-        })?.amount ?? 0
-        let ledgerFallback = ledgerDerivedNativeBalanceIfAvailable(
-            for: wallet.id,
-            chainName: "Tron",
-            symbol: "TRX"
-        ) ?? 0
-        let hasTrackedTokenBalance = tokenBalances.contains { $0.balance > 0 }
-        let hasConfirmedTronActivity = transactions.contains { transaction in
-            transaction.walletID == wallet.id
-                && transaction.chainName == "Tron"
-                && transaction.status == .confirmed
-                && (transaction.symbol == "TRX" || transaction.symbol == "USDT")
-        }
-
-        guard hasTrackedTokenBalance || hasConfirmedTronActivity else {
-            return fetchedNativeBalance
-        }
-
-        return max(fetchedNativeBalance, existingNativeBalance, ledgerFallback)
+        _ = tokenBalances
+        _ = wallet
+        return fetchedNativeBalance
     }
 
     private typealias EVMBalanceRefreshTarget = (index: Int, wallet: ImportedWallet, address: String)
@@ -13503,12 +13480,12 @@ func resetImportForm() {
             markChainHealthy(chainName)
         } else if resolvedWalletCount > 0 {
             if usedLedgerFallback {
-                markChainDegraded(chainName, detail: "\(chainName) providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded(chainName, detail: "\(chainName) providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded(chainName, detail: "\(chainName) providers are partially reachable. Showing the latest available balances.")
             }
         } else if usedLedgerFallback {
-            markChainDegraded(chainName, detail: "\(chainName) providers are unavailable. Using balance estimated from confirmed on-chain history.")
+            markChainDegraded(chainName, detail: "\(chainName) providers are unavailable. Using cached balances and history.")
         } else {
             markChainDegraded(chainName, detail: "\(chainName) providers are unavailable. Using cached balances and history.")
         }
@@ -13704,13 +13681,13 @@ func resetImportForm() {
         } else if !resolvedBalances.isEmpty {
             noteChainSuccessfulSync("Tron")
             if usedLedgerFallback {
-                markChainDegraded("Tron", detail: "Tron providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Tron", detail: "Tron providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Tron", detail: "Tron providers are partially reachable. Showing the latest available balances.")
             }
         } else if !walletsToRefresh.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Tron", detail: "Tron providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Tron", detail: "Tron providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Tron", detail: "Tron providers are unavailable. Using cached balances and history.")
             }
@@ -13820,17 +13797,11 @@ func resetImportForm() {
 
         for (index, portfolio) in resolvedPortfolios {
             let wallet = updatedWallets[index]
-            var updatedHoldings = applySolanaPortfolio(
+            let updatedHoldings = applySolanaPortfolio(
                 nativeBalance: portfolio.nativeBalance,
                 tokenBalances: portfolio.tokenBalances,
                 to: wallet.holdings
             )
-            if portfolio.tokenBalances.isEmpty {
-                updatedHoldings = mergeSolanaHistoryFallbackHoldings(
-                    historyDerivedSolanaTrackedTokenHoldings(for: wallet.id),
-                    into: updatedHoldings
-                )
-            }
             updatedWallets[index] = walletByReplacingHoldings(wallet, with: updatedHoldings)
 #if DEBUG
             logBalanceTelemetry(source: "network", chainName: "Solana", wallet: updatedWallets[index], holdings: updatedHoldings)
@@ -13839,11 +13810,7 @@ func resetImportForm() {
 
         for (index, balance) in fallbackNativeBalances {
             let wallet = updatedWallets[index]
-            var updatedHoldings = applySolanaNativeBalanceOnly(balance, to: wallet.holdings)
-            updatedHoldings = mergeSolanaHistoryFallbackHoldings(
-                historyDerivedSolanaTrackedTokenHoldings(for: wallet.id),
-                into: updatedHoldings
-            )
+            let updatedHoldings = applySolanaNativeBalanceOnly(balance, to: wallet.holdings)
             updatedWallets[index] = walletByReplacingHoldings(wallet, with: updatedHoldings)
         }
 
@@ -13855,13 +13822,13 @@ func resetImportForm() {
             markChainHealthy("Solana")
         } else if !resolvedPortfolios.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Solana", detail: "Solana providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Solana", detail: "Solana providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Solana", detail: "Solana providers are partially reachable. Showing the latest available balances.")
             }
         } else {
             if usedLedgerFallback {
-                markChainDegraded("Solana", detail: "Solana providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Solana", detail: "Solana providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Solana", detail: "Solana providers are unavailable. Using cached balances and history.")
             }
@@ -13976,13 +13943,13 @@ func resetImportForm() {
             markChainHealthy("Cardano")
         } else if !resolvedBalances.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Cardano", detail: "Cardano providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Cardano", detail: "Cardano providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Cardano", detail: "Cardano providers are partially reachable. Showing the latest available balances.")
             }
         } else {
             if usedLedgerFallback {
-                markChainDegraded("Cardano", detail: "Cardano providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Cardano", detail: "Cardano providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Cardano", detail: "Cardano providers are unavailable. Using cached balances and history.")
             }
@@ -14084,13 +14051,13 @@ func resetImportForm() {
             markChainHealthy("XRP Ledger")
         } else if !resolvedBalances.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("XRP Ledger", detail: "XRP providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("XRP Ledger", detail: "XRP providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("XRP Ledger", detail: "XRP providers are partially reachable. Showing the latest available balances.")
             }
         } else {
             if usedLedgerFallback {
-                markChainDegraded("XRP Ledger", detail: "XRP providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("XRP Ledger", detail: "XRP providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("XRP Ledger", detail: "XRP providers are unavailable. Using cached balances and history.")
             }
@@ -14189,13 +14156,13 @@ func resetImportForm() {
         } else if !resolvedBalances.isEmpty {
             noteChainSuccessfulSync("Stellar")
             if usedLedgerFallback {
-                markChainDegraded("Stellar", detail: "Stellar providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Stellar", detail: "Stellar providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Stellar", detail: "Stellar providers are partially reachable. Showing the latest available balances.")
             }
         } else {
             if usedLedgerFallback {
-                markChainDegraded("Stellar", detail: "Stellar providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Stellar", detail: "Stellar providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Stellar", detail: "Stellar providers are unavailable. Using cached balances and history.")
             }
@@ -14297,13 +14264,13 @@ func resetImportForm() {
             markChainHealthy("Monero")
         } else if !resolvedBalances.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Monero", detail: "Monero providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Monero", detail: "Monero providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Monero", detail: "Monero providers are partially reachable. Showing the latest available balances.")
             }
         } else {
             if usedLedgerFallback {
-                markChainDegraded("Monero", detail: "Monero providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Monero", detail: "Monero providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Monero", detail: "Monero providers are unavailable. Using cached balances and history.")
             }
@@ -14413,13 +14380,13 @@ func resetImportForm() {
             markChainHealthy("Sui")
         } else if !resolvedPortfolios.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Sui", detail: "Sui providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Sui", detail: "Sui providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Sui", detail: "Sui providers are partially reachable. Showing the latest available balances.")
             }
         } else {
             if usedLedgerFallback {
-                markChainDegraded("Sui", detail: "Sui providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Sui", detail: "Sui providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Sui", detail: "Sui providers are unavailable. Using cached balances and history.")
             }
@@ -14526,13 +14493,13 @@ func resetImportForm() {
             markChainHealthy("Aptos")
         } else if !resolvedBalances.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("Aptos", detail: "Aptos providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Aptos", detail: "Aptos providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Aptos", detail: "Aptos providers are partially reachable. Showing the latest available balances.")
             }
         } else {
             if usedLedgerFallback {
-                markChainDegraded("Aptos", detail: "Aptos providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Aptos", detail: "Aptos providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Aptos", detail: "Aptos providers are unavailable. Using cached balances and history.")
             }
@@ -14588,12 +14555,12 @@ func resetImportForm() {
             markChainHealthy("TON")
         } else if !resolvedBalances.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("TON", detail: "TON providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("TON", detail: "TON providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("TON", detail: "TON providers are partially reachable. Showing the latest available balances.")
             }
         } else if usedLedgerFallback {
-            markChainDegraded("TON", detail: "TON providers are unavailable. Using balance estimated from confirmed on-chain history.")
+            markChainDegraded("TON", detail: "TON providers are unavailable. Using cached balances and history.")
         } else {
             markChainDegraded("TON", detail: "TON providers are unavailable. Using cached balances and history.")
         }
@@ -14837,13 +14804,13 @@ func resetImportForm() {
             markChainHealthy("NEAR")
         } else if !resolvedBalances.isEmpty {
             if usedLedgerFallback {
-                markChainDegraded("NEAR", detail: "NEAR providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("NEAR", detail: "NEAR providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("NEAR", detail: "NEAR providers are partially reachable. Showing the latest available balances.")
             }
         } else {
             if usedLedgerFallback {
-                markChainDegraded("NEAR", detail: "NEAR providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("NEAR", detail: "NEAR providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("NEAR", detail: "NEAR providers are unavailable. Using cached balances and history.")
             }
@@ -14942,13 +14909,13 @@ func resetImportForm() {
         } else if !resolvedBalances.isEmpty {
             noteChainSuccessfulSync("Polkadot")
             if usedLedgerFallback {
-                markChainDegraded("Polkadot", detail: "Polkadot providers are partially reachable. Some balances are estimated from confirmed on-chain history.")
+                markChainDegraded("Polkadot", detail: "Polkadot providers are partially reachable. Showing the latest available balances.")
             } else {
                 markChainDegraded("Polkadot", detail: "Polkadot providers are partially reachable. Showing the latest available balances.")
             }
         } else {
             if usedLedgerFallback {
-                markChainDegraded("Polkadot", detail: "Polkadot providers are unavailable. Using balance estimated from confirmed on-chain history.")
+                markChainDegraded("Polkadot", detail: "Polkadot providers are unavailable. Using cached balances and history.")
             } else {
                 markChainDegraded("Polkadot", detail: "Polkadot providers are unavailable. Using cached balances and history.")
             }
@@ -16281,59 +16248,6 @@ func resetImportForm() {
         default:
             return 0
         }
-    }
-
-    private func historyDerivedSolanaTrackedTokenHoldings(for walletID: UUID) -> [Coin] {
-        let trackedTokens = enabledSolanaTrackedTokens()
-        guard !trackedTokens.isEmpty else { return [] }
-
-        return trackedTokens.compactMap { mintAddress, metadata in
-            let derivedBalance = transactions.reduce(0.0) { running, transaction in
-                guard transaction.walletID == walletID,
-                      transaction.chainName == "Solana",
-                      transaction.status == .confirmed,
-                      transaction.symbol.caseInsensitiveCompare(metadata.symbol) == .orderedSame else {
-                    return running
-                }
-
-                switch transaction.kind {
-                case .receive:
-                    return running + transaction.amount
-                case .send:
-                    return running - transaction.amount
-                }
-            }
-
-            guard derivedBalance > 0 else { return nil }
-
-            return Coin(
-                name: metadata.name,
-                symbol: metadata.symbol,
-                marketDataID: metadata.marketDataID,
-                coinGeckoID: metadata.coinGeckoID,
-                chainName: "Solana",
-                tokenStandard: "SPL",
-                contractAddress: mintAddress,
-                amount: derivedBalance,
-                priceUSD: defaultPriceUSDForSolanaToken(symbol: metadata.symbol),
-                mark: String(metadata.symbol.prefix(1)).uppercased(),
-                color: .mint
-            )
-        }
-    }
-
-    private func mergeSolanaHistoryFallbackHoldings(
-        _ fallbackHoldings: [Coin],
-        into holdings: [Coin]
-    ) -> [Coin] {
-        guard !fallbackHoldings.isEmpty else { return holdings }
-
-        var updatedHoldings = holdings
-        let existingKeys = Set(updatedHoldings.map(\.holdingKey))
-        for holding in fallbackHoldings where !existingKeys.contains(holding.holdingKey) {
-            updatedHoldings.append(holding)
-        }
-        return updatedHoldings
     }
 
     private func configuredEthereumRPCEndpointURL() -> URL? {
@@ -21517,23 +21431,78 @@ func resetImportForm() {
         diagnostics.noteChainSuccessfulSync(chainName)
     }
 
+    private func normalizedWalletChainName(_ chainName: String) -> String {
+        WalletChainID(chainName)?.displayName ?? chainName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func clearDeletedWalletDiagnostics(
+        walletID: UUID,
+        chainName: String,
+        hasRemainingWalletsOnChain: Bool
+    ) {
+        diagnostics.operationalLogs.removeAll { event in
+            if event.walletID == walletID {
+                return true
+            }
+            guard !hasRemainingWalletsOnChain else { return false }
+            return normalizedWalletChainName(event.chainName ?? "") == chainName
+        }
+
+        guard !hasRemainingWalletsOnChain else { return }
+        markChainHealthy(chainName)
+        chainOperationalEventsByChain[chainName] = nil
+        lastHistoryRefreshAtByChain[chainName] = nil
+    }
+
     // Full history persistence path.
     // Writes normalized transaction snapshots to the local history database in one replacement pass.
     private func clearHistoryTracking(for walletID: UUID) {
         bitcoinHistoryCursorByWallet[walletID] = nil
         bitcoinCashHistoryCursorByWallet[walletID] = nil
+        bitcoinSVHistoryCursorByWallet[walletID] = nil
         litecoinHistoryCursorByWallet[walletID] = nil
         dogecoinHistoryCursorByWallet[walletID] = nil
+        tronHistoryCursorByWallet[walletID] = nil
+        ethereumHistoryPageByWallet[walletID] = nil
+        arbitrumHistoryPageByWallet[walletID] = nil
+        optimismHistoryPageByWallet[walletID] = nil
+        bnbHistoryPageByWallet[walletID] = nil
+        hyperliquidHistoryPageByWallet[walletID] = nil
         exhaustedBitcoinHistoryWalletIDs.remove(walletID)
         exhaustedBitcoinCashHistoryWalletIDs.remove(walletID)
+        exhaustedBitcoinSVHistoryWalletIDs.remove(walletID)
         exhaustedLitecoinHistoryWalletIDs.remove(walletID)
         exhaustedDogecoinHistoryWalletIDs.remove(walletID)
         exhaustedEthereumHistoryWalletIDs.remove(walletID)
+        exhaustedArbitrumHistoryWalletIDs.remove(walletID)
+        exhaustedOptimismHistoryWalletIDs.remove(walletID)
         exhaustedBNBHistoryWalletIDs.remove(walletID)
+        exhaustedHyperliquidHistoryWalletIDs.remove(walletID)
+        exhaustedTronHistoryWalletIDs.remove(walletID)
+        dogecoinHistoryDiagnosticsByWallet[walletID] = nil
         bitcoinHistoryDiagnosticsByWallet[walletID] = nil
+        bitcoinCashHistoryDiagnosticsByWallet[walletID] = nil
+        bitcoinSVHistoryDiagnosticsByWallet[walletID] = nil
         litecoinHistoryDiagnosticsByWallet[walletID] = nil
         ethereumHistoryDiagnosticsByWallet[walletID] = nil
+        arbitrumHistoryDiagnosticsByWallet[walletID] = nil
+        optimismHistoryDiagnosticsByWallet[walletID] = nil
+        etcHistoryDiagnosticsByWallet[walletID] = nil
         bnbHistoryDiagnosticsByWallet[walletID] = nil
+        avalancheHistoryDiagnosticsByWallet[walletID] = nil
+        hyperliquidHistoryDiagnosticsByWallet[walletID] = nil
+        tronHistoryDiagnosticsByWallet[walletID] = nil
+        solanaHistoryDiagnosticsByWallet[walletID] = nil
+        cardanoHistoryDiagnosticsByWallet[walletID] = nil
+        xrpHistoryDiagnosticsByWallet[walletID] = nil
+        stellarHistoryDiagnosticsByWallet[walletID] = nil
+        moneroHistoryDiagnosticsByWallet[walletID] = nil
+        suiHistoryDiagnosticsByWallet[walletID] = nil
+        aptosHistoryDiagnosticsByWallet[walletID] = nil
+        tonHistoryDiagnosticsByWallet[walletID] = nil
+        icpHistoryDiagnosticsByWallet[walletID] = nil
+        nearHistoryDiagnosticsByWallet[walletID] = nil
+        polkadotHistoryDiagnosticsByWallet[walletID] = nil
     }
 
     private func persistTransactionsFullSync() {
@@ -21659,673 +21628,5 @@ func resetImportForm() {
         }
         return payload.addressMapByChain
     }
-    
-    func mergeBuiltInTokenPreferences(with persisted: [TokenPreferenceEntry]) -> [TokenPreferenceEntry] {
-        let builtIns = ChainTokenRegistryEntry.builtIn.map(\.tokenPreferenceEntry)
-        let custom = persisted.filter { !$0.isBuiltIn }
-        var merged: [TokenPreferenceEntry] = []
-        for builtIn in builtIns {
-            if let existing = persisted.first(where: { entry in
-                entry.isBuiltIn
-                    && entry.chain == builtIn.chain
-                    && normalizedTrackedTokenIdentifier(for: entry.chain, contractAddress: entry.contractAddress)
-                        == normalizedTrackedTokenIdentifier(for: builtIn.chain, contractAddress: builtIn.contractAddress)
-            }) {
-                var updated = builtIn
-                updated.isEnabled = existing.isEnabled
-                updated.displayDecimals = existing.displayDecimals
-                merged.append(updated)
-            } else {
-                merged.append(builtIn)
-            }
-        }
-        merged.append(contentsOf: custom)
-        merged.sort { lhs, rhs in
-            if lhs.chain != rhs.chain {
-                return lhs.chain.rawValue < rhs.chain.rawValue
-            }
-            if lhs.isBuiltIn != rhs.isBuiltIn {
-                return lhs.isBuiltIn && !rhs.isBuiltIn
-            }
-            return lhs.symbol < rhs.symbol
-        }
-        return merged
-    }
 
-    
-    private func evaluatePriceAlerts() {
-        guard usePriceAlerts, !priceAlerts.isEmpty else { return }
-        
-        var updatedAlerts = priceAlerts
-        
-        for index in updatedAlerts.indices {
-            let alert = updatedAlerts[index]
-            guard alert.isEnabled,
-                  let coin = portfolio.first(where: { $0.holdingKey == alert.holdingKey }),
-                  let livePrice = currentPriceIfAvailable(for: coin) else {
-                continue
-            }
-            let meetsTarget: Bool
-            switch alert.condition {
-            case .above:
-                meetsTarget = livePrice >= alert.targetPrice
-            case .below:
-                meetsTarget = livePrice <= alert.targetPrice
-            }
-            
-            if meetsTarget && !alert.hasTriggered {
-                updatedAlerts[index].hasTriggered = true
-                sendPriceAlertNotification(for: alert, livePrice: livePrice)
-            } else if !meetsTarget && alert.hasTriggered {
-                updatedAlerts[index].hasTriggered = false
-            }
-        }
-        
-        priceAlerts = updatedAlerts
-    }
-
-    private func requestStandardNotificationPermission() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in
-            // Ignore the result here; wallet workflows should remain responsive regardless.
-        }
-    }
-
-    private func postNotification(identifier: String, title: String, body: String) {
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        content.sound = .default
-
-        let request = UNNotificationRequest(
-            identifier: identifier,
-            content: content,
-            trigger: nil
-        )
-
-        UNUserNotificationCenter.current().add(request)
-    }
-    
-    private func requestPriceAlertNotificationPermission() {
-        requestStandardNotificationPermission()
-    }
-
-    private func requestNotificationPermissionIfNeeded() {
-        requestStandardNotificationPermission()
-    }
-
-    private func requestTransactionStatusNotificationPermission() {
-        guard useTransactionStatusNotifications || useLargeMovementNotifications else { return }
-        requestNotificationPermissionIfNeeded()
-    }
-
-    private func shouldRebuildDashboardForLivePriceChange(
-        from oldPrices: [String: Double],
-        to newPrices: [String: Double]
-    ) -> Bool {
-        guard oldPrices != newPrices else { return false }
-        guard !cachedDashboardRelevantPriceKeys.isEmpty else { return true }
-
-        let changedRelevantKey = cachedDashboardRelevantPriceKeys.contains { key in
-            oldPrices[key] != newPrices[key]
-        }
-        if changedRelevantKey {
-            return true
-        }
-
-        if selectedMainTab == .home {
-            let pinnedPrototypeKeys = Set(dashboardPinnedAssetPricingPrototypes.map(\.holdingKey))
-            return pinnedPrototypeKeys.contains { key in
-                oldPrices[key] != newPrices[key]
-            }
-        }
-
-        return false
-    }
-    
-    private func sendPriceAlertNotification(for alert: PriceAlertRule, livePrice: Double) {
-        postNotification(
-            identifier: "price-alert-\(alert.id.uuidString)-\(UUID().uuidString)",
-            title: localizedStoreFormat("%@ price alert", alert.symbol),
-            body: localizedStoreFormat(
-                "%@ on %@ is now %@, which is %@ your target of %@.",
-                alert.assetName,
-                alert.chainName,
-                formattedFiatAmount(fromUSD: livePrice),
-                alert.condition.rawValue.lowercased(),
-                formattedFiatAmount(fromUSD: alert.targetPrice)
-            )
-        )
-    }
-
-    private func sendTransactionStatusNotification(for transaction: TransactionRecord, newStatus: TransactionStatus) {
-        guard useTransactionStatusNotifications else { return }
-        let title: String
-        let body: String
-        switch newStatus {
-        case .confirmed:
-            title = localizedStoreFormat("%@ transaction confirmed", transaction.symbol)
-            body = localizedStoreFormat("Your %@ send from %@ is now confirmed on %@.", transaction.symbol, transaction.walletName, transaction.chainName)
-        case .failed:
-            title = localizedStoreFormat("%@ transaction failed", transaction.symbol)
-            body = transaction.failureReason ?? localizedStoreFormat("Your %@ send from %@ failed on %@.", transaction.symbol, transaction.walletName, transaction.chainName)
-        case .pending:
-            return
-        }
-
-        postNotification(
-            identifier: "transaction-status-\(transaction.id.uuidString)-\(newStatus.rawValue)",
-            title: title,
-            body: body
-        )
-    }
-}
-
-@MainActor
-extension WalletStore {
-    func convertUSDToSelectedFiat(_ amountUSD: Double) -> Double {
-        amountUSD * fiatRate(for: selectedFiatCurrency)
-    }
-
-    func convertUSDToSelectedFiatIfAvailable(_ amountUSD: Double) -> Double? {
-        guard let rate = fiatRateIfAvailable(for: selectedFiatCurrency) else {
-            return nil
-        }
-        return amountUSD * rate
-    }
-
-    func convertSelectedFiatToUSD(_ amountInSelectedFiat: Double) -> Double {
-        let rate = fiatRate(for: selectedFiatCurrency)
-        guard rate > 0 else { return amountInSelectedFiat }
-        return amountInSelectedFiat / rate
-    }
-
-    func formattedFiatAmount(fromUSD amountUSD: Double) -> String {
-        formatFiatAmount(amount: convertUSDToSelectedFiat(amountUSD), currency: selectedFiatCurrency)
-    }
-
-    func formattedFiatAmountIfAvailable(fromUSD amountUSD: Double) -> String? {
-        if selectedFiatCurrency == .usd {
-            return formatFiatAmount(amount: amountUSD, currency: .usd)
-        }
-        guard let converted = convertUSDToSelectedFiatIfAvailable(amountUSD) else {
-            return nil
-        }
-        return formatFiatAmount(amount: converted, currency: selectedFiatCurrency)
-    }
-
-    func formattedFiatAmountOrZero(fromUSD amountUSD: Double?) -> String {
-        formattedFiatAmount(fromUSD: amountUSD ?? 0)
-    }
-
-    private func fiatFormatter(for currency: FiatCurrency) -> NumberFormatter {
-        let key = currency.rawValue
-        if let formatter = cachedCurrencyFormatters[key] {
-            return formatter
-        }
-
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = currency.rawValue
-        formatter.minimumFractionDigits = currency == .jpy ? 0 : 2
-        formatter.maximumFractionDigits = currency == .jpy ? 0 : 2
-        cachedCurrencyFormatters[key] = formatter
-        return formatter
-    }
-
-    private func decimalFormatter(
-        minimumFractionDigits: Int,
-        maximumFractionDigits: Int,
-        usesGroupingSeparator: Bool
-    ) -> NumberFormatter {
-        let key = "\(minimumFractionDigits):\(maximumFractionDigits):\(usesGroupingSeparator)"
-        if let formatter = cachedDecimalFormatters[key] {
-            return formatter
-        }
-
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = usesGroupingSeparator
-        formatter.minimumFractionDigits = minimumFractionDigits
-        formatter.maximumFractionDigits = maximumFractionDigits
-        cachedDecimalFormatters[key] = formatter
-        return formatter
-    }
-
-    private func formatFiatAmount(amount: Double, currency: FiatCurrency) -> String {
-        let formatter = fiatFormatter(for: currency)
-        let minimumVisibleAmount = currency == .jpy ? 1.0 : 0.01
-        if amount > 0, amount < minimumVisibleAmount,
-           let thresholdString = formatter.string(from: NSNumber(value: minimumVisibleAmount)) {
-            return "<\(thresholdString)"
-        }
-        return formatter.string(from: NSNumber(value: amount)) ?? "\(currency.rawValue) \(String(format: "%.2f", amount))"
-    }
-
-    func formattedFiatAmount(fromNative amount: Double, symbol: String) -> String? {
-        guard let coin = portfolio.first(where: { $0.symbol == symbol }) else { return nil }
-        guard let price = currentPriceIfAvailable(for: coin) else { return nil }
-        let amountUSD = amount * price
-        return formattedFiatAmountIfAvailable(fromUSD: amountUSD)
-    }
-
-    func formattedAssetAmount(_ amount: Double, symbol: String, chainName: String) -> String {
-        let supportedDecimals = supportedDecimalPlaces(for: symbol, chainName: chainName)
-        let visibleDecimals = min(displayDecimalPlaces(for: symbol, chainName: chainName), supportedDecimals)
-        let formatter = decimalFormatter(
-            minimumFractionDigits: 0,
-            maximumFractionDigits: visibleDecimals,
-            usesGroupingSeparator: false
-        )
-
-        if amount > 0, visibleDecimals > 0 {
-            let threshold = pow(10.0, Double(-visibleDecimals))
-            if amount < threshold {
-                let thresholdFormatter = decimalFormatter(
-                    minimumFractionDigits: visibleDecimals,
-                    maximumFractionDigits: visibleDecimals,
-                    usesGroupingSeparator: false
-                )
-                let thresholdText = thresholdFormatter.string(from: NSNumber(value: threshold))
-                    ?? String(format: "%.\(visibleDecimals)f", threshold)
-                return "<\(thresholdText) \(symbol)"
-            }
-        }
-
-        let formattedValue = formatter.string(from: NSNumber(value: amount))
-            ?? String(format: "%.\(visibleDecimals)f", amount)
-        return "\(formattedValue) \(symbol)"
-    }
-
-    func formattedTransactionAmount(_ transaction: TransactionRecord) -> String? {
-        guard transaction.amount.isFinite, transaction.amount >= 0 else { return nil }
-        return formattedAssetAmount(transaction.amount, symbol: transaction.symbol, chainName: transaction.chainName)
-    }
-
-    func formattedTransactionDetailAmount(_ transaction: TransactionRecord) -> String? {
-        guard transaction.amount.isFinite, transaction.amount >= 0 else { return nil }
-        return formattedTransactionDetailAssetAmount(
-            transaction.amount,
-            symbol: transaction.symbol,
-            chainName: transaction.chainName
-        )
-    }
-
-    func supportedAssetDecimals(symbol: String, chainName: String) -> Int {
-        supportedDecimalPlaces(for: symbol, chainName: chainName)
-    }
-
-    func displayAssetDecimals(symbol: String, chainName: String) -> Int {
-        displayDecimalPlaces(for: symbol, chainName: chainName)
-    }
-
-    func assetDisplayDecimalPlaces(for chainName: String) -> Int {
-        let settingsKey = nativeAssetDisplaySettingsKey(for: chainName)
-        let defaultValue = defaultAssetDisplayDecimalsByChain()[settingsKey] ?? 3
-        return assetDisplayDecimalsByChain[settingsKey].map { min(max($0, 0), 30) } ?? defaultValue
-    }
-
-    func setAssetDisplayDecimalPlaces(_ decimals: Int, for chainName: String) {
-        let settingsKey = nativeAssetDisplaySettingsKey(for: chainName)
-        assetDisplayDecimalsByChain[settingsKey] = min(max(decimals, 0), 30)
-    }
-
-    func currentValue(for coin: Coin) -> Double {
-        coin.amount * currentPrice(for: coin)
-    }
-
-    func currentValueIfAvailable(for coin: Coin) -> Double? {
-        guard let price = currentOrFallbackPriceIfAvailable(for: coin) else {
-            return nil
-        }
-        return coin.amount * price
-    }
-
-    func currentTotal(for wallet: ImportedWallet) -> Double {
-        wallet.holdings.reduce(0) { $0 + currentValue(for: $1) }
-    }
-
-    func currentTotalIfAvailable(for wallet: ImportedWallet) -> Double? {
-        sumLiveQuotedValues(for: wallet.holdings)
-    }
-
-    private func sumLiveQuotedValues(for coins: [Coin]) -> Double? {
-        var total: Double = 0
-        var sawQuotedCoin = false
-        for coin in coins where coin.amount > 0 {
-            guard let value = currentValueIfAvailable(for: coin) else {
-                return nil
-            }
-            total += value
-            sawQuotedCoin = true
-        }
-        return sawQuotedCoin ? total : 0
-    }
-
-    private func normalizedHistoryInputSignature(walletByID: [UUID: ImportedWallet]) -> Int {
-        var hasher = Hasher()
-        hasher.combine(transactions.count)
-        for transaction in transactions {
-            hasher.combine(transaction.id)
-            hasher.combine(transaction.walletID)
-            hasher.combine(transaction.kind.rawValue)
-            hasher.combine(transaction.status.rawValue)
-            hasher.combine(transaction.chainName)
-            hasher.combine(transaction.symbol)
-            hasher.combine(transaction.transactionHash ?? "")
-            hasher.combine(transaction.createdAt.timeIntervalSinceReferenceDate.bitPattern)
-        }
-
-        for walletID in walletByID.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
-            guard let wallet = walletByID[walletID] else { continue }
-            hasher.combine(walletID)
-            hasher.combine(wallet.selectedChain)
-        }
-
-        return hasher.finalize()
-    }
-
-    func rebuildNormalizedHistoryIndex() {
-        let walletByID = cachedWalletByID.isEmpty
-            ? Dictionary(uniqueKeysWithValues: wallets.map { ($0.id, $0) })
-            : cachedWalletByID
-        let inputSignature = normalizedHistoryInputSignature(walletByID: walletByID)
-        guard transactionState.lastNormalizedHistorySignature != inputSignature else { return }
-        let startedAt = CFAbsoluteTimeGetCurrent()
-        var groupedByDedupeKey: [String: [NormalizedHistoryEntry]] = [:]
-        for transaction in transactions {
-            guard let walletID = transaction.walletID,
-                  let wallet = walletByID[walletID],
-                  wallet.selectedChain == transaction.chainName else {
-                continue
-            }
-            let entry = normalizedHistoryEntry(for: transaction)
-            groupedByDedupeKey[entry.dedupeKey, default: []].append(entry)
-        }
-
-        let deduped = groupedByDedupeKey.values.compactMap { entries -> NormalizedHistoryEntry? in
-            guard !entries.isEmpty else { return nil }
-            let providerSet = Set(entries.map(\.sourceTag))
-            let providerCount = max(1, providerSet.count)
-            let best = entries.max { lhs, rhs in
-                if lhs.sourceConfidenceScore != rhs.sourceConfidenceScore {
-                    return lhs.sourceConfidenceScore < rhs.sourceConfidenceScore
-                }
-                let lhsStatusRank = normalizedStatusRank(lhs.status)
-                let rhsStatusRank = normalizedStatusRank(rhs.status)
-                if lhsStatusRank != rhsStatusRank {
-                    return lhsStatusRank < rhsStatusRank
-                }
-                if lhs.createdAt != rhs.createdAt {
-                    return lhs.createdAt < rhs.createdAt
-                }
-                return lhs.transactionID.uuidString < rhs.transactionID.uuidString
-            }
-            guard let best else { return nil }
-            return NormalizedHistoryEntry(
-                id: best.id,
-                transactionID: best.transactionID,
-                dedupeKey: best.dedupeKey,
-                createdAt: best.createdAt,
-                kind: best.kind,
-                status: best.status,
-                walletName: best.walletName,
-                assetName: best.assetName,
-                symbol: best.symbol,
-                chainName: best.chainName,
-                address: best.address,
-                transactionHash: best.transactionHash,
-                sourceTag: best.sourceTag,
-                sourceConfidenceTag: best.sourceConfidenceTag,
-                sourceConfidenceScore: best.sourceConfidenceScore,
-                providerCount: providerCount,
-                searchIndex: best.searchIndex
-            )
-        }
-
-        normalizedHistoryIndex = deduped.sorted { lhs, rhs in
-            if lhs.createdAt != rhs.createdAt {
-                return lhs.createdAt > rhs.createdAt
-            }
-            return lhs.id < rhs.id
-        }
-        transactionState.lastNormalizedHistorySignature = inputSignature
-        recordPerformanceSample(
-            "rebuild_normalized_history_index",
-            startedAt: startedAt,
-            metadata: "transactions=\(transactions.count) normalized=\(normalizedHistoryIndex.count)"
-        )
-    }
-
-    func rebuildTransactionDerivedState() {
-        cachedTransactionByID = Dictionary(uniqueKeysWithValues: transactions.map { ($0.id, $0) })
-        var earliestTransactionDateByWalletID: [UUID: Date] = [:]
-        for transaction in transactions {
-            guard let walletID = transaction.walletID else { continue }
-            if let currentEarliest = earliestTransactionDateByWalletID[walletID] {
-                if transaction.createdAt < currentEarliest {
-                    earliestTransactionDateByWalletID[walletID] = transaction.createdAt
-                }
-            } else {
-                earliestTransactionDateByWalletID[walletID] = transaction.createdAt
-            }
-        }
-        cachedFirstActivityDateByWalletID = earliestTransactionDateByWalletID
-        rebuildNormalizedHistoryIndex()
-    }
-
-    func pruneTransactionsForActiveWallets() {
-        let walletByID = cachedWalletByID.isEmpty
-            ? Dictionary(uniqueKeysWithValues: wallets.map { ($0.id, $0) })
-            : cachedWalletByID
-        let filtered = transactions.filter { transaction in
-            guard let walletID = transaction.walletID,
-                  let wallet = walletByID[walletID] else {
-                return false
-            }
-            return wallet.selectedChain == transaction.chainName
-        }
-        guard filtered.count != transactions.count else { return }
-        transactions = filtered.sorted { $0.createdAt > $1.createdAt }
-    }
-
-    private func formattedTransactionDetailAssetAmount(_ amount: Double, symbol: String, chainName: String) -> String {
-        let supportedDecimals = supportedDecimalPlaces(for: symbol, chainName: chainName)
-        let formatter = decimalFormatter(
-            minimumFractionDigits: 0,
-            maximumFractionDigits: supportedDecimals,
-            usesGroupingSeparator: false
-        )
-
-        let formattedValue = formatter.string(from: NSNumber(value: amount))
-            ?? String(format: "%.\(supportedDecimals)f", amount)
-        return "\(formattedValue) \(symbol)"
-    }
-
-    private func tokenPreferenceLookupKey(chainName: String, symbol: String) -> String {
-        let normalizedChain = chainName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedSymbol = symbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        return "\(normalizedChain)|\(normalizedSymbol)"
-    }
-
-    private func supportedDecimalPlaces(for symbol: String, chainName: String) -> Int {
-        if let trackedToken = cachedTokenPreferenceByChainAndSymbol[tokenPreferenceLookupKey(chainName: chainName, symbol: symbol)] {
-            return trackedToken.decimals
-        }
-
-        switch chainName {
-        case "Bitcoin", "Bitcoin Cash", "Bitcoin SV", "Litecoin", "Dogecoin":
-            return 8
-        case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid":
-            return 18
-        case "Tron", "Cardano", "XRP Ledger":
-            return 6
-        case "Solana", "Sui":
-            return 9
-        case "Aptos":
-            return 8
-        case "TON":
-            return 9
-        case "Monero":
-            return 12
-        case "NEAR":
-            return 24
-        case "Polkadot":
-            return 10
-        default:
-            return 6
-        }
-    }
-
-    private func displayDecimalPlaces(for symbol: String, chainName: String) -> Int {
-        if let trackedToken = cachedTokenPreferenceByChainAndSymbol[tokenPreferenceLookupKey(chainName: chainName, symbol: symbol)] {
-            let defaultDisplay = min(assetDisplayDecimalPlaces(for: chainName), trackedToken.decimals)
-            return min(max(trackedToken.displayDecimals ?? defaultDisplay, 0), trackedToken.decimals)
-        }
-        return assetDisplayDecimalPlaces(for: chainName)
-    }
-
-    func defaultAssetDisplayDecimalsByChain(defaultValue: Int = 3) -> [String: Int] {
-        let normalized = min(max(defaultValue, 0), 30)
-        return [
-            "Bitcoin": normalized,
-            "Bitcoin Cash": normalized,
-            "Bitcoin SV": normalized,
-            "Litecoin": normalized,
-            "Dogecoin": normalized,
-            "Ethereum": normalized,
-            "Ethereum Classic": normalized,
-            "Arbitrum": normalized,
-            "Optimism": normalized,
-            "BNB Chain": normalized,
-            "Avalanche": normalized,
-            "Hyperliquid": normalized,
-            "Tron": normalized,
-            "Solana": normalized,
-            "Cardano": normalized,
-            "XRP Ledger": normalized,
-            "Monero": normalized,
-            "Sui": normalized,
-            "Aptos": normalized,
-            "TON": normalized,
-            "NEAR": normalized,
-            "Polkadot": normalized,
-        ]
-    }
-
-    private func nativeAssetDisplaySettingsKey(for chainName: String) -> String {
-        switch chainName {
-        case "Ethereum", "Arbitrum", "Optimism":
-            return "Ethereum"
-        default:
-            return chainName
-        }
-    }
-
-    private func normalizedHistoryEntry(for transaction: TransactionRecord) -> NormalizedHistoryEntry {
-        let walletKey = transaction.walletID?.uuidString.lowercased() ?? "unknown-wallet"
-        let normalizedChain = transaction.chainName.lowercased()
-        let normalizedSymbol = transaction.symbol.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let dedupeKey: String
-        let stableID: String
-        if let transactionHash = transaction.transactionHash?.lowercased(), !transactionHash.isEmpty {
-            dedupeKey = "\(walletKey)|\(normalizedChain)|\(normalizedSymbol)|\(transactionHash)"
-            stableID = dedupeKey
-        } else {
-            dedupeKey = "local|\(walletKey)|\(transaction.id.uuidString.lowercased())"
-            stableID = "local|\(walletKey)|\(transaction.id.uuidString.lowercased())"
-        }
-
-        let sourceTag = normalizedHistorySourceTag(transaction.transactionHistorySource)
-        let sourceConfidenceScore = normalizedHistorySourceConfidenceScore(
-            chainName: transaction.chainName,
-            sourceTag: sourceTag
-        )
-        let sourceConfidenceTag = normalizedHistorySourceConfidenceLabel(for: sourceConfidenceScore)
-
-        let searchIndex = [
-            transaction.walletName,
-            transaction.assetName,
-            transaction.symbol,
-            transaction.chainName,
-            transaction.address,
-            transaction.transactionHash ?? "",
-            sourceTag,
-            sourceConfidenceTag
-        ]
-            .joined(separator: " ")
-            .lowercased()
-
-        return NormalizedHistoryEntry(
-            id: stableID,
-            transactionID: transaction.id,
-            dedupeKey: dedupeKey,
-            createdAt: transaction.createdAt,
-            kind: transaction.kind,
-            status: transaction.status,
-            walletName: transaction.walletName,
-            assetName: transaction.assetName,
-            symbol: transaction.symbol,
-            chainName: transaction.chainName,
-            address: transaction.address,
-            transactionHash: transaction.transactionHash,
-            sourceTag: sourceTag,
-            sourceConfidenceTag: sourceConfidenceTag,
-            sourceConfidenceScore: sourceConfidenceScore,
-            providerCount: 1,
-            searchIndex: searchIndex
-        )
-    }
-
-    private func normalizedStatusRank(_ status: TransactionStatus) -> Int {
-        switch status {
-        case .confirmed: return 3
-        case .pending: return 2
-        case .failed: return 1
-        }
-    }
-
-    private func normalizedHistorySourceTag(_ rawSource: String?) -> String {
-        let trimmed = rawSource?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        guard !trimmed.isEmpty else { return localizedStoreString("Unknown") }
-        switch trimmed {
-        case "esplora": return "Esplora"
-        case "litecoinspace": return "LitecoinSpace"
-        case "blockchair": return "Blockchair"
-        case "blockcypher": return "BlockCypher"
-        case "dogecoin.providers": return "DOGE Providers"
-        case "rpc": return "RPC"
-        case "etherscan": return "Etherscan"
-        case "blockscout": return "Blockscout"
-        case "ethplorer": return "Ethplorer"
-        case "none": return localizedStoreString("Unknown")
-        default: return trimmed.capitalized
-        }
-    }
-
-    private func normalizedHistorySourceConfidenceScore(chainName: String, sourceTag: String) -> Int {
-        switch (chainName, sourceTag.lowercased()) {
-        case ("Bitcoin", "esplora"),
-             ("Litecoin", "litecoinspace"),
-             ("Dogecoin", "doge providers"):
-            return 3
-        case (_, "etherscan"),
-             (_, "blockscout"),
-             (_, "ethplorer"),
-             (_, "blockchair"),
-             (_, "blockcypher"):
-            return 2
-        case (_, "rpc"):
-            return 1
-        default:
-            return 1
-        }
-    }
-
-    private func normalizedHistorySourceConfidenceLabel(for score: Int) -> String {
-        switch score {
-        case 3: return localizedStoreString("High")
-        case 2: return localizedStoreString("Medium")
-        default: return localizedStoreString("Low")
-        }
-    }
 }

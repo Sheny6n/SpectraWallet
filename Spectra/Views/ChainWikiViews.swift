@@ -8,6 +8,7 @@ struct ChainWikiEntry: Identifiable, Codable {
     let id: String
     let name: String
     let symbol: String
+    let tags: [String]
     let family: String
     let consensus: String
     let stateModel: String
@@ -28,13 +29,36 @@ private enum ChainWikiLibrary {
 }
 
 struct ChainWikiLibraryView: View {
+    @State private var selectedTag: String?
+
+    private var filteredEntries: [ChainWikiEntry] {
+        let entries = ChainWikiEntry.all
+        guard let selectedTag else { return entries }
+        return entries.filter { $0.tags.contains(selectedTag) }
+    }
+
+    private var availableTags: [String] {
+        ChainWikiEntry.all.availableWikiTags
+    }
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 ChainWikiIntroCard()
+                ChainWikiTagFilterBar(
+                    tags: availableTags,
+                    selectedTag: selectedTag,
+                    onSelect: { tag in
+                        if tag.isEmpty {
+                            selectedTag = nil
+                            return
+                        }
+                        selectedTag = selectedTag == tag ? nil : tag
+                    }
+                )
 
                 LazyVStack(spacing: 14) {
-                    ForEach(ChainWikiEntry.all) { chain in
+                    ForEach(filteredEntries) { chain in
                         NavigationLink {
                             ChainWikiDetailView(chain: chain)
                         } label: {
@@ -215,6 +239,31 @@ private extension ChainWikiEntry {
     }
 }
 
+private extension Array where Element == ChainWikiEntry {
+    var availableWikiTags: [String] {
+        let preferredOrder = [
+            "UTXO", "eUTXO", "EVM", "L2", "Rollup", "Move", "Object", "Privacy",
+            "Payments", "Settlement", "Smart Contracts", "PoW", "PoS", "Sharding",
+            "Relay Chain", "Canisters", "Messaging", "High Throughput"
+        ]
+
+        let tags = reduce(into: [String]()) { result, entry in
+            for tag in entry.tags where !result.contains(tag) {
+                result.append(tag)
+            }
+        }
+
+        return tags.sorted { lhs, rhs in
+            let leftIndex = preferredOrder.firstIndex(of: lhs) ?? .max
+            let rightIndex = preferredOrder.firstIndex(of: rhs) ?? .max
+            if leftIndex == rightIndex {
+                return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+            }
+            return leftIndex < rightIndex
+        }
+    }
+}
+
 private struct ChainWikiIntroCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -253,6 +302,35 @@ private struct ChainWikiIntroCard: View {
     }
 }
 
+private struct ChainWikiTagFilterBar: View {
+    let tags: [String]
+    let selectedTag: String?
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ChainWikiFilterChip(
+                    text: localizedChainWikiString("Chains"),
+                    tint: .orange,
+                    isSelected: selectedTag == nil,
+                    action: { onSelect("") }
+                )
+
+                ForEach(tags, id: \.self) { tag in
+                    ChainWikiFilterChip(
+                        text: tag,
+                        tint: .blue,
+                        isSelected: selectedTag == tag,
+                        action: { onSelect(tag) }
+                    )
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+}
+
 private struct ChainWikiRowCard: View {
     let chain: ChainWikiEntry
 
@@ -277,8 +355,9 @@ private struct ChainWikiRowCard: View {
                     .foregroundStyle(Color.primary.opacity(0.72))
                     .lineLimit(2)
                 HStack(spacing: 8) {
-                    ChainWikiMiniTag(text: chain.consensus)
-                    ChainWikiMiniTag(text: "SLIP44 \(chain.slip44CoinType.components(separatedBy: " ").first ?? "")")
+                    ForEach(Array(chain.tags.prefix(3)), id: \.self) { tag in
+                        ChainWikiMiniTag(text: tag)
+                    }
                 }
             }
 
@@ -320,7 +399,9 @@ private struct ChainWikiHeroCard: View {
                         .font(.subheadline)
                         .foregroundStyle(Color.primary.opacity(0.72))
                     HStack(spacing: 8) {
-                        ChainWikiPill(text: chain.consensus, tint: chain.secondaryAccentColor)
+                        ForEach(chain.tags, id: \.self) { tag in
+                            ChainWikiPill(text: tag, tint: chain.secondaryAccentColor)
+                        }
                     }
                 }
             }
@@ -472,5 +553,27 @@ private struct ChainWikiMiniTag: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .background(Color.primary.opacity(0.05), in: Capsule())
+    }
+}
+
+private struct ChainWikiFilterChip: View {
+    let text: String
+    let tint: Color
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(text)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isSelected ? Color.white : tint)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? tint : tint.opacity(0.12))
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
