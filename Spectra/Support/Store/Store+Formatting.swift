@@ -37,6 +37,11 @@ extension WalletStore {
         formattedFiatAmount(fromUSD: amountUSD ?? 0)
     }
 
+    func formattedFiatAmountOrUnavailable(fromUSD amountUSD: Double?) -> String {
+        guard let amountUSD else { return "—" }
+        return formattedFiatAmountIfAvailable(fromUSD: amountUSD) ?? "—"
+    }
+
     private func fiatFormatter(for currency: FiatCurrency) -> NumberFormatter {
         let key = currency.rawValue
         if let formatter = cachedCurrencyFormatters[key] {
@@ -154,6 +159,9 @@ extension WalletStore {
     }
 
     func currentValueIfAvailable(for coin: Coin) -> Double? {
+        guard isPricedAsset(coin) else {
+            return nil
+        }
         guard let price = currentOrFallbackPriceIfAvailable(for: coin) else {
             return nil
         }
@@ -179,6 +187,31 @@ extension WalletStore {
             sawQuotedCoin = true
         }
         return sawQuotedCoin ? total : 0
+    }
+
+    func runtimeChainIdentity(for chainName: String) -> String {
+        displayChainTitle(for: chainName)
+    }
+
+    func assetIdentityKey(for coin: Coin) -> String {
+        "\(runtimeChainIdentity(for: coin.chainName))|\(coin.symbol)"
+    }
+
+    func isPricedChain(_ chainName: String) -> Bool {
+        switch chainName {
+        case "Bitcoin":
+            return bitcoinNetworkMode == .mainnet
+        case "Ethereum":
+            return ethereumNetworkMode == .mainnet
+        case "Dogecoin":
+            return true
+        default:
+            return true
+        }
+    }
+
+    func isPricedAsset(_ coin: Coin) -> Bool {
+        isPricedChain(coin.chainName)
     }
 
     private func normalizedHistoryInputSignature(walletByID: [UUID: ImportedWallet]) -> Int {
@@ -227,9 +260,6 @@ extension WalletStore {
             let providerSet = Set(entries.map(\.sourceTag))
             let providerCount = max(1, providerSet.count)
             let best = entries.max { lhs, rhs in
-                if lhs.sourceConfidenceScore != rhs.sourceConfidenceScore {
-                    return lhs.sourceConfidenceScore < rhs.sourceConfidenceScore
-                }
                 let lhsStatusRank = normalizedStatusRank(lhs.status)
                 let rhsStatusRank = normalizedStatusRank(rhs.status)
                 if lhsStatusRank != rhsStatusRank {
@@ -255,8 +285,6 @@ extension WalletStore {
                 address: best.address,
                 transactionHash: best.transactionHash,
                 sourceTag: best.sourceTag,
-                sourceConfidenceTag: best.sourceConfidenceTag,
-                sourceConfidenceScore: best.sourceConfidenceScore,
                 providerCount: providerCount,
                 searchIndex: best.searchIndex
             )
@@ -416,12 +444,6 @@ extension WalletStore {
         }
 
         let sourceTag = normalizedHistorySourceTag(transaction.transactionHistorySource)
-        let sourceConfidenceScore = normalizedHistorySourceConfidenceScore(
-            chainName: transaction.chainName,
-            sourceTag: sourceTag
-        )
-        let sourceConfidenceTag = normalizedHistorySourceConfidenceLabel(for: sourceConfidenceScore)
-
         let searchIndex = [
             transaction.walletName,
             transaction.assetName,
@@ -429,8 +451,7 @@ extension WalletStore {
             transaction.chainName,
             transaction.address,
             transaction.transactionHash ?? "",
-            sourceTag,
-            sourceConfidenceTag
+            sourceTag
         ]
             .joined(separator: " ")
             .lowercased()
@@ -449,8 +470,6 @@ extension WalletStore {
             address: transaction.address,
             transactionHash: transaction.transactionHash,
             sourceTag: sourceTag,
-            sourceConfidenceTag: sourceConfidenceTag,
-            sourceConfidenceScore: sourceConfidenceScore,
             providerCount: 1,
             searchIndex: searchIndex
         )
@@ -479,33 +498,6 @@ extension WalletStore {
         case "ethplorer": return "Ethplorer"
         case "none": return localizedStoreString("Unknown")
         default: return trimmed.capitalized
-        }
-    }
-
-    private func normalizedHistorySourceConfidenceScore(chainName: String, sourceTag: String) -> Int {
-        switch (chainName, sourceTag.lowercased()) {
-        case ("Bitcoin", "esplora"),
-             ("Litecoin", "litecoinspace"),
-             ("Dogecoin", "doge providers"):
-            return 3
-        case (_, "etherscan"),
-             (_, "blockscout"),
-             (_, "ethplorer"),
-             (_, "blockchair"),
-             (_, "blockcypher"):
-            return 2
-        case (_, "rpc"):
-            return 1
-        default:
-            return 1
-        }
-    }
-
-    private func normalizedHistorySourceConfidenceLabel(for score: Int) -> String {
-        switch score {
-        case 3: return localizedStoreString("High")
-        case 2: return localizedStoreString("Medium")
-        default: return localizedStoreString("Low")
         }
     }
 }

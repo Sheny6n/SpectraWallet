@@ -48,9 +48,7 @@ extension DogecoinWalletEngine {
         let normalizedSeedPhrase = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
         let normalizedExpectedAddress: String?
         if let expectedAddress {
-            normalizedExpectedAddress = normalizeAddressForCurrentNetwork(
-                expectedAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
+            normalizedExpectedAddress = expectedAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
             normalizedExpectedAddress = nil
         }
@@ -66,9 +64,7 @@ extension DogecoinWalletEngine {
                 branch: .external,
                 index: UInt32(index)
             )
-            guard let signingAddress = normalizeAddressForCurrentNetwork(signingMaterial.address) else {
-                continue
-            }
+            let signingAddress = signingMaterial.address
             if let normalizedExpectedAddress, normalizedExpectedAddress != signingAddress {
                 continue
             }
@@ -80,9 +76,7 @@ extension DogecoinWalletEngine {
                 branch: .change,
                 index: UInt32(index)
             )
-            guard let changeAddress = normalizeAddressForCurrentNetwork(changeMaterial.address) else {
-                continue
-            }
+            let changeAddress = changeMaterial.address
             return SigningKeyMaterial(
                 address: signingAddress,
                 privateKeyData: signingMaterial.privateKeyData,
@@ -118,9 +112,6 @@ extension DogecoinWalletEngine {
         guard !material.address.isEmpty else {
             throw DogecoinWalletEngineError.keyDerivationFailed
         }
-        guard let normalizedAddress = normalizeAddressForCurrentNetwork(material.address) else {
-            throw DogecoinWalletEngineError.keyDerivationFailed
-        }
-        return normalizedAddress
+        return material.address
     }
 }

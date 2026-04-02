@@ -234,8 +234,7 @@ struct SendView: View {
     private func hasNetworkSendSections(for coin: Coin?) -> Bool {
         guard let coin else { return false }
         let chainName = coin.chainName
-        return !store.availableBroadcastProviders(for: chainName).isEmpty
-            || chainName == "Bitcoin"
+        return chainName == "Bitcoin"
             || chainName == "Bitcoin Cash"
             || chainName == "Bitcoin SV"
             || chainName == "Litecoin"
@@ -259,18 +258,6 @@ struct SendView: View {
             || chainName == "Polkadot"
             || chainName == "Stellar"
             || chainName == "Internet Computer"
-    }
-
-    private func broadcastProviderBinding(
-        providerID: String,
-        chainName: String
-    ) -> Binding<Bool> {
-        Binding(
-            get: { store.isBroadcastProviderEnabled(providerID, for: chainName) },
-            set: { newValue in
-                store.setBroadcastProvider(providerID, enabled: newValue, for: chainName)
-            }
-        )
     }
 
     private func chainFeePriorityBinding(for chainName: String) -> Binding<ChainFeePriorityOption> {
@@ -888,27 +875,6 @@ struct SendView: View {
         if let selectedCoin {
             sendPreviewDetailsSection(for: selectedCoin)
         }
-
-        if let selectedCoin {
-            let providers = store.availableBroadcastProviders(for: selectedCoin.chainName)
-            if !providers.isEmpty {
-                Section("Broadcast Providers") {
-                    ForEach(providers) { provider in
-                        Toggle(
-                            provider.title,
-                            isOn: broadcastProviderBinding(
-                                providerID: provider.id,
-                                chainName: selectedCoin.chainName
-                            )
-                        )
-                    }
-
-                    Text("Choose which providers Spectra is allowed to broadcast through for this chain. At least one provider must remain enabled.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
     }
 
     var body: some View {
@@ -1091,8 +1057,7 @@ struct SendView: View {
         case "Litecoin":
             return AddressValidation.isValidLitecoinAddress(address)
         case "Dogecoin":
-            let networkMode: DogecoinNetworkMode = store.dogecoinAllowTestnet ? .testnet : .mainnet
-            return AddressValidation.isValidDogecoinAddress(address, networkMode: networkMode)
+            return AddressValidation.isValidDogecoinAddress(address)
         case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid":
             return AddressValidation.isValidEthereumAddress(address)
         case "Tron":
@@ -1268,7 +1233,7 @@ private struct SendPrimarySectionsView: View {
 
                 Picker("Asset", selection: store.sendHoldingKeyBinding) {
                     ForEach(presentation.availableSendCoins, id: \.holdingKey) { coin in
-                        Text("\(coin.name) on \(store.displayNetworkName(for: coin.chainName))").tag(coin.holdingKey)
+                        Text("\(coin.name) on \(store.displayChainTitle(for: coin.chainName))").tag(coin.holdingKey)
                     }
                 }
             }

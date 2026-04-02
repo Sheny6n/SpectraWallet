@@ -485,17 +485,13 @@ enum LitecoinWalletEngine {
     }
 
     private static func fetchFeeRate(priority: BitcoinFeePriority) async throws -> UInt64 {
-        do {
-            return try await runWithFallback(candidates: orderedProviders(candidates: [.litecoinspace, .blockcypher])) { provider in
-                switch provider {
-                case .litecoinspace:
-                    return try await fetchFeeRateViaLitecoinspace(priority: priority)
-                case .blockcypher:
-                    return try await fetchFeeRateViaBlockcypher(priority: priority)
-                }
+        try await runWithFallback(candidates: orderedProviders(candidates: [.litecoinspace, .blockcypher])) { provider in
+            switch provider {
+            case .litecoinspace:
+                return try await fetchFeeRateViaLitecoinspace(priority: priority)
+            case .blockcypher:
+                return try await fetchFeeRateViaBlockcypher(priority: priority)
             }
-        } catch {
-            return fallbackFeeRate(priority: priority)
         }
     }
 
@@ -535,14 +531,6 @@ enum LitecoinWalletEngine {
             feePerKB = decoded.highFeePerKB ?? decoded.mediumFeePerKB ?? 12_000
         }
         return max(1, UInt64(ceil(Double(feePerKB) / 1_000.0)))
-    }
-
-    private static func fallbackFeeRate(priority: BitcoinFeePriority) -> UInt64 {
-        switch priority {
-        case .economy: return 5
-        case .normal: return 8
-        case .priority: return 12
-        }
     }
 
     private static func broadcast(

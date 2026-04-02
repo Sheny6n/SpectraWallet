@@ -185,7 +185,7 @@ struct PriceAlertsView: View {
                 } else {
                     Picker(localizedSettingsString("Asset"), selection: $selectedHoldingKey) {
                         ForEach(store.alertableCoins, id: \.holdingKey) { coin in
-                            Text(localizedSettingsFormat("%@ on %@", coin.symbol, store.displayNetworkName(for: coin.chainName))).tag(coin.holdingKey)
+                            Text(localizedSettingsFormat("%@ on %@", coin.symbol, store.displayChainTitle(for: coin.chainName))).tag(coin.holdingKey)
                         }
                     }
                     
@@ -200,7 +200,7 @@ struct PriceAlertsView: View {
                         .keyboardType(.decimalPad)
                     
                     if let selectedCoin {
-                        Text(localizedSettingsFormat("Current price: %@", store.formattedFiatAmountOrZero(fromUSD: store.currentPriceIfAvailable(for: selectedCoin))))
+                        Text(localizedSettingsFormat("Current price: %@", store.formattedFiatAmountOrUnavailable(fromUSD: store.currentPriceIfAvailable(for: selectedCoin))))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .spectraNumericTextLayout()

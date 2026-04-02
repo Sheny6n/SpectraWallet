@@ -53,7 +53,6 @@ struct ICPSendResult: Equatable {
 }
 
 enum ICPWalletEngine {
-    private static let defaultFeeE8s: UInt64 = 10_000
     private static let defaultMemo: UInt64 = 0
     private static let permittedDriftNanos: UInt64 = 60_000_000_000
 
@@ -89,14 +88,15 @@ enum ICPWalletEngine {
         guard amount > 0 else {
             throw ICPWalletEngineError.invalidAmount
         }
-        let estimatedNetworkFeeICP = Double(defaultFeeE8s) / 100_000_000.0
+        let feeE8s = try await ICPBalanceService.fetchSuggestedTransferFeeE8s()
+        let estimatedNetworkFeeICP = Double(feeE8s) / 100_000_000.0
         let balanceICP = try await ICPBalanceService.fetchBalance(for: normalizedOwner)
         let maxSendable = max(0, balanceICP - estimatedNetworkFeeICP)
         return ICPSendPreview(
             estimatedNetworkFeeICP: estimatedNetworkFeeICP,
-            feeE8s: defaultFeeE8s,
+            feeE8s: feeE8s,
             spendableBalance: maxSendable,
-            feeRateDescription: "\(defaultFeeE8s) e8s",
+            feeRateDescription: "\(feeE8s) e8s",
             estimatedTransactionBytes: nil,
             selectedInputCount: nil,
             usesChangeOutput: nil,

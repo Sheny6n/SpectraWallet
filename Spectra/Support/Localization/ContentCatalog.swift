@@ -246,7 +246,6 @@ private enum LocalizationCatalogReferenceKeeper {
         String(localized: "Seed Phrase Length"),
         String(localized: "Solana"),
         String(localized: "Source Address"),
-        String(localized: "Source Confidence"),
         String(localized: "Source Path"),
         String(localized: "Speed Up This Transaction"),
         String(localized: "State"),
@@ -778,8 +777,6 @@ struct DiagnosticsContentCopy: Decodable {
     let crossChainSectionTitle: String
     let actionsSectionTitle: String
     let statusSectionTitle: String
-    let crossChainHistoryTitle: String
-    let crossChainHistoryKeywords: [String]
     let historyNotRunYet: String
     let walletDiagnosticsCoveredFormat: String
     let mostUsedHistorySourceFormat: String
@@ -794,10 +791,6 @@ struct DiagnosticsContentCopy: Decodable {
     let moneroBackendNote: String
     let moneroAPIKeyNote: String
     let dogecoinTestnetNote: String
-    let noBroadcastReliabilityYet: String
-    let broadcastReliabilityFormat: String
-    let totalNormalizedEntriesFormat: String
-    let noNormalizedHistoryYet: String
     let historySourcesSectionTitleFormat: String
     let endpointReachabilitySectionTitleFormat: String
     let degradedLastGoodSyncFormat: String

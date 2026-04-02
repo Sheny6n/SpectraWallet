@@ -141,7 +141,7 @@ struct QRCodeScannerView: UIViewControllerRepresentable {
 }
 
 struct WalletCardView: View {
-    @EnvironmentObject private var store: WalletStore
+    let store: WalletStore
 
     struct Presentation {
         let wallet: ImportedWallet
@@ -176,7 +176,7 @@ struct WalletCardView: View {
                             .font(.headline)
                             .foregroundStyle(Color.primary)
                     }
-                    Text(store.displayNetworkName(for: presentation.wallet.selectedChain))
+                    Text(store.displayChainTitle(for: presentation.wallet))
                         .font(.caption2)
                         .foregroundStyle(Color.primary.opacity(0.6))
                         .lineLimit(2)
@@ -556,7 +556,7 @@ struct WalletDetailView: View {
                                 watchOnlyBadge
                             }
                         }
-                        Text(store.displayNetworkName(for: detailPresentation.wallet.selectedChain))
+                        Text(store.displayChainTitle(for: detailPresentation.wallet))
                             .font(.subheadline)
                             .foregroundStyle(Color.primary.opacity(0.75))
                     }
@@ -1054,7 +1054,7 @@ struct SeedPathSlotEditor: View {
 }
 
 struct AssetRowView: View {
-    @EnvironmentObject private var store: WalletStore
+    let store: WalletStore
 
     struct Presentation {
         let coin: Coin
@@ -1082,7 +1082,7 @@ struct AssetRowView: View {
                     .font(.caption)
                     .foregroundStyle(Color.primary.opacity(0.7))
                     .spectraNumericTextLayout()
-                Text(walletFlowLocalizedFormat("wallet.detail.onChainLowercase", store.displayNetworkName(for: presentation.coin.chainName)))
+                Text(walletFlowLocalizedFormat("wallet.detail.onChainLowercase", store.displayChainTitle(for: presentation.coin.chainName)))
                     .font(.caption2)
                     .foregroundStyle(Color.primary.opacity(0.6))
                 Text(presentation.coin.tokenStandard)

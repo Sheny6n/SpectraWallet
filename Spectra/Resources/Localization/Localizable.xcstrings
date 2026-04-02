@@ -70,6 +70,98 @@
         }
       }
     },
+    "__removed_broadcast_reliability" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "__removed_broadcast_reliability"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "广播可靠性"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "廣播可靠性"
+          }
+        }
+      }
+    },
+    "__removed_chain_source_confidence" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "__removed_chain_source_confidence"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "链 | 来源 | 可信度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鏈 | 來源 | 可信度"
+          }
+        }
+      }
+    },
+    "__removed_history_confidence" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "__removed_history_confidence"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "历史置信度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歷史置信度"
+          }
+        }
+      }
+    },
+    "__removed_source_confidence" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "__removed_source_confidence"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来源可信度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來源可信度"
+          }
+        }
+      }
+    },
     "%@ %@" : {
       "localizations" : {
         "en" : {
@@ -2413,6 +2505,7 @@
       }
     },
     "Broadcast Providers" : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -2424,28 +2517,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "廣播提供商"
-          }
-        }
-      }
-    },
-    "Broadcast Reliability" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Broadcast Reliability"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "广播可靠性"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "廣播可靠性"
           }
         }
       }
@@ -3054,28 +3125,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "鏈"
-          }
-        }
-      }
-    },
-    "Chain | Source | Confidence" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chain | Source | Confidence"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "链 | 来源 | 可信度"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鏈 | 來源 | 可信度"
           }
         }
       }
@@ -5520,9 +5569,6 @@
           }
         }
       }
-    },
-    "Dogecoin Network" : {
-
     },
     "Dogecoin network error: %@" : {
       "localizations" : {
@@ -9262,28 +9308,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "歷史與緩存"
-          }
-        }
-      }
-    },
-    "History Confidence" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "History Confidence"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "历史置信度"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "歷史置信度"
           }
         }
       }
@@ -17201,6 +17225,7 @@
       }
     },
     "Reset Provider Reliability" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19145,28 +19170,6 @@
         }
       }
     },
-    "Source Confidence" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Source Confidence"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "来源可信度"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "來源可信度"
-          }
-        }
-      }
-    },
     "Source Path" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20212,6 +20215,7 @@
       }
     },
     "Summary" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -22273,9 +22277,6 @@
       }
     },
     "This controls Bitcoin wallet import, address validation, and endpoint usage for Bitcoin wallets." : {
-
-    },
-    "This controls Dogecoin wallet import, address derivation, history, and endpoint usage for Dogecoin wallets." : {
 
     },
     "This controls Ethereum wallet import, balance refresh, history, and endpoint usage for Ethereum wallets." : {

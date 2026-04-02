@@ -2,22 +2,6 @@ import Foundation
 import CryptoKit
 import WalletCore
 
-enum DogecoinNetworkMode: String, CaseIterable, Identifiable {
-    case mainnet
-    case testnet
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .mainnet:
-            return "Mainnet"
-        case .testnet:
-            return "Testnet"
-        }
-    }
-}
-
 struct DogecoinWalletEngine {
     static let derivationScanLimit = 200
     static let maxStandardTransactionBytes = 100_000
@@ -29,10 +13,6 @@ struct DogecoinWalletEngine {
     static let utxoCacheTTLSeconds: TimeInterval = 180
     static let utxoCacheLock = NSLock()
     static var utxoCacheByAddress: [String: CachedUTXOSet] = [:]
-    static var networkMode: DogecoinNetworkMode = .mainnet
-    static let broadcastReliabilityDefaultsKey = "dogecoin.broadcast.provider.reliability.v1"
-    static let broadcastProviderSelectionDefaultsKey = "dogecoin.broadcast.provider.selection.v1"
-    static let broadcastProviderSelectionLock = NSLock()
 
     struct SigningKeyMaterial {
         let address: String
@@ -205,68 +185,6 @@ struct DogecoinWalletEngine {
         case blockcypher
     }
 
-    struct BroadcastProviderReliabilityCounter: Codable {
-        var successCount: Int
-        var failureCount: Int
-        var lastUpdatedAt: TimeInterval
-    }
-
-    struct BroadcastProviderReliability: Identifiable, Equatable {
-        let providerID: String
-        let successCount: Int
-        let failureCount: Int
-
-        var id: String { providerID }
-    }
-
-    struct ElectrsUTXO: Decodable {
-        let txid: String
-        let vout: Int
-        let value: Int64
-    }
-
-    struct ElectrsTransactionStatus: Decodable {
-        let confirmed: Bool
-    }
-
-    static func configureRuntime(networkMode: DogecoinNetworkMode) {
-        self.networkMode = networkMode
-    }
-
-    static func broadcastProviderReliabilitySnapshot() -> [BroadcastProviderReliability] {
-        let counters = loadBroadcastReliabilityCounters()
-        return orderedBroadcastProviders(counters: counters).map { provider in
-            let counter = counters[provider.rawValue] ?? BroadcastProviderReliabilityCounter(
-                successCount: 0,
-                failureCount: 0,
-                lastUpdatedAt: 0
-            )
-            return BroadcastProviderReliability(
-                providerID: provider.rawValue,
-                successCount: counter.successCount,
-                failureCount: counter.failureCount
-            )
-        }
-    }
-
-    static func configureBroadcastProviders(useBlockchair: Bool, useBlockCypher: Bool) {
-        broadcastProviderSelectionLock.lock()
-        defer { broadcastProviderSelectionLock.unlock() }
-
-        var enabledProviderIDs: [String] = []
-        if useBlockchair {
-            enabledProviderIDs.append(BroadcastProvider.blockchair.rawValue)
-        }
-        if useBlockCypher {
-            enabledProviderIDs.append(BroadcastProvider.blockcypher.rawValue)
-        }
-        UserDefaults.standard.set(enabledProviderIDs, forKey: broadcastProviderSelectionDefaultsKey)
-    }
-
-    static func resetBroadcastProviderReliability() {
-        UserDefaults.standard.removeObject(forKey: broadcastReliabilityDefaultsKey)
-    }
-
     static func resetUTXOCache() {
         utxoCacheLock.lock()
         defer { utxoCacheLock.unlock() }
@@ -354,7 +272,7 @@ struct DogecoinWalletEngine {
             throw DogecoinWalletEngineError.noSpendableUTXOs
         }
 
-        let feeRateDOGEPerKB = resolveNetworkFeeRateDOGEPerKB(feePriority: feePriority)
+        let feeRateDOGEPerKB = try resolveNetworkFeeRateDOGEPerKB(feePriority: feePriority)
         let spendPlan = try buildSpendPlan(
             from: spendableUTXOs,
             amountDOGE: amountDOGE,
@@ -423,7 +341,7 @@ struct DogecoinWalletEngine {
         maxInputCount: Int? = nil,
         derivationAccount: UInt32 = 0
     ) throws -> DogecoinSendResult {
-        guard AddressValidation.isValidDogecoinAddress(recipientAddress, networkMode: networkMode) else {
+        guard AddressValidation.isValidDogecoinAddress(recipientAddress) else {
             throw DogecoinWalletEngineError.invalidRecipientAddress
         }
         guard amountDOGE > 0 else {
@@ -441,7 +359,7 @@ struct DogecoinWalletEngine {
             throw DogecoinWalletEngineError.noSpendableUTXOs
         }
 
-        let feeRateDOGEPerKB = resolveNetworkFeeRateDOGEPerKB(feePriority: feePriority)
+        let feeRateDOGEPerKB = try resolveNetworkFeeRateDOGEPerKB(feePriority: feePriority)
             let spendPlan = try buildSpendPlan(
                 from: spendableUTXOs,
                 amountDOGE: amountDOGE,

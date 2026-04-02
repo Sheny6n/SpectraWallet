@@ -47,6 +47,7 @@ struct CardanoSendResult: Equatable {
 
 enum CardanoWalletEngine {
     private static let endpointReliabilityNamespace = "cardano.koios"
+    private static let estimatedTransferBytes = 320
 
     private struct RPCAddressUTXO {
         let txHash: String
@@ -56,6 +57,11 @@ enum CardanoWalletEngine {
 
     private struct TipResult {
         let absSlot: UInt64
+    }
+
+    private struct EpochFeeParameters {
+        let minFeeA: UInt64
+        let minFeeB: UInt64
     }
 
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
@@ -92,15 +98,14 @@ enum CardanoWalletEngine {
 
         let tip = try await fetchTip()
         let balanceADA = try await CardanoBalanceService.fetchBalance(for: ownerAddress)
-        let estimatedNetworkFeeADA = 0.2
+        let estimatedNetworkFeeADA = try await fetchEstimatedNetworkFeeADA()
         let maxSendable = max(0, balanceADA - estimatedNetworkFeeADA)
-        // Conservative ADA fee estimate for basic transfer tx.
         return CardanoSendPreview(
             estimatedNetworkFeeADA: estimatedNetworkFeeADA,
             ttlSlot: tip.absSlot + 7_200,
             spendableBalance: maxSendable,
-            feeRateDescription: nil,
-            estimatedTransactionBytes: nil,
+            feeRateDescription: "Live protocol parameters",
+            estimatedTransactionBytes: estimatedTransferBytes,
             selectedInputCount: nil,
             usesChangeOutput: nil,
             maxSendable: maxSendable
@@ -196,9 +201,11 @@ enum CardanoWalletEngine {
             providerIDs: providerIDs
         )
 
+        let estimatedNetworkFeeADA = try await fetchEstimatedNetworkFeeADA()
+
         return CardanoSendResult(
             transactionHash: txHashHex,
-            estimatedNetworkFeeADA: 0.2,
+            estimatedNetworkFeeADA: estimatedNetworkFeeADA,
             signedTransactionCBORHex: output.encoded.hexEncodedString(),
             verificationStatus: await verifyBroadcastedTransactionIfAvailable(ownerAddress: ownerAddress, transactionHash: txHashHex)
         )
@@ -280,6 +287,59 @@ enum CardanoWalletEngine {
             ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
         }
         throw lastError ?? CardanoWalletEngineError.networkError("Missing abs_slot in /tip response.")
+    }
+
+    private static func fetchEstimatedNetworkFeeADA() async throws -> Double {
+        let parameters = try await fetchEpochFeeParameters()
+        let estimatedFeeLovelace = parameters.minFeeB + (parameters.minFeeA * UInt64(estimatedTransferBytes))
+        return Double(estimatedFeeLovelace) / 1_000_000.0
+    }
+
+    private static func fetchEpochFeeParameters() async throws -> EpochFeeParameters {
+        var lastError: Error?
+        for endpoint in orderedKoiosBaseURLs() {
+            guard var components = URLComponents(url: endpoint.appendingPathComponent("epoch_params"), resolvingAgainstBaseURL: false) else {
+                continue
+            }
+            components.queryItems = [
+                URLQueryItem(name: "limit", value: "1"),
+                URLQueryItem(name: "order", value: "epoch_no.desc")
+            ]
+            guard let url = components.url else { continue }
+
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 20
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+                    throw CardanoWalletEngineError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                }
+                guard let rows = try JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]],
+                      let row = rows.first,
+                      let minFeeA = unsignedIntegerValue(row["min_fee_a"]),
+                      let minFeeB = unsignedIntegerValue(row["min_fee_b"]) else {
+                    throw CardanoWalletEngineError.networkError("Missing Cardano epoch fee parameters.")
+                }
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                return EpochFeeParameters(minFeeA: minFeeA, minFeeB: minFeeB)
+            } catch {
+                lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+            }
+        }
+        throw lastError ?? CardanoWalletEngineError.networkError("Missing Cardano epoch fee parameters.")
+    }
+
+    private static func unsignedIntegerValue(_ raw: Any?) -> UInt64? {
+        switch raw {
+        case let number as NSNumber:
+            return number.uint64Value
+        case let string as String:
+            return UInt64(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
+        }
     }
 
     private static func fetchAddressUTXOs(address: String) async throws -> [RPCAddressUTXO] {

@@ -36,7 +36,6 @@ enum BitcoinSVWalletEngineError: LocalizedError {
 
 enum BitcoinSVWalletEngine {
     private static let satoshisPerBSV: Double = 100_000_000
-    private static let defaultFeeRateSatVb: UInt64 = 1
     private static let minimumFeeRateSatVb: UInt64 = 1
     private static let minimumFeeSatoshis: UInt64 = 1_000
     private static let dustThresholdSatoshis: UInt64 = 546
@@ -57,6 +56,18 @@ enum BitcoinSVWalletEngine {
         var successCount: Int
         var failureCount: Int
         var lastUpdatedAt: TimeInterval
+    }
+
+    private struct BlockchairStatsResponse: Decodable {
+        let data: StatsPayload?
+    }
+
+    private struct StatsPayload: Decodable {
+        let suggestedTransactionFeePerByteSat: Double?
+
+        enum CodingKeys: String, CodingKey {
+            case suggestedTransactionFeePerByteSat = "suggested_transaction_fee_per_byte_sat"
+        }
     }
 
     struct SendOptions {
@@ -98,15 +109,16 @@ enum BitcoinSVWalletEngine {
         let utxos = limitedUTXOs(from: fetched, maxInputCount: maxInputCount)
         let totalInputSatoshis = utxos.reduce(UInt64(0)) { $0 + $1.value }
         let estimatedBytes = UInt64(10 + (148 * max(1, utxos.count)) + 68)
-        let estimatedFee = max(minimumFeeSatoshis, UInt64(Double(estimatedBytes) * Double(defaultFeeRateSatVb)))
+        let feeRateSatVb = try await fetchLiveFeeRateSatVb()
+        let estimatedFee = max(minimumFeeSatoshis, UInt64(Double(estimatedBytes) * Double(feeRateSatVb)))
         let spendable = totalInputSatoshis > estimatedFee ? totalInputSatoshis - estimatedFee : 0
         guard spendable > 0 else {
             throw BitcoinSVWalletEngineError.insufficientFunds
         }
         return BitcoinSendPreview(
-            estimatedFeeRateSatVb: defaultFeeRateSatVb,
+            estimatedFeeRateSatVb: feeRateSatVb,
             estimatedNetworkFeeBTC: Double(estimatedFee) / satoshisPerBSV,
-            feeRateDescription: "\(defaultFeeRateSatVb) sat/vB",
+            feeRateDescription: "\(feeRateSatVb) sat/vB",
             spendableBalance: Double(spendable) / satoshisPerBSV,
             estimatedTransactionBytes: Int(estimatedBytes),
             selectedInputCount: utxos.count,
@@ -160,16 +172,18 @@ enum BitcoinSVWalletEngine {
             throw BitcoinSVWalletEngineError.insufficientFunds
         }
 
+        let feeRateSatVb = try await fetchLiveFeeRateSatVb()
+
         let selectedUTXOs = try selectUTXOs(
             from: fetchedUTXOs,
             sendAmountSatoshis: amountSatoshis,
-            feeRateSatVb: defaultFeeRateSatVb,
+            feeRateSatVb: feeRateSatVb,
             maxInputCount: effectiveOptions.maxInputCount
         )
         try validatePolicyRules(
             sendAmountSatoshis: amountSatoshis,
             selectedUTXOs: selectedUTXOs,
-            feeRateSatVb: defaultFeeRateSatVb
+            feeRateSatVb: feeRateSatVb
         )
 
         let sourceScript = try sourceScript(for: sourceAddress)
@@ -177,7 +191,7 @@ enum BitcoinSVWalletEngine {
         var signingInput = BitcoinSigningInput()
         signingInput.hashType = 0x41
         signingInput.amount = Int64(amountSatoshis)
-        signingInput.byteFee = Int64(defaultFeeRateSatVb)
+        signingInput.byteFee = Int64(feeRateSatVb)
         signingInput.toAddress = destinationAddress
         signingInput.changeAddress = changeMaterial.address
         signingInput.coinType = CoinType.bitcoin.rawValue
@@ -527,6 +541,91 @@ enum BitcoinSVWalletEngine {
             }
         }
         throw lastError ?? BitcoinSVWalletEngineError.broadcastFailed("All Bitcoin SV providers failed.")
+    }
+
+    private static func fetchLiveFeeRateSatVb() async throws -> UInt64 {
+        try await runWithFallback(candidates: orderedProviders(candidates: [.whatsonchain, .blockchair])) { provider in
+            switch provider {
+            case .whatsonchain:
+                return try await fetchWhatsOnChainFeeRateSatVb()
+            case .blockchair:
+                return try await fetchBlockchairFeeRateSatVb()
+            }
+        }
+    }
+
+    private static func fetchWhatsOnChainFeeRateSatVb() async throws -> UInt64 {
+        guard let url = URL(string: ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainChainInfoURL) else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            throw BitcoinSVWalletEngineError.broadcastFailed("Failed to fetch Bitcoin SV chain info.")
+        }
+        let json = try JSONSerialization.jsonObject(with: data)
+        guard let candidate = numericValue(in: json, matching: ["relayfee", "relay_fee", "miningfee", "mining_fee", "feerate", "fee_rate"]) else {
+            throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV fee-rate data was missing from WhatsOnChain.")
+        }
+        return try normalizeFeeRateSatVb(candidate, keyHint: "relayfee")
+    }
+
+    private static func fetchBlockchairFeeRateSatVb() async throws -> UInt64 {
+        guard let url = URL(string: "\(ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairBaseURL)/stats") else {
+            throw URLError(.badURL)
+        }
+        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
+            throw BitcoinSVWalletEngineError.broadcastFailed("Failed to fetch Bitcoin SV fee estimates.")
+        }
+        if let decoded = try? JSONDecoder().decode(BlockchairStatsResponse.self, from: data),
+           let value = decoded.data?.suggestedTransactionFeePerByteSat,
+           value.isFinite, value > 0 {
+            return max(minimumFeeRateSatVb, UInt64(ceil(value)))
+        }
+        throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV fee-rate data was missing from Blockchair.")
+    }
+
+    private static func numericValue(in object: Any, matching keys: Set<String>) -> Double? {
+        if let dictionary = object as? [String: Any] {
+            for (key, value) in dictionary {
+                let normalizedKey = key.lowercased()
+                if keys.contains(normalizedKey) {
+                    if let number = value as? NSNumber {
+                        return number.doubleValue
+                    }
+                    if let string = value as? String, let number = Double(string) {
+                        return number
+                    }
+                }
+                if let nested = numericValue(in: value, matching: keys) {
+                    return nested
+                }
+            }
+        } else if let array = object as? [Any] {
+            for item in array {
+                if let nested = numericValue(in: item, matching: keys) {
+                    return nested
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func normalizeFeeRateSatVb(_ value: Double, keyHint: String) throws -> UInt64 {
+        guard value.isFinite, value > 0 else {
+            throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV fee-rate data was invalid.")
+        }
+        let normalizedKey = keyHint.lowercased()
+        let satPerVb: Double
+        if normalizedKey.contains("relay") || normalizedKey.contains("mining") || normalizedKey.contains("fee") {
+            satPerVb = value < 1 ? (value * satoshisPerBSV / 1_000.0) : value
+        } else {
+            satPerVb = value
+        }
+        guard satPerVb.isFinite, satPerVb > 0 else {
+            throw BitcoinSVWalletEngineError.broadcastFailed("Bitcoin SV fee-rate data was invalid.")
+        }
+        return max(minimumFeeRateSatVb, UInt64(ceil(satPerVb)))
     }
 
     private static func orderedProviders(candidates: [Provider]) -> [Provider] {

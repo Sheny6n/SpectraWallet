@@ -65,12 +65,72 @@ final class WalletStorePlatformBridgeTests: XCTestCase {
         XCTAssertFalse(store.wallets.first?.bitcoinAddress?.isEmpty ?? true)
     }
 
+    func testImportingBitcoinWalletPersistsDerivedAddressOnTestnet4() async {
+        let store = WalletStore()
+        store.bitcoinNetworkMode = .testnet4
+        store.importDraft.walletName = "Primary BTC Testnet4"
+        store.importDraft.seedPhrase = "test test test test test test test test test test test junk"
+        store.importDraft.selectedChainNamesStorage = ["Bitcoin"]
+
+        await store.importWallet()
+
+        XCTAssertNil(store.importError)
+        XCTAssertEqual(store.wallets.count, 1)
+        XCTAssertEqual(store.wallets.first?.selectedChain, "Bitcoin")
+        XCTAssertNotNil(store.wallets.first?.bitcoinAddress)
+        XCTAssertTrue(
+            AddressValidation.isValidBitcoinAddress(
+                store.wallets.first?.bitcoinAddress ?? "",
+                networkMode: .testnet4
+            )
+        )
+    }
+
     func testBitcoinDisplayNetworkNameUsesSelectedMode() {
         let store = WalletStore()
         store.bitcoinNetworkMode = .testnet4
 
         XCTAssertEqual(store.displayNetworkName(for: "Bitcoin"), "Testnet4")
+        XCTAssertEqual(store.displayChainTitle(for: "Bitcoin"), "Bitcoin Testnet4")
         XCTAssertEqual(store.displayNetworkName(for: "Ethereum"), "Mainnet")
+    }
+
+    func testBitcoinWalletDisplayTitleUsesWalletSpecificNetworkMode() {
+        let store = WalletStore()
+        store.bitcoinNetworkMode = .mainnet
+        let wallet = ImportedWallet(
+            name: "BTC Testnet4",
+            bitcoinNetworkMode: .testnet4,
+            bitcoinAddress: "tb1qexample",
+            selectedChain: "Bitcoin",
+            holdings: []
+        )
+
+        XCTAssertEqual(store.displayNetworkName(for: wallet), "Testnet4")
+        XCTAssertEqual(store.displayChainTitle(for: wallet), "Bitcoin Testnet4")
+    }
+
+    func testBitcoinTestnet4AssetsAreUnpriced() {
+        let store = WalletStore()
+        store.bitcoinNetworkMode = .testnet4
+        let coin = Coin(
+            name: "Bitcoin",
+            symbol: "BTC",
+            marketDataID: "1",
+            coinGeckoID: "bitcoin",
+            chainName: "Bitcoin",
+            tokenStandard: "Native",
+            contractAddress: nil,
+            amount: 1.25,
+            priceUSD: 64000,
+            mark: "B",
+            color: .orange
+        )
+
+        XCTAssertEqual(store.assetIdentityKey(for: coin), "Bitcoin Testnet4|BTC")
+        XCTAssertNil(store.currentPriceIfAvailable(for: coin))
+        XCTAssertNil(store.currentOrFallbackPriceIfAvailable(for: coin))
+        XCTAssertNil(store.currentValueIfAvailable(for: coin))
     }
 
     func testBitcoinTestnet4EndpointsAreAvailable() {
@@ -89,6 +149,7 @@ final class WalletStorePlatformBridgeTests: XCTestCase {
         store.ethereumNetworkMode = .hoodi
 
         XCTAssertEqual(store.displayNetworkName(for: "Ethereum"), "Hoodi")
+        XCTAssertEqual(store.displayChainTitle(for: "Ethereum"), "Ethereum Hoodi")
     }
 
     func testEthereumTestNetworksExposeExpectedContextsAndEndpoints() {

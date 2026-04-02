@@ -27,17 +27,6 @@ struct DiagnosticsHubView: View {
         }
     }
 
-    private var crossChainDestinations: [DiagnosticsDestination] {
-        [
-            DiagnosticsDestination(
-                id: copy.crossChainHistoryTitle,
-                title: copy.crossChainHistoryTitle,
-                keywords: copy.crossChainHistoryKeywords,
-                makeView: { AnyView(HistorySourceConfidenceDiagnosticsView(store: store)) }
-            )
-        ]
-    }
-
     private func filteredDestinations(_ destinations: [DiagnosticsDestination]) -> [DiagnosticsDestination] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return destinations }
@@ -63,7 +52,6 @@ struct DiagnosticsHubView: View {
     var body: some View {
         Form {
             destinationSection(copy.chainsSectionTitle, destinations: chainDestinations)
-            destinationSection(copy.crossChainSectionTitle, destinations: crossChainDestinations)
         }
         .navigationTitle(copy.navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
@@ -1002,32 +990,6 @@ struct StandardChainDiagnosticsView: View {
             }
         }
 
-        if !store.availableBroadcastProviders(for: chain.title).isEmpty {
-            Section(NSLocalizedString("Broadcast Reliability", comment: "")) {
-                Button(NSLocalizedString("Reset Provider Reliability", comment: "")) {
-                    store.resetBroadcastProviderReliability(for: chain.title)
-                }
-
-                let reliabilityItems = store.broadcastProviderReliability(for: chain.title)
-                if reliabilityItems.isEmpty {
-                    Text(copy.noBroadcastReliabilityYet)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(reliabilityItems) { item in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.providerName)
-                                .font(.subheadline.weight(.semibold))
-                            Text(String(format: copy.broadcastReliabilityFormat, String(item.successCount), String(item.failureCount), successRateString(item.successRate)))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-            }
-        }
-
         Section(NSLocalizedString("Operational Events", comment: "")) {
             let events = store.operationalEvents(for: chain.title)
             if events.isEmpty {
@@ -1103,10 +1065,6 @@ struct StandardChainDiagnosticsView: View {
             return
         }
         selectedMoneroBackendID = moneroCustomBackendID
-    }
-
-    private func successRateString(_ value: Double) -> String {
-        "\(Int((value * 100).rounded()))%"
     }
 
     private var supportsUTXOChainActions: Bool {
@@ -1207,75 +1165,6 @@ struct StandardChainDiagnosticsView: View {
         }
     }
 
-}
-
-struct HistorySourceConfidenceDiagnosticsView: View {
-    let store: WalletStore
-    @ObservedObject private var transactionState: WalletTransactionState
-    private let copy = DiagnosticsContentCopy.current
-    @State private var cachedGroupedRows: [(key: String, count: Int)] = []
-
-    init(store: WalletStore) {
-        self.store = store
-        _transactionState = ObservedObject(wrappedValue: store.transactionState)
-    }
-
-    private var groupedRows: [(key: String, count: Int)] {
-        cachedGroupedRows
-    }
-
-    var body: some View {
-        Form {
-            Section(NSLocalizedString("Summary", comment: "")) {
-                Text(String(format: copy.totalNormalizedEntriesFormat, String(store.normalizedHistoryIndex.count)))
-                Text(String(format: copy.totalNormalizedEntriesFormat, String(transactionState.normalizedHistoryIndex.count)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section(NSLocalizedString("Chain | Source | Confidence", comment: "")) {
-                if groupedRows.isEmpty {
-                    Text(copy.noNormalizedHistoryYet)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(groupedRows, id: \.key) { item in
-                        HStack(alignment: .top) {
-                            Text(item.key)
-                                .font(.subheadline)
-                            Spacer(minLength: 12)
-                            Text(localizedFormat("diagnostics.countOnly", item.count))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle(NSLocalizedString("History Confidence", comment: ""))
-        .onAppear {
-            rebuildGroupedRows()
-        }
-        .onChange(of: transactionState.normalizedHistoryIndex.count) { _, _ in
-            rebuildGroupedRows()
-        }
-    }
-
-    private func rebuildGroupedRows() {
-        var counts: [String: Int] = [:]
-        for entry in transactionState.normalizedHistoryIndex {
-            let key = "\(entry.chainName) | \(entry.sourceTag) | \(entry.sourceConfidenceTag)"
-            counts[key, default: 0] += 1
-        }
-        cachedGroupedRows = counts
-            .map { (key: $0.key, count: $0.value) }
-            .sorted { lhs, rhs in
-                if lhs.count != rhs.count {
-                    return lhs.count > rhs.count
-                }
-                return lhs.key < rhs.key
-            }
-    }
 }
 
 private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {

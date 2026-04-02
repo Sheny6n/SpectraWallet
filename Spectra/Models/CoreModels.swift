@@ -148,6 +148,7 @@ struct Coin: Identifiable {
 struct ImportedWallet: Identifiable {
     let id: UUID
     let name: String
+    let bitcoinNetworkMode: BitcoinNetworkMode
     let bitcoinAddress: String?
     let bitcoinXPub: String?
     let bitcoinCashAddress: String?
@@ -176,6 +177,7 @@ struct ImportedWallet: Identifiable {
     init(
         id: UUID = UUID(),
         name: String,
+        bitcoinNetworkMode: BitcoinNetworkMode = .mainnet,
         bitcoinAddress: String? = nil,
         bitcoinXPub: String? = nil,
         bitcoinCashAddress: String? = nil,
@@ -203,6 +205,7 @@ struct ImportedWallet: Identifiable {
     ) {
         self.id = id
         self.name = name
+        self.bitcoinNetworkMode = bitcoinNetworkMode
         self.bitcoinAddress = bitcoinAddress
         self.bitcoinXPub = bitcoinXPub
         self.bitcoinCashAddress = bitcoinCashAddress
@@ -890,8 +893,6 @@ struct NormalizedHistoryEntry: Identifiable {
     let address: String
     let transactionHash: String?
     let sourceTag: String
-    let sourceConfidenceTag: String
-    let sourceConfidenceScore: Int
     let providerCount: Int
     let searchIndex: String
 }
@@ -1219,6 +1220,7 @@ extension ImportedWallet {
         self.init(
             id: snapshot.id,
             name: snapshot.name,
+            bitcoinNetworkMode: snapshot.bitcoinNetworkMode,
             bitcoinAddress: snapshot.bitcoinAddress,
             bitcoinXPub: snapshot.bitcoinXPub,
             bitcoinCashAddress: snapshot.bitcoinCashAddress,
@@ -1250,6 +1252,7 @@ extension ImportedWallet {
         PersistedWallet(
             id: id,
             name: name,
+            bitcoinNetworkMode: bitcoinNetworkMode,
             bitcoinAddress: bitcoinAddress,
             bitcoinXPub: bitcoinXPub,
             bitcoinCashAddress: bitcoinCashAddress,
@@ -1395,38 +1398,6 @@ extension TransactionRecord {
         }
     }
 
-    var historySourceConfidenceText: String? {
-        guard let transactionHistorySource else { return nil }
-        let source = transactionHistorySource.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !source.isEmpty else { return nil }
-
-        let score: Int
-        switch (chainName, source) {
-        case ("Bitcoin", "esplora"),
-             ("Bitcoin SV", "blockchair"),
-             ("Litecoin", "litecoinspace"),
-             ("Dogecoin", "dogecoin.providers"):
-            score = 3
-        case (_, "etherscan"),
-             (_, "blockscout"),
-             (_, "ethplorer"),
-             (_, "blockchair"),
-             (_, "blockcypher"),
-             (_, "blockchain.info"):
-            score = 2
-        case (_, "rpc"):
-            score = 1
-        default:
-            score = 1
-        }
-
-        switch score {
-        case 3: return "High"
-        case 2: return "Medium"
-        default: return "Low"
-        }
-    }
-    
     var statusText: String {
         status.localizedTitle
     }

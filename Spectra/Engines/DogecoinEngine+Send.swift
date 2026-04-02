@@ -35,8 +35,8 @@ extension DogecoinWalletEngine {
         signingInput.hashType = 0x01
         signingInput.amount = Int64(amountKoinu)
         signingInput.byteFee = feePerByteKoinu
-        signingInput.toAddress = walletCoreCompatibleAddress(request.destinationAddress)
-        signingInput.changeAddress = walletCoreCompatibleAddress(request.changeAddress)
+        signingInput.toAddress = request.destinationAddress
+        signingInput.changeAddress = request.changeAddress
         signingInput.coinType = CoinType.dogecoin.rawValue
         signingInput.privateKey = [request.keyMaterial.privateKeyData]
         signingInput.utxo = try request.utxos.map { try walletCoreUnspentTransaction(from: $0, sourceScript: sourceScript) }
@@ -199,11 +199,7 @@ extension DogecoinWalletEngine {
     }
 
     static func broadcastRawTransaction(_ rawHex: String) throws {
-        if networkMode == .testnet {
-            try broadcastRawTransactionViaElectrs(rawHex)
-            return
-        }
-        let providerOrder = orderedBroadcastProviders(counters: loadBroadcastReliabilityCounters())
+        let providerOrder = BroadcastProvider.allCases
         var providerErrors: [String] = []
 
         for provider in providerOrder {
@@ -211,16 +207,13 @@ extension DogecoinWalletEngine {
             for attempt in 0 ..< maxAttempts {
                 do {
                     try broadcastRawTransaction(rawHex, via: provider)
-                    recordBroadcastAttempt(provider: provider, success: true)
                     return
                 } catch {
                     let errorDescription = error.localizedDescription
                     if isAlreadyBroadcastedError(errorDescription) {
-                        recordBroadcastAttempt(provider: provider, success: true)
                         return
                     }
 
-                    recordBroadcastAttempt(provider: provider, success: false)
                     let shouldRetry = attempt < maxAttempts - 1 && isRetryableBroadcastError(errorDescription)
                     if shouldRetry {
                         usleep(UInt32(250_000 * (attempt + 1)))
@@ -302,28 +295,6 @@ extension DogecoinWalletEngine {
         }
     }
 
-    static func broadcastRawTransactionViaElectrs(_ rawHex: String) throws {
-        guard let url = electrsURL(path: "/tx") else {
-            throw DogecoinWalletEngineError.broadcastFailed("Invalid Dogecoin testnet broadcast endpoint.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("text/plain", forHTTPHeaderField: "Content-Type")
-        request.httpBody = rawHex.data(using: .utf8)
-
-        let data = try performSynchronousRequest(
-            request,
-            timeout: networkTimeoutSeconds,
-            retries: 0
-        )
-        let responseBody = String(data: data, encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !responseBody.isEmpty, responseBody.lowercased().contains("error") {
-            throw DogecoinWalletEngineError.broadcastFailed(responseBody)
-        }
-    }
-
     static func isAlreadyBroadcastedError(_ message: String) -> Bool {
         if classifySendBroadcastFailure(message) == .alreadyBroadcast {
             return true
@@ -340,67 +311,6 @@ extension DogecoinWalletEngine {
             return true
         }
         return message.lowercased().contains("network")
-    }
-
-    static func orderedBroadcastProviders(
-        counters: [String: BroadcastProviderReliabilityCounter]
-    ) -> [BroadcastProvider] {
-        enabledBroadcastProviders().sorted { lhs, rhs in
-            let left = counters[lhs.rawValue] ?? BroadcastProviderReliabilityCounter(successCount: 0, failureCount: 0, lastUpdatedAt: 0)
-            let right = counters[rhs.rawValue] ?? BroadcastProviderReliabilityCounter(successCount: 0, failureCount: 0, lastUpdatedAt: 0)
-            let leftAttempts = left.successCount + left.failureCount
-            let rightAttempts = right.successCount + right.failureCount
-            let leftSuccessRate = leftAttempts == 0 ? 1.0 : Double(left.successCount) / Double(leftAttempts)
-            let rightSuccessRate = rightAttempts == 0 ? 1.0 : Double(right.successCount) / Double(rightAttempts)
-
-            if leftSuccessRate != rightSuccessRate {
-                return leftSuccessRate > rightSuccessRate
-            }
-            if left.successCount != right.successCount {
-                return left.successCount > right.successCount
-            }
-            return left.lastUpdatedAt > right.lastUpdatedAt
-        }
-    }
-
-    static func enabledBroadcastProviders() -> [BroadcastProvider] {
-        broadcastProviderSelectionLock.lock()
-        defer { broadcastProviderSelectionLock.unlock() }
-        guard let configuredProviderIDs = UserDefaults.standard.array(forKey: broadcastProviderSelectionDefaultsKey) as? [String] else {
-            return BroadcastProvider.allCases
-        }
-        let providers = configuredProviderIDs.compactMap(BroadcastProvider.init(rawValue:))
-        return providers.isEmpty ? BroadcastProvider.allCases : providers
-    }
-
-    static func loadBroadcastReliabilityCounters() -> [String: BroadcastProviderReliabilityCounter] {
-        guard let data = UserDefaults.standard.data(forKey: broadcastReliabilityDefaultsKey),
-              let decoded = try? JSONDecoder().decode([String: BroadcastProviderReliabilityCounter].self, from: data) else {
-            return [:]
-        }
-        return decoded
-    }
-
-    static func saveBroadcastReliabilityCounters(_ counters: [String: BroadcastProviderReliabilityCounter]) {
-        guard let data = try? JSONEncoder().encode(counters) else { return }
-        UserDefaults.standard.set(data, forKey: broadcastReliabilityDefaultsKey)
-    }
-
-    static func recordBroadcastAttempt(provider: BroadcastProvider, success: Bool) {
-        var counters = loadBroadcastReliabilityCounters()
-        var counter = counters[provider.rawValue] ?? BroadcastProviderReliabilityCounter(
-            successCount: 0,
-            failureCount: 0,
-            lastUpdatedAt: 0
-        )
-        if success {
-            counter.successCount += 1
-        } else {
-            counter.failureCount += 1
-        }
-        counter.lastUpdatedAt = Date().timeIntervalSince1970
-        counters[provider.rawValue] = counter
-        saveBroadcastReliabilityCounters(counters)
     }
 
     static func verifyBroadcastedTransactionIfAvailable(
@@ -420,9 +330,6 @@ extension DogecoinWalletEngine {
     }
 
     static func verifyPresenceOnlyIfAvailable(txid: String) -> PostBroadcastVerificationStatus {
-        if networkMode == .testnet {
-            return (try? fetchElectrsTransactionHash(txid: txid)) != nil ? .verified : .deferred
-        }
         if (try? fetchBlockchairTransactionHash(txid: txid)) != nil { return .verified }
         if (try? fetchBlockCypherTransactionHash(txid: txid)) != nil { return .verified }
         if (try? fetchSoChainTransactionHash(txid: txid)) != nil { return .verified }
@@ -464,19 +371,6 @@ extension DogecoinWalletEngine {
             return nil
         }
         return txHash
-    }
-
-    static func fetchElectrsTransactionHash(txid: String) throws -> String? {
-        guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = electrsURL(path: "/tx/\(encodedTXID)/status") else {
-            throw DogecoinWalletEngineError.networkFailure("Invalid Dogecoin testnet transaction lookup URL.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        let data = try performSynchronousRequest(request, timeout: networkTimeoutSeconds, retries: 0)
-        let payload = try JSONDecoder().decode(ElectrsTransactionStatus.self, from: data)
-        return payload.confirmed ? txid : nil
     }
 
     static func fetchBlockchairTransaction(txid: String) throws -> BlockchairTransactionDashboardEntry? {

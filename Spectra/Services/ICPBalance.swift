@@ -91,6 +91,33 @@ enum ICPBalanceService {
         throw lastError ?? ICPBalanceServiceError.invalidResponse
     }
 
+    static func fetchSuggestedTransferFeeE8s() async throws -> UInt64 {
+        var lastError: Error?
+        for endpoint in rosettaEndpoints {
+            do {
+                let request = ConstructionMetadataRequest(
+                    networkIdentifier: networkIdentifier,
+                    options: ConstructionMetadataOptions(requestTypes: ["TRANSACTION"]),
+                    publicKeys: nil
+                )
+                let response: ConstructionMetadataResponse = try await post(
+                    endpoint: endpoint,
+                    path: "/construction/metadata",
+                    requestBody: request
+                )
+                if let feeValue = response.suggestedFee?.first?.value,
+                   let feeE8s = UInt64(feeValue),
+                   feeE8s > 0 {
+                    return feeE8s
+                }
+                throw ICPBalanceServiceError.invalidResponse
+            } catch {
+                lastError = error
+            }
+        }
+        throw lastError ?? ICPBalanceServiceError.invalidResponse
+    }
+
     static func fetchRecentHistoryWithDiagnostics(for address: String, limit: Int = 80) async -> (snapshots: [ICPHistorySnapshot], diagnostics: ICPHistoryDiagnostics) {
         let normalized = normalizedAddress(address)
         guard isValidAddress(normalized) else {
@@ -391,6 +418,44 @@ private struct ConstructionSubmitRequest: Codable {
     enum CodingKeys: String, CodingKey {
         case networkIdentifier = "network_identifier"
         case signedTransaction = "signed_transaction"
+    }
+}
+
+private struct ConstructionMetadataOptions: Codable {
+    let requestTypes: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case requestTypes = "request_types"
+    }
+}
+
+private struct ConstructionMetadataRequest: Codable {
+    let networkIdentifier: NetworkIdentifier
+    let options: ConstructionMetadataOptions
+    let publicKeys: [RosettaPublicKey]?
+
+    enum CodingKeys: String, CodingKey {
+        case networkIdentifier = "network_identifier"
+        case options
+        case publicKeys = "public_keys"
+    }
+}
+
+private struct ConstructionMetadataResponse: Codable {
+    let suggestedFee: [CurrencyAmount]?
+
+    enum CodingKeys: String, CodingKey {
+        case suggestedFee = "suggested_fee"
+    }
+}
+
+private struct RosettaPublicKey: Codable {
+    let hexBytes: String
+    let curveType: String
+
+    enum CodingKeys: String, CodingKey {
+        case hexBytes = "hex_bytes"
+        case curveType = "curve_type"
     }
 }
 

@@ -1,7 +1,7 @@
 import Foundation
 import BitcoinDevKit
 
-enum BitcoinNetworkMode: String, CaseIterable, Identifiable {
+enum BitcoinNetworkMode: String, CaseIterable, Identifiable, Codable {
     case mainnet
     case testnet
     case testnet4
@@ -399,7 +399,7 @@ struct BitcoinWalletEngine {
         let feeEstimates = try performWithClientFallback { client in
             try client.getFeeEstimates()
         }
-        let estimatedRate = feeEstimate(for: feePriority, from: feeEstimates)
+        let estimatedRate = try feeEstimate(for: feePriority, from: feeEstimates)
         let satPerVb = max(UInt64(1), UInt64(ceil(estimatedRate)))
         try validatePolicyRules(sendAmountSats: sendAmountSats, estimatedVBytes: estimatedVirtualBytes(for: importedWallet.seedDerivationPaths.bitcoin))
         let feeRate = try FeeRate.fromSatPerVb(satVb: satPerVb)
@@ -442,7 +442,7 @@ struct BitcoinWalletEngine {
         let feeEstimates = try performWithClientFallback { client in
             try client.getFeeEstimates()
         }
-        let estimatedRate = feeEstimate(for: feePriority, from: feeEstimates)
+        let estimatedRate = try feeEstimate(for: feePriority, from: feeEstimates)
         let satPerVb = max(UInt64(1), UInt64(ceil(estimatedRate)))
         try validatePolicyRules(sendAmountSats: sendAmountSats, estimatedVBytes: estimatedVirtualBytes(for: SeedDerivationChain.bitcoin.defaultPath))
         let feeRate = try FeeRate.fromSatPerVb(satVb: satPerVb)
@@ -551,7 +551,7 @@ struct BitcoinWalletEngine {
         let feeEstimates = try performWithClientFallback { client in
             try client.getFeeEstimates()
         }
-        let rate = feeEstimate(for: feePriority, from: feeEstimates)
+        let rate = try feeEstimate(for: feePriority, from: feeEstimates)
         let satPerVb = max(UInt64(1), UInt64(ceil(rate)))
 
         let estimatedVBytes: UInt64 = estimatedVirtualBytes(for: importedWallet.seedDerivationPaths.bitcoin)
@@ -579,7 +579,7 @@ struct BitcoinWalletEngine {
         let feeEstimates = try performWithClientFallback { client in
             try client.getFeeEstimates()
         }
-        let rate = feeEstimate(for: feePriority, from: feeEstimates)
+        let rate = try feeEstimate(for: feePriority, from: feeEstimates)
         let satPerVb = max(UInt64(1), UInt64(ceil(rate)))
 
         let estimatedVBytes: UInt64 = estimatedVirtualBytes(for: SeedDerivationChain.bitcoin.defaultPath)
@@ -601,7 +601,8 @@ struct BitcoinWalletEngine {
         try makeSession(
             for: importedWallet.id,
             seedPhrase: seedPhrase,
-            derivationPath: importedWallet.seedDerivationPaths.bitcoin
+            derivationPath: importedWallet.seedDerivationPaths.bitcoin,
+            networkMode: importedWallet.bitcoinNetworkMode
         )
     }
 
@@ -616,10 +617,11 @@ struct BitcoinWalletEngine {
     private static func makeSession(
         for walletID: UUID,
         seedPhrase: String,
-        derivationPath: String
+        derivationPath: String,
+        networkMode: BitcoinNetworkMode? = nil
     ) throws -> Session {
         let mnemonic = try Mnemonic.fromString(mnemonic: seedPhrase)
-        let network = currentNetwork()
+        let network = (networkMode ?? self.networkMode).bdkNetwork
         let secretKey = DescriptorSecretKey(network: network, mnemonic: mnemonic, password: nil)
         let descriptors = try descriptors(for: secretKey, derivationPath: derivationPath, network: network)
         let persister = try Persister.newSqlite(path: databasePath(for: walletID))
@@ -666,17 +668,7 @@ struct BitcoinWalletEngine {
         return directory.appendingPathComponent("\(walletID.uuidString).sqlite").path
     }
 
-    private static func feeEstimate(for priority: BitcoinFeePriority, from estimates: [UInt16: Double]) -> Double {
-        let deterministicFallback: Double
-        switch priority {
-        case .economy:
-            deterministicFallback = 2.0
-        case .normal:
-            deterministicFallback = 5.0
-        case .priority:
-            deterministicFallback = 10.0
-        }
-
+    private static func feeEstimate(for priority: BitcoinFeePriority, from estimates: [UInt16: Double]) throws -> Double {
         func firstValid(_ targets: [UInt16]) -> Double? {
             for target in targets {
                 if let estimate = estimates[target], estimate > 0 {
@@ -688,16 +680,36 @@ struct BitcoinWalletEngine {
 
         switch priority {
         case .economy:
-            return firstValid([12, 10, 8, 6, 4, 3, 2]) ?? deterministicFallback
+            guard let value = firstValid([12, 10, 8, 6, 4, 3, 2]) else {
+                throw BitcoinWalletEngineError.broadcastFailed("Live Bitcoin fee estimates were unavailable.")
+            }
+            return value
         case .normal:
-            return firstValid([6, 5, 4, 3, 8, 10, 12, 2]) ?? deterministicFallback
+            guard let value = firstValid([6, 5, 4, 3, 8, 10, 12, 2]) else {
+                throw BitcoinWalletEngineError.broadcastFailed("Live Bitcoin fee estimates were unavailable.")
+            }
+            return value
         case .priority:
-            return firstValid([2, 1, 3, 4, 5, 6]) ?? deterministicFallback
+            guard let value = firstValid([2, 1, 3, 4, 5, 6]) else {
+                throw BitcoinWalletEngineError.broadcastFailed("Live Bitcoin fee estimates were unavailable.")
+            }
+            return value
         }
     }
 
     private static func currentNetwork() -> Network {
         networkMode.bdkNetwork
+    }
+
+    private static func expectedCoinType(for network: Network) -> UInt32 {
+        switch network {
+        case .bitcoin:
+            return 0
+        case .testnet, .signet, .regtest:
+            return 1
+        default:
+            return 0
+        }
     }
 
     private static func descriptors(
@@ -729,7 +741,6 @@ struct BitcoinWalletEngine {
             accountSegments = [segments[0]]
         } else {
             guard segments.count >= 5,
-                  segments[1].value == 0,
                   segments[0].isHardened,
                   segments[1].isHardened,
                   segments[2].isHardened else {
@@ -749,12 +760,14 @@ struct BitcoinWalletEngine {
                 throw BitcoinWalletEngineError.unsupportedDerivationPath(derivationPath)
             }
 
-            accountSegments = Array(segments.prefix(3))
+            var normalizedAccountSegments = Array(segments.prefix(3))
+            normalizedAccountSegments[1].value = expectedCoinType(for: network)
+            accountSegments = normalizedAccountSegments
         }
 
         let accountPath = DerivationPathParser.string(from: accountSegments)
         let accountKey = try rootKey.derive(path: DerivationPath(path: accountPath))
-        let accountKeyString = String(describing: accountKey)
+        let accountKeyString = descriptorAccountKeyExpression(from: accountKey)
         let receiveDescriptor = try Descriptor(
             descriptor: descriptorKind.descriptorString(for: "\(accountKeyString)/0/*"),
             network: network
@@ -764,6 +777,14 @@ struct BitcoinWalletEngine {
             network: network
         )
         return (receiveDescriptor, changeDescriptor)
+    }
+
+    private static func descriptorAccountKeyExpression(from accountKey: DescriptorSecretKey) -> String {
+        let rawExpression = String(describing: accountKey)
+        if rawExpression.hasSuffix("/*") {
+            return String(rawExpression.dropLast(2))
+        }
+        return rawExpression
     }
 
     private static func estimatedVirtualBytes(for derivationPath: String) -> UInt64 {

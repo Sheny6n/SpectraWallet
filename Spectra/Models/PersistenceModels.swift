@@ -19,6 +19,7 @@ struct PersistedCoin: Codable {
 struct PersistedWallet: Codable {
     let id: UUID
     let name: String
+    let bitcoinNetworkMode: BitcoinNetworkMode
     let bitcoinAddress: String?
     let bitcoinXPub: String?
     let bitcoinCashAddress: String?
@@ -43,6 +44,125 @@ struct PersistedWallet: Codable {
     let selectedChain: String
     let holdings: [PersistedCoin]
     let includeInPortfolioTotal: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case bitcoinNetworkMode
+        case bitcoinAddress
+        case bitcoinXPub
+        case bitcoinCashAddress
+        case bitcoinSVAddress
+        case litecoinAddress
+        case dogecoinAddress
+        case ethereumAddress
+        case tronAddress
+        case solanaAddress
+        case stellarAddress
+        case xrpAddress
+        case moneroAddress
+        case cardanoAddress
+        case suiAddress
+        case aptosAddress
+        case tonAddress
+        case icpAddress
+        case nearAddress
+        case polkadotAddress
+        case seedDerivationPreset
+        case seedDerivationPaths
+        case selectedChain
+        case holdings
+        case includeInPortfolioTotal
+    }
+
+    init(
+        id: UUID,
+        name: String,
+        bitcoinNetworkMode: BitcoinNetworkMode = .mainnet,
+        bitcoinAddress: String?,
+        bitcoinXPub: String?,
+        bitcoinCashAddress: String?,
+        bitcoinSVAddress: String?,
+        litecoinAddress: String?,
+        dogecoinAddress: String?,
+        ethereumAddress: String?,
+        tronAddress: String?,
+        solanaAddress: String?,
+        stellarAddress: String?,
+        xrpAddress: String?,
+        moneroAddress: String?,
+        cardanoAddress: String?,
+        suiAddress: String?,
+        aptosAddress: String?,
+        tonAddress: String?,
+        icpAddress: String?,
+        nearAddress: String?,
+        polkadotAddress: String?,
+        seedDerivationPreset: SeedDerivationPreset,
+        seedDerivationPaths: SeedDerivationPaths,
+        selectedChain: String,
+        holdings: [PersistedCoin],
+        includeInPortfolioTotal: Bool
+    ) {
+        self.id = id
+        self.name = name
+        self.bitcoinNetworkMode = bitcoinNetworkMode
+        self.bitcoinAddress = bitcoinAddress
+        self.bitcoinXPub = bitcoinXPub
+        self.bitcoinCashAddress = bitcoinCashAddress
+        self.bitcoinSVAddress = bitcoinSVAddress
+        self.litecoinAddress = litecoinAddress
+        self.dogecoinAddress = dogecoinAddress
+        self.ethereumAddress = ethereumAddress
+        self.tronAddress = tronAddress
+        self.solanaAddress = solanaAddress
+        self.stellarAddress = stellarAddress
+        self.xrpAddress = xrpAddress
+        self.moneroAddress = moneroAddress
+        self.cardanoAddress = cardanoAddress
+        self.suiAddress = suiAddress
+        self.aptosAddress = aptosAddress
+        self.tonAddress = tonAddress
+        self.icpAddress = icpAddress
+        self.nearAddress = nearAddress
+        self.polkadotAddress = polkadotAddress
+        self.seedDerivationPreset = seedDerivationPreset
+        self.seedDerivationPaths = seedDerivationPaths
+        self.selectedChain = selectedChain
+        self.holdings = holdings
+        self.includeInPortfolioTotal = includeInPortfolioTotal
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        bitcoinNetworkMode = try container.decodeIfPresent(BitcoinNetworkMode.self, forKey: .bitcoinNetworkMode) ?? .mainnet
+        bitcoinAddress = try container.decodeIfPresent(String.self, forKey: .bitcoinAddress)
+        bitcoinXPub = try container.decodeIfPresent(String.self, forKey: .bitcoinXPub)
+        bitcoinCashAddress = try container.decodeIfPresent(String.self, forKey: .bitcoinCashAddress)
+        bitcoinSVAddress = try container.decodeIfPresent(String.self, forKey: .bitcoinSVAddress)
+        litecoinAddress = try container.decodeIfPresent(String.self, forKey: .litecoinAddress)
+        dogecoinAddress = try container.decodeIfPresent(String.self, forKey: .dogecoinAddress)
+        ethereumAddress = try container.decodeIfPresent(String.self, forKey: .ethereumAddress)
+        tronAddress = try container.decodeIfPresent(String.self, forKey: .tronAddress)
+        solanaAddress = try container.decodeIfPresent(String.self, forKey: .solanaAddress)
+        stellarAddress = try container.decodeIfPresent(String.self, forKey: .stellarAddress)
+        xrpAddress = try container.decodeIfPresent(String.self, forKey: .xrpAddress)
+        moneroAddress = try container.decodeIfPresent(String.self, forKey: .moneroAddress)
+        cardanoAddress = try container.decodeIfPresent(String.self, forKey: .cardanoAddress)
+        suiAddress = try container.decodeIfPresent(String.self, forKey: .suiAddress)
+        aptosAddress = try container.decodeIfPresent(String.self, forKey: .aptosAddress)
+        tonAddress = try container.decodeIfPresent(String.self, forKey: .tonAddress)
+        icpAddress = try container.decodeIfPresent(String.self, forKey: .icpAddress)
+        nearAddress = try container.decodeIfPresent(String.self, forKey: .nearAddress)
+        polkadotAddress = try container.decodeIfPresent(String.self, forKey: .polkadotAddress)
+        seedDerivationPreset = try container.decode(SeedDerivationPreset.self, forKey: .seedDerivationPreset)
+        seedDerivationPaths = try container.decode(SeedDerivationPaths.self, forKey: .seedDerivationPaths)
+        selectedChain = try container.decode(String.self, forKey: .selectedChain)
+        holdings = try container.decode([PersistedCoin].self, forKey: .holdings)
+        includeInPortfolioTotal = try container.decode(Bool.self, forKey: .includeInPortfolioTotal)
+    }
 }
 
 struct PersistedWalletStore: Codable {

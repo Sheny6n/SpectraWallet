@@ -47,7 +47,6 @@ struct SolanaSendResult: Equatable {
 }
 
 enum SolanaWalletEngine {
-    static let estimatedFeeSOL = 0.000005
     // Primary Solana wallet path used by major wallets.
     private static let primaryDerivationPath = "m/44'/501'/0'/0'"
     private static let endpointReliabilityNamespace = "solana.rpc"
@@ -109,11 +108,12 @@ enum SolanaWalletEngine {
             throw SolanaWalletEngineError.invalidAmount
         }
         let balance = try await SolanaBalanceService.fetchBalance(for: ownerAddress)
+        let estimatedFeeSOL = try await fetchEstimatedNetworkFeeSOL()
         let maxSendable = max(0, balance - estimatedFeeSOL)
         return SolanaSendPreview(
             estimatedNetworkFeeSOL: estimatedFeeSOL,
             spendableBalance: maxSendable,
-            feeRateDescription: nil,
+            feeRateDescription: "Live RPC fee calculator",
             estimatedTransactionBytes: nil,
             selectedInputCount: nil,
             usesChangeOutput: nil,
@@ -180,9 +180,10 @@ enum SolanaWalletEngine {
 
         let txHash = try await broadcastSignedTransaction(encodedTransaction, providerIDs: providerIDs)
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(signature: txHash)
+        let estimatedNetworkFeeSOL = try await fetchEstimatedNetworkFeeSOL(providerIDs: providerIDs)
         return SolanaSendResult(
             transactionHash: txHash,
-            estimatedNetworkFeeSOL: estimatedFeeSOL,
+            estimatedNetworkFeeSOL: estimatedNetworkFeeSOL,
             signedTransactionBase64: encodedTransaction,
             verificationStatus: verificationStatus
         )
@@ -277,9 +278,10 @@ enum SolanaWalletEngine {
 
         let txHash = try await broadcastSignedTransaction(encodedTransaction, providerIDs: providerIDs)
         let verificationStatus = await verifyBroadcastedTransactionIfAvailable(signature: txHash)
+        let estimatedNetworkFeeSOL = try await fetchEstimatedNetworkFeeSOL(providerIDs: providerIDs)
         return SolanaSendResult(
             transactionHash: txHash,
-            estimatedNetworkFeeSOL: estimatedFeeSOL,
+            estimatedNetworkFeeSOL: estimatedNetworkFeeSOL,
             signedTransactionBase64: encodedTransaction,
             verificationStatus: verificationStatus
         )
@@ -298,7 +300,7 @@ enum SolanaWalletEngine {
             : txHash
         return SolanaSendResult(
             transactionHash: transactionHash,
-            estimatedNetworkFeeSOL: estimatedFeeSOL,
+            estimatedNetworkFeeSOL: 0,
             signedTransactionBase64: normalizedPayload,
             verificationStatus: await verifyBroadcastedTransactionIfAvailable(signature: transactionHash)
         )
@@ -368,6 +370,55 @@ enum SolanaWalletEngine {
             return .failed(lastError.localizedDescription)
         }
         return .deferred
+    }
+
+    private static func fetchEstimatedNetworkFeeSOL(providerIDs: Set<String>? = nil) async throws -> Double {
+        let lamports = try await fetchCurrentFeeLamports(providerIDs: providerIDs)
+        return Double(lamports) / 1_000_000_000.0
+    }
+
+    private static func fetchCurrentFeeLamports(providerIDs: Set<String>? = nil) async throws -> UInt64 {
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getFees",
+            "params": [["commitment": "confirmed"]]
+        ]
+
+        var lastError: Error?
+        for baseURL in orderedRPCBases(providerIDs: providerIDs) {
+            do {
+                guard let url = URL(string: baseURL) else { continue }
+                var request = URLRequest(url: url)
+                request.httpMethod = "POST"
+                request.timeoutInterval = 20
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
+
+                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
+                    throw SolanaWalletEngineError.rpcFailed("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                }
+                guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let result = object["result"] as? [String: Any],
+                      let value = result["value"] as? [String: Any],
+                      let feeCalculator = value["feeCalculator"] as? [String: Any],
+                      let lamports = feeCalculator["lamportsPerSignature"] as? NSNumber,
+                      lamports.uint64Value > 0 else {
+                    throw SolanaWalletEngineError.rpcFailed("Missing live fee calculator data.")
+                }
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: true)
+                return lamports.uint64Value
+            } catch {
+                lastError = error
+                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: false)
+            }
+        }
+
+        if let lastError {
+            throw lastError
+        }
+        throw SolanaWalletEngineError.rpcFailed("Missing live fee calculator data.")
     }
 
     private static func fetchLatestBlockhash(providerIDs: Set<String>? = nil) async throws -> String {

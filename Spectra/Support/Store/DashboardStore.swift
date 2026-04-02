@@ -118,10 +118,11 @@ extension WalletStore {
 
     private func dashboardAssetGroupingKey(for coin: Coin) -> String {
         let normalizedCoinGeckoID = coin.coinGeckoID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let chainIdentity = runtimeChainIdentity(for: coin.chainName).lowercased()
         if !normalizedCoinGeckoID.isEmpty {
-            return "cg:\(normalizedCoinGeckoID)"
+            return "chain:\(chainIdentity)|cg:\(normalizedCoinGeckoID)"
         }
-        return "symbol:\(coin.symbol.lowercased())"
+        return "chain:\(chainIdentity)|symbol:\(coin.symbol.lowercased())"
     }
 
     private func dashboardPinnedAssetPrototype(symbol: String) -> Coin? {
@@ -199,7 +200,11 @@ extension WalletStore {
         )
         cachedDashboardPinOptionBySymbol = optionBySymbol
         cachedAvailableDashboardPinOptions = availableSymbols.compactMap { optionBySymbol[$0] }
-        cachedDashboardRelevantPriceKeys = Set(includedHoldings.map(\.holdingKey))
+        cachedDashboardRelevantPriceKeys = Set(
+            includedHoldings
+                .filter(isPricedAsset)
+                .map(assetIdentityKey)
+        )
         cachedDashboardSupportedTokenEntriesBySymbol = Dictionary(
             uniqueKeysWithValues: trackedEntriesBySymbol.map { symbol, entries in
                 let supportedEntries = uniqueDashboardSupportedTokenEntries(from: entries)
@@ -229,7 +234,7 @@ extension WalletStore {
                     chainName: coin.chainName,
                     tokenStandard: coin.tokenStandard
                 ) ?? "native"
-                let chainKey = "\(coin.chainName.lowercased())|\(coin.tokenStandard.lowercased())|\(normalizedContract)"
+                let chainKey = "\(runtimeChainIdentity(for: coin.chainName).lowercased())|\(coin.tokenStandard.lowercased())|\(normalizedContract)"
                 if let existing = chainGrouped[chainKey] {
                     chainGrouped[chainKey] = Coin(
                         name: existing.name,

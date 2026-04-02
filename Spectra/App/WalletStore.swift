@@ -47,7 +47,6 @@ struct DiagnosticsBundlePayload: Codable {
     let tronDiagnosticsJSON: String?
     let solanaDiagnosticsJSON: String?
     let stellarDiagnosticsJSON: String?
-    let historySourceConfidenceSummary: [String: Int]?
 }
 
 struct EthereumEndpointHealthResult: Identifiable {
@@ -223,22 +222,6 @@ class WalletStore: ObservableObject {
         let transactionHash: String?
     }
 
-    struct ChainBroadcastProviderReliability: Identifiable, Equatable {
-        let chainName: String
-        let providerID: String
-        let providerName: String
-        let successCount: Int
-        let failureCount: Int
-        let lastUpdatedAt: Date?
-
-        var id: String { "\(chainName):\(providerID)" }
-        var successRate: Double {
-            let total = successCount + failureCount
-            guard total > 0 else { return 0 }
-            return Double(successCount) / Double(total)
-        }
-    }
-
     struct OperationalLogEvent: Codable, Identifiable {
         enum Level: String, Codable {
             case debug
@@ -344,12 +327,6 @@ class WalletStore: ObservableObject {
         let receiptBlockNumber: Int?
         let confirmations: Int?
         let dogecoinNetworkFeeDOGE: Double?
-    }
-
-    private struct BroadcastProviderReliabilityCounter: Codable {
-        var successCount: Int
-        var failureCount: Int
-        var lastUpdatedAt: TimeInterval
     }
 
     private struct PersistedDogecoinOwnedAddressStore: Codable {
@@ -608,15 +585,6 @@ class WalletStore: ObservableObject {
             UserDefaults.standard.set(dogecoinFeePriority.rawValue, forKey: Self.dogecoinFeePriorityDefaultsKey)
         }
     }
-    @Published var dogecoinAllowTestnet: Bool = false {
-        didSet {
-            UserDefaults.standard.set(dogecoinAllowTestnet, forKey: Self.dogecoinAllowTestnetDefaultsKey)
-            importDraft.allowDogecoinTestnet = dogecoinAllowTestnet
-            applyDogecoinRuntimeConfiguration()
-            dogecoinHistoryCursorByWallet = [:]
-            exhaustedDogecoinHistoryWalletIDs = []
-        }
-    }
     // Settings states
     @Published var hideBalances: Bool = false {
         didSet {
@@ -762,7 +730,6 @@ class WalletStore: ObservableObject {
     @Published private var exhaustedTronHistoryWalletIDs: Set<UUID> = []
     @Published var isLoadingMoreOnChainHistory: Bool = false
     let diagnostics = WalletDiagnosticsState()
-    @Published var chainBroadcastProviderReliabilityByChain: [String: [ChainBroadcastProviderReliability]] = [:]
     @Published var chainOperationalEventsByChain: [String: [ChainOperationalEvent]] = [:] {
         didSet {
             persistChainOperationalEvents()
@@ -771,11 +738,6 @@ class WalletStore: ObservableObject {
     @Published var selectedFeePriorityOptionRawByChain: [String: String] = [:] {
         didSet {
             persistSelectedFeePriorityOptions()
-        }
-    }
-    @Published var selectedBroadcastProviderIDsByChain: [String: [String]] = [:] {
-        didSet {
-            persistSelectedBroadcastProviders()
         }
     }
     @Published var isRunningBitcoinRescan: Bool = false
@@ -842,12 +804,9 @@ class WalletStore: ObservableObject {
     private static let largeMovementAlertPercentThresholdDefaultsKey = "settings.largeMovementAlertPercentThreshold"
     private static let largeMovementAlertUSDThresholdDefaultsKey = "settings.largeMovementAlertUSDThreshold"
     private static let selectedFeePriorityOptionsByChainDefaultsKey = "settings.feePriorityOptionsByChain.v1"
-    private static let selectedBroadcastProvidersByChainDefaultsKey = "settings.broadcastProvidersByChain.v1"
     private static let chainOperationalEventsDefaultsKey = "chain.operational.events.v1"
-    private static let chainBroadcastProviderReliabilityDefaultsKey = "chain.broadcast.provider.reliability.v1"
     private static let operationalLogsDefaultsKey = "operational.logs.v1"
     private static let dogecoinFeePriorityDefaultsKey = "settings.dogecoinFeePriority"
-    private static let dogecoinAllowTestnetDefaultsKey = "settings.dogecoinAllowTestnet"
     private static let dogecoinKeypoolDefaultsKey = "dogecoin.keypool.snapshot"
     private static let dogecoinOwnedAddressMapDefaultsKey = "dogecoin.ownedAddressMap.snapshot"
     private static let chainKeypoolDefaultsKey = "chain.keypool.snapshot.v1"
@@ -969,16 +928,6 @@ class WalletStore: ObservableObject {
             esploraEndpoints: parsedBitcoinEsploraEndpoints(),
             stopGap: bitcoinStopGap
         )
-    }
-
-    private var dogecoinNetworkMode: DogecoinNetworkMode {
-        dogecoinAllowTestnet ? .testnet : .mainnet
-    }
-
-    private func applyDogecoinRuntimeConfiguration() {
-        let mode = dogecoinNetworkMode
-        DogecoinBalanceService.configureRuntime(networkMode: mode)
-        DogecoinWalletEngine.configureRuntime(networkMode: mode)
     }
 
     var bitcoinEsploraEndpointsValidationError: String? {
@@ -1255,11 +1204,6 @@ class WalletStore: ObservableObject {
            let dogecoinFeePriority = DogecoinWalletEngine.FeePriority(rawValue: storedDogecoinFeePriority) {
             self.dogecoinFeePriority = dogecoinFeePriority
         }
-        if UserDefaults.standard.object(forKey: Self.dogecoinAllowTestnetDefaultsKey) != nil {
-            dogecoinAllowTestnet = UserDefaults.standard.bool(forKey: Self.dogecoinAllowTestnetDefaultsKey)
-        }
-        importDraft.allowDogecoinTestnet = dogecoinAllowTestnet
-        
         coinGeckoAPIKey = SecureStore.loadValue(for: Self.coinGeckoAPIKeyAccount)
         ethereumRPCEndpoint = UserDefaults.standard.string(forKey: Self.ethereumRPCEndpointDefaultsKey) ?? ""
         etherscanAPIKey = UserDefaults.standard.string(forKey: Self.etherscanAPIKeyDefaultsKey) ?? ""
@@ -1284,10 +1228,7 @@ class WalletStore: ObservableObject {
         chainOwnedAddressMapByChain = loadChainOwnedAddressMap()
         chainOperationalEventsByChain = loadChainOperationalEvents()
         syncChainOwnedAddressManagementState()
-        refreshAllBroadcastProviderReliability()
         applyBitcoinRuntimeConfiguration()
-        applyDogecoinRuntimeConfiguration()
-        
         if UserDefaults.standard.object(forKey: Self.hideBalancesDefaultsKey) != nil {
             hideBalances = UserDefaults.standard.bool(forKey: Self.hideBalancesDefaultsKey)
         }
@@ -1342,10 +1283,6 @@ class WalletStore: ObservableObject {
         if let storedFeePrioritySelections = UserDefaults.standard.dictionary(forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey) as? [String: String] {
             selectedFeePriorityOptionRawByChain = storedFeePrioritySelections
         }
-        if let storedSelections = UserDefaults.standard.dictionary(forKey: Self.selectedBroadcastProvidersByChainDefaultsKey) as? [String: [String]] {
-            selectedBroadcastProviderIDsByChain = storedSelections
-        }
-        synchronizeDogecoinBroadcastProviderSelection()
         suppressWalletSideEffects = false
         applyWalletCollectionSideEffects()
 
@@ -2843,10 +2780,7 @@ func resetImportForm() {
     }
 
     private func isValidDogecoinAddressForPolicy(_ address: String) -> Bool {
-        AddressValidation.isValidDogecoinAddress(
-            address,
-            allowTestnet: dogecoinAllowTestnet
-        )
+        AddressValidation.isValidDogecoinAddress(address)
     }
 
     private func isValidAddress(_ address: String, for chainName: String) -> Bool {
@@ -3516,7 +3450,6 @@ func resetImportForm() {
         diagnostics.lastGoodChainSyncByName = [:]
         chainOperationalEventsByChain = [:]
         diagnostics.clearOperationalLogs()
-        chainBroadcastProviderReliabilityByChain = [:]
         isRunningBitcoinSelfTests = false
         isRunningBitcoinCashSelfTests = false
         isRunningBitcoinSVSelfTests = false
@@ -3612,7 +3545,6 @@ func resetImportForm() {
         UserDefaults.standard.removeObject(forKey: Self.bitcoinFeePriorityDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.dogecoinFeePriorityDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.dogecoinAllowTestnetDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.hideBalancesDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.assetDisplayDecimalsByChainDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.useFaceIDDefaultsKey)
@@ -3626,7 +3558,6 @@ func resetImportForm() {
         UserDefaults.standard.removeObject(forKey: Self.backgroundSyncProfileDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.selectedBroadcastProvidersByChainDefaultsKey)
         UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.defaultsKey)
         UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.customImageRevisionDefaultsKey)
 
@@ -3651,7 +3582,6 @@ func resetImportForm() {
         bitcoinFeePriority = .normal
         dogecoinFeePriority = .normal
         selectedFeePriorityOptionRawByChain = [:]
-        dogecoinAllowTestnet = false
         hideBalances = false
         useFaceID = true
         useAutoLock = false
@@ -3664,18 +3594,12 @@ func resetImportForm() {
         backgroundSyncProfile = .balanced
         largeMovementAlertPercentThreshold = 10
         largeMovementAlertUSDThreshold = 50
-        selectedBroadcastProviderIDsByChain = [:]
     }
 
     private func resetProviderState() async {
         await SpectraNetworkRouter.shared.resetToDefault()
         clearNetworkAndTransportCaches()
-        UserDefaults.standard.removeObject(forKey: Self.chainBroadcastProviderReliabilityDefaultsKey)
-        DogecoinWalletEngine.resetBroadcastProviderReliability()
-        DogecoinBalanceService.resetProviderReliability()
         DogecoinWalletEngine.resetUTXOCache()
-        chainBroadcastProviderReliabilityByChain = [:]
-        synchronizeDogecoinBroadcastProviderSelection(["blockchair", "blockcypher"])
     }
 
     // Clears URL/network-level caches that can leak stale RPC/API responses across resets.
@@ -3863,80 +3787,8 @@ func resetImportForm() {
         }
     }
 
-    func refreshDogecoinBroadcastProviderReliability() {
-        let dogecoinItems = DogecoinWalletEngine.broadcastProviderReliabilitySnapshot().map { item in
-            ChainBroadcastProviderReliability(
-                chainName: "Dogecoin",
-                providerID: item.providerID,
-                providerName: item.providerID,
-                successCount: item.successCount,
-                failureCount: item.failureCount,
-                lastUpdatedAt: nil
-            )
-        }
-        chainBroadcastProviderReliabilityByChain["Dogecoin"] = dogecoinItems
-    }
-
-    func resetDogecoinBroadcastProviderReliability() {
-        DogecoinWalletEngine.resetBroadcastProviderReliability()
-        DogecoinBalanceService.resetProviderReliability()
-        refreshDogecoinBroadcastProviderReliability()
-    }
-
     func operationalEvents(for chainName: String) -> [ChainOperationalEvent] {
         chainOperationalEventsByChain[chainName] ?? []
-    }
-
-    func broadcastProviderReliability(for chainName: String) -> [ChainBroadcastProviderReliability] {
-        chainBroadcastProviderReliabilityByChain[chainName] ?? []
-    }
-
-    func refreshAllBroadcastProviderReliability() {
-        let chainNames = Set(wallets.map(\.selectedChain)).union(Set(ChainBackendRegistry.diagnosticsChains.map(\.title)))
-        for chainName in chainNames where !chainName.isEmpty {
-            refreshBroadcastProviderReliability(for: chainName)
-        }
-    }
-
-    func refreshBroadcastProviderReliability(for chainName: String) {
-        guard chainName != "Dogecoin" else {
-            refreshDogecoinBroadcastProviderReliability()
-            return
-        }
-
-        let counters = loadChainBroadcastProviderReliabilityCounters()
-        let options = availableBroadcastProviders(for: chainName)
-        let items = options.map { option in
-            let counter = counters[broadcastProviderReliabilityCounterKey(chainName: chainName, providerID: option.id)] ?? BroadcastProviderReliabilityCounter(successCount: 0, failureCount: 0, lastUpdatedAt: 0)
-            return ChainBroadcastProviderReliability(
-                chainName: chainName,
-                providerID: option.id,
-                providerName: option.title,
-                successCount: counter.successCount,
-                failureCount: counter.failureCount,
-                lastUpdatedAt: counter.lastUpdatedAt > 0 ? Date(timeIntervalSince1970: counter.lastUpdatedAt) : nil
-            )
-        }
-        chainBroadcastProviderReliabilityByChain[chainName] = items
-    }
-
-    func resetBroadcastProviderReliability(for chainName: String) {
-        if chainName == "Dogecoin" {
-            resetDogecoinBroadcastProviderReliability()
-        }
-
-        var counters = loadChainBroadcastProviderReliabilityCounters()
-        counters = counters.filter { key, _ in
-            !key.hasPrefix("\(chainName)::")
-        }
-        saveChainBroadcastProviderReliabilityCounters(counters)
-        if chainName != "Dogecoin" {
-            refreshBroadcastProviderReliability(for: chainName)
-        }
-    }
-
-    func availableBroadcastProviders(for chainName: String) -> [ChainBroadcastProviderOption] {
-        ChainBackendRegistry.broadcastProviderOptions(for: chainName)
     }
 
     func feePriorityOption(for chainName: String) -> ChainFeePriorityOption {
@@ -4011,55 +3863,6 @@ func resetImportForm() {
         case .priority:
             return .priority
         }
-    }
-
-    func selectedBroadcastProviderIDs(for chainName: String) -> Set<String> {
-        let options = availableBroadcastProviders(for: chainName)
-        guard !options.isEmpty else { return [] }
-
-        if let stored = selectedBroadcastProviderIDsByChain[chainName], !stored.isEmpty {
-            let filtered = Set(stored).intersection(Set(options.map(\.id)))
-            if !filtered.isEmpty {
-                return filtered
-            }
-        }
-
-        return Set(options.map(\.id))
-    }
-
-    func isBroadcastProviderEnabled(_ providerID: String, for chainName: String) -> Bool {
-        selectedBroadcastProviderIDs(for: chainName).contains(providerID)
-    }
-
-    func setBroadcastProvider(_ providerID: String, enabled: Bool, for chainName: String) {
-        let options = availableBroadcastProviders(for: chainName)
-        guard options.contains(where: { $0.id == providerID }) else { return }
-
-        var selected = selectedBroadcastProviderIDs(for: chainName)
-        if enabled {
-            selected.insert(providerID)
-        } else {
-            guard selected.count > 1 else { return }
-            selected.remove(providerID)
-        }
-
-        selectedBroadcastProviderIDsByChain[chainName] = Array(selected).sorted()
-        if chainName == ChainBackendRegistry.dogecoinChainName {
-            synchronizeDogecoinBroadcastProviderSelection(selected)
-            refreshDogecoinBroadcastProviderReliability()
-        }
-    }
-
-    private func persistSelectedBroadcastProviders() {
-        UserDefaults.standard.set(selectedBroadcastProviderIDsByChain, forKey: Self.selectedBroadcastProvidersByChainDefaultsKey)
-    }
-
-    private func synchronizeDogecoinBroadcastProviderSelection(_ selectedProviderIDs: Set<String>? = nil) {
-        let selected = selectedProviderIDs ?? selectedBroadcastProviderIDs(for: ChainBackendRegistry.dogecoinChainName)
-        DogecoinWalletEngine.configureBroadcastProviders(
-            useBlockchair: selected.contains("blockchair"),
-            useBlockCypher: selected.contains("blockcypher")
-        )
     }
 
     private func persistSelectedFeePriorityOptions() {
@@ -4433,7 +4236,6 @@ func resetImportForm() {
                 )
             }
 
-            refreshDogecoinBroadcastProviderReliability()
             await refreshPendingDogecoinTransactions()
             switch result.verificationStatus {
             case .verified:
@@ -4447,7 +4249,6 @@ func resetImportForm() {
                 return "Rebroadcast sent, but verification warning: \(message)"
             }
         } catch {
-            refreshDogecoinBroadcastProviderReliability()
             appendChainOperationalEvent(.error, chainName: "Dogecoin", message: "DOGE rebroadcast failed: \(error.localizedDescription)", transactionHash: transaction.transactionHash)
             return error.localizedDescription
         }
@@ -4517,7 +4318,6 @@ func resetImportForm() {
             }
 
             if transaction.chainName == "Dogecoin" {
-                refreshDogecoinBroadcastProviderReliability()
                 await refreshPendingDogecoinTransactions()
             }
 
@@ -4530,9 +4330,6 @@ func resetImportForm() {
                 return "Rebroadcast sent, but verification warning: \(message)"
             }
         } catch {
-            if transaction.chainName == "Dogecoin" {
-                refreshDogecoinBroadcastProviderReliability()
-            }
             return error.localizedDescription
         }
     }
@@ -4546,29 +4343,25 @@ func resetImportForm() {
         case "bitcoin.raw_hex":
             let result = try await BitcoinWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "bitcoin_cash.raw_hex":
             let result = try await BitcoinCashWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "bitcoin_sv.raw_hex":
             let result = try await BitcoinSVWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "litecoin.raw_hex":
             let result = try await LitecoinWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "dogecoin.raw_hex":
@@ -4589,43 +4382,37 @@ func resetImportForm() {
         case "tron.signed_json":
             let result = try await TronWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionJSON: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "solana.base64":
             let result = try await SolanaWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionBase64: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "xrp.blob_hex":
             let result = try await XRPWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionBlobHex: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "stellar.xdr":
             let result = try await StellarWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedEnvelopeXDR: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "cardano.cbor_hex":
             let result = try await CardanoWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionCBORHex: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "near.base64":
             let result = try await NearWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionBase64: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "polkadot.extrinsic_hex":
@@ -4637,15 +4424,13 @@ func resetImportForm() {
         case "aptos.signed_json":
             let result = try await AptosWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionJSON: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "sui.signed_json":
             let result = try await SuiWalletEngine.rebroadcastSignedTransactionInBackground(
                 signedTransactionPayloadJSON: payload,
-                expectedTransactionHash: transaction.transactionHash,
-                providerIDs: selectedBroadcastProviderIDs(for: transaction.chainName)
+                expectedTransactionHash: transaction.transactionHash
             )
             return (result.transactionHash, result.verificationStatus)
         case "ton.boc":
@@ -4696,6 +4481,10 @@ func resetImportForm() {
         chain.resolve(path: wallet.seedDerivationPaths.path(for: chain))
     }
 
+    private func bitcoinNetworkMode(for wallet: ImportedWallet) -> BitcoinNetworkMode {
+        wallet.bitcoinNetworkMode
+    }
+
     func displayNetworkName(for chainName: String) -> String {
         if chainName == "Bitcoin" {
             return bitcoinNetworkMode.displayName
@@ -4704,7 +4493,7 @@ func resetImportForm() {
             return ethereumNetworkMode.displayName
         }
         if chainName == "Dogecoin" {
-            return dogecoinNetworkMode.displayName
+            return chainName
         }
         return chainName
     }
@@ -4715,6 +4504,39 @@ func resetImportForm() {
             return chainName
         }
         return "\(chainName) \(networkName)"
+    }
+
+    func displayNetworkName(for wallet: ImportedWallet) -> String {
+        if wallet.selectedChain == "Bitcoin" {
+            return bitcoinNetworkMode(for: wallet).displayName
+        }
+        return displayNetworkName(for: wallet.selectedChain)
+    }
+
+    func displayChainTitle(for wallet: ImportedWallet) -> String {
+        let networkName = displayNetworkName(for: wallet)
+        if networkName == wallet.selectedChain || networkName == "Mainnet" {
+            return wallet.selectedChain
+        }
+        return "\(wallet.selectedChain) \(networkName)"
+    }
+
+    func displayNetworkName(for transaction: TransactionRecord) -> String {
+        if transaction.chainName == "Bitcoin",
+           let walletID = transaction.walletID,
+           let wallet = cachedWalletByID[walletID] {
+            return displayNetworkName(for: wallet)
+        }
+        return displayNetworkName(for: transaction.chainName)
+    }
+
+    func displayChainTitle(for transaction: TransactionRecord) -> String {
+        if transaction.chainName == "Bitcoin",
+           let walletID = transaction.walletID,
+           let wallet = cachedWalletByID[walletID] {
+            return displayChainTitle(for: wallet)
+        }
+        return displayChainTitle(for: transaction.chainName)
     }
 
     private func solanaDerivationPreference(for wallet: ImportedWallet) -> SolanaWalletEngine.DerivationPreference {
@@ -4732,12 +4554,12 @@ func resetImportForm() {
                 seedPhrase: seedPhrase,
                 derivationPath: walletDerivationPath(for: wallet, chain: .bitcoin)
             ),
-               AddressValidation.isValidBitcoinAddress(derivedAddress, networkMode: bitcoinNetworkMode) {
+               AddressValidation.isValidBitcoinAddress(derivedAddress, networkMode: bitcoinNetworkMode(for: wallet)) {
                 return derivedAddress
             }
         }
         if let bitcoinAddress = wallet.bitcoinAddress,
-           AddressValidation.isValidBitcoinAddress(bitcoinAddress, networkMode: bitcoinNetworkMode) {
+           AddressValidation.isValidBitcoinAddress(bitcoinAddress, networkMode: bitcoinNetworkMode(for: wallet)) {
             return bitcoinAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return nil
@@ -5049,6 +4871,7 @@ func resetImportForm() {
         return ImportedWallet(
             id: wallet.id,
             name: wallet.name,
+            bitcoinNetworkMode: wallet.bitcoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,
@@ -7955,7 +7778,6 @@ func resetImportForm() {
         
         let wallet = wallets[walletIndex]
         let holding = wallet.holdings[holdingIndex]
-        let enabledBroadcastProviderIDs = selectedBroadcastProviderIDs(for: holding.chainName)
         let destinationInput = sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         var destinationAddress = destinationInput
         var usedENSResolution = false
@@ -8009,7 +7831,6 @@ func resetImportForm() {
                     destinationAddress: destinationAddress,
                     amount: amount,
                     derivationAccount: derivationAccount(for: wallet, chain: .sui),
-                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8078,7 +7899,6 @@ func resetImportForm() {
                     destinationAddress: destinationAddress,
                     amount: amount,
                     derivationAccount: derivationAccount(for: wallet, chain: .aptos),
-                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8323,7 +8143,6 @@ func resetImportForm() {
                     to: destinationAddress,
                     amountBTC: amount,
                     feePriority: bitcoinFeePriority(for: holding.chainName),
-                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8385,7 +8204,6 @@ func resetImportForm() {
                         enableRBF: sendEnableRBF
                     ),
                     derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinCash),
-                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8449,7 +8267,6 @@ func resetImportForm() {
                         enableRBF: sendEnableRBF
                     ),
                     derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinSV),
-                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8515,7 +8332,6 @@ func resetImportForm() {
                         enableRBF: sendEnableRBF
                     ),
                     derivationPath: walletDerivationPath(for: wallet, chain: .litecoin),
-                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -8573,7 +8389,6 @@ func resetImportForm() {
 
             isSendingDogecoin = true
             defer { isSendingDogecoin = false }
-            defer { refreshDogecoinBroadcastProviderReliability() }
 
             let sendResult: DogecoinWalletEngine.DogecoinSendResult
             do {
@@ -8705,7 +8520,6 @@ func resetImportForm() {
                         amount: amount,
                         contractAddress: holding.contractAddress,
                         derivationAccount: derivationAccount(for: wallet, chain: .tron),
-                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else if let privateKey {
                     sendResult = try await TronWalletEngine.sendInBackground(
@@ -8715,7 +8529,6 @@ func resetImportForm() {
                         symbol: holding.symbol,
                         amount: amount,
                         contractAddress: holding.contractAddress,
-                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else {
                     sendError = "This wallet's signing key is unavailable."
@@ -8800,7 +8613,6 @@ func resetImportForm() {
                         amount: amount,
                         preference: solanaPreference,
                         account: derivationAccount(for: wallet, chain: .solana),
-                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else {
                     let solanaTokenMetadataByMint = solanaTrackedTokens(includeDisabled: true)
@@ -8823,7 +8635,6 @@ func resetImportForm() {
                         sourceTokenAccountAddress: sourceTokenAccount,
                         preference: solanaPreference,
                         account: derivationAccount(for: wallet, chain: .solana),
-                        providerIDs: enabledBroadcastProviderIDs
                     )
                 }
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
@@ -8889,7 +8700,6 @@ func resetImportForm() {
                         destinationAddress: destinationAddress,
                         amount: amount,
                         derivationAccount: derivationAccount(for: wallet, chain: .xrp),
-                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else if let privateKey {
                     sendResult = try await XRPWalletEngine.sendInBackground(
@@ -8897,7 +8707,6 @@ func resetImportForm() {
                         ownerAddress: sourceAddress,
                         destinationAddress: destinationAddress,
                         amount: amount,
-                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else {
                     sendError = "This wallet's signing key is unavailable."
@@ -8966,7 +8775,6 @@ func resetImportForm() {
                         destinationAddress: destinationAddress,
                         amount: amount,
                         derivationPath: wallet.seedDerivationPaths.stellar,
-                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else if let privateKey {
                     sendResult = try await StellarWalletEngine.sendInBackground(
@@ -8974,7 +8782,6 @@ func resetImportForm() {
                         ownerAddress: sourceAddress,
                         destinationAddress: destinationAddress,
                         amount: amount,
-                        providerIDs: enabledBroadcastProviderIDs
                     )
                 } else {
                     sendError = "This wallet's signing key is unavailable."
@@ -9033,7 +8840,6 @@ func resetImportForm() {
                     ownerAddress: sourceAddress,
                     destinationAddress: destinationAddress,
                     amount: amount,
-                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -9094,7 +8900,6 @@ func resetImportForm() {
                     destinationAddress: destinationAddress,
                     amount: amount,
                     derivationPath: walletDerivationPath(for: wallet, chain: .cardano),
-                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -9155,7 +8960,6 @@ func resetImportForm() {
                     destinationAddress: destinationAddress,
                     amount: amount,
                     derivationAccount: derivationAccount(for: wallet, chain: .near),
-                    providerIDs: enabledBroadcastProviderIDs
                 )
                 let transaction = decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -10363,7 +10167,13 @@ func resetImportForm() {
                     polkadotAddress = try await derivedPolkadotAddressTask
                     moneroAddress = resolvedMoneroAddress
                 } catch {
-                    importError = "Wallet initialization failed. Check the seed phrase."
+                    let resolvedMessage = (error as? LocalizedError)?.errorDescription
+                        ?? error.localizedDescription
+                    if resolvedMessage.isEmpty || resolvedMessage == "(null)" {
+                        importError = "Wallet initialization failed. Check the seed phrase."
+                    } else {
+                        importError = resolvedMessage
+                    }
                     return
                 }
             } else {
@@ -11014,6 +10824,7 @@ func resetImportForm() {
         wallets[index] = ImportedWallet(
             id: wallet.id,
             name: newName,
+            bitcoinNetworkMode: wallet.bitcoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,
@@ -11336,6 +11147,7 @@ func resetImportForm() {
         ImportedWallet(
             id: id,
             name: name,
+            bitcoinNetworkMode: chainName == "Bitcoin" ? bitcoinNetworkMode : .mainnet,
             bitcoinAddress: chainName == "Bitcoin" ? bitcoinAddress : nil,
             bitcoinXPub: chainName == "Bitcoin" ? bitcoinXPub : nil,
             bitcoinCashAddress: chainName == "Bitcoin Cash" ? bitcoinCashAddress : nil,
@@ -11636,6 +11448,7 @@ func resetImportForm() {
         ImportedWallet(
             id: wallet.id,
             name: wallet.name,
+            bitcoinNetworkMode: wallet.bitcoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,
@@ -11817,14 +11630,18 @@ func resetImportForm() {
         var grouped: [String: Coin] = [:]
         var order: [String] = []
 
-        for coin in cachedUniqueWalletPriceRequestCoins {
-            grouped[coin.holdingKey] = coin
-            order.append(coin.holdingKey)
+        for coin in cachedUniqueWalletPriceRequestCoins where isPricedAsset(coin) {
+            let key = activePriceKey(for: coin)
+            grouped[key] = coin
+            order.append(key)
         }
 
-        for coin in dashboardPinnedAssetPricingPrototypes where selectedMainTab == .home && grouped[coin.holdingKey] == nil {
-            grouped[coin.holdingKey] = coin
-            order.append(coin.holdingKey)
+        for coin in dashboardPinnedAssetPricingPrototypes
+        where selectedMainTab == .home && isPricedAsset(coin) {
+            let key = activePriceKey(for: coin)
+            guard grouped[key] == nil else { continue }
+            grouped[key] = coin
+            order.append(key)
         }
 
         return order.compactMap { grouped[$0] }
@@ -11899,10 +11716,16 @@ func resetImportForm() {
     }
 
     func currentPriceIfAvailable(for coin: Coin) -> Double? {
-        livePrices[activePriceKey(for: coin)]
+        guard isPricedAsset(coin) else {
+            return nil
+        }
+        return livePrices[activePriceKey(for: coin)]
     }
 
     func currentOrFallbackPriceIfAvailable(for coin: Coin) -> Double? {
+        guard isPricedAsset(coin) else {
+            return nil
+        }
         if let livePrice = currentPriceIfAvailable(for: coin) {
             return livePrice
         }
@@ -12026,7 +11849,7 @@ func resetImportForm() {
     }
     
     private func activePriceKey(for coin: Coin) -> String {
-        coin.holdingKey
+        assetIdentityKey(for: coin)
     }
     
     // Calculates the sum of all coins
@@ -12044,6 +11867,7 @@ func resetImportForm() {
         wallets[walletIndex] = ImportedWallet(
             id: wallet.id,
             name: wallet.name,
+            bitcoinNetworkMode: wallet.bitcoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,
@@ -12149,7 +11973,7 @@ func resetImportForm() {
                 return true
             }
             if let address = wallet.bitcoinAddress,
-               AddressValidation.isValidBitcoinAddress(address, networkMode: bitcoinNetworkMode) {
+               AddressValidation.isValidBitcoinAddress(address, networkMode: wallet.bitcoinNetworkMode) {
                 return true
             }
             if let xpub = wallet.bitcoinXPub,
@@ -12568,6 +12392,120 @@ func resetImportForm() {
         }
     }
 
+    private func fetchBitcoinHistoryPage(
+        for wallet: ImportedWallet,
+        limit: Int,
+        cursor: String?
+    ) async throws -> BitcoinHistoryPage {
+        if cursor == nil,
+           let seedPhrase = storedSeedPhrase(for: wallet.id),
+           !seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let inventory = try? BitcoinWalletEngine.addressInventory(for: wallet, seedPhrase: seedPhrase, scanLimit: 20) {
+            let ownedAddresses = inventory.entries.map(\.address)
+            let indexedAddresses = Array(ownedAddresses.enumerated())
+            let fetchedSnapshots = await collectLimitedConcurrentIndexedResults(from: indexedAddresses, maxConcurrent: 4) { entry in
+                let (index, address) = entry
+                do {
+                    let page = try await BitcoinBalanceService.fetchTransactionPage(
+                        for: address,
+                        networkMode: wallet.bitcoinNetworkMode,
+                        limit: limit,
+                        cursor: nil
+                    )
+                    return (index, page.snapshots)
+                } catch {
+                    return (index, nil)
+                }
+            }
+
+            let mergedSnapshots = mergeBitcoinHistorySnapshots(
+                fetchedSnapshots
+                    .sorted { $0.key < $1.key }
+                    .flatMap(\.value),
+                ownedAddresses: Set(ownedAddresses.map { $0.lowercased() }),
+                limit: limit
+            )
+            if !mergedSnapshots.isEmpty {
+                return BitcoinHistoryPage(
+                    snapshots: mergedSnapshots,
+                    nextCursor: nil,
+                    sourceUsed: "wallet.inventory"
+                )
+            }
+        }
+
+        if let bitcoinAddress = wallet.bitcoinAddress?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !bitcoinAddress.isEmpty {
+            return try await BitcoinBalanceService.fetchTransactionPage(
+                for: bitcoinAddress,
+                networkMode: wallet.bitcoinNetworkMode,
+                limit: limit,
+                cursor: cursor
+            )
+        }
+
+        if let bitcoinXPub = wallet.bitcoinXPub?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !bitcoinXPub.isEmpty {
+            return try await BitcoinBalanceService.fetchTransactionPage(
+                forExtendedPublicKey: bitcoinXPub,
+                limit: limit,
+                cursor: cursor
+            )
+        }
+
+        throw URLError(.fileDoesNotExist)
+    }
+
+    private func mergeBitcoinHistorySnapshots(
+        _ snapshots: [BitcoinHistorySnapshot],
+        ownedAddresses: Set<String>,
+        limit: Int
+    ) -> [BitcoinHistorySnapshot] {
+        let grouped = Dictionary(grouping: snapshots, by: \.txid)
+        let merged = grouped.values.compactMap { entries -> BitcoinHistorySnapshot? in
+            guard !entries.isEmpty else { return nil }
+            let netAmount = entries.reduce(0.0) { partialResult, entry in
+                partialResult + (entry.kind == .receive ? entry.amountBTC : -entry.amountBTC)
+            }
+            guard netAmount != 0 else { return nil }
+
+            let orderedEntries = entries.sorted { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt {
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhs.amountBTC > rhs.amountBTC
+            }
+            let counterpartyAddress = orderedEntries
+                .map(\.counterpartyAddress)
+                .first {
+                    let normalized = $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    return !normalized.isEmpty && !ownedAddresses.contains(normalized)
+                }
+                ?? orderedEntries.first?.counterpartyAddress
+                ?? ""
+            let representative = orderedEntries[0]
+            return BitcoinHistorySnapshot(
+                txid: representative.txid,
+                amountBTC: abs(netAmount),
+                kind: netAmount > 0 ? .receive : .send,
+                status: orderedEntries.contains(where: { $0.status == .pending }) ? .pending : .confirmed,
+                counterpartyAddress: counterpartyAddress,
+                blockHeight: orderedEntries.compactMap(\.blockHeight).max(),
+                createdAt: orderedEntries.map(\.createdAt).max() ?? representative.createdAt
+            )
+        }
+
+        return merged
+            .sorted { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt {
+                    return lhs.createdAt > rhs.createdAt
+                }
+                return lhs.txid < rhs.txid
+            }
+            .prefix(max(1, limit))
+            .map { $0 }
+    }
+
     private func scheduleImportedWalletRefresh(_ createdWallets: [ImportedWallet]) {
         guard !createdWallets.isEmpty else {
             resetLargeMovementAlertBaseline()
@@ -12663,7 +12601,7 @@ func resetImportForm() {
 
             if let bitcoinAddress,
                !bitcoinAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               let fallbackBalance = try? await BitcoinBalanceService.fetchBalance(for: bitcoinAddress, networkMode: self.bitcoinNetworkMode) {
+               let fallbackBalance = try? await BitcoinBalanceService.fetchBalance(for: bitcoinAddress, networkMode: wallet.bitcoinNetworkMode) {
                 return (index, fallbackBalance)
             }
 
@@ -12746,28 +12684,8 @@ func resetImportForm() {
 
             let cursor = loadMore ? bitcoinHistoryCursorByWallet[wallet.id] : nil
             do {
-                let page: BitcoinHistoryPage
-                let identifier: String
-                if let bitcoinAddress = wallet.bitcoinAddress?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !bitcoinAddress.isEmpty {
-                    page = try await BitcoinBalanceService.fetchTransactionPage(
-                        for: bitcoinAddress,
-                        networkMode: bitcoinNetworkMode,
-                        limit: requestedLimit,
-                        cursor: cursor
-                    )
-                    identifier = bitcoinAddress
-                } else if let bitcoinXPub = wallet.bitcoinXPub?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !bitcoinXPub.isEmpty {
-                    page = try await BitcoinBalanceService.fetchTransactionPage(
-                        forExtendedPublicKey: bitcoinXPub,
-                        limit: requestedLimit,
-                        cursor: cursor
-                    )
-                    identifier = bitcoinXPub
-                } else {
-                    continue
-                }
+                let page = try await fetchBitcoinHistoryPage(for: wallet, limit: requestedLimit, cursor: cursor)
+                let identifier = wallet.bitcoinAddress ?? wallet.bitcoinXPub ?? wallet.name
 
                 bitcoinHistoryCursorByWallet[wallet.id] = page.nextCursor
                 if page.nextCursor == nil {
@@ -16822,30 +16740,15 @@ func resetImportForm() {
 
         for wallet in btcWallets {
             do {
-                let page: BitcoinHistoryPage
-                let identifier: String
-                if let bitcoinAddress = wallet.bitcoinAddress?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   !bitcoinAddress.isEmpty {
-                    page = try await withTimeout(seconds: 20) {
-                        try await BitcoinBalanceService.fetchTransactionPage(
-                            for: bitcoinAddress,
-                            networkMode: self.bitcoinNetworkMode,
-                            limit: HistoryPaging.endpointBatchSize,
-                            cursor: nil
-                        )
-                    }
-                    identifier = bitcoinAddress
-                } else if let bitcoinXPub = wallet.bitcoinXPub?.trimmingCharacters(in: .whitespacesAndNewlines),
-                          !bitcoinXPub.isEmpty {
-                    page = try await withTimeout(seconds: 20) {
-                        try await BitcoinBalanceService.fetchTransactionPage(
-                            forExtendedPublicKey: bitcoinXPub,
-                            limit: HistoryPaging.endpointBatchSize,
-                            cursor: nil
-                        )
-                    }
-                    identifier = bitcoinXPub
-                } else {
+                let page = try await withTimeout(seconds: 20) {
+                    try await self.fetchBitcoinHistoryPage(
+                        for: wallet,
+                        limit: HistoryPaging.endpointBatchSize,
+                        cursor: nil
+                    )
+                }
+                let identifier = wallet.bitcoinAddress ?? wallet.bitcoinXPub ?? wallet.name
+                if identifier.isEmpty {
                     bitcoinHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
                         walletID: wallet.id,
                         identifier: "missing address/xpub",
@@ -16888,30 +16791,15 @@ func resetImportForm() {
         defer { isRunningBitcoinHistoryDiagnostics = false }
 
         do {
-            let page: BitcoinHistoryPage
-            let identifier: String
-            if let bitcoinAddress = wallet.bitcoinAddress?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !bitcoinAddress.isEmpty {
-                page = try await withTimeout(seconds: 20) {
-                    try await BitcoinBalanceService.fetchTransactionPage(
-                        for: bitcoinAddress,
-                        networkMode: self.bitcoinNetworkMode,
-                        limit: HistoryPaging.endpointBatchSize,
-                        cursor: nil
-                    )
-                }
-                identifier = bitcoinAddress
-            } else if let bitcoinXPub = wallet.bitcoinXPub?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !bitcoinXPub.isEmpty {
-                page = try await withTimeout(seconds: 20) {
-                    try await BitcoinBalanceService.fetchTransactionPage(
-                        forExtendedPublicKey: bitcoinXPub,
-                        limit: HistoryPaging.endpointBatchSize,
-                        cursor: nil
-                    )
-                }
-                identifier = bitcoinXPub
-            } else {
+            let page = try await withTimeout(seconds: 20) {
+                try await self.fetchBitcoinHistoryPage(
+                    for: wallet,
+                    limit: HistoryPaging.endpointBatchSize,
+                    cursor: nil
+                )
+            }
+            let identifier = wallet.bitcoinAddress ?? wallet.bitcoinXPub ?? wallet.name
+            if identifier.isEmpty {
                 bitcoinHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
                     walletID: wallet.id,
                     identifier: "missing address/xpub",
@@ -19418,17 +19306,7 @@ func resetImportForm() {
             tronDiagnosticsJSON: tronDiagnosticsJSON() ?? "{}",
             solanaDiagnosticsJSON: solanaDiagnosticsJSON() ?? "{}",
             stellarDiagnosticsJSON: stellarDiagnosticsJSON() ?? "{}",
-            historySourceConfidenceSummary: diagnosticsHistorySourceConfidenceSummary()
         )
-    }
-
-    private func diagnosticsHistorySourceConfidenceSummary() -> [String: Int] {
-        var counts: [String: Int] = [:]
-        for entry in normalizedHistoryIndex {
-            let key = "\(entry.chainName)|\(entry.sourceTag)|\(entry.sourceConfidenceTag)"
-            counts[key, default: 0] += 1
-        }
-        return counts
     }
 
     func runEthereumEndpointReachabilityDiagnostics() async {
@@ -19692,7 +19570,10 @@ func resetImportForm() {
             guard let transactionHash = transaction.transactionHash else { continue }
             guard shouldPollTransactionStatus(for: transaction, now: now) else { continue }
             do {
-                let status = try await BitcoinBalanceService.fetchTransactionStatus(txid: transactionHash, networkMode: self.bitcoinNetworkMode)
+                let walletNetworkMode = transaction.walletID
+                    .flatMap { walletID in wallets.first(where: { $0.id == walletID })?.bitcoinNetworkMode }
+                    ?? self.bitcoinNetworkMode
+                let status = try await BitcoinBalanceService.fetchTransactionStatus(txid: transactionHash, networkMode: walletNetworkMode)
                 let resolvedStatus: TransactionStatus = status.confirmed ? .confirmed : .pending
                 markTransactionStatusPollSuccess(for: transaction, resolvedStatus: resolvedStatus, now: now)
                 resolvedStatuses[transaction.id] = PendingTransactionStatusResolution(
@@ -20225,52 +20106,6 @@ func resetImportForm() {
         UserDefaults.standard.set(data, forKey: Self.chainOperationalEventsDefaultsKey)
     }
 
-    private func broadcastProviderReliabilityCounterKey(chainName: String, providerID: String) -> String {
-        "\(chainName)::\(providerID)"
-    }
-
-    private func loadChainBroadcastProviderReliabilityCounters() -> [String: BroadcastProviderReliabilityCounter] {
-        guard let data = UserDefaults.standard.data(forKey: Self.chainBroadcastProviderReliabilityDefaultsKey),
-              let decoded = try? JSONDecoder().decode([String: BroadcastProviderReliabilityCounter].self, from: data) else {
-            return [:]
-        }
-        return decoded
-    }
-
-    private func saveChainBroadcastProviderReliabilityCounters(_ counters: [String: BroadcastProviderReliabilityCounter]) {
-        guard let data = try? JSONEncoder().encode(counters) else { return }
-        UserDefaults.standard.set(data, forKey: Self.chainBroadcastProviderReliabilityDefaultsKey)
-    }
-
-    private func recordBroadcastProviderReliability(
-        for chainName: String,
-        providerIDs: Set<String>? = nil,
-        success: Bool
-    ) {
-        guard chainName != "Dogecoin" else {
-            refreshDogecoinBroadcastProviderReliability()
-            return
-        }
-        let effectiveProviderIDs = providerIDs ?? selectedBroadcastProviderIDs(for: chainName)
-        guard !effectiveProviderIDs.isEmpty else { return }
-
-        var counters = loadChainBroadcastProviderReliabilityCounters()
-        let now = Date().timeIntervalSince1970
-        for providerID in effectiveProviderIDs {
-            let key = broadcastProviderReliabilityCounterKey(chainName: chainName, providerID: providerID)
-            var counter = counters[key] ?? BroadcastProviderReliabilityCounter(successCount: 0, failureCount: 0, lastUpdatedAt: 0)
-            if success {
-                counter.successCount += 1
-            } else {
-                counter.failureCount += 1
-            }
-            counter.lastUpdatedAt = now
-            counters[key] = counter
-        }
-        saveChainBroadcastProviderReliabilityCounters(counters)
-        refreshBroadcastProviderReliability(for: chainName)
-    }
-
     private func noteSendBroadcastQueued(for transaction: TransactionRecord) {
         appendChainOperationalEvent(
             .info,
@@ -20285,7 +20120,6 @@ func resetImportForm() {
         verificationStatus: SendBroadcastVerificationStatus,
         transactionHash: String?
     ) {
-        recordBroadcastProviderReliability(for: chainName, success: true)
         switch verificationStatus {
         case .verified:
             appendChainOperationalEvent(
@@ -20312,7 +20146,6 @@ func resetImportForm() {
     }
 
     private func noteSendBroadcastFailure(for chainName: String, message: String) {
-        recordBroadcastProviderReliability(for: chainName, success: false)
         appendChainOperationalEvent(.error, chainName: chainName, message: "Send failed: \(message)")
     }
 
@@ -20872,9 +20705,11 @@ func resetImportForm() {
         )
         var uniqueWalletPriceRequestCoinsByHoldingKey: [String: Coin] = [:]
         var uniqueWalletPriceRequestCoinOrder: [String] = []
-        for coin in wallets.flatMap(\.holdings) where uniqueWalletPriceRequestCoinsByHoldingKey[coin.holdingKey] == nil {
-            uniqueWalletPriceRequestCoinsByHoldingKey[coin.holdingKey] = coin
-            uniqueWalletPriceRequestCoinOrder.append(coin.holdingKey)
+        for coin in wallets.flatMap(\.holdings) where isPricedAsset(coin) {
+            let key = assetIdentityKey(for: coin)
+            guard uniqueWalletPriceRequestCoinsByHoldingKey[key] == nil else { continue }
+            uniqueWalletPriceRequestCoinsByHoldingKey[key] = coin
+            uniqueWalletPriceRequestCoinOrder.append(key)
         }
         cachedUniqueWalletPriceRequestCoins = uniqueWalletPriceRequestCoinOrder.compactMap { uniqueWalletPriceRequestCoinsByHoldingKey[$0] }
 
@@ -20922,8 +20757,9 @@ func resetImportForm() {
         cachedPrivateKeyBackedWalletIDs = privateKeyBackedWalletIDs
 
         for coin in cachedIncludedPortfolioHoldings {
-            if let existing = groupedPortfolio[coin.holdingKey] {
-                groupedPortfolio[coin.holdingKey] = Coin(
+            let key = assetIdentityKey(for: coin)
+            if let existing = groupedPortfolio[key] {
+                groupedPortfolio[key] = Coin(
                     name: existing.name,
                     symbol: existing.symbol,
                     marketDataID: existing.marketDataID,
@@ -20937,8 +20773,8 @@ func resetImportForm() {
                     color: existing.color
                 )
             } else {
-                groupedPortfolio[coin.holdingKey] = coin
-                portfolioOrder.append(coin.holdingKey)
+                groupedPortfolio[key] = coin
+                portfolioOrder.append(key)
             }
         }
 

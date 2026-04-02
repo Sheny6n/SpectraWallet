@@ -58,17 +58,17 @@ enum TronWalletEngine {
     private static func isSupportedUSDTContract(_ contractAddress: String) -> Bool {
         contractAddress.caseInsensitiveCompare(TronBalanceService.usdtTronContract) == .orderedSame
     }
-    private static let defaultTRXFeeTRX = 1.0
-    private static let defaultTRC20FeeTRX = 30.0
-    private static let defaultEnergyPriceSun = 420.0
-    private static let defaultBandwidthFeeTRX = 0.30
+    private static let estimatedTRXTransferBytes: Int64 = 300
 
-    private static func estimatedTRC20FeeTRX(energyUsed: Int64?) -> Double {
-        guard let energyUsed else {
-            return defaultTRC20FeeTRX
-        }
-        let energyFeeTRX = (Double(energyUsed) * defaultEnergyPriceSun) / 1_000_000.0
-        return max(defaultBandwidthFeeTRX, energyFeeTRX + defaultBandwidthFeeTRX)
+    private struct TronFeeParameters {
+        let energyFeeSun: Int64
+        let transactionFeeSun: Int64
+    }
+
+    private static func estimatedTRC20FeeTRX(energyUsed: Int64, parameters: TronFeeParameters) -> Double {
+        let energyFeeTRX = Double(energyUsed * parameters.energyFeeSun) / 1_000_000.0
+        let bandwidthFeeTRX = Double(parameters.transactionFeeSun * estimatedTRXTransferBytes) / 1_000_000.0
+        return max(bandwidthFeeTRX, energyFeeTRX + bandwidthFeeTRX)
     }
 
     static func estimateSendPreview(
@@ -88,13 +88,14 @@ enum TronWalletEngine {
 
         if symbol == "TRX" {
             let balances = try await TronBalanceService.fetchBalances(for: ownerAddress)
-            let maxSendable = max(0, balances.trxBalance - defaultTRXFeeTRX)
+            let estimatedTRXFee = try await fetchEstimatedTRXTransferFee(ownerAddress: ownerAddress)
+            let maxSendable = max(0, balances.trxBalance - estimatedTRXFee)
             return TronSendPreview(
-                estimatedNetworkFeeTRX: defaultTRXFeeTRX,
+                estimatedNetworkFeeTRX: estimatedTRXFee,
                 feeLimitSun: 0,
-                simulationUsed: false,
+                simulationUsed: true,
                 spendableBalance: maxSendable,
-                feeRateDescription: nil,
+                feeRateDescription: "Live bandwidth estimate",
                 estimatedTransactionBytes: nil,
                 selectedInputCount: nil,
                 usesChangeOutput: nil,
@@ -120,15 +121,19 @@ enum TronWalletEngine {
             contractAddress: contractAddress,
             parameter: parameter
         )
+        guard let energyUsed = simulation.energyUsed else {
+            throw TronWalletEngineError.createTransactionFailed("Tron token fee simulation did not return energy usage.")
+        }
+        let feeParameters = try await fetchTronFeeParameters()
 
         let balances = try await TronBalanceService.fetchBalances(for: ownerAddress)
         let tokenBalance = balances.tokenBalances.first(where: { $0.symbol == symbol })?.balance ?? 0
         return TronSendPreview(
-            estimatedNetworkFeeTRX: estimatedTRC20FeeTRX(energyUsed: simulation.energyUsed),
+            estimatedNetworkFeeTRX: estimatedTRC20FeeTRX(energyUsed: energyUsed, parameters: feeParameters),
             feeLimitSun: simulation.feeLimitSun,
-            simulationUsed: simulation.energyUsed != nil,
+            simulationUsed: true,
             spendableBalance: tokenBalance,
-            feeRateDescription: simulation.energyUsed.map { "\($0) energy" },
+            feeRateDescription: "\(energyUsed) energy",
             estimatedTransactionBytes: nil,
             selectedInputCount: nil,
             usesChangeOutput: nil,
@@ -187,9 +192,10 @@ enum TronWalletEngine {
             let signedTransaction = try signRawTransaction(unsignedTx, privateKey: material.privateKeyData)
             let txid = try await broadcastSignedTransaction(signedTransaction, providerIDs: providerIDs)
             let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
+            let estimatedTRXFee = try await fetchEstimatedTRXTransferFee(ownerAddress: ownerAddress)
             return TronSendResult(
                 transactionHash: txid,
-                estimatedNetworkFeeTRX: defaultTRXFeeTRX,
+                estimatedNetworkFeeTRX: estimatedTRXFee,
                 signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
                 verificationStatus: verificationStatus
             )
@@ -213,6 +219,10 @@ enum TronWalletEngine {
             contractAddress: contractAddress,
             parameter: parameter
         )
+        guard let energyUsed = simulation.energyUsed else {
+            throw TronWalletEngineError.createTransactionFailed("Tron token fee simulation did not return energy usage.")
+        }
+        let feeParameters = try await fetchTronFeeParameters()
 
         let unsignedTx = try await createTRC20TransferTransaction(
             ownerAddress: ownerAddress,
@@ -226,7 +236,7 @@ enum TronWalletEngine {
 
         return TronSendResult(
             transactionHash: txid,
-            estimatedNetworkFeeTRX: estimatedTRC20FeeTRX(energyUsed: simulation.energyUsed),
+            estimatedNetworkFeeTRX: estimatedTRC20FeeTRX(energyUsed: energyUsed, parameters: feeParameters),
             signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
             verificationStatus: verificationStatus
         )
@@ -270,9 +280,10 @@ enum TronWalletEngine {
             let signedTransaction = try signRawTransaction(unsignedTx, privateKey: material.privateKeyData)
             let txid = try await broadcastSignedTransaction(signedTransaction, providerIDs: providerIDs)
             let verificationStatus = await verifyBroadcastedTransactionIfAvailable(txid: txid, providerIDs: providerIDs)
+            let estimatedTRXFee = try await fetchEstimatedTRXTransferFee(ownerAddress: ownerAddress)
             return TronSendResult(
                 transactionHash: txid,
-                estimatedNetworkFeeTRX: defaultTRXFeeTRX,
+                estimatedNetworkFeeTRX: estimatedTRXFee,
                 signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
                 verificationStatus: verificationStatus
             )
@@ -296,6 +307,10 @@ enum TronWalletEngine {
             contractAddress: contractAddress,
             parameter: parameter
         )
+        guard let energyUsed = simulation.energyUsed else {
+            throw TronWalletEngineError.createTransactionFailed("Tron token fee simulation did not return energy usage.")
+        }
+        let feeParameters = try await fetchTronFeeParameters()
 
         let unsignedTx = try await createTRC20TransferTransaction(
             ownerAddress: ownerAddress,
@@ -309,7 +324,7 @@ enum TronWalletEngine {
 
         return TronSendResult(
             transactionHash: txid,
-            estimatedNetworkFeeTRX: estimatedTRC20FeeTRX(energyUsed: simulation.energyUsed),
+            estimatedNetworkFeeTRX: estimatedTRC20FeeTRX(energyUsed: energyUsed, parameters: feeParameters),
             signedTransactionJSON: encodedSignedTransactionJSON(signedTransaction),
             verificationStatus: verificationStatus
         )
@@ -493,18 +508,19 @@ enum TronWalletEngine {
             errorPrefix: "Tron transfer simulation failed"
         )
 
-        var feeLimitSun: Int64 = Int64(defaultTRC20FeeTRX * 1_000_000.0)
         if let energyUsed = (response["energy_used"] as? NSNumber)?.int64Value {
-            let estimatedEnergyFeeSun = Int64(Double(energyUsed) * defaultEnergyPriceSun)
-            feeLimitSun = max(feeLimitSun, estimatedEnergyFeeSun + 2_000_000)
+            let feeParameters = try await fetchTronFeeParameters()
+            let estimatedEnergyFeeSun = energyUsed * feeParameters.energyFeeSun
+            let bandwidthHeadroomSun = feeParameters.transactionFeeSun * estimatedTRXTransferBytes
+            let feeLimitSun = max(estimatedEnergyFeeSun + bandwidthHeadroomSun, estimatedEnergyFeeSun + 2_000_000)
             return TRC20SimulationResult(energyUsed: energyUsed, feeLimitSun: feeLimitSun)
         }
 
         if let energyFee = (response["energy_fee"] as? NSNumber)?.int64Value {
-            feeLimitSun = max(feeLimitSun, energyFee + 2_000_000)
+            return TRC20SimulationResult(energyUsed: nil, feeLimitSun: energyFee + 2_000_000)
         }
 
-        return TRC20SimulationResult(energyUsed: nil, feeLimitSun: feeLimitSun)
+        throw TronWalletEngineError.createTransactionFailed("Tron token fee simulation did not return fee data.")
     }
 
     private static func signRawTransaction(_ transaction: [String: Any], privateKey: Data) throws -> [String: Any] {
@@ -614,6 +630,76 @@ enum TronWalletEngine {
             }
         }
         throw lastError ?? TronWalletEngineError.createTransactionFailed("\(errorPrefix): all providers failed.")
+    }
+
+    private static func fetchEstimatedTRXTransferFee(ownerAddress: String) async throws -> Double {
+        let resource = try await postJSON(
+            path: "/wallet/getaccountresource",
+            payload: ["address": ownerAddress, "visible": true],
+            profile: .chainRead,
+            expectedKey: "freeNetLimit",
+            errorPrefix: "Failed to fetch Tron account resources"
+        )
+        let parameters = try await postJSON(
+            path: "/wallet/getchainparameters",
+            payload: ["visible": true],
+            profile: .chainRead,
+            expectedKey: "chainParameter",
+            errorPrefix: "Failed to fetch Tron chain parameters"
+        )
+
+        let freeNetLimit = int64Value(resource["freeNetLimit"]) ?? 0
+        let freeNetUsed = int64Value(resource["freeNetUsed"]) ?? 0
+        let netLimit = int64Value(resource["NetLimit"]) ?? 0
+        let netUsed = int64Value(resource["NetUsed"]) ?? 0
+        let availableBandwidth = max(0, (freeNetLimit - freeNetUsed) + (netLimit - netUsed))
+        let billableBytes = max(0, estimatedTRXTransferBytes - availableBandwidth)
+        guard let sunPerByte = chainParameterValue(
+            parameters["chainParameter"],
+            names: ["getTransactionFee"]
+        ) else {
+            throw TronWalletEngineError.createTransactionFailed("Tron chain parameters did not include transaction fee pricing.")
+        }
+        return (Double(billableBytes) * Double(sunPerByte)) / 1_000_000.0
+    }
+
+    private static func fetchTronFeeParameters() async throws -> TronFeeParameters {
+        let parameters = try await postJSON(
+            path: "/wallet/getchainparameters",
+            payload: ["visible": true],
+            profile: .chainRead,
+            expectedKey: "chainParameter",
+            errorPrefix: "Failed to fetch Tron chain parameters"
+        )
+        guard let energyFeeSun = chainParameterValue(parameters["chainParameter"], names: ["getEnergyFee"]),
+              let transactionFeeSun = chainParameterValue(parameters["chainParameter"], names: ["getTransactionFee"]) else {
+            throw TronWalletEngineError.createTransactionFailed("Tron chain parameters did not include fee pricing.")
+        }
+        return TronFeeParameters(energyFeeSun: energyFeeSun, transactionFeeSun: transactionFeeSun)
+    }
+
+    private static func chainParameterValue(_ raw: Any?, names: Set<String>) -> Int64? {
+        guard let rows = raw as? [[String: Any]] else { return nil }
+        for row in rows {
+            guard let key = row["key"] as? String,
+                  names.contains(key),
+                  let value = int64Value(row["value"]) else {
+                continue
+            }
+            return value
+        }
+        return nil
+    }
+
+    private static func int64Value(_ raw: Any?) -> Int64? {
+        switch raw {
+        case let number as NSNumber:
+            return number.int64Value
+        case let string as String:
+            return Int64(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
+        }
     }
 
     private static func orderedBroadcastBaseURLs(providerIDs: Set<String>? = nil) -> [String] {

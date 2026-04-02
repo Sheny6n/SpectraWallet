@@ -20,8 +20,7 @@ enum DogecoinChainSelfTestSuite {
 
     private static func testAddressValidationMainnet() -> ChainSelfTestResult {
         let validMainnet = "DBus3bamQjgJULBJtYXpEzDWQRwF5iwxgC"
-        let passed = AddressValidation.isValidDogecoinAddress(validMainnet, allowTestnet: false)
-            || AddressValidation.isValidDogecoinAddress(validMainnet, allowTestnet: true)
+        let passed = AddressValidation.isValidDogecoinAddress(validMainnet)
         return ChainSelfTestResult(
             name: "DOGE Address Mainnet Validation",
             passed: passed,
@@ -30,7 +29,7 @@ enum DogecoinChainSelfTestSuite {
     }
 
     private static func testAddressValidationRejectsGarbage() -> ChainSelfTestResult {
-        let passed = !AddressValidation.isValidDogecoinAddress("not_a_real_address", allowTestnet: true)
+        let passed = !AddressValidation.isValidDogecoinAddress("not_a_real_address")
         return ChainSelfTestResult(
             name: "DOGE Address Rejects Invalid",
             passed: passed,
@@ -40,7 +39,7 @@ enum DogecoinChainSelfTestSuite {
 
     private static func testAddressValidationRejectsChecksumMutation() -> ChainSelfTestResult {
         let mutatedAddress = "DA7Q2K7f1k3wX6sVzP8fCBxNf31xHn3v7H"
-        let passed = !AddressValidation.isValidDogecoinAddress(mutatedAddress, allowTestnet: true)
+        let passed = !AddressValidation.isValidDogecoinAddress(mutatedAddress)
         return ChainSelfTestResult(
             name: "DOGE Address Rejects Bad Checksum",
             passed: passed,

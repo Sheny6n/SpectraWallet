@@ -302,6 +302,7 @@ struct DashboardView: View {
             } else {
                 ForEach(portfolioState.wallets) { wallet in
                     WalletCardView(
+                        store: store,
                         presentation: WalletCardView.Presentation(
                             wallet: wallet,
                             totalValueText: store.hideBalances
@@ -659,7 +660,7 @@ struct AssetGroupDetailView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(store.displayNetworkName(for: entry.coin.chainName))
+                                        Text(store.displayChainTitle(for: entry.coin.chainName))
                                             .font(.headline)
                                         Text(entry.coin.tokenStandard)
                                             .font(.caption)
@@ -880,7 +881,7 @@ struct PortfolioWalletSelectionView: View {
             Section {
                 ForEach(portfolioState.wallets) { wallet in
                     Toggle(isOn: binding(for: wallet.id)) {
-                        PortfolioWalletToggleRowView(wallet: wallet)
+                        PortfolioWalletToggleRowView(store: store, wallet: wallet)
                     }
                 }
             } header: {

@@ -13,7 +13,6 @@ struct EndpointCatalogSettingsView: View {
             wrappedValue: ViewRefreshSignal([
                 store.$bitcoinEsploraEndpoints.asVoidSignal(),
                 store.$bitcoinNetworkMode.asVoidSignal(),
-                store.$dogecoinAllowTestnet.asVoidSignal(),
                 store.$ethereumNetworkMode.asVoidSignal(),
                 store.$ethereumRPCEndpoint.asVoidSignal(),
                 store.$moneroBackendBaseURL.asVoidSignal()
@@ -122,24 +121,6 @@ struct EndpointCatalogSettingsView: View {
         EVMChainContext.hyperliquid.defaultRPCEndpoints
     }
 
-    private var dogecoinEndpoints: [String] {
-        DogecoinBalanceService.endpointCatalog()
-    }
-
-    private var dogecoinEndpointsByNetwork: [(title: String, endpoints: [String])] {
-        DogecoinNetworkMode.allCases.map { mode in
-            let title = mode == .mainnet ? "Dogecoin" : "Dogecoin \(mode.displayName)"
-            let endpoints = mode == .mainnet
-                ? [
-                    ChainBackendRegistry.DogecoinRuntimeEndpoints.blockchairBaseURL,
-                    ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherBaseURL,
-                    ChainBackendRegistry.DogecoinRuntimeEndpoints.dogechainBaseURL,
-                ]
-                : [ChainBackendRegistry.DogecoinRuntimeEndpoints.testnetElectrsBaseURL]
-            return (title: title, endpoints: endpoints)
-        }
-    }
-
     private var moneroEndpoints: [String] {
         let trimmed = store.moneroBackendBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
@@ -222,9 +203,7 @@ struct EndpointCatalogSettingsView: View {
             case .litecoin:
                 endpointRows(LitecoinBalanceService.endpointCatalog())
             case .dogecoin:
-                ForEach(dogecoinEndpointsByNetwork, id: \.title) { group in
-                    namedEndpointGroup(title: group.title, endpoints: group.endpoints)
-                }
+                endpointRows(DogecoinBalanceService.endpointCatalog())
             case .ethereum:
                 ForEach(ethereumEndpointsByNetwork, id: \.title) { group in
                     namedEndpointGroup(title: group.title, endpoints: group.endpoints)

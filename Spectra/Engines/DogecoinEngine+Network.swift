@@ -2,18 +2,6 @@ import Foundation
 
 extension DogecoinWalletEngine {
     static func fetchSpendableUTXOs(for address: String) throws -> [DogecoinUTXO] {
-        if networkMode == .testnet {
-            let utxos = try fetchElectrsUTXOs(for: address)
-            if !utxos.isEmpty {
-                cacheUTXOs(utxos, for: address)
-                return utxos
-            }
-            if let cached = cachedUTXOs(for: address) {
-                return cached
-            }
-            return []
-        }
-
         var providerErrors: [String] = []
         var providerResults: [UTXOProvider: [DogecoinUTXO]] = [:]
 
@@ -120,10 +108,6 @@ extension DogecoinWalletEngine {
         URL(string: ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherBaseURL + path)
     }
 
-    static func electrsURL(path: String) -> URL? {
-        URL(string: ChainBackendRegistry.DogecoinRuntimeEndpoints.testnetElectrsBaseURL + path)
-    }
-
     static func normalizedAddressCacheKey(_ address: String) -> String {
         address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
@@ -199,40 +183,9 @@ extension DogecoinWalletEngine {
         }
     }
 
-    static func fetchElectrsUTXOs(for address: String) throws -> [DogecoinUTXO] {
-        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = electrsURL(path: "/address/\(encodedAddress)/utxo") else {
-            throw DogecoinWalletEngineError.networkFailure("Invalid Dogecoin testnet address URL.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        let data = try performSynchronousRequest(
-            request,
-            timeout: networkTimeoutSeconds,
-            retries: networkRetryCount
-        )
-        let payload = try JSONDecoder().decode([ElectrsUTXO].self, from: data)
-        return payload.map {
-            DogecoinUTXO(transactionHash: $0.txid, index: $0.vout, value: UInt64(max(0, $0.value)))
-        }
-    }
-
-    static func resolveNetworkFeeRateDOGEPerKB(feePriority: FeePriority) -> Double {
-        let deterministicFallback: Double
-        switch feePriority {
-        case .economy:
-            deterministicFallback = minRelayFeePerKB
-        case .normal:
-            deterministicFallback = max(minRelayFeePerKB, 0.015)
-        case .priority:
-            deterministicFallback = max(minRelayFeePerKB, 0.03)
-        }
-        if networkMode == .testnet {
-            return adjustedFeeRateDOGEPerKB(baseRate: deterministicFallback, feePriority: feePriority)
-        }
-        let candidates = (try? fetchBlockCypherFeeRateCandidatesDOGEPerKB()) ?? []
-        let baseRate = candidates.isEmpty ? deterministicFallback : candidates.sorted()[candidates.count / 2]
+    static func resolveNetworkFeeRateDOGEPerKB(feePriority: FeePriority) throws -> Double {
+        let candidates = try fetchBlockCypherFeeRateCandidatesDOGEPerKB()
+        let baseRate = candidates.sorted()[candidates.count / 2]
         let boundedRate = max(minRelayFeePerKB, min(baseRate, 10))
         return adjustedFeeRateDOGEPerKB(baseRate: boundedRate, feePriority: feePriority)
     }

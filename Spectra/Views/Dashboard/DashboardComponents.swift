@@ -107,13 +107,13 @@ struct DashboardPinnedAssetRowView: View {
 }
 
 struct PortfolioWalletToggleRowView: View {
-    @EnvironmentObject private var store: WalletStore
+    let store: WalletStore
     let wallet: ImportedWallet
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(wallet.name)
-            Text(store.displayNetworkName(for: wallet.selectedChain))
+            Text(store.displayChainTitle(for: wallet))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

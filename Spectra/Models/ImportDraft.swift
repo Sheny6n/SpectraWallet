@@ -92,7 +92,6 @@ final class WalletImportDraft: ObservableObject {
     @Published var icpAddressInput: String = ""
     @Published var nearAddressInput: String = ""
     @Published var polkadotAddressInput: String = ""
-    @Published var allowDogecoinTestnet: Bool = false
     @Published var selectedChainNamesStorage: [String] = [] {
         didSet { refreshSelectionState() }
     }
@@ -253,7 +252,7 @@ final class WalletImportDraft: ObservableObject {
             || BitcoinWalletEngine.isLikelyExtendedPublicKey(trimmedBitcoinXPub)
         let hasValidDogecoinAddress = !wantsDogecoin
             || !isWatchOnlyMode
-            || dogecoinAddressEntries.allSatisfy { AddressValidation.isValidDogecoinAddress($0, allowTestnet: allowDogecoinTestnet) }
+            || dogecoinAddressEntries.allSatisfy(AddressValidation.isValidDogecoinAddress)
         let hasValidBitcoinCashAddress = !wantsBitcoinCash
             || !isWatchOnlyMode
             || bitcoinCashAddressEntries.allSatisfy(AddressValidation.isValidBitcoinCashAddress)

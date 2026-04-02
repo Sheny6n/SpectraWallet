@@ -568,7 +568,12 @@ struct HistoryView: View {
             transaction: transaction,
             amountText: signedAmountText(for: transaction),
             amountColor: amountColor(for: transaction),
-            subtitleText: transaction.subtitleText,
+            subtitleText: String(
+                format: CommonLocalizationContent.current.transactionSubtitleFormat,
+                transaction.assetName,
+                store.displayChainTitle(for: transaction),
+                transaction.walletName
+            ),
             statusText: transaction.statusText,
             fullTimestampText: transaction.fullTimestampText,
             metadataText: transaction.historyMetadataText

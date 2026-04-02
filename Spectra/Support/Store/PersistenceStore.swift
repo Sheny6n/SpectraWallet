@@ -149,6 +149,7 @@ extension WalletStore {
         return ImportedWallet(
             id: wallet.id,
             name: wallet.name,
+            bitcoinNetworkMode: wallet.bitcoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,

@@ -54,7 +54,6 @@ struct TONSendResult: Equatable {
 
 enum TONWalletEngine {
     private static let tonDivisor = Decimal(string: "1000000000")!
-    private static let fallbackFeeTON = 0.005
     private static let expirationWindowSeconds: UInt32 = 600
     private static let endpointReliabilityNamespace = "ton.api.v2"
 
@@ -112,19 +111,9 @@ enum TONWalletEngine {
             throw TONWalletEngineError.invalidAmount
         }
 
-        let info = try await fetchWalletInformation(for: normalizedOwner)
-        let balanceTON = try await TONBalanceService.fetchBalance(for: normalizedOwner)
-        let maxSendable = max(0, balanceTON - fallbackFeeTON)
-        return TONSendPreview(
-            estimatedNetworkFeeTON: fallbackFeeTON,
-            sequenceNumber: info.seqno ?? 0,
-            spendableBalance: maxSendable,
-            feeRateDescription: nil,
-            estimatedTransactionBytes: nil,
-            selectedInputCount: nil,
-            usesChangeOutput: nil,
-            maxSendable: maxSendable
-        )
+        _ = try await fetchWalletInformation(for: normalizedOwner)
+        _ = try await TONBalanceService.fetchBalance(for: normalizedOwner)
+        throw TONWalletEngineError.networkError("TON live fee estimation is unavailable with the current endpoint setup.")
     }
 
     static func sendInBackground(

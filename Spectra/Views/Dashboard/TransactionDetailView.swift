@@ -88,7 +88,14 @@ struct HistoryDetailView: View {
                                 Text(displayedTransaction.titleText)
                                     .font(.title3.bold())
                                     .foregroundStyle(Color.primary)
-                                Text(displayedTransaction.subtitleText)
+                                Text(
+                                    String(
+                                        format: CommonLocalizationContent.current.transactionSubtitleFormat,
+                                        displayedTransaction.assetName,
+                                        store.displayChainTitle(for: displayedTransaction),
+                                        displayedTransaction.walletName
+                                    )
+                                )
                                     .font(.subheadline)
                                     .foregroundStyle(Color.primary.opacity(0.74))
                             }
@@ -115,16 +122,13 @@ struct HistoryDetailView: View {
                         detailRow(label: "Status", value: displayedTransaction.statusText)
                         detailRow(label: "Wallet", value: displayedTransaction.walletName)
                         detailRow(label: "Asset", value: displayedTransaction.assetName)
-                        detailRow(label: "Network", value: displayedTransaction.chainName)
+                        detailRow(label: "Network", value: store.displayChainTitle(for: displayedTransaction))
                         detailRow(label: "Timestamp", value: displayedTransaction.fullTimestampText)
                         if let amountText = store.formattedTransactionDetailAmount(displayedTransaction) {
                             detailRow(label: "Amount", value: amountText)
                         }
                         if let historySourceText = displayedTransaction.historySourceText {
                             detailRow(label: "History Source", value: historySourceText)
-                        }
-                        if let historySourceConfidenceText = displayedTransaction.historySourceConfidenceText {
-                            detailRow(label: "Source Confidence", value: historySourceConfidenceText)
                         }
                         if let receiptBlockNumberText = displayedTransaction.receiptBlockNumberText {
                             detailRow(label: "Block", value: receiptBlockNumberText)
