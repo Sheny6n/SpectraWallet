@@ -58,25 +58,21 @@ enum SolanaBalanceService {
     private static let legacyTokenProgramID = TokenProgram.id.base58EncodedString
     // Canonical Token-2022 program id on Solana mainnet.
     private static let token2022ProgramID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-    private static let solanaRPCBases = ChainBackendRegistry.SolanaRuntimeEndpoints.balanceRPCBaseURLs
-
     static func endpointCatalog() -> [String] {
-        solanaRPCBases
+        SolanaProvider.balanceEndpointCatalog()
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpointCatalog().map { endpoint in
-            (endpoint: endpoint, probeURL: endpoint)
-        }
+        SolanaProvider.diagnosticsChecks()
     }
 
     private static func rpcClient(baseURL: String) -> SolanaAPIClient {
-        JSONRPCAPIClient(endpoint: APIEndPoint(address: baseURL, network: .mainnetBeta))
+        SolanaProvider.rpcClient(baseURL: baseURL)
     }
 
     private static func withRPCClient<T>(_ operation: (SolanaAPIClient) async throws -> T) async throws -> T {
         var lastError: Error?
-        for baseURL in solanaRPCBases {
+        for baseURL in SolanaProvider.balanceRPCBaseURLs {
             do {
                 return try await operation(rpcClient(baseURL: baseURL))
             } catch {
@@ -654,7 +650,7 @@ enum SolanaBalanceService {
         let programs = [legacyTokenProgramID, token2022ProgramID]
         var lastError: Error?
 
-        for baseURL in solanaRPCBases {
+        for baseURL in SolanaProvider.balanceRPCBaseURLs {
             var rawByMint: [String: Decimal] = [:]
             var sourceTokenAccountByMint: [String: String] = [:]
             var decimalsByMint: [String: Int] = [:]
@@ -678,7 +674,7 @@ enum SolanaBalanceService {
                     ]
                     request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
 
-                    let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                    let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                     if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
                         continue
                     }

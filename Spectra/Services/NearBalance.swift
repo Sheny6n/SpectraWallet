@@ -58,19 +58,16 @@ enum NearBalanceService {
         let coinGeckoID: String
     }
 
-    private static let rpcEndpoints = ChainBackendRegistry.NearRuntimeEndpoints.rpcBaseURLs
-    private static let historyEndpoints = ChainBackendRegistry.NearRuntimeEndpoints.historyBaseURLs
-
     static func endpointCatalog() -> [String] {
-        rpcEndpoints + historyEndpoints
+        NearProvider.endpointCatalog()
     }
 
     static func rpcEndpointCatalog() -> [String] {
-        rpcEndpoints
+        NearProvider.rpcEndpoints
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        rpcEndpoints.map { ($0, $0) } + historyEndpoints.map { ($0, "\($0)/stats") }
+        NearProvider.diagnosticsChecks()
     }
 
     static func isValidAddress(_ address: String) -> Bool {
@@ -95,9 +92,9 @@ enum NearBalanceService {
         ]
 
         var lastError: Error?
-        for endpoint in rpcEndpoints {
+        for endpoint in NearProvider.rpcEndpoints {
             do {
-                let result: ViewAccountResult = try await postRPC(payload: payload, endpoint: endpoint)
+                let result: NearProvider.ViewAccountResult = try await postRPC(payload: payload, endpoint: endpoint)
                 guard let yoctoText = result.amount,
                       let yocto = Decimal(string: yoctoText) else {
                     throw NearBalanceServiceError.invalidResponse
@@ -182,7 +179,7 @@ enum NearBalanceService {
 
         let boundedLimit = max(1, min(limit, 100))
         var lastError: String?
-        for endpoint in historyEndpoints {
+        for endpoint in NearProvider.historyEndpoints {
             do {
                 let snapshots = try await fetchHistory(address: normalized, endpoint: endpoint, limit: boundedLimit)
                 return (
@@ -203,36 +200,11 @@ enum NearBalanceService {
             [],
             NearHistoryDiagnostics(
                 address: normalized,
-                sourceUsed: historyEndpoints.first ?? "none",
+                sourceUsed: NearProvider.historyEndpoints.first ?? "none",
                 transactionCount: 0,
                 error: lastError ?? NearBalanceServiceError.invalidResponse.localizedDescription
             )
         )
-    }
-
-    private struct RPCEnvelope<ResultType: Decodable>: Decodable {
-        let result: ResultType?
-        let error: RPCError?
-    }
-
-    private struct RPCError: Decodable {
-        let code: Int?
-        let message: String?
-        let name: String?
-        let cause: RPCCause?
-    }
-
-    private struct RPCCause: Decodable {
-        let name: String?
-        let info: String?
-    }
-
-    private struct ViewAccountResult: Decodable {
-        let amount: String?
-    }
-
-    private struct CallFunctionResult: Decodable {
-        let result: [UInt8]?
     }
 
     private static func normalizedAddress(_ address: String) -> String {
@@ -259,9 +231,9 @@ enum NearBalanceService {
         ]
 
         var lastError: Error?
-        for endpoint in rpcEndpoints {
+        for endpoint in NearProvider.rpcEndpoints {
             do {
-                let result: CallFunctionResult = try await postRPC(payload: payload, endpoint: endpoint)
+                let result: NearProvider.CallFunctionResult = try await postRPC(payload: payload, endpoint: endpoint)
                 guard let bytes = result.result else {
                     throw NearBalanceServiceError.invalidResponse
                 }
@@ -292,7 +264,7 @@ enum NearBalanceService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
-        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
         guard let http = response as? HTTPURLResponse else {
             throw NearBalanceServiceError.invalidResponse
         }
@@ -300,7 +272,7 @@ enum NearBalanceService {
             throw NearBalanceServiceError.httpError(http.statusCode)
         }
 
-        let envelope = try JSONDecoder().decode(RPCEnvelope<ResultType>.self, from: data)
+        let envelope = try JSONDecoder().decode(NearProvider.RPCEnvelope<ResultType>.self, from: data)
         if let error = envelope.error {
             let message = error.message ?? error.cause?.info ?? error.name ?? "Unknown NEAR RPC error"
             throw NearBalanceServiceError.rpcError(message)
@@ -327,7 +299,7 @@ enum NearBalanceService {
             throw NearBalanceServiceError.invalidResponse
         }
 
-        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
         guard let http = response as? HTTPURLResponse else {
             throw NearBalanceServiceError.invalidResponse
         }

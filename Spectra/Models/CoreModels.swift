@@ -149,6 +149,7 @@ struct ImportedWallet: Identifiable {
     let id: UUID
     let name: String
     let bitcoinNetworkMode: BitcoinNetworkMode
+    let dogecoinNetworkMode: DogecoinNetworkMode
     let bitcoinAddress: String?
     let bitcoinXPub: String?
     let bitcoinCashAddress: String?
@@ -178,6 +179,7 @@ struct ImportedWallet: Identifiable {
         id: UUID = UUID(),
         name: String,
         bitcoinNetworkMode: BitcoinNetworkMode = .mainnet,
+        dogecoinNetworkMode: DogecoinNetworkMode = .mainnet,
         bitcoinAddress: String? = nil,
         bitcoinXPub: String? = nil,
         bitcoinCashAddress: String? = nil,
@@ -206,6 +208,7 @@ struct ImportedWallet: Identifiable {
         self.id = id
         self.name = name
         self.bitcoinNetworkMode = bitcoinNetworkMode
+        self.dogecoinNetworkMode = dogecoinNetworkMode
         self.bitcoinAddress = bitcoinAddress
         self.bitcoinXPub = bitcoinXPub
         self.bitcoinCashAddress = bitcoinCashAddress
@@ -1221,6 +1224,7 @@ extension ImportedWallet {
             id: snapshot.id,
             name: snapshot.name,
             bitcoinNetworkMode: snapshot.bitcoinNetworkMode,
+            dogecoinNetworkMode: snapshot.dogecoinNetworkMode,
             bitcoinAddress: snapshot.bitcoinAddress,
             bitcoinXPub: snapshot.bitcoinXPub,
             bitcoinCashAddress: snapshot.bitcoinCashAddress,
@@ -1253,6 +1257,7 @@ extension ImportedWallet {
             id: id,
             name: name,
             bitcoinNetworkMode: bitcoinNetworkMode,
+            dogecoinNetworkMode: dogecoinNetworkMode,
             bitcoinAddress: bitcoinAddress,
             bitcoinXPub: bitcoinXPub,
             bitcoinCashAddress: bitcoinCashAddress,

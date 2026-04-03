@@ -61,45 +61,12 @@ enum AptosBalanceService {
         let coinGeckoID: String
     }
 
-    private static let endpoints = ChainBackendRegistry.AptosRuntimeEndpoints.rpcURLs
-
-    private struct CoinStoreResource: Decodable {
-        let data: CoinStoreData?
-
-        struct CoinStoreData: Decodable {
-            let coin: CoinValue?
-        }
-
-        struct CoinValue: Decodable {
-            let value: String?
-        }
-    }
-
-    private struct AccountResource: Decodable {
-        let type: String?
-        let data: CoinStoreResource.CoinStoreData?
-    }
-
-    private struct TransactionItem: Decodable {
-        let type: String?
-        let hash: String?
-        let success: Bool?
-        let sender: String?
-        let timestamp: String?
-        let payload: Payload?
-
-        struct Payload: Decodable {
-            let function: String?
-            let arguments: [String]?
-        }
-    }
-
     static func endpointCatalog() -> [String] {
-        endpoints.map(\.absoluteString)
+        AptosProvider.endpointCatalog()
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpoints.map { ($0.absoluteString, $0.appendingPathComponent("spec").absoluteString) }
+        AptosProvider.diagnosticsChecks()
     }
 
     static func isValidAddress(_ address: String) -> Bool {
@@ -113,9 +80,9 @@ enum AptosBalanceService {
         }
 
         let resourcePath = "accounts/\(normalized)/resource/0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
-        var request = URLRequest(url: endpoints[0].appendingPathComponent(resourcePath))
+        var request = URLRequest(url: AptosProvider.endpoints[0].appendingPathComponent(resourcePath))
         request.httpMethod = "GET"
-        let result: CoinStoreResource = try await get(request)
+        let result: AptosProvider.CoinStoreResource = try await get(request)
         guard let value = result.data?.coin?.value, let octas = Double(value), octas.isFinite, octas >= 0 else {
             throw AptosBalanceServiceError.invalidResponse
         }
@@ -147,10 +114,10 @@ enum AptosBalanceService {
             }
         )
         let resourcePath = "accounts/\(normalized)/resources"
-        var request = URLRequest(url: endpoints[0].appendingPathComponent(resourcePath))
+        var request = URLRequest(url: AptosProvider.endpoints[0].appendingPathComponent(resourcePath))
         request.httpMethod = "GET"
 
-        let resources: [AccountResource] = try await get(request)
+        let resources: [AptosProvider.AccountResource] = try await get(request)
         var nativeBalance: Double = 0
         var tokenBalances: [AptosTokenBalanceSnapshot] = []
 
@@ -229,10 +196,10 @@ enum AptosBalanceService {
         }
 
         do {
-            var request = URLRequest(url: endpoints[0].appendingPathComponent("accounts/\(normalized)/transactions"))
+            var request = URLRequest(url: AptosProvider.endpoints[0].appendingPathComponent("accounts/\(normalized)/transactions"))
             request.httpMethod = "GET"
             request.url = URL(string: request.url!.absoluteString + "?limit=\(max(1, min(limit, 100)))")
-            let items: [TransactionItem] = try await get(request)
+            let items: [AptosProvider.TransactionItem] = try await get(request)
             let snapshots = items.compactMap { snapshot(from: $0, ownerAddress: normalized) }
             return (snapshots, AptosHistoryDiagnostics(address: normalized, sourceUsed: "aptos-rest", transactionCount: snapshots.count, error: nil))
         } catch {
@@ -240,7 +207,7 @@ enum AptosBalanceService {
         }
     }
 
-    private static func snapshot(from item: TransactionItem, ownerAddress: String) -> AptosHistorySnapshot? {
+    private static func snapshot(from item: AptosProvider.TransactionItem, ownerAddress: String) -> AptosHistorySnapshot? {
         guard (item.type ?? "").lowercased().contains("user_transaction"),
               let hash = item.hash, !hash.isEmpty else {
             return nil
@@ -272,29 +239,29 @@ enum AptosBalanceService {
 
     private static func get<ResultType: Decodable>(_ request: URLRequest) async throws -> ResultType {
         var lastError: Error?
-        for endpoint in endpoints {
+        for endpoint in AptosProvider.endpoints {
             var request = request
             if let absolute = request.url?.absoluteString {
-                let suffix = absolute.replacingOccurrences(of: endpoints[0].absoluteString, with: "")
+                let suffix = absolute.replacingOccurrences(of: AptosProvider.endpoints[0].absoluteString, with: "")
                 request.url = URL(string: endpoint.absoluteString + suffix)
             } else if let original = request.url?.path {
                 request.url = endpoint.appendingPathComponent(original)
             }
 
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse else {
                     throw AptosBalanceServiceError.rpcError("Missing HTTP response")
                 }
                 if http.statusCode == 404 {
-                    if ResultType.self == CoinStoreResource.self {
-                        let zero = CoinStoreResource(data: .init(coin: .init(value: "0")))
+                    if ResultType.self == AptosProvider.CoinStoreResource.self {
+                        let zero = AptosProvider.CoinStoreResource(data: .init(coin: .init(value: "0")))
                         return zero as! ResultType
                     }
-                    if ResultType.self == [AccountResource].self {
+                    if ResultType.self == [AptosProvider.AccountResource].self {
                         return [] as! ResultType
                     }
-                    if ResultType.self == [TransactionItem].self {
+                    if ResultType.self == [AptosProvider.TransactionItem].self {
                         return [] as! ResultType
                     }
                 }
@@ -316,13 +283,13 @@ enum AptosBalanceService {
     ) async throws -> ResultType {
         let encoded = try JSONEncoder().encode(body)
         var lastError: Error?
-        for endpoint in endpoints {
+        for endpoint in AptosProvider.endpoints {
             do {
                 var request = URLRequest(url: endpoint.appendingPathComponent(path))
                 request.httpMethod = "POST"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 request.httpBody = encoded
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse else {
                     throw AptosBalanceServiceError.rpcError("Missing HTTP response")
                 }
@@ -382,20 +349,8 @@ enum AptosBalanceService {
         return String(resourceType[start..<end])
     }
 
-    private struct ViewFunctionRequest: Encodable {
-        let function: String
-        let typeArguments: [String]
-        let arguments: [String]
-
-        enum CodingKeys: String, CodingKey {
-            case function
-            case typeArguments = "type_arguments"
-            case arguments
-        }
-    }
-
     private static func fetchFungibleAssetBalance(ownerAddress: String, metadataAddress: String) async throws -> Decimal {
-        let request = ViewFunctionRequest(
+        let request = AptosProvider.ViewFunctionRequest(
             function: "0x1::primary_fungible_store::balance",
             typeArguments: ["0x1::fungible_asset::Metadata"],
             arguments: [normalizeAddress(ownerAddress), normalizeAddress(metadataAddress)]

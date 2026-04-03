@@ -444,56 +444,6 @@ static func fetchSupportedTokenTransferHistoryWithDiagnostics(
     return ([], diagnostics)
 }
 
-private static func etherscanAPIURL(for chain: EVMChainContext) -> URL? {
-    if chain.isEthereumFamily {
-        return URL(string: "https://api.etherscan.io/v2/api")
-    }
-    return ChainBackendRegistry.EVMExplorerRegistry.etherscanStyleAPIURL(for: chain.displayName)
-}
-
-private static func blockscoutTokenTransfersURL(
-    for chain: EVMChainContext,
-    normalizedAddress: String,
-    page: Int,
-    pageSize: Int
-) -> URL? {
-    ChainBackendRegistry.EVMExplorerRegistry.blockscoutTokenTransfersURL(
-        for: chain.displayName,
-        normalizedAddress: normalizedAddress,
-        page: page,
-        pageSize: pageSize
-    )
-}
-
-private static func blockscoutAccountAPIURL(
-    for chain: EVMChainContext,
-    normalizedAddress: String,
-    action: String,
-    page: Int,
-    pageSize: Int
-) -> URL? {
-    ChainBackendRegistry.EVMExplorerRegistry.blockscoutAccountAPIURL(
-        for: chain.displayName,
-        normalizedAddress: normalizedAddress,
-        action: action,
-        page: page,
-        pageSize: pageSize
-    )
-}
-
-private static func ethplorerHistoryURL(
-    for chain: EVMChainContext,
-    normalizedAddress: String,
-    requestedLimit: Int
-) -> URL? {
-    ChainBackendRegistry.EVMExplorerRegistry.ethplorerHistoryURL(
-        for: chain.displayName,
-        normalizedAddress: normalizedAddress,
-        requestedLimit: requestedLimit
-    )
-}
-
-
 private static func fetchTokenTransferHistoryFromEtherscan(
     normalizedAddress: String,
     chainTokens: [EthereumSupportedToken],
@@ -514,7 +464,7 @@ private static func fetchTokenTransferHistoryFromEtherscan(
     var decodedSupportedTransfers = 0
     var droppedUnsupportedTransfers = 0
     for token in chainTokens {
-        guard let baseURL = etherscanAPIURL(for: chain) else { continue }
+        guard let baseURL = EVMExplorerProvider.etherscanAPIURL(for: chain) else { continue }
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         var queryItems = [
             URLQueryItem(name: "module", value: "account"),
@@ -647,7 +597,7 @@ static func fetchNativeTransferHistoryPageFromEtherscan(
         )
     }
     let trimmedAPIKey = (apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    guard let baseURL = etherscanAPIURL(for: chain) else {
+    guard let baseURL = EVMExplorerProvider.etherscanAPIURL(for: chain) else {
         return []
     }
 
@@ -734,7 +684,7 @@ static func fetchNativeTransferHistoryPageFromBlockscout(
     pageSize: Int = 100,
     chain: EVMChainContext = .ethereum
 ) async throws -> [EthereumNativeTransferSnapshot] {
-    guard let url = blockscoutAccountAPIURL(
+    guard let url = EVMExplorerProvider.blockscoutAccountAPIURL(
         for: chain,
         normalizedAddress: normalizedAddress,
         action: "txlist",
@@ -799,7 +749,7 @@ private static func fetchTokenTransferHistoryFromEthplorer(
     let safePage = max(1, page)
     let effectivePageSize = max(10, min(pageSize ?? maxResults, 500))
     let requestedLimit = min(max(safePage * effectivePageSize, effectivePageSize), 1000)
-    guard let url = ethplorerHistoryURL(
+    guard let url = EVMExplorerProvider.ethplorerHistoryURL(
         for: chain,
         normalizedAddress: normalizedAddress,
         requestedLimit: requestedLimit
@@ -911,7 +861,7 @@ private static func fetchTokenTransferHistoryFromBlockscout(
 ) async throws -> (snapshots: [EthereumTokenTransferSnapshot], stats: EthereumTransferDecodingStats) {
     let safePage = max(1, page)
     let effectivePageSize = max(10, min(pageSize ?? maxResults, 200))
-    guard let url = blockscoutTokenTransfersURL(
+    guard let url = EVMExplorerProvider.blockscoutTokenTransfersURL(
         for: chain,
         normalizedAddress: normalizedAddress,
         page: safePage,

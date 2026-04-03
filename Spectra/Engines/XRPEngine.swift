@@ -49,66 +49,7 @@ struct XRPSendResult: Equatable {
 }
 
 enum XRPWalletEngine {
-    private static let xrpJSONRPCEndpoints = ChainBackendRegistry.XRPRuntimeEndpoints.rpcURLs
-    private static let endpointReliabilityNamespace = "xrp.rpc"
     private static let minimumFeeDrops: Int64 = 10
-
-    private struct RPCEnvelope<ResultType: Decodable>: Decodable {
-        let result: ResultType?
-        let error: String?
-        let errorMessage: String?
-
-        enum CodingKeys: String, CodingKey {
-            case result
-            case error
-            case errorMessage = "error_message"
-        }
-    }
-
-    private struct FeeResult: Decodable {
-        let drops: FeeDrops?
-        struct FeeDrops: Decodable {
-            let openLedgerFee: String?
-            let minimumFee: String?
-            enum CodingKeys: String, CodingKey {
-                case openLedgerFee = "open_ledger_fee"
-                case minimumFee = "minimum_fee"
-            }
-        }
-    }
-
-    private struct AccountInfoResult: Decodable {
-        let accountData: AccountData?
-        let ledgerCurrentIndex: Int64?
-
-        enum CodingKeys: String, CodingKey {
-            case accountData = "account_data"
-            case ledgerCurrentIndex = "ledger_current_index"
-        }
-
-        struct AccountData: Decodable {
-            let sequence: Int64?
-            enum CodingKeys: String, CodingKey {
-                case sequence = "Sequence"
-            }
-        }
-    }
-
-    private struct SubmitResult: Decodable {
-        let engineResult: String?
-        let engineResultMessage: String?
-        let txJSON: SubmitTxJSON?
-
-        enum CodingKeys: String, CodingKey {
-            case engineResult = "engine_result"
-            case engineResultMessage = "engine_result_message"
-            case txJSON = "tx_json"
-        }
-
-        struct SubmitTxJSON: Decodable {
-            let hash: String?
-        }
-    }
 
     static func estimateSendPreview(
         from ownerAddress: String,
@@ -382,26 +323,26 @@ enum XRPWalletEngine {
             request.httpBody = body
 
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     let code = (response as? HTTPURLResponse)?.statusCode ?? -1
                     throw XRPWalletEngineError.networkError("HTTP \(code)")
                 }
 
-                let decoded = try JSONDecoder().decode(RPCEnvelope<TransactionLookupResult>.self, from: data)
+                let decoded = try JSONDecoder().decode(XRPProvider.RPCEnvelope<TransactionLookupResult>.self, from: data)
                 if let result = decoded.result {
-                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                    ChainEndpointReliability.recordAttempt(namespace: XRPProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
                     return result
                 }
                 let message = decoded.errorMessage ?? decoded.error ?? ""
                 if message.localizedCaseInsensitiveContains("notfound") || message.localizedCaseInsensitiveContains("txnnotfound") {
-                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                    ChainEndpointReliability.recordAttempt(namespace: XRPProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
                     return nil
                 }
                 throw XRPWalletEngineError.networkError(message.isEmpty ? "Unknown XRP RPC error." : message)
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: XRPProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
             }
         }
 
@@ -413,7 +354,7 @@ enum XRPWalletEngine {
             "method": "fee",
             "params": [[:]]
         ]
-        let result: FeeResult = try await postRPC(payload: payload)
+        let result: XRPProvider.FeeResult = try await postRPC(payload: payload)
         let feeString = result.drops?.openLedgerFee ?? result.drops?.minimumFee ?? "12"
         guard let fee = Int64(feeString), fee > 0 else {
             throw XRPWalletEngineError.networkError("Invalid fee response from XRP network.")
@@ -421,7 +362,7 @@ enum XRPWalletEngine {
         return max(minimumFeeDrops, fee)
     }
 
-    private static func fetchAccountInfo(address: String) async throws -> AccountInfoResult {
+    private static func fetchAccountInfo(address: String) async throws -> XRPProvider.AccountInfoResult {
         let payload: [String: Any] = [
             "method": "account_info",
             "params": [[
@@ -430,18 +371,18 @@ enum XRPWalletEngine {
                 "strict": true
             ]]
         ]
-        let result: AccountInfoResult = try await postRPC(payload: payload)
+        let result: XRPProvider.AccountInfoResult = try await postRPC(payload: payload)
         return result
     }
 
-    private static func submitTransaction(txBlobHex: String, providerIDs: Set<String>? = nil) async throws -> SubmitResult {
+    private static func submitTransaction(txBlobHex: String, providerIDs: Set<String>? = nil) async throws -> XRPProvider.SubmitResult {
         let payload: [String: Any] = [
             "method": "submit",
             "params": [[
                 "tx_blob": txBlobHex
             ]]
         ]
-        let result: SubmitResult = try await postRPC(payload: payload, providerIDs: providerIDs)
+        let result: XRPProvider.SubmitResult = try await postRPC(payload: payload, providerIDs: providerIDs)
         return result
     }
 
@@ -465,22 +406,22 @@ enum XRPWalletEngine {
             request.httpBody = body
 
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainWrite)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     let code = (response as? HTTPURLResponse)?.statusCode ?? -1
                     throw XRPWalletEngineError.networkError("HTTP \(code)")
                 }
 
-                let decoded = try JSONDecoder().decode(RPCEnvelope<ResultType>.self, from: data)
+                let decoded = try JSONDecoder().decode(XRPProvider.RPCEnvelope<ResultType>.self, from: data)
                 if let result = decoded.result {
-                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                    ChainEndpointReliability.recordAttempt(namespace: XRPProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
                     return result
                 }
                 let message = decoded.errorMessage ?? decoded.error ?? "Unknown XRP RPC error."
                 throw XRPWalletEngineError.networkError(message)
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: XRPProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
             }
         }
 
@@ -501,14 +442,14 @@ enum XRPWalletEngine {
 
     private static func orderedRPCEndpoints(providerIDs: Set<String>? = nil) -> [URL] {
         let ordered = ChainEndpointReliability.orderedEndpoints(
-            namespace: endpointReliabilityNamespace,
+            namespace: XRPProvider.endpointReliabilityNamespace,
             candidates: filteredRPCEndpoints(providerIDs: providerIDs)
         )
         return ordered.compactMap(URL.init(string:))
     }
 
     private static func filteredRPCEndpoints(providerIDs: Set<String>? = nil) -> [String] {
-        let candidates = xrpJSONRPCEndpoints.map(\.absoluteString)
+        let candidates = XRPProvider.xrpJSONRPCEndpoints.map(\.absoluteString)
         guard let providerIDs, !providerIDs.isEmpty else { return candidates }
         return candidates.filter { endpoint in
             switch endpoint {

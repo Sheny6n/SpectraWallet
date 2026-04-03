@@ -1,6 +1,21 @@
 import Foundation
-import CryptoKit
 import WalletCore
+
+enum DogecoinNetworkMode: String, CaseIterable, Codable, Identifiable {
+    case mainnet
+    case testnet
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .mainnet:
+            return "Mainnet"
+        case .testnet:
+            return "Testnet"
+        }
+    }
+}
 
 struct DogecoinWalletEngine {
     static let derivationScanLimit = 200
@@ -8,6 +23,13 @@ struct DogecoinWalletEngine {
     static let minRelayFeePerKB: Double = 0.01
     static let dustThresholdDOGE: Double = 0.01
     static let koinuPerDOGE: Double = 100_000_000
+    static let feePolicy = UTXOKilobyteFeePolicy(
+        chainName: "Dogecoin",
+        baseUnitsPerCoin: koinuPerDOGE,
+        dustThreshold: UInt64((dustThresholdDOGE * koinuPerDOGE).rounded()),
+        minimumRelayFeePerKB: minRelayFeePerKB,
+        maxStandardTransactionBytes: UInt64(maxStandardTransactionBytes)
+    )
     static let networkTimeoutSeconds: TimeInterval = 12
     static let networkRetryCount = 2
     static let utxoCacheTTLSeconds: TimeInterval = 180
@@ -22,14 +44,7 @@ struct DogecoinWalletEngine {
         let changeDerivationPath: String
     }
 
-    struct DogecoinSpendPlan {
-        let utxos: [DogecoinUTXO]
-        let totalInputDOGE: Double
-        let feeDOGE: Double
-        let changeDOGE: Double
-        let usesChangeOutput: Bool
-        let estimatedTransactionBytes: Int
-    }
+    typealias DogecoinSpendPlan = UTXOSpendPlan<DogecoinUTXO>
 
     struct DogecoinWalletCoreSigningRequest {
         let keyMaterial: SigningKeyMaterial
@@ -108,87 +123,14 @@ struct DogecoinWalletEngine {
         let updatedAt: Date
     }
 
-    struct DogecoinAddressDashboardEntry: Decodable {
-        let utxo: [DogecoinUTXO]
-    }
-
-    struct DogecoinAddressDashboardResponse: Decodable {
-        let data: [String: DogecoinAddressDashboardEntry]
-    }
-
-    struct BlockCypherAddressResponse: Decodable {
-        struct UTXO: Decodable {
-            let txHash: String
-            let txOutputIndex: Int
-            let value: UInt64
-
-            enum CodingKeys: String, CodingKey {
-                case txHash = "tx_hash"
-                case txOutputIndex = "tx_output_n"
-                case value
-            }
-        }
-
-        let txrefs: [UTXO]?
-        let unconfirmedTxrefs: [UTXO]?
-
-        enum CodingKeys: String, CodingKey {
-            case txrefs
-            case unconfirmedTxrefs = "unconfirmed_txrefs"
-        }
-    }
-
-    struct BlockCypherNetworkResponse: Decodable {
-        let highFeePerKB: Double?
-        let mediumFeePerKB: Double?
-        let lowFeePerKB: Double?
-
-        enum CodingKeys: String, CodingKey {
-            case highFeePerKB = "high_fee_per_kb"
-            case mediumFeePerKB = "medium_fee_per_kb"
-            case lowFeePerKB = "low_fee_per_kb"
-        }
-    }
-
-    struct BlockchairTransactionDashboardResponse: Decodable {
-        let data: [String: BlockchairTransactionDashboardEntry]
-    }
-
-    struct BlockchairTransactionDashboardEntry: Decodable {
-        let transaction: BlockchairTransaction
-    }
-
-    struct BlockchairTransaction: Decodable {
-        let hash: String?
-    }
-
-    struct BlockCypherTransactionResponse: Decodable {
-        let hash: String?
-    }
-
-    struct SoChainTransactionResponse: Decodable {
-        struct Payload: Decodable {
-            let txid: String?
-        }
-
-        let status: String?
-        let data: Payload?
-    }
-
-    enum UTXOProvider: String, CaseIterable {
-        case blockchair
-        case blockcypher
-    }
-
-    enum BroadcastProvider: String, CaseIterable {
-        case blockchair
-        case blockcypher
-    }
-
     static func resetUTXOCache() {
         utxoCacheLock.lock()
         defer { utxoCacheLock.unlock() }
         utxoCacheByAddress.removeAll()
+    }
+
+    static func networkMode(for wallet: ImportedWallet) -> DogecoinNetworkMode {
+        wallet.dogecoinNetworkMode
     }
 
     @discardableResult
@@ -225,14 +167,16 @@ struct DogecoinWalletEngine {
 
     static func rebroadcastSignedTransactionInBackground(
         rawTransactionHex: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        networkMode: DogecoinNetworkMode = .mainnet
     ) async throws -> DogecoinRebroadcastResult {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let result = try rebroadcastSignedTransaction(
                         rawTransactionHex: rawTransactionHex,
-                        expectedTransactionHash: expectedTransactionHash
+                        expectedTransactionHash: expectedTransactionHash,
+                        networkMode: networkMode
                     )
                     continuation.resume(returning: result)
                 } catch {
@@ -243,11 +187,47 @@ struct DogecoinWalletEngine {
     }
 
     static func derivedAddress(for seedPhrase: String, account: Int = 0) throws -> String {
-        try walletCoreDerivedAddress(seedPhrase: seedPhrase, isChange: false, index: 0, account: account)
+        try derivedAddress(for: seedPhrase, networkMode: .mainnet, account: account)
+    }
+
+    static func derivedAddress(
+        for seedPhrase: String,
+        networkMode: DogecoinNetworkMode,
+        account: Int = 0
+    ) throws -> String {
+        try walletCoreDerivedAddress(
+            seedPhrase: seedPhrase,
+            networkMode: networkMode,
+            isChange: false,
+            index: 0,
+            account: account
+        )
     }
 
     static func derivedAddress(for seedPhrase: String, isChange: Bool, index: Int, account: Int = 0) throws -> String {
-        try walletCoreDerivedAddress(seedPhrase: seedPhrase, isChange: isChange, index: index, account: account)
+        try derivedAddress(
+            for: seedPhrase,
+            networkMode: .mainnet,
+            isChange: isChange,
+            index: index,
+            account: account
+        )
+    }
+
+    static func derivedAddress(
+        for seedPhrase: String,
+        networkMode: DogecoinNetworkMode,
+        isChange: Bool,
+        index: Int,
+        account: Int = 0
+    ) throws -> String {
+        try walletCoreDerivedAddress(
+            seedPhrase: seedPhrase,
+            networkMode: networkMode,
+            isChange: isChange,
+            index: index,
+            account: account
+        )
     }
 
     static func fetchSendPreview(
@@ -265,14 +245,18 @@ struct DogecoinWalletEngine {
         let keyMaterial = try deriveSigningKeyMaterial(
             seedPhrase: seedPhrase,
             expectedAddress: importedWallet.dogecoinAddress,
+            networkMode: networkMode(for: importedWallet),
             derivationAccount: derivationAccount
         )
-        let spendableUTXOs = try fetchSpendableUTXOs(for: keyMaterial.address)
+        let spendableUTXOs = try fetchSpendableUTXOs(for: keyMaterial.address, networkMode: networkMode(for: importedWallet))
         guard !spendableUTXOs.isEmpty else {
             throw DogecoinWalletEngineError.noSpendableUTXOs
         }
 
-        let feeRateDOGEPerKB = try resolveNetworkFeeRateDOGEPerKB(feePriority: feePriority)
+        let feeRateDOGEPerKB = try resolveNetworkFeeRateDOGEPerKB(
+            feePriority: feePriority,
+            networkMode: networkMode(for: importedWallet)
+        )
         let spendPlan = try buildSpendPlan(
             from: spendableUTXOs,
             amountDOGE: amountDOGE,
@@ -280,17 +264,17 @@ struct DogecoinWalletEngine {
             maxInputCount: maxInputCount
         )
         let spendableBalanceDOGE = Double(spendableUTXOs.reduce(0) { $0 + $1.value }) / koinuPerDOGE
-        let maxSendableBytes = estimateTransactionBytes(inputCount: spendableUTXOs.count, outputCount: 1)
-        let maxSendableFeeDOGE = estimateNetworkFeeDOGE(
-            estimatedBytes: maxSendableBytes,
-            feeRateDOGEPerKB: feeRateDOGEPerKB
+        let preview = feePolicy.preview(
+            for: spendableUTXOs.reduce(0) { $0 + $1.value },
+            inputCount: spendableUTXOs.count,
+            feeRatePerKB: feeRateDOGEPerKB
         )
-        let maxSendableDOGE = max(0, spendableBalanceDOGE - maxSendableFeeDOGE)
+        let maxSendableDOGE = Double(preview.spendable) / koinuPerDOGE
 
         return DogecoinSendPreview(
             spendableBalanceDOGE: spendableBalanceDOGE,
             requestedAmountDOGE: amountDOGE,
-            estimatedNetworkFeeDOGE: spendPlan.feeDOGE,
+            estimatedNetworkFeeDOGE: Double(spendPlan.fee) / koinuPerDOGE,
             estimatedFeeRateDOGEPerKB: feeRateDOGEPerKB,
             estimatedTransactionBytes: spendPlan.estimatedTransactionBytes,
             selectedInputCount: spendPlan.utxos.count,
@@ -341,7 +325,8 @@ struct DogecoinWalletEngine {
         maxInputCount: Int? = nil,
         derivationAccount: UInt32 = 0
     ) throws -> DogecoinSendResult {
-        guard AddressValidation.isValidDogecoinAddress(recipientAddress) else {
+        let networkMode = networkMode(for: importedWallet)
+        guard AddressValidation.isValidDogecoinAddress(recipientAddress, networkMode: networkMode) else {
             throw DogecoinWalletEngineError.invalidRecipientAddress
         }
         guard amountDOGE > 0 else {
@@ -351,15 +336,19 @@ struct DogecoinWalletEngine {
         let keyMaterial = try deriveSigningKeyMaterial(
             seedPhrase: seedPhrase,
             expectedAddress: importedWallet.dogecoinAddress,
+            networkMode: networkMode,
             derivationAccount: derivationAccount
         )
 
-        let spendableUTXOs = try fetchSpendableUTXOs(for: keyMaterial.address)
+        let spendableUTXOs = try fetchSpendableUTXOs(for: keyMaterial.address, networkMode: networkMode)
         guard !spendableUTXOs.isEmpty else {
             throw DogecoinWalletEngineError.noSpendableUTXOs
         }
 
-        let feeRateDOGEPerKB = try resolveNetworkFeeRateDOGEPerKB(feePriority: feePriority)
+        let feeRateDOGEPerKB = try resolveNetworkFeeRateDOGEPerKB(
+            feePriority: feePriority,
+            networkMode: networkMode
+        )
             let spendPlan = try buildSpendPlan(
                 from: spendableUTXOs,
                 amountDOGE: amountDOGE,
@@ -373,6 +362,7 @@ struct DogecoinWalletEngine {
             let resolvedChangeAddress = try resolveChangeAddress(
                 seedPhrase: seedPhrase,
                 keyMaterial: keyMaterial,
+                networkMode: networkMode,
                 changeIndex: changeIndex,
                 derivationAccount: derivationAccount
             )
@@ -393,9 +383,9 @@ struct DogecoinWalletEngine {
             throw DogecoinWalletEngineError.transactionTooLarge
         }
 
-            try broadcastRawTransaction(rawHex)
+            try broadcastRawTransaction(rawHex, networkMode: networkMode)
             let txid = signingResult.transactionHash.isEmpty ? computeTXID(fromRawHex: rawHex) : signingResult.transactionHash
-            let verificationStatus = verifyBroadcastedTransactionIfAvailable(txid: txid)
+            let verificationStatus = verifyBroadcastedTransactionIfAvailable(txid: txid, networkMode: networkMode)
         return DogecoinSendResult(
             transactionHash: txid,
             verificationStatus: verificationStatus,
@@ -411,7 +401,8 @@ struct DogecoinWalletEngine {
 
     static func rebroadcastSignedTransaction(
         rawTransactionHex: String,
-        expectedTransactionHash: String? = nil
+        expectedTransactionHash: String? = nil,
+        networkMode: DogecoinNetworkMode = .mainnet
     ) throws -> DogecoinRebroadcastResult {
         let trimmedRawHex = rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedRawHex.isEmpty, let rawData = Data(hexEncoded: trimmedRawHex) else {
@@ -432,8 +423,8 @@ struct DogecoinWalletEngine {
             }
         }
 
-        try broadcastRawTransaction(trimmedRawHex)
-        let verificationStatus = verifyPresenceOnlyIfAvailable(txid: computedTXID)
+        try broadcastRawTransaction(trimmedRawHex, networkMode: networkMode)
+        let verificationStatus = verifyPresenceOnlyIfAvailable(txid: computedTXID, networkMode: networkMode)
         return DogecoinRebroadcastResult(
             transactionHash: computedTXID,
             verificationStatus: verificationStatus

@@ -83,192 +83,78 @@ extension DogecoinWalletEngine {
             throw DogecoinWalletEngineError.amountBelowDustThreshold
         }
 
-        let sortedUTXOs = utxos.sorted {
-            if $0.value != $1.value { return $0.value > $1.value }
-            if $0.transactionHash != $1.transactionHash { return $0.transactionHash < $1.transactionHash }
-            return $0.index < $1.index
-        }
-
-        let effectiveMaxInputCount = maxInputCount.map { max(1, $0) }
-        var candidates: [[DogecoinUTXO]] = []
-        candidates.reserveCapacity(sortedUTXOs.count * 2)
-
-        var prefix: [DogecoinUTXO] = []
-        prefix.reserveCapacity(sortedUTXOs.count)
-        for utxo in sortedUTXOs {
-            prefix.append(utxo)
-            if let effectiveMaxInputCount, prefix.count > effectiveMaxInputCount {
-                continue
+        let targetKoinu = UInt64((amountDOGE * koinuPerDOGE).rounded())
+        guard let spendPlan = UTXOSpendPlanner.buildPlan(
+            from: utxos,
+            targetValue: targetKoinu,
+            dustThreshold: feePolicy.dustThreshold,
+            maxInputCount: maxInputCount,
+            sortBy: {
+                if $0.value != $1.value { return $0.value > $1.value }
+                if $0.transactionHash != $1.transactionHash { return $0.transactionHash < $1.transactionHash }
+                return $0.index < $1.index
+            },
+            value: \.value,
+            feeForLayout: { inputCount, outputCount in
+                feePolicy.estimatedFeeBaseUnits(
+                    estimatedBytes: UTXOSpendPlanner.estimateTransactionBytes(
+                        inputCount: inputCount,
+                        outputCount: outputCount
+                    ),
+                    feeRatePerKB: feeRateDOGEPerKB
+                )
             }
-            candidates.append(prefix)
-        }
-
-        for utxo in sortedUTXOs {
-            candidates.append([utxo])
-        }
-
-        var bestPlan: DogecoinSpendPlan?
-        for candidate in candidates {
-            guard let plan = evaluateCandidate(
-                candidate,
-                amountDOGE: amountDOGE,
-                feeRateDOGEPerKB: feeRateDOGEPerKB
-            ) else {
-                continue
-            }
-            if let currentBest = bestPlan {
-                if isBetterSpendPlan(plan, than: currentBest) {
-                    bestPlan = plan
-                }
-            } else {
-                bestPlan = plan
-            }
-        }
-
-        guard let bestPlan else {
+        ) else {
             throw DogecoinWalletEngineError.insufficientFunds
         }
-        return bestPlan
-    }
-
-    static func evaluateCandidate(
-        _ utxos: [DogecoinUTXO],
-        amountDOGE: Double,
-        feeRateDOGEPerKB: Double
-    ) -> DogecoinSpendPlan? {
-        guard !utxos.isEmpty else { return nil }
-        let inputDOGE = Double(utxos.reduce(0) { $0 + $1.value }) / koinuPerDOGE
-
-        let bytesWithChange = estimateTransactionBytes(inputCount: utxos.count, outputCount: 2)
-        let feeWithChange = estimateNetworkFeeDOGE(
-            estimatedBytes: bytesWithChange,
-            feeRateDOGEPerKB: feeRateDOGEPerKB
-        )
-        let changeWithChange = inputDOGE - amountDOGE - feeWithChange
-        if changeWithChange >= dustThresholdDOGE {
-            return DogecoinSpendPlan(
-                utxos: utxos,
-                totalInputDOGE: inputDOGE,
-                feeDOGE: feeWithChange,
-                changeDOGE: changeWithChange,
-                usesChangeOutput: true,
-                estimatedTransactionBytes: bytesWithChange
-            )
-        }
-
-        let bytesWithoutChange = estimateTransactionBytes(inputCount: utxos.count, outputCount: 1)
-        let baseFeeWithoutChange = estimateNetworkFeeDOGE(
-            estimatedBytes: bytesWithoutChange,
-            feeRateDOGEPerKB: feeRateDOGEPerKB
-        )
-        let remainderDOGE = inputDOGE - amountDOGE - baseFeeWithoutChange
-        guard remainderDOGE >= 0 else {
-            return nil
-        }
-        let effectiveFeeDOGE = baseFeeWithoutChange + remainderDOGE
-        return DogecoinSpendPlan(
-            utxos: utxos,
-            totalInputDOGE: inputDOGE,
-            feeDOGE: effectiveFeeDOGE,
-            changeDOGE: 0,
-            usesChangeOutput: false,
-            estimatedTransactionBytes: bytesWithoutChange
-        )
-    }
-
-    static func isBetterSpendPlan(_ lhs: DogecoinSpendPlan, than rhs: DogecoinSpendPlan) -> Bool {
-        if lhs.usesChangeOutput != rhs.usesChangeOutput {
-            return lhs.usesChangeOutput && !rhs.usesChangeOutput
-        }
-        if lhs.utxos.count != rhs.utxos.count {
-            return lhs.utxos.count < rhs.utxos.count
-        }
-        if lhs.feeDOGE != rhs.feeDOGE {
-            return lhs.feeDOGE < rhs.feeDOGE
-        }
-        return lhs.changeDOGE < rhs.changeDOGE
+        return spendPlan
     }
 
     static func estimateTransactionBytes(inputCount: Int, outputCount: Int) -> Int {
-        10 + (148 * inputCount) + (34 * outputCount)
+        UTXOSpendPlanner.estimateTransactionBytes(inputCount: inputCount, outputCount: outputCount)
     }
 
     static func estimateNetworkFeeDOGE(estimatedBytes: Int, feeRateDOGEPerKB: Double) -> Double {
-        let kb = max(1, Int(ceil(Double(estimatedBytes) / 1000)))
-        return Double(kb) * max(minRelayFeePerKB, feeRateDOGEPerKB)
+        Double(
+            feePolicy.estimatedFeeBaseUnits(
+                estimatedBytes: estimatedBytes,
+                feeRatePerKB: feeRateDOGEPerKB
+            )
+        ) / koinuPerDOGE
     }
 
-    static func broadcastRawTransaction(_ rawHex: String) throws {
-        let providerOrder = BroadcastProvider.allCases
-        var providerErrors: [String] = []
-
-        for provider in providerOrder {
-            let maxAttempts = 2
-            for attempt in 0 ..< maxAttempts {
-                do {
-                    try broadcastRawTransaction(rawHex, via: provider)
+    static func broadcastRawTransaction(
+        _ rawHex: String,
+        networkMode: DogecoinNetworkMode
+    ) throws {
+        let maxAttempts = 2
+        for attempt in 0 ..< maxAttempts {
+            do {
+                try broadcastRawTransactionViaBlockCypher(rawHex, networkMode: networkMode)
+                return
+            } catch {
+                let errorDescription = error.localizedDescription
+                if isAlreadyBroadcastedError(errorDescription) {
                     return
-                } catch {
-                    let errorDescription = error.localizedDescription
-                    if isAlreadyBroadcastedError(errorDescription) {
-                        return
-                    }
-
-                    let shouldRetry = attempt < maxAttempts - 1 && isRetryableBroadcastError(errorDescription)
-                    if shouldRetry {
-                        usleep(UInt32(250_000 * (attempt + 1)))
-                        continue
-                    }
-
-                    providerErrors.append("\(provider.rawValue.capitalized): \(errorDescription)")
-                    break
                 }
+
+                let shouldRetry = attempt < maxAttempts - 1 && isRetryableBroadcastError(errorDescription)
+                if shouldRetry {
+                    usleep(UInt32(250_000 * (attempt + 1)))
+                    continue
+                }
+
+                throw DogecoinWalletEngineError.broadcastFailed(errorDescription)
             }
         }
-
-        let message = providerErrors.isEmpty
-            ? "No broadcast provider accepted the transaction."
-            : providerErrors.joined(separator: " | ")
-        throw DogecoinWalletEngineError.broadcastFailed(message)
+        throw DogecoinWalletEngineError.broadcastFailed("BlockCypher did not accept the transaction.")
     }
 
-    static func broadcastRawTransaction(_ rawHex: String, via provider: BroadcastProvider) throws {
-        switch provider {
-        case .blockchair:
-            try broadcastRawTransactionViaBlockchair(rawHex)
-        case .blockcypher:
-            try broadcastRawTransactionViaBlockCypher(rawHex)
-        }
-    }
-
-    static func broadcastRawTransactionViaBlockchair(_ rawHex: String) throws {
-        guard let url = blockchairURL(path: "/push/transaction") else {
-            throw DogecoinWalletEngineError.broadcastFailed("Invalid Dogecoin broadcast endpoint.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
-
-        var components = URLComponents()
-        components.queryItems = [URLQueryItem(name: "data", value: rawHex)]
-        request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
-
-        let data = try performSynchronousRequest(
-            request,
-            timeout: networkTimeoutSeconds,
-            retries: networkRetryCount
-        )
-        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let context = object["context"] as? [String: Any],
-           let errorMessage = context["error"] as? String,
-           !errorMessage.isEmpty {
-            throw DogecoinWalletEngineError.broadcastFailed(errorMessage)
-        }
-    }
-
-    static func broadcastRawTransactionViaBlockCypher(_ rawHex: String) throws {
-        guard let url = blockcypherURL(path: "/txs/push") else {
+    static func broadcastRawTransactionViaBlockCypher(
+        _ rawHex: String,
+        networkMode: DogecoinNetworkMode
+    ) throws {
+        guard let url = blockcypherURL(path: "/txs/push", networkMode: networkMode) else {
             throw DogecoinWalletEngineError.broadcastFailed("Invalid BlockCypher broadcast endpoint.")
         }
 
@@ -314,11 +200,12 @@ extension DogecoinWalletEngine {
     }
 
     static func verifyBroadcastedTransactionIfAvailable(
-        txid: String
+        txid: String,
+        networkMode: DogecoinNetworkMode
     ) -> PostBroadcastVerificationStatus {
         let maxAttempts = 3
         for attempt in 0 ..< maxAttempts {
-            let status = verifyPresenceOnlyIfAvailable(txid: txid)
+            let status = verifyPresenceOnlyIfAvailable(txid: txid, networkMode: networkMode)
             if status == .verified {
                 return .verified
             }
@@ -329,24 +216,19 @@ extension DogecoinWalletEngine {
         return .deferred
     }
 
-    static func verifyPresenceOnlyIfAvailable(txid: String) -> PostBroadcastVerificationStatus {
-        if (try? fetchBlockchairTransactionHash(txid: txid)) != nil { return .verified }
-        if (try? fetchBlockCypherTransactionHash(txid: txid)) != nil { return .verified }
-        if (try? fetchSoChainTransactionHash(txid: txid)) != nil { return .verified }
+    static func verifyPresenceOnlyIfAvailable(
+        txid: String,
+        networkMode: DogecoinNetworkMode
+    ) -> PostBroadcastVerificationStatus {
+        if (try? fetchBlockCypherTransactionHash(txid: txid, networkMode: networkMode)) != nil { return .verified }
         return .deferred
     }
 
-    static func fetchBlockchairTransactionHash(txid: String) throws -> String? {
-        guard let entry = try fetchBlockchairTransaction(txid: txid),
-              let txHash = entry.transaction.hash,
-              !txHash.isEmpty else {
-            return nil
-        }
-        return txHash
-    }
-
-    static func fetchBlockCypherTransactionHash(txid: String) throws -> String? {
-        guard let payload = try fetchBlockCypherTransaction(txid: txid),
+    static func fetchBlockCypherTransactionHash(
+        txid: String,
+        networkMode: DogecoinNetworkMode
+    ) throws -> String? {
+        guard let payload = try fetchBlockCypherTransaction(txid: txid, networkMode: networkMode),
               let txHash = payload.hash,
               !txHash.isEmpty else {
             return nil
@@ -354,41 +236,12 @@ extension DogecoinWalletEngine {
         return txHash
     }
 
-    static func fetchSoChainTransactionHash(txid: String) throws -> String? {
+    static func fetchBlockCypherTransaction(
+        txid: String,
+        networkMode: DogecoinNetworkMode
+    ) throws -> BlockCypherProvider.TransactionHashResponse? {
         guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(ChainBackendRegistry.DogecoinRuntimeEndpoints.sochainBaseURL)/get_tx/DOGE/\(encodedTXID)") else {
-            throw DogecoinWalletEngineError.networkFailure("Invalid SoChain transaction lookup URL.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        let data = try performSynchronousRequest(request, timeout: networkTimeoutSeconds, retries: 0)
-        let payload = try JSONDecoder().decode(SoChainTransactionResponse.self, from: data)
-        guard payload.status?.lowercased() == "success",
-              let tx = payload.data,
-              let txHash = tx.txid,
-              !txHash.isEmpty else {
-            return nil
-        }
-        return txHash
-    }
-
-    static func fetchBlockchairTransaction(txid: String) throws -> BlockchairTransactionDashboardEntry? {
-        guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = blockchairURL(path: "/dashboards/transactions/\(encodedTXID)") else {
-            throw DogecoinWalletEngineError.networkFailure("Invalid Dogecoin transaction lookup URL.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        let data = try performSynchronousRequest(request, timeout: networkTimeoutSeconds, retries: 0)
-        let payload = try JSONDecoder().decode(BlockchairTransactionDashboardResponse.self, from: data)
-        return payload.data.values.first
-    }
-
-    static func fetchBlockCypherTransaction(txid: String) throws -> BlockCypherTransactionResponse? {
-        guard let encodedTXID = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = blockcypherURL(path: "/txs/\(encodedTXID)") else {
+              let url = blockcypherURL(path: "/txs/\(encodedTXID)", networkMode: networkMode) else {
             throw DogecoinWalletEngineError.networkFailure("Invalid BlockCypher Dogecoin transaction lookup URL.")
         }
 
@@ -405,6 +258,6 @@ extension DogecoinWalletEngine {
             throw DogecoinWalletEngineError.networkFailure("BlockCypher transaction lookup failed: \(errorMessage)")
         }
 
-        return try JSONDecoder().decode(BlockCypherTransactionResponse.self, from: data)
+        return try JSONDecoder().decode(BlockCypherProvider.TransactionHashResponse.self, from: data)
     }
 }

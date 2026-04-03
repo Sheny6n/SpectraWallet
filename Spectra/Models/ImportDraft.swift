@@ -252,7 +252,7 @@ final class WalletImportDraft: ObservableObject {
             || BitcoinWalletEngine.isLikelyExtendedPublicKey(trimmedBitcoinXPub)
         let hasValidDogecoinAddress = !wantsDogecoin
             || !isWatchOnlyMode
-            || dogecoinAddressEntries.allSatisfy(AddressValidation.isValidDogecoinAddress)
+            || dogecoinAddressEntries.allSatisfy { AddressValidation.isValidDogecoinAddress($0) }
         let hasValidBitcoinCashAddress = !wantsBitcoinCash
             || !isWatchOnlyMode
             || bitcoinCashAddressEntries.allSatisfy(AddressValidation.isValidBitcoinCashAddress)

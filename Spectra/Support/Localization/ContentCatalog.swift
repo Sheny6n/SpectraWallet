@@ -790,7 +790,6 @@ struct DiagnosticsContentCopy: Decodable {
     let etherscanNote: String
     let moneroBackendNote: String
     let moneroAPIKeyNote: String
-    let dogecoinTestnetNote: String
     let historySourcesSectionTitleFormat: String
     let endpointReachabilitySectionTitleFormat: String
     let degradedLastGoodSyncFormat: String

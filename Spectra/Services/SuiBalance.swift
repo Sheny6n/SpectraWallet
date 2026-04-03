@@ -60,84 +60,12 @@ enum SuiBalanceService {
         let marketDataID: String
         let coinGeckoID: String
     }
-    private static let endpoints = ChainBackendRegistry.SuiRuntimeEndpoints.rpcURLs
-
     static func endpointCatalog() -> [String] {
-        endpoints.map(\.absoluteString)
+        SuiProvider.endpointCatalog()
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpoints.map { ($0.absoluteString, $0.absoluteString) }
-    }
-
-    private struct RPCEnvelope<ResultType: Decodable>: Decodable {
-        let result: ResultType?
-        let error: RPCError?
-
-        struct RPCError: Decodable {
-            let code: Int?
-            let message: String?
-        }
-    }
-
-    private struct BalanceResult: Decodable {
-        let totalBalance: String?
-
-        enum CodingKeys: String, CodingKey {
-            case totalBalance
-        }
-    }
-
-    private struct CoinBalanceResult: Decodable {
-        let coinType: String?
-        let totalBalance: String?
-
-        enum CodingKeys: String, CodingKey {
-            case coinType
-            case totalBalance
-        }
-    }
-
-    private struct QueryTxBlocksResponse: Decodable {
-        let data: [TransactionBlock]?
-    }
-
-    private struct TransactionBlock: Decodable {
-        let digest: String?
-        let timestampMs: String?
-        let effects: TxEffects?
-        let transaction: TxData?
-        let balanceChanges: [BalanceChange]?
-    }
-
-    private struct TxEffects: Decodable {
-        let status: TxStatus?
-    }
-
-    private struct TxStatus: Decodable {
-        let status: String?
-    }
-
-    private struct TxData: Decodable {
-        let data: TxInner?
-    }
-
-    private struct TxInner: Decodable {
-        let sender: String?
-    }
-
-    private struct BalanceChange: Decodable {
-        let owner: Owner?
-        let coinType: String?
-        let amount: String?
-    }
-
-    private struct Owner: Decodable {
-        let addressOwner: String?
-
-        enum CodingKeys: String, CodingKey {
-            case addressOwner = "AddressOwner"
-        }
+        SuiProvider.diagnosticsChecks()
     }
 
     static func isValidAddress(_ address: String) -> Bool {
@@ -157,7 +85,7 @@ enum SuiBalanceService {
             "params": [normalized, suiCoinType]
         ]
 
-        let result: BalanceResult = try await postRPC(payload: payload)
+        let result: SuiProvider.BalanceResult = try await postRPC(payload: payload)
         guard let totalBalance = result.totalBalance,
               let mist = Double(totalBalance),
               mist.isFinite,
@@ -184,7 +112,7 @@ enum SuiBalanceService {
             "params": [normalized]
         ]
 
-        let results: [CoinBalanceResult] = try await postRPC(payload: payload)
+        let results: [SuiProvider.CoinBalanceResult] = try await postRPC(payload: payload)
         let trackedEntries = trackedTokenMetadataByCoinType.map { (normalizeCoinType($0.key), $0.value) }
         let trackedByCoinType = Dictionary(uniqueKeysWithValues: trackedEntries)
         let trackedByPackageAddress = Dictionary(
@@ -247,8 +175,8 @@ enum SuiBalanceService {
             )
         }
 
-        var fromItems: [TransactionBlock] = []
-        var toItems: [TransactionBlock] = []
+        var fromItems: [SuiProvider.TransactionBlock] = []
+        var toItems: [SuiProvider.TransactionBlock] = []
         var errors: [String] = []
 
         do {
@@ -304,7 +232,7 @@ enum SuiBalanceService {
         )
     }
 
-    private static func fetchTransactionBlocks(address: String, filterKey: String, limit: Int) async throws -> [TransactionBlock] {
+    private static func fetchTransactionBlocks(address: String, filterKey: String, limit: Int) async throws -> [SuiProvider.TransactionBlock] {
         let payload: [String: Any] = [
             "jsonrpc": "2.0",
             "id": 1,
@@ -324,11 +252,11 @@ enum SuiBalanceService {
             ]
         ]
 
-        let response: QueryTxBlocksResponse = try await postRPC(payload: payload)
+        let response: SuiProvider.QueryTxBlocksResponse = try await postRPC(payload: payload)
         return response.data ?? []
     }
 
-    private static func snapshotFromTransaction(_ tx: TransactionBlock, ownerAddress: String) -> SuiHistorySnapshot? {
+    private static func snapshotFromTransaction(_ tx: SuiProvider.TransactionBlock, ownerAddress: String) -> SuiHistorySnapshot? {
         guard let digest = tx.digest, !digest.isEmpty else { return nil }
 
         let status: TransactionStatus = {
@@ -414,7 +342,7 @@ enum SuiBalanceService {
 
     private static func postRPC<ResultType: Decodable>(payload: [String: Any]) async throws -> ResultType {
         var lastError: Error?
-        for endpoint in endpoints {
+        for endpoint in SuiProvider.rpcURLs {
             do {
                 var request = URLRequest(url: endpoint)
                 request.httpMethod = "POST"
@@ -422,13 +350,13 @@ enum SuiBalanceService {
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     let code = (response as? HTTPURLResponse)?.statusCode ?? -1
                     throw SuiBalanceServiceError.rpcError("HTTP \(code)")
                 }
 
-                let decoded = try JSONDecoder().decode(RPCEnvelope<ResultType>.self, from: data)
+                let decoded = try JSONDecoder().decode(SuiProvider.RPCEnvelope<ResultType>.self, from: data)
                 if let result = decoded.result {
                     return result
                 }

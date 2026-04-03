@@ -28,162 +28,22 @@ struct BitcoinSVUTXO: Equatable {
 }
 
 enum BitcoinSVBalanceService {
-    private enum Provider: String, CaseIterable {
-        case whatsonchain
-        case blockchair
-    }
-
-    private static let whatsonchainBaseURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainBaseURL
-    private static let whatsonchainChainInfoURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainChainInfoURL
-    private static let blockchairBaseURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairBaseURL
     private static let satoshisPerBSV: Double = 100_000_000
 
     static func endpointCatalog() -> [String] {
-        [
-            whatsonchainBaseURL,
-            blockchairBaseURL,
-        ]
+        BitcoinSVProvider.endpointCatalog()
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        [
-            (endpoint: whatsonchainBaseURL, probeURL: whatsonchainChainInfoURL),
-            (endpoint: blockchairBaseURL, probeURL: blockchairBaseURL + "/stats"),
-        ]
-    }
-
-    private struct WhatsOnChainBalanceResponse: Decodable {
-        let confirmed: Int64?
-        let unconfirmed: Int64?
-    }
-
-    private struct WhatsOnChainHistoryEntry: Decodable {
-        let txHash: String
-        let height: Int?
-
-        enum CodingKeys: String, CodingKey {
-            case txHash = "tx_hash"
-            case height
-        }
-    }
-
-    private struct WhatsOnChainUnspentEntry: Decodable {
-        let txHash: String
-        let outputIndex: Int
-        let value: UInt64
-
-        enum CodingKeys: String, CodingKey {
-            case txHash = "tx_hash"
-            case outputIndex = "tx_pos"
-            case value
-        }
-    }
-
-    private struct WhatsOnChainTransaction: Decodable {
-        struct Input: Decodable {
-            struct ScriptSignature: Decodable {
-                let asm: String?
-                let hex: String?
-            }
-
-            let txid: String?
-            let vout: Int?
-            let scriptSig: ScriptSignature?
-            let sequence: UInt64?
-            let address: String?
-            let value: Double?
-        }
-
-        struct Output: Decodable {
-            struct ScriptPubKey: Decodable {
-                let addresses: [String]?
-                let address: String?
-            }
-
-            let value: Double?
-            let n: Int?
-            let scriptPubKey: ScriptPubKey?
-        }
-
-        let txid: String
-        let confirmations: Int?
-        let blockheight: Int?
-        let time: TimeInterval?
-        let blocktime: TimeInterval?
-        let vin: [Input]
-        let vout: [Output]
-    }
-
-    private struct BlockchairAddressResponse: Decodable {
-        let data: [String: AddressDashboard]
-    }
-
-    private struct AddressDashboard: Decodable {
-        struct AddressDetails: Decodable {
-            let balance: Int64?
-            let transactionCount: Int?
-
-            enum CodingKeys: String, CodingKey {
-                case balance
-                case transactionCount = "transaction_count"
-            }
-        }
-
-        struct UTXOEntry: Decodable {
-            let transactionHash: String
-            let index: Int
-            let value: UInt64
-
-            enum CodingKeys: String, CodingKey {
-                case transactionHash = "transaction_hash"
-                case index
-                case value
-            }
-        }
-
-        let address: AddressDetails
-        let transactions: [String]
-        let utxo: [UTXOEntry]?
-    }
-
-    private struct BlockchairTransactionResponse: Decodable {
-        let data: [String: TransactionDashboard]
-    }
-
-    private struct TransactionDashboard: Decodable {
-        struct TransactionDetails: Decodable {
-            let blockID: Int?
-            let hash: String
-            let time: String?
-
-            enum CodingKeys: String, CodingKey {
-                case blockID = "block_id"
-                case hash
-                case time
-            }
-        }
-
-        struct Input: Decodable {
-            let recipient: String?
-            let value: Int64?
-        }
-
-        struct Output: Decodable {
-            let recipient: String?
-            let value: Int64?
-        }
-
-        let transaction: TransactionDetails
-        let inputs: [Input]
-        let outputs: [Output]
+        BitcoinSVProvider.diagnosticsChecks()
     }
 
     static func fetchBalance(for address: String) async throws -> Double {
         let trimmed = try normalizedAddress(address)
-        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+        return try await BitcoinSVProvider.runWithFallback(candidates: BitcoinSVProvider.ProviderID.allCases) { provider in
             switch provider {
             case .whatsonchain:
-                let balance: WhatsOnChainBalanceResponse = try await fetchWhatsOnChainDecodable(path: "/address/\(trimmed)/balance")
+                let balance: BitcoinSVProvider.WhatsOnChainBalanceResponse = try await fetchWhatsOnChainDecodable(path: "/address/\(trimmed)/balance")
                 let confirmed = max(0, balance.confirmed ?? 0)
                 let unconfirmed = max(0, balance.unconfirmed ?? 0)
                 return Double(confirmed + unconfirmed) / satoshisPerBSV
@@ -197,14 +57,14 @@ enum BitcoinSVBalanceService {
 
     static func hasTransactionHistory(for address: String) async throws -> Bool {
         let trimmed = try normalizedAddress(address)
-        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+        return try await BitcoinSVProvider.runWithFallback(candidates: BitcoinSVProvider.ProviderID.allCases) { provider in
             switch provider {
             case .whatsonchain:
-                let confirmed: [WhatsOnChainHistoryEntry] = try await fetchWhatsOnChainDecodable(path: "/address/\(trimmed)/confirmed/history")
+                let confirmed: [BitcoinSVProvider.WhatsOnChainHistoryEntry] = try await fetchWhatsOnChainDecodable(path: "/address/\(trimmed)/confirmed/history")
                 if !confirmed.isEmpty {
                     return true
                 }
-                let unconfirmed: [WhatsOnChainHistoryEntry] = try await fetchWhatsOnChainDecodable(path: "/address/\(trimmed)/unconfirmed/history")
+                let unconfirmed: [BitcoinSVProvider.WhatsOnChainHistoryEntry] = try await fetchWhatsOnChainDecodable(path: "/address/\(trimmed)/unconfirmed/history")
                 return !unconfirmed.isEmpty
             case .blockchair:
                 let dashboard = try await fetchBlockchairAddressDashboard(for: trimmed, limit: 1, offset: 0)
@@ -238,7 +98,7 @@ enum BitcoinSVBalanceService {
         guard !trimmed.isEmpty else {
             throw URLError(.badURL)
         }
-        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+        return try await BitcoinSVProvider.runWithFallback(candidates: BitcoinSVProvider.ProviderID.allCases) { provider in
             switch provider {
             case .whatsonchain:
                 let transaction = try await fetchWhatsOnChainTransactionDetails(txid: trimmed)
@@ -266,8 +126,8 @@ enum BitcoinSVBalanceService {
         let normalizedLimit = max(1, limit)
         let ownAddresses = ownAddressVariants(for: trimmed)
 
-        let unconfirmedEntries: [WhatsOnChainHistoryEntry]
-        let confirmedEntries: [WhatsOnChainHistoryEntry]
+        let unconfirmedEntries: [BitcoinSVProvider.WhatsOnChainHistoryEntry]
+        let confirmedEntries: [BitcoinSVProvider.WhatsOnChainHistoryEntry]
         let nextCursor: String?
 
         if let cursor, !cursor.isEmpty {
@@ -320,7 +180,7 @@ enum BitcoinSVBalanceService {
         path: String,
         limit: Int,
         cursor: String?
-    ) async throws -> [WhatsOnChainHistoryEntry] {
+    ) async throws -> [BitcoinSVProvider.WhatsOnChainHistoryEntry] {
         var queryItems = [URLQueryItem(name: "limit", value: String(max(1, limit)))]
         if let cursor, !cursor.isEmpty {
             queryItems.append(URLQueryItem(name: "start", value: cursor))
@@ -328,7 +188,7 @@ enum BitcoinSVBalanceService {
         return try await fetchWhatsOnChainDecodable(path: path, queryItems: queryItems)
     }
 
-    private static func fetchWhatsOnChainTransactionDetails(txid: String) async throws -> WhatsOnChainTransaction {
+    private static func fetchWhatsOnChainTransactionDetails(txid: String) async throws -> BitcoinSVProvider.WhatsOnChainTransaction {
         try await fetchWhatsOnChainDecodable(path: "/tx/hash/\(txid)")
     }
 
@@ -336,9 +196,8 @@ enum BitcoinSVBalanceService {
         for address: String,
         limit: Int,
         offset: Int
-    ) async throws -> AddressDashboard {
-        guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(blockchairBaseURL)/dashboards/address/\(encoded)?limit=\(max(1, limit)),\(max(1, limit))&offset=\(max(0, offset)),0") else {
+    ) async throws -> BitcoinSVProvider.AddressDashboard {
+        guard let url = BitcoinSVProvider.blockchairAddressDashboardURL(address: address, limit: limit, offset: offset) else {
             throw URLError(.badURL)
         }
 
@@ -347,7 +206,7 @@ enum BitcoinSVBalanceService {
             throw URLError(.badServerResponse)
         }
 
-        let decoded = try JSONDecoder().decode(BlockchairAddressResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(BitcoinSVProvider.BlockchairAddressResponse.self, from: data)
         if let dashboard = decoded.data[address] {
             return dashboard
         }
@@ -357,9 +216,8 @@ enum BitcoinSVBalanceService {
         throw URLError(.cannotParseResponse)
     }
 
-    private static func fetchBlockchairTransactionDetails(txid: String) async throws -> TransactionDashboard {
-        guard let encoded = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(blockchairBaseURL)/dashboards/transaction/\(encoded)") else {
+    private static func fetchBlockchairTransactionDetails(txid: String) async throws -> BitcoinSVProvider.TransactionDashboard {
+        guard let url = BitcoinSVProvider.blockchairTransactionURL(txid: txid) else {
             throw URLError(.badURL)
         }
 
@@ -368,7 +226,7 @@ enum BitcoinSVBalanceService {
             throw URLError(.badServerResponse)
         }
 
-        let decoded = try JSONDecoder().decode(BlockchairTransactionResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(BitcoinSVProvider.BlockchairTransactionResponse.self, from: data)
         if let transaction = decoded.data[txid] {
             return transaction
         }
@@ -379,7 +237,7 @@ enum BitcoinSVBalanceService {
     }
 
     private static func fetchWhatsOnChainUTXOs(for address: String) async throws -> [BitcoinSVUTXO] {
-        let utxos: [WhatsOnChainUnspentEntry] = try await fetchWhatsOnChainDecodable(path: "/address/\(address)/confirmed/unspent")
+        let utxos: [BitcoinSVProvider.WhatsOnChainUnspentEntry] = try await fetchWhatsOnChainDecodable(path: "/address/\(address)/confirmed/unspent")
         return sanitizeUTXOs(utxos.map {
             BitcoinSVUTXO(txid: $0.txHash, vout: $0.outputIndex, value: $0.value)
         })
@@ -393,7 +251,7 @@ enum BitcoinSVBalanceService {
     }
 
     private static func snapshot(
-        for transaction: WhatsOnChainTransaction,
+        for transaction: BitcoinSVProvider.WhatsOnChainTransaction,
         ownAddresses: Set<String>
     ) -> BitcoinSVHistorySnapshot {
         let outgoingValue = transaction.vin.reduce(0.0) { partialResult, input in
@@ -435,7 +293,7 @@ enum BitcoinSVBalanceService {
         )
     }
 
-    private static func resolvedAddresses(for output: WhatsOnChainTransaction.Output) -> [String] {
+    private static func resolvedAddresses(for output: BitcoinSVProvider.WhatsOnChainTransaction.Output) -> [String] {
         if let addresses = output.scriptPubKey?.addresses, !addresses.isEmpty {
             return addresses
         }
@@ -445,7 +303,7 @@ enum BitcoinSVBalanceService {
         return []
     }
 
-    private static func tokenForLastHistoryEntry(_ entry: WhatsOnChainHistoryEntry?) -> String {
+    private static func tokenForLastHistoryEntry(_ entry: BitcoinSVProvider.WhatsOnChainHistoryEntry?) -> String {
         guard let entry else { return "" }
         let height = entry.height.map(String.init) ?? ""
         return height.isEmpty ? entry.txHash : "\(height):\(entry.txHash)"
@@ -526,7 +384,7 @@ enum BitcoinSVBalanceService {
         path: String,
         queryItems: [URLQueryItem] = []
     ) async throws -> T {
-        guard var components = URLComponents(string: whatsonchainBaseURL + path) else {
+        guard var components = URLComponents(string: BitcoinSVProvider.whatsonchainBaseURL + path) else {
             throw URLError(.badURL)
         }
         if !queryItems.isEmpty {
@@ -543,31 +401,11 @@ enum BitcoinSVBalanceService {
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    private static func runWithProviderFallback<T>(
-        candidates: [Provider],
-        operation: @escaping (Provider) async throws -> T
-    ) async throws -> T {
-        var firstError: Error?
-        var lastError: Error?
-        for provider in candidates {
-            do {
-                return try await operation(provider)
-            } catch {
-                if firstError == nil {
-                    firstError = error
-                }
-                lastError = error
-                try? await Task.sleep(nanoseconds: 180_000_000)
-            }
-        }
-        throw firstError ?? lastError ?? URLError(.cannotLoadFromNetwork)
-    }
-
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
-        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        return try await ProviderHTTP.data(for: request, profile: .chainRead)
     }
 }

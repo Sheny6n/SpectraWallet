@@ -217,7 +217,7 @@ enum CardanoBalanceService {
     }
 
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
-        try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        try await ProviderHTTP.data(for: request, profile: .chainRead)
     }
 
     private static func fetchAddressInfoRows(for normalizedAddress: String, baseURL: String) async throws -> [[String: Any]] {

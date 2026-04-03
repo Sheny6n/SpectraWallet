@@ -50,7 +50,6 @@ struct PolkadotSendResult: Equatable {
 
 enum PolkadotWalletEngine {
     private static let dotDivisor = Decimal(string: "10000000000")!
-    private static let endpointReliabilityNamespace = "polkadot.sidecar"
 
     static func derivedAddress(for seedPhrase: String, derivationPath: String = "m/44'/354'/0'") throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
@@ -167,39 +166,6 @@ enum PolkadotWalletEngine {
         let encodedExtrinsicHex: String
     }
 
-    private struct TransactionMaterial: Decodable {
-        struct At: Decodable {
-            let hash: String
-            let height: String
-        }
-
-        let at: At
-        let genesisHash: String
-        let specVersion: String
-        let txVersion: String
-    }
-
-    private struct SidecarBalanceInfo: Decodable {
-        let nonce: Int?
-    }
-
-    private struct FeeEstimateEnvelope: Decodable {
-        let estimatedFee: String?
-        let partialFee: String?
-        let inclusionFee: FeeComponent?
-
-        struct FeeComponent: Decodable {
-            let baseFee: String?
-            let lenFee: String?
-            let adjustedWeightFee: String?
-        }
-    }
-
-    private struct BroadcastEnvelope: Decodable {
-        let hash: String?
-        let txHash: String?
-    }
-
     private static func prepareSignedExtrinsic(
         seedPhrase: String,
         ownerAddress: String,
@@ -267,22 +233,22 @@ enum PolkadotWalletEngine {
         return PreparedExtrinsic(encodedExtrinsicHex: "0x" + output.encoded.hexString)
     }
 
-    private static func fetchTransactionMaterial() async throws -> TransactionMaterial {
+    private static func fetchTransactionMaterial() async throws -> PolkadotProvider.TransactionMaterial {
         var lastError: Error?
-        for endpoint in orderedSidecarEndpoints() {
+        for endpoint in PolkadotProvider.orderedSidecarEndpoints() {
             guard let url = URL(string: "\(endpoint)/transaction/material") else { continue }
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse,
                       (200 ... 299).contains(http.statusCode) else {
                     throw PolkadotWalletEngineError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
-                let decoded = try JSONDecoder().decode(TransactionMaterial.self, from: data)
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                let decoded = try JSONDecoder().decode(PolkadotProvider.TransactionMaterial.self, from: data)
+                ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: true)
                 return decoded
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
         throw lastError ?? PolkadotWalletEngineError.invalidResponse
@@ -290,21 +256,21 @@ enum PolkadotWalletEngine {
 
     private static func fetchNonce(for address: String) async throws -> Int {
         var lastError: Error?
-        for endpoint in orderedSidecarEndpoints() {
+        for endpoint in PolkadotProvider.orderedSidecarEndpoints() {
             guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
                   let url = URL(string: "\(endpoint)/accounts/\(encoded)/balance-info") else { continue }
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse,
                       (200 ... 299).contains(http.statusCode) else {
                     throw PolkadotWalletEngineError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
-                let info = try JSONDecoder().decode(SidecarBalanceInfo.self, from: data)
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                let info = try JSONDecoder().decode(PolkadotProvider.SidecarBalanceInfo.self, from: data)
+                ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: true)
                 return info.nonce ?? 0
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
         throw lastError ?? PolkadotWalletEngineError.invalidResponse
@@ -313,7 +279,7 @@ enum PolkadotWalletEngine {
     private static func fetchFeeEstimate(for extrinsicHex: String) async throws -> Double {
         let payload = try JSONSerialization.data(withJSONObject: ["tx": extrinsicHex], options: [])
         var lastError: Error?
-        for endpoint in orderedSidecarEndpoints() {
+        for endpoint in PolkadotProvider.orderedSidecarEndpoints() {
             guard let url = URL(string: "\(endpoint)/transaction/fee-estimate") else { continue }
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
@@ -322,15 +288,15 @@ enum PolkadotWalletEngine {
             request.httpBody = payload
 
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse,
                       (200 ... 299).contains(http.statusCode) else {
                     throw PolkadotWalletEngineError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
-                let envelope = try JSONDecoder().decode(FeeEstimateEnvelope.self, from: data)
+                let envelope = try JSONDecoder().decode(PolkadotProvider.FeeEstimateEnvelope.self, from: data)
                 if let feeText = envelope.estimatedFee ?? envelope.partialFee,
                    let fee = Decimal(string: feeText) {
-                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                    ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: true)
                     return decimalToDouble(fee / dotDivisor)
                 }
                 if let inclusion = envelope.inclusionFee {
@@ -339,14 +305,14 @@ enum PolkadotWalletEngine {
                     let adjusted = Decimal(string: inclusion.adjustedWeightFee ?? "0") ?? 0
                     let total = base + len + adjusted
                     if total > 0 {
-                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                        ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: true)
                         return decimalToDouble(total / dotDivisor)
                     }
                 }
                 throw PolkadotWalletEngineError.invalidResponse
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
         throw lastError ?? PolkadotWalletEngineError.invalidResponse
@@ -355,7 +321,7 @@ enum PolkadotWalletEngine {
     private static func broadcastExtrinsic(_ extrinsicHex: String) async throws -> String {
         let payload = try JSONSerialization.data(withJSONObject: ["tx": extrinsicHex], options: [])
         var lastError: Error?
-        for endpoint in orderedSidecarEndpoints() {
+        for endpoint in PolkadotProvider.orderedSidecarEndpoints() {
             guard let url = URL(string: "\(endpoint)/transaction") else { continue }
             for attempt in 0 ..< 2 {
                 var request = URLRequest(url: url)
@@ -365,29 +331,29 @@ enum PolkadotWalletEngine {
                 request.httpBody = payload
 
                 do {
-                    let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                    let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                     guard let http = response as? HTTPURLResponse,
                           (200 ... 299).contains(http.statusCode) else {
                         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
                         let body = String(data: data, encoding: .utf8) ?? "HTTP \(statusCode)"
                         throw PolkadotWalletEngineError.networkError(body)
                     }
-                    if let envelope = try? JSONDecoder().decode(BroadcastEnvelope.self, from: data),
+                    if let envelope = try? JSONDecoder().decode(PolkadotProvider.BroadcastEnvelope.self, from: data),
                        let hash = envelope.hash ?? envelope.txHash,
                        !hash.isEmpty {
-                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                        ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: true)
                         return hash
                     }
                     if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                        let hash = object["hash"] as? String ?? object["txHash"] as? String,
                        !hash.isEmpty {
-                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                        ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: true)
                         return hash
                     }
                     throw PolkadotWalletEngineError.invalidResponse
                 } catch {
                     lastError = error
-                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
+                    ChainEndpointReliability.recordAttempt(namespace: PolkadotProvider.endpointReliabilityNamespace, endpoint: endpoint, success: false)
                     if attempt < 1, classifySendBroadcastFailure(error.localizedDescription) == .retryable {
                         continue
                     }
@@ -441,12 +407,6 @@ enum PolkadotWalletEngine {
         NSDecimalNumber(decimal: value).doubleValue
     }
 
-    private static func orderedSidecarEndpoints() -> [String] {
-        ChainEndpointReliability.orderedEndpoints(
-            namespace: endpointReliabilityNamespace,
-            candidates: PolkadotBalanceService.sidecarEndpointCatalog()
-        )
-    }
 }
 
 private extension Data {

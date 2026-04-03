@@ -12,9 +12,7 @@ enum DogecoinChainSelfTestSuite {
             testAddressValidationMainnet(),
             testAddressValidationRejectsGarbage(),
             testAddressValidationRejectsChecksumMutation(),
-            testReconciliationConservativePendingOnConflict(),
-            testReconciliationDeduplicatesConsistentSnapshots(),
-            testReconciliationUsesNewestTimestamp()
+            testSingleProviderRuntimeConfiguration()
         ]
     }
 
@@ -47,118 +45,17 @@ enum DogecoinChainSelfTestSuite {
         )
     }
 
-    private static func testReconciliationConservativePendingOnConflict() -> ChainSelfTestResult {
-        #if DEBUG
-        let now = Date()
-        let txid = "abc123"
-        let providerA = DogecoinBalanceService.AddressTransactionSnapshot(
-            hash: txid,
-            kind: .send,
-            status: .confirmed,
-            amount: 10,
-            counterpartyAddress: "DconflictA",
-            createdAt: now,
-            blockNumber: 5
-        )
-        let providerB = DogecoinBalanceService.AddressTransactionSnapshot(
-            hash: txid,
-            kind: .receive,
-            status: .confirmed,
-            amount: 9.5,
-            counterpartyAddress: "DconflictB",
-            createdAt: now.addingTimeInterval(-30),
-            blockNumber: 5
-        )
-        let merged = DogecoinBalanceService.reconcileSnapshotsForTesting([[providerA], [providerB]])
-        let passed = merged.count == 1 && merged[0].status == .pending
+    private static func testSingleProviderRuntimeConfiguration() -> ChainSelfTestResult {
+        let networks = DogecoinBalanceService.endpointCatalogByNetwork()
+        let mainnet = networks.first { $0.title == "Dogecoin" }?.endpoints ?? []
+        let testnet = networks.first { $0.title == "Dogecoin Testnet" }?.endpoints ?? []
+        let passed = mainnet == [ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherBaseURL]
+            && testnet == [ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherTestnetBaseURL]
         return ChainSelfTestResult(
-            name: "DOGE Reconciliation Conflict Handling",
+            name: "DOGE Single Provider Runtime",
             passed: passed,
-            message: passed ? "Conflict downgraded to pending." : "Conflict handling did not downgrade status."
+            message: passed ? "Dogecoin uses BlockCypher endpoints per network." : "Dogecoin runtime endpoints are not simplified to the BlockCypher-only model."
         )
-        #else
-        return ChainSelfTestResult(
-            name: "DOGE Reconciliation Conflict Handling",
-            passed: true,
-            message: "Skipped outside DEBUG build."
-        )
-        #endif
-    }
-
-    private static func testReconciliationDeduplicatesConsistentSnapshots() -> ChainSelfTestResult {
-        #if DEBUG
-        let now = Date()
-        let txid = "dedupe123"
-        let providerA = DogecoinBalanceService.AddressTransactionSnapshot(
-            hash: txid,
-            kind: .send,
-            status: .confirmed,
-            amount: 2,
-            counterpartyAddress: "Drecipient",
-            createdAt: now,
-            blockNumber: 10
-        )
-        let providerB = DogecoinBalanceService.AddressTransactionSnapshot(
-            hash: txid,
-            kind: .send,
-            status: .confirmed,
-            amount: 2,
-            counterpartyAddress: "Drecipient",
-            createdAt: now.addingTimeInterval(-5),
-            blockNumber: 10
-        )
-        let merged = DogecoinBalanceService.reconcileSnapshotsForTesting([[providerA], [providerB]])
-        let passed = merged.count == 1 && merged[0].status == .confirmed && merged[0].kind == .send
-        return ChainSelfTestResult(
-            name: "DOGE Reconciliation Deduplication",
-            passed: passed,
-            message: passed ? "Consistent provider snapshots merged." : "Consistent snapshots were not merged correctly."
-        )
-        #else
-        return ChainSelfTestResult(
-            name: "DOGE Reconciliation Deduplication",
-            passed: true,
-            message: "Skipped outside DEBUG build."
-        )
-        #endif
-    }
-
-    private static func testReconciliationUsesNewestTimestamp() -> ChainSelfTestResult {
-        #if DEBUG
-        let now = Date()
-        let txid = "newest123"
-        let older = DogecoinBalanceService.AddressTransactionSnapshot(
-            hash: txid,
-            kind: .receive,
-            status: .confirmed,
-            amount: 3,
-            counterpartyAddress: "Dsender",
-            createdAt: now.addingTimeInterval(-60),
-            blockNumber: 22
-        )
-        let newer = DogecoinBalanceService.AddressTransactionSnapshot(
-            hash: txid,
-            kind: .receive,
-            status: .confirmed,
-            amount: 3,
-            counterpartyAddress: "Dsender",
-            createdAt: now,
-            blockNumber: 22
-        )
-        let merged = DogecoinBalanceService.reconcileSnapshotsForTesting([[older], [newer]])
-        let passed = merged.count == 1 && merged[0].createdAt == now
-        return ChainSelfTestResult(
-            name: "DOGE Reconciliation Uses Newest Timestamp",
-            passed: passed,
-            message: passed ? "Newest provider timestamp retained." : "Newest timestamp was not retained."
-        )
-        #else
-        return ChainSelfTestResult(
-            name: "DOGE Reconciliation Uses Newest Timestamp",
-            passed: true,
-            message: "Skipped outside DEBUG build."
-        )
-        #endif
     }
 }
 

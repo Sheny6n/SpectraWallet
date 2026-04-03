@@ -39,21 +39,14 @@ struct ICPHistoryDiagnostics: Equatable {
 }
 
 enum ICPBalanceService {
-    static let rosettaEndpoints = ChainBackendRegistry.ICPRuntimeEndpoints.rosettaBaseURLs
-    private static let endpointReliabilityNamespace = "icp.rosetta"
-
-    private static let networkIdentifier = NetworkIdentifier(
-        blockchain: "Internet Computer",
-        network: "00000000000000020101"
-    )
     private static let e8Divisor = Decimal(string: "100000000")!
 
     static func endpointCatalog() -> [String] {
-        rosettaEndpoints
+        ICPProvider.endpointCatalog()
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        rosettaEndpoints.map { ($0, "\($0)/network/list") }
+        ICPProvider.diagnosticsChecks()
     }
 
     static func isValidAddress(_ address: String) -> Bool {
@@ -67,13 +60,13 @@ enum ICPBalanceService {
         }
 
         var lastError: Error?
-        for endpoint in rosettaEndpoints {
+        for endpoint in ICPProvider.rosettaEndpoints {
             do {
-                let request = AccountBalanceRequest(
-                    networkIdentifier: networkIdentifier,
-                    accountIdentifier: AccountIdentifier(address: normalized)
+                let request = ICPProvider.AccountBalanceRequest(
+                    networkIdentifier: ICPProvider.networkIdentifier,
+                    accountIdentifier: ICPProvider.AccountIdentifier(address: normalized)
                 )
-                let response: AccountBalanceResponse = try await post(
+                let response: ICPProvider.AccountBalanceResponse = try await post(
                     endpoint: endpoint,
                     path: "/account/balance",
                     requestBody: request
@@ -93,14 +86,14 @@ enum ICPBalanceService {
 
     static func fetchSuggestedTransferFeeE8s() async throws -> UInt64 {
         var lastError: Error?
-        for endpoint in rosettaEndpoints {
+        for endpoint in ICPProvider.rosettaEndpoints {
             do {
-                let request = ConstructionMetadataRequest(
-                    networkIdentifier: networkIdentifier,
-                    options: ConstructionMetadataOptions(requestTypes: ["TRANSACTION"]),
+                let request = ICPProvider.ConstructionMetadataRequest(
+                    networkIdentifier: ICPProvider.networkIdentifier,
+                    options: ICPProvider.ConstructionMetadataOptions(requestTypes: ["TRANSACTION"]),
                     publicKeys: nil
                 )
-                let response: ConstructionMetadataResponse = try await post(
+                let response: ICPProvider.ConstructionMetadataResponse = try await post(
                     endpoint: endpoint,
                     path: "/construction/metadata",
                     requestBody: request
@@ -134,15 +127,15 @@ enum ICPBalanceService {
 
         let boundedLimit = max(1, min(limit, 80))
         var lastError: String?
-        for endpoint in rosettaEndpoints {
+        for endpoint in ICPProvider.rosettaEndpoints {
             do {
-                let request = SearchTransactionsRequest(
-                    networkIdentifier: networkIdentifier,
-                    accountIdentifier: AccountIdentifier(address: normalized),
+                let request = ICPProvider.SearchTransactionsRequest(
+                    networkIdentifier: ICPProvider.networkIdentifier,
+                    accountIdentifier: ICPProvider.AccountIdentifier(address: normalized),
                     transactionIdentifier: nil,
                     limit: boundedLimit
                 )
-                let response: SearchTransactionsResponse = try await post(
+                let response: ICPProvider.SearchTransactionsResponse = try await post(
                     endpoint: endpoint,
                     path: "/search/transactions",
                     requestBody: request
@@ -166,7 +159,7 @@ enum ICPBalanceService {
             [],
             ICPHistoryDiagnostics(
                 address: normalized,
-                sourceUsed: rosettaEndpoints.first ?? "none",
+                sourceUsed: ICPProvider.rosettaEndpoints.first ?? "none",
                 transactionCount: 0,
                 error: lastError ?? ICPBalanceServiceError.invalidResponse.localizedDescription
             )
@@ -180,13 +173,13 @@ enum ICPBalanceService {
         }
 
         var lastError: Error?
-        for endpoint in orderedRosettaEndpoints() {
+        for endpoint in ICPProvider.orderedRosettaEndpoints() {
             do {
-                let request = ConstructionSubmitRequest(
-                    networkIdentifier: networkIdentifier,
+                let request = ICPProvider.ConstructionSubmitRequest(
+                    networkIdentifier: ICPProvider.networkIdentifier,
                     signedTransaction: trimmed
                 )
-                let response: ConstructionSubmitResponse = try await post(
+                let response: ICPProvider.ConstructionSubmitResponse = try await post(
                     endpoint: endpoint,
                     path: "/construction/submit",
                     requestBody: request
@@ -195,11 +188,11 @@ enum ICPBalanceService {
                       !hash.isEmpty else {
                     throw ICPBalanceServiceError.invalidResponse
                 }
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: true)
+                ChainEndpointReliability.recordAttempt(namespace: ICPProvider.endpointReliabilityNamespace, endpoint: endpoint, success: true)
                 return hash
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: ICPProvider.endpointReliabilityNamespace, endpoint: endpoint, success: false)
             }
         }
 
@@ -213,15 +206,15 @@ enum ICPBalanceService {
         }
 
         var lastError: String?
-        for endpoint in orderedRosettaEndpoints() {
+        for endpoint in ICPProvider.orderedRosettaEndpoints() {
             do {
-                let request = SearchTransactionsRequest(
-                    networkIdentifier: networkIdentifier,
+                let request = ICPProvider.SearchTransactionsRequest(
+                    networkIdentifier: ICPProvider.networkIdentifier,
                     accountIdentifier: nil,
-                    transactionIdentifier: TransactionIdentifier(hash: normalizedHash),
+                    transactionIdentifier: ICPProvider.TransactionIdentifier(hash: normalizedHash),
                     limit: 1
                 )
-                let response: SearchTransactionsResponse = try await post(
+                let response: ICPProvider.SearchTransactionsResponse = try await post(
                     endpoint: endpoint,
                     path: "/search/transactions",
                     requestBody: request
@@ -242,7 +235,7 @@ enum ICPBalanceService {
         return .deferred
     }
 
-    private static func snapshot(from entry: SearchTransactionEntry, ownerAddress: String) -> ICPHistorySnapshot? {
+    private static func snapshot(from entry: ICPProvider.SearchTransactionEntry, ownerAddress: String) -> ICPHistorySnapshot? {
         let operations = entry.transaction.operations
         let transferOperations = operations.filter {
             $0.type?.caseInsensitiveCompare("TRANSACTION") == .orderedSame
@@ -293,12 +286,12 @@ enum ICPBalanceService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
         guard let http = response as? HTTPURLResponse else {
             throw ICPBalanceServiceError.invalidResponse
         }
         guard (200 ... 299).contains(http.statusCode) else {
-            if let rosettaError = try? JSONDecoder().decode(RosettaErrorResponse.self, from: data),
+            if let rosettaError = try? JSONDecoder().decode(ICPProvider.RosettaErrorResponse.self, from: data),
                let message = rosettaError.details?.errorMessage ?? rosettaError.message {
                 throw ICPBalanceServiceError.rpcError(message)
             }
@@ -315,167 +308,4 @@ enum ICPBalanceService {
         NSDecimalNumber(decimal: decimal).doubleValue
     }
 
-    private static func orderedRosettaEndpoints() -> [String] {
-        ChainEndpointReliability.orderedEndpoints(
-            namespace: endpointReliabilityNamespace,
-            candidates: rosettaEndpoints
-        )
-    }
-
-}
-
-private struct NetworkIdentifier: Codable {
-    let blockchain: String
-    let network: String
-}
-
-private struct AccountIdentifier: Codable {
-    let address: String
-}
-
-private struct CurrencyAmount: Codable {
-    let value: String?
-}
-
-private struct AccountBalanceRequest: Codable {
-    let networkIdentifier: NetworkIdentifier
-    let accountIdentifier: AccountIdentifier
-
-    enum CodingKeys: String, CodingKey {
-        case networkIdentifier = "network_identifier"
-        case accountIdentifier = "account_identifier"
-    }
-}
-
-private struct AccountBalanceResponse: Codable {
-    let balances: [CurrencyAmount]
-}
-
-private struct SearchTransactionsRequest: Codable {
-    let networkIdentifier: NetworkIdentifier
-    let accountIdentifier: AccountIdentifier?
-    let transactionIdentifier: TransactionIdentifier?
-    let limit: Int
-
-    enum CodingKeys: String, CodingKey {
-        case networkIdentifier = "network_identifier"
-        case accountIdentifier = "account_identifier"
-        case transactionIdentifier = "transaction_identifier"
-        case limit
-    }
-}
-
-private struct SearchTransactionsResponse: Codable {
-    let transactions: [SearchTransactionEntry]
-}
-
-private struct SearchTransactionEntry: Codable {
-    let blockIdentifier: BlockIdentifier
-    let transaction: RosettaTransaction
-
-    enum CodingKeys: String, CodingKey {
-        case blockIdentifier = "block_identifier"
-        case transaction
-    }
-}
-
-private struct BlockIdentifier: Codable {
-    let index: Int64?
-    let hash: String?
-}
-
-private struct RosettaTransaction: Codable {
-    let transactionIdentifier: TransactionIdentifier
-    let operations: [RosettaOperation]
-    let metadata: RosettaTransactionMetadata?
-
-    enum CodingKeys: String, CodingKey {
-        case transactionIdentifier = "transaction_identifier"
-        case operations
-        case metadata
-    }
-}
-
-private struct TransactionIdentifier: Codable {
-    let hash: String?
-}
-
-private struct RosettaOperation: Codable {
-    let type: String?
-    let status: String?
-    let account: AccountIdentifier?
-    let amount: CurrencyAmount?
-}
-
-private struct RosettaTransactionMetadata: Codable {
-    let timestamp: Int64?
-}
-
-private struct ConstructionSubmitRequest: Codable {
-    let networkIdentifier: NetworkIdentifier
-    let signedTransaction: String
-
-    enum CodingKeys: String, CodingKey {
-        case networkIdentifier = "network_identifier"
-        case signedTransaction = "signed_transaction"
-    }
-}
-
-private struct ConstructionMetadataOptions: Codable {
-    let requestTypes: [String]
-
-    enum CodingKeys: String, CodingKey {
-        case requestTypes = "request_types"
-    }
-}
-
-private struct ConstructionMetadataRequest: Codable {
-    let networkIdentifier: NetworkIdentifier
-    let options: ConstructionMetadataOptions
-    let publicKeys: [RosettaPublicKey]?
-
-    enum CodingKeys: String, CodingKey {
-        case networkIdentifier = "network_identifier"
-        case options
-        case publicKeys = "public_keys"
-    }
-}
-
-private struct ConstructionMetadataResponse: Codable {
-    let suggestedFee: [CurrencyAmount]?
-
-    enum CodingKeys: String, CodingKey {
-        case suggestedFee = "suggested_fee"
-    }
-}
-
-private struct RosettaPublicKey: Codable {
-    let hexBytes: String
-    let curveType: String
-
-    enum CodingKeys: String, CodingKey {
-        case hexBytes = "hex_bytes"
-        case curveType = "curve_type"
-    }
-}
-
-private struct ConstructionSubmitResponse: Codable {
-    let transactionIdentifier: TransactionIdentifier?
-
-    enum CodingKeys: String, CodingKey {
-        case transactionIdentifier = "transaction_identifier"
-    }
-}
-
-private struct RosettaErrorResponse: Codable {
-    struct Details: Codable {
-        let errorMessage: String?
-
-        enum CodingKeys: String, CodingKey {
-            case errorMessage = "error_message"
-        }
-    }
-
-    let message: String?
-    let details: Details?
 }

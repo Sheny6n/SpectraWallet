@@ -75,10 +75,6 @@ enum AptosWalletEngine {
         }
     }
 
-    private struct SubmitResponse: Decodable {
-        let hash: String?
-    }
-
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
             seedPhrase: seedPhrase,
@@ -229,18 +225,6 @@ enum AptosWalletEngine {
         )
     }
 
-    private struct TransactionLookupResponse: Decodable {
-        let hash: String?
-        let success: Bool?
-        let vmStatus: String?
-
-        enum CodingKeys: String, CodingKey {
-            case hash
-            case success
-            case vmStatus = "vm_status"
-        }
-    }
-
     private static func verifyBroadcastedTransactionIfAvailable(transactionHash: String) async -> SendBroadcastVerificationStatus {
         let normalizedHash = transactionHash.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedHash.isEmpty else { return .deferred }
@@ -254,7 +238,7 @@ enum AptosWalletEngine {
                     }
                     var request = URLRequest(url: url)
                     request.httpMethod = "GET"
-                    let result: TransactionLookupResponse = try await get(request)
+                    let result: AptosProvider.TransactionLookupResponse = try await get(request)
                     if result.success == false {
                         return .failed(result.vmStatus ?? "Aptos transaction execution failed.")
                     }
@@ -336,7 +320,7 @@ enum AptosWalletEngine {
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.httpBody = data
 
-                    let result: SubmitResponse = try await send(request)
+                    let result: AptosProvider.SubmitResponse = try await send(request)
                     guard let hash = result.hash?.trimmingCharacters(in: .whitespacesAndNewlines), !hash.isEmpty else {
                         throw AptosWalletEngineError.broadcastFailed("Missing Aptos transaction hash from submit response.")
                     }
@@ -395,7 +379,7 @@ enum AptosWalletEngine {
 
     private static func get<ResultType: Decodable>(_ request: URLRequest) async throws -> ResultType {
         do {
-            let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+            let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
             guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? -1
                 throw AptosWalletEngineError.networkError("HTTP \(code)")
@@ -410,7 +394,7 @@ enum AptosWalletEngine {
 
     private static func send<ResultType: Decodable>(_ request: URLRequest) async throws -> ResultType {
         do {
-            let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+            let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainWrite)
             guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? -1
                 throw AptosWalletEngineError.broadcastFailed("HTTP \(code)")

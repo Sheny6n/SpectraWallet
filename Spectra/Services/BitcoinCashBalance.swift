@@ -28,13 +28,6 @@ struct BitcoinCashUTXO: Equatable {
 }
 
 enum BitcoinCashBalanceService {
-    private enum Provider: String, CaseIterable {
-        case blockchair
-        case actorforth
-    }
-
-    private static let blockchairBaseURL = ChainBackendRegistry.BitcoinCashRuntimeEndpoints.blockchairBaseURL
-    private static let actorforthBaseURL = ChainBackendRegistry.BitcoinCashRuntimeEndpoints.actorforthBaseURL
     private static let blockchairTimestampFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -45,149 +38,11 @@ enum BitcoinCashBalanceService {
     private static let satoshisPerBCH: Double = 100_000_000
 
     static func endpointCatalog() -> [String] {
-        [
-            blockchairBaseURL,
-            actorforthBaseURL,
-        ]
+        BitcoinCashProvider.endpointCatalog()
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        [
-            (endpoint: blockchairBaseURL, probeURL: blockchairBaseURL + "/stats"),
-            (endpoint: actorforthBaseURL, probeURL: actorforthBaseURL + "/blockchain/getBlockchainInfo"),
-        ]
-    }
-
-    private struct BlockchairAddressResponse: Decodable {
-        struct Context: Decodable {
-            let code: Int?
-        }
-
-        let data: [String: AddressDashboard]
-        let context: Context?
-    }
-
-    private struct AddressDashboard: Decodable {
-        struct AddressDetails: Decodable {
-            let balance: Int64?
-            let transactionCount: Int?
-
-            enum CodingKeys: String, CodingKey {
-                case balance
-                case transactionCount = "transaction_count"
-            }
-        }
-
-        struct UTXOEntry: Decodable {
-            let transactionHash: String
-            let index: Int
-            let value: UInt64
-
-            enum CodingKeys: String, CodingKey {
-                case transactionHash = "transaction_hash"
-                case index
-                case value
-            }
-        }
-
-        let address: AddressDetails
-        let transactions: [String]
-        let utxo: [UTXOEntry]?
-    }
-
-    private struct BlockchairTransactionResponse: Decodable {
-        let data: [String: TransactionDashboard]
-    }
-
-    private struct TransactionDashboard: Decodable {
-        struct TransactionDetails: Decodable {
-            let blockID: Int?
-            let hash: String
-            let time: String?
-
-            enum CodingKeys: String, CodingKey {
-                case blockID = "block_id"
-                case hash
-                case time
-            }
-        }
-
-        struct Input: Decodable {
-            let recipient: String?
-            let value: Int64?
-        }
-
-        struct Output: Decodable {
-            let recipient: String?
-            let value: Int64?
-        }
-
-        let transaction: TransactionDetails
-        let inputs: [Input]
-        let outputs: [Output]
-    }
-
-    private struct ActorForthEnvelope<Payload: Decodable>: Decodable {
-        let status: String?
-        let message: String?
-        let data: Payload?
-    }
-
-    private struct ActorForthAddressDetails: Decodable {
-        let balanceSat: Int64?
-        let txApperances: Int?
-        let transactions: [String]?
-
-        enum CodingKeys: String, CodingKey {
-            case balanceSat
-            case txApperances
-            case transactions
-        }
-    }
-
-    private struct ActorForthUTXOPayload: Decodable {
-        struct Entry: Decodable {
-            let txid: String?
-            let vout: Int?
-            let satoshis: UInt64?
-        }
-
-        let utxos: [Entry]?
-    }
-
-    private struct ActorForthTransactionPayload: Decodable {
-        struct Input: Decodable {
-            let legacyAddress: String?
-            let cashAddress: String?
-            let valueSat: Int64?
-
-            enum CodingKeys: String, CodingKey {
-                case legacyAddress
-                case cashAddress
-                case valueSat
-            }
-        }
-
-        struct Output: Decodable {
-            let legacyAddress: String?
-            let cashAddress: String?
-            let value: String?
-            let valueSat: Int64?
-
-            enum CodingKeys: String, CodingKey {
-                case legacyAddress
-                case cashAddress
-                case value
-                case valueSat
-            }
-        }
-
-        let txid: String?
-        let confirmations: Int?
-        let blockheight: Int?
-        let time: TimeInterval?
-        let vin: [Input]?
-        let vout: [Output]?
+        BitcoinCashProvider.diagnosticsChecks()
     }
 
     static func fetchBalance(for address: String) async throws -> Double {
@@ -195,7 +50,7 @@ enum BitcoinCashBalanceService {
         guard !trimmed.isEmpty else {
             throw URLError(.badURL)
         }
-        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+        return try await BitcoinCashProvider.runWithFallback(candidates: BitcoinCashProvider.ProviderID.allCases) { provider in
             switch provider {
             case .blockchair:
                 let dashboard = try await fetchBlockchairAddressDashboard(for: trimmed, limit: 1, offset: 0)
@@ -214,7 +69,7 @@ enum BitcoinCashBalanceService {
         guard !trimmed.isEmpty else {
             throw URLError(.badURL)
         }
-        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+        return try await BitcoinCashProvider.runWithFallback(candidates: BitcoinCashProvider.ProviderID.allCases) { provider in
             switch provider {
             case .blockchair:
                 let dashboard = try await fetchBlockchairAddressDashboard(for: trimmed, limit: 1, offset: 0)
@@ -254,7 +109,7 @@ enum BitcoinCashBalanceService {
         guard !trimmed.isEmpty else {
             throw URLError(.badURL)
         }
-        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+        return try await BitcoinCashProvider.runWithFallback(candidates: BitcoinCashProvider.ProviderID.allCases) { provider in
             switch provider {
             case .blockchair:
                 let transaction = try await fetchBlockchairTransactionDetails(txid: trimmed)
@@ -303,9 +158,8 @@ enum BitcoinCashBalanceService {
         for address: String,
         limit: Int,
         offset: Int
-    ) async throws -> AddressDashboard {
-        guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(blockchairBaseURL)/dashboards/address/\(encoded)?limit=\(max(1, limit)),\(max(1, limit))&offset=\(max(0, offset)),0") else {
+    ) async throws -> BitcoinCashProvider.AddressDashboard {
+        guard let url = BitcoinCashProvider.blockchairAddressDashboardURL(address: address, limit: limit, offset: offset) else {
             throw URLError(.badURL)
         }
 
@@ -314,7 +168,7 @@ enum BitcoinCashBalanceService {
             throw URLError(.badServerResponse)
         }
 
-        let decoded = try JSONDecoder().decode(BlockchairAddressResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(BitcoinCashProvider.BlockchairAddressResponse.self, from: data)
         if let dashboard = decoded.data[address] {
             return dashboard
         }
@@ -324,9 +178,8 @@ enum BitcoinCashBalanceService {
         throw URLError(.cannotParseResponse)
     }
 
-    private static func fetchBlockchairTransactionDetails(txid: String) async throws -> TransactionDashboard {
-        guard let encoded = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(blockchairBaseURL)/dashboards/transaction/\(encoded)") else {
+    private static func fetchBlockchairTransactionDetails(txid: String) async throws -> BitcoinCashProvider.TransactionDashboard {
+        guard let url = BitcoinCashProvider.blockchairTransactionURL(txid: txid) else {
             throw URLError(.badURL)
         }
 
@@ -335,7 +188,7 @@ enum BitcoinCashBalanceService {
             throw URLError(.badServerResponse)
         }
 
-        let decoded = try JSONDecoder().decode(BlockchairTransactionResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(BitcoinCashProvider.BlockchairTransactionResponse.self, from: data)
         if let transaction = decoded.data[txid] {
             return transaction
         }
@@ -345,48 +198,45 @@ enum BitcoinCashBalanceService {
         throw URLError(.cannotParseResponse)
     }
 
-    private static func fetchActorForthAddressDetails(for address: String) async throws -> ActorForthAddressDetails {
-        guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(actorforthBaseURL)/address/details/\(encoded)") else {
+    private static func fetchActorForthAddressDetails(for address: String) async throws -> BitcoinCashProvider.ActorForthAddressDetails {
+        guard let url = BitcoinCashProvider.actorForthAddressDetailsURL(address: address) else {
             throw URLError(.badURL)
         }
         let (data, response) = try await fetchData(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        let envelope = try JSONDecoder().decode(ActorForthEnvelope<ActorForthAddressDetails>.self, from: data)
+        let envelope = try JSONDecoder().decode(BitcoinCashProvider.ActorForthEnvelope<BitcoinCashProvider.ActorForthAddressDetails>.self, from: data)
         guard let payload = envelope.data else {
             throw URLError(.cannotParseResponse)
         }
         return payload
     }
 
-    private static func fetchActorForthUTXOs(for address: String) async throws -> ActorForthUTXOPayload {
-        guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(actorforthBaseURL)/address/utxo/\(encoded)") else {
+    private static func fetchActorForthUTXOs(for address: String) async throws -> BitcoinCashProvider.ActorForthUTXOPayload {
+        guard let url = BitcoinCashProvider.actorForthUTXOsURL(address: address) else {
             throw URLError(.badURL)
         }
         let (data, response) = try await fetchData(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        let envelope = try JSONDecoder().decode(ActorForthEnvelope<ActorForthUTXOPayload>.self, from: data)
+        let envelope = try JSONDecoder().decode(BitcoinCashProvider.ActorForthEnvelope<BitcoinCashProvider.ActorForthUTXOPayload>.self, from: data)
         guard let payload = envelope.data else {
             throw URLError(.cannotParseResponse)
         }
         return payload
     }
 
-    private static func fetchActorForthTransactionDetails(txid: String) async throws -> ActorForthTransactionPayload {
-        guard let encoded = txid.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(actorforthBaseURL)/transaction/details/\(encoded)") else {
+    private static func fetchActorForthTransactionDetails(txid: String) async throws -> BitcoinCashProvider.ActorForthTransactionPayload {
+        guard let url = BitcoinCashProvider.actorForthTransactionURL(txid: txid) else {
             throw URLError(.badURL)
         }
         let (data, response) = try await fetchData(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        let envelope = try JSONDecoder().decode(ActorForthEnvelope<ActorForthTransactionPayload>.self, from: data)
+        let envelope = try JSONDecoder().decode(BitcoinCashProvider.ActorForthEnvelope<BitcoinCashProvider.ActorForthTransactionPayload>.self, from: data)
         guard let payload = envelope.data else {
             throw URLError(.cannotParseResponse)
         }
@@ -468,28 +318,8 @@ enum BitcoinCashBalanceService {
         "\(hash.lowercased()):\(index)"
     }
 
-    private static func runWithProviderFallback<T>(
-        candidates: [Provider],
-        operation: @escaping (Provider) async throws -> T
-    ) async throws -> T {
-        var firstError: Error?
-        var lastError: Error?
-        for provider in candidates {
-            do {
-                return try await operation(provider)
-            } catch {
-                if firstError == nil {
-                    firstError = error
-                }
-                lastError = error
-                try? await Task.sleep(nanoseconds: 180_000_000)
-            }
-        }
-        throw firstError ?? lastError ?? URLError(.cannotLoadFromNetwork)
-    }
-
     private static func snapshot(
-        for transaction: TransactionDashboard,
+        for transaction: BitcoinCashProvider.TransactionDashboard,
         ownAddresses: Set<String>
     ) -> BitcoinCashHistorySnapshot {
         let outgoingValue = transaction.inputs.reduce(Int64(0)) { partialResult, input in
@@ -544,6 +374,6 @@ enum BitcoinCashBalanceService {
     }
 
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
-        try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        try await ProviderHTTP.data(from: url, profile: .chainRead)
     }
 }

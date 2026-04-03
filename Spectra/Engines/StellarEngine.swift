@@ -221,11 +221,6 @@ enum StellarWalletEngine {
         )
     }
 
-    private struct TransactionLookupResponse: Decodable {
-        let successful: Bool?
-        let hash: String?
-    }
-
     private static func verifyBroadcastedTransactionIfAvailable(hash: String) async -> SendBroadcastVerificationStatus {
         let normalizedHash = hash.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedHash.isEmpty else { return .deferred }
@@ -236,7 +231,7 @@ enum StellarWalletEngine {
                 do {
                     guard let encoded = normalizedHash.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
                           let url = URL(string: "\(endpoint)/transactions/\(encoded)") else { continue }
-                    let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                    let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
                     guard let http = response as? HTTPURLResponse else {
                         throw StellarWalletEngineError.invalidResponse
                     }
@@ -246,7 +241,7 @@ enum StellarWalletEngine {
                     guard (200 ... 299).contains(http.statusCode) else {
                         throw StellarWalletEngineError.networkError("HTTP \(http.statusCode)")
                     }
-                    let lookup = try JSONDecoder().decode(TransactionLookupResponse.self, from: data)
+                    let lookup = try JSONDecoder().decode(StellarProvider.TransactionLookupResponse.self, from: data)
                     if lookup.successful == false {
                         return .failed("Stellar Horizon reported unsuccessful transaction execution.")
                     }

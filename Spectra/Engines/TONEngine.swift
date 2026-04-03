@@ -55,28 +55,6 @@ struct TONSendResult: Equatable {
 enum TONWalletEngine {
     private static let tonDivisor = Decimal(string: "1000000000")!
     private static let expirationWindowSeconds: UInt32 = 600
-    private static let endpointReliabilityNamespace = "ton.api.v2"
-
-    private struct WalletInformationEnvelope: Decodable {
-        let ok: Bool?
-        let result: WalletInformationResult?
-        let error: String?
-    }
-
-    private struct WalletInformationResult: Decodable {
-        let balance: String?
-        let seqno: UInt32?
-    }
-
-    private struct SendBocEnvelope: Decodable {
-        let ok: Bool?
-        let result: SendBocResult?
-        let error: String?
-    }
-
-    private struct SendBocResult: Decodable {
-        let hash: String?
-    }
 
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
         let material = try WalletCoreDerivation.deriveMaterial(
@@ -221,9 +199,9 @@ enum TONWalletEngine {
         await TONBalanceService.verifyTransactionIfAvailable(transactionHash)
     }
 
-    private static func fetchWalletInformation(for address: String) async throws -> WalletInformationResult {
+    private static func fetchWalletInformation(for address: String) async throws -> TONProvider.WalletInformationResult {
         var lastError: Error?
-        for endpoint in orderedAPIv2Endpoints() {
+        for endpoint in TONProvider.orderedAPIv2Endpoints() {
             var components = URLComponents(url: endpoint.appendingPathComponent("getWalletInformation"), resolvingAgainstBaseURL: false)
             components?.queryItems = [URLQueryItem(name: "address", value: address)]
             guard let url = components?.url else {
@@ -231,19 +209,19 @@ enum TONWalletEngine {
             }
 
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     throw TONWalletEngineError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
-                let decoded = try JSONDecoder().decode(WalletInformationEnvelope.self, from: data)
+                let decoded = try JSONDecoder().decode(TONProvider.WalletInformationEnvelope.self, from: data)
                 guard decoded.ok == true, let result = decoded.result else {
                     throw TONWalletEngineError.networkError(decoded.error ?? "TON wallet information unavailable.")
                 }
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                ChainEndpointReliability.recordAttempt(namespace: TONProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
                 return result
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: TONProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
             }
         }
         throw lastError ?? TONWalletEngineError.invalidResponse
@@ -253,7 +231,7 @@ enum TONWalletEngine {
         let attempts = 2
         var lastError: Error?
 
-        for endpoint in orderedAPIv2Endpoints() {
+        for endpoint in TONProvider.orderedAPIv2Endpoints() {
             for _ in 0 ..< attempts {
                 var request = URLRequest(url: endpoint.appendingPathComponent("sendBocReturnHash"))
                 request.httpMethod = "POST"
@@ -262,47 +240,47 @@ enum TONWalletEngine {
                 request.httpBody = try JSONSerialization.data(withJSONObject: ["boc": encoded], options: [])
 
                 do {
-                    let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+                    let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainWrite)
                     guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                         let message = "HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)"
                         lastError = TONWalletEngineError.broadcastFailed(message)
-                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                        ChainEndpointReliability.recordAttempt(namespace: TONProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
                         if classifySendBroadcastFailure(message) != .retryable {
                             break
                         }
                         continue
                     }
-                    let decoded = try JSONDecoder().decode(SendBocEnvelope.self, from: data)
+                    let decoded = try JSONDecoder().decode(TONProvider.SendBocEnvelope.self, from: data)
                     guard decoded.ok == true else {
                         let message = decoded.error ?? "TON broadcast rejected."
                         if classifySendBroadcastFailure(message) == .alreadyBroadcast,
                            let hash = decoded.result?.hash?.trimmingCharacters(in: .whitespacesAndNewlines),
                            !hash.isEmpty {
-                            ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                            ChainEndpointReliability.recordAttempt(namespace: TONProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
                             return hash
                         }
                         lastError = TONWalletEngineError.broadcastFailed(message)
-                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                        ChainEndpointReliability.recordAttempt(namespace: TONProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
                         if classifySendBroadcastFailure(message) != .retryable {
                             break
                         }
                         continue
                     }
                     if let hash = decoded.result?.hash?.trimmingCharacters(in: .whitespacesAndNewlines), !hash.isEmpty {
-                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                        ChainEndpointReliability.recordAttempt(namespace: TONProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
                         return hash
                     }
                     if let hash = String(data: data, encoding: .utf8)?
                         .trimmingCharacters(in: .whitespacesAndNewlines), !hash.isEmpty {
-                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                        ChainEndpointReliability.recordAttempt(namespace: TONProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
                         return hash
                     }
                     lastError = TONWalletEngineError.invalidResponse
-                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                    ChainEndpointReliability.recordAttempt(namespace: TONProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
                     break
                 } catch {
                     lastError = error
-                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                    ChainEndpointReliability.recordAttempt(namespace: TONProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
                     if classifySendBroadcastFailure(error.localizedDescription) != .retryable {
                         break
                     }
@@ -311,14 +289,6 @@ enum TONWalletEngine {
         }
 
         throw lastError ?? TONWalletEngineError.invalidResponse
-    }
-
-    private static func orderedAPIv2Endpoints() -> [URL] {
-        let ordered = ChainEndpointReliability.orderedEndpoints(
-            namespace: endpointReliabilityNamespace,
-            candidates: ChainBackendRegistry.TONRuntimeEndpoints.apiV2BaseURLs
-        )
-        return ordered.compactMap(URL.init(string:))
     }
 
     private static func normalizeAddress(_ address: String) -> String {

@@ -17,7 +17,7 @@ enum UTXOEngineSupport {
             var configuredRequest = request
             configuredRequest.timeoutInterval = timeout
 
-            URLSession.shared.dataTask(with: configuredRequest) { data, response, error in
+            ProviderHTTP.sessionDataTask(with: configuredRequest) { data, response, error in
                 capturedData = data
                 capturedResponse = response
                 capturedError = error

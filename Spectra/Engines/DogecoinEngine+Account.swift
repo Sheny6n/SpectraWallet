@@ -5,6 +5,7 @@ extension DogecoinWalletEngine {
     static func resolveChangeAddress(
         seedPhrase: String,
         keyMaterial: SigningKeyMaterial,
+        networkMode: DogecoinNetworkMode,
         changeIndex: Int?,
         derivationAccount: UInt32
     ) throws -> (address: String, derivationPath: String) {
@@ -14,6 +15,7 @@ extension DogecoinWalletEngine {
 
         let address = try derivedAddress(
             for: seedPhrase,
+            networkMode: networkMode,
             isChange: true,
             index: changeIndex,
             account: Int(derivationAccount)
@@ -31,11 +33,13 @@ extension DogecoinWalletEngine {
     static func deriveSigningKeyMaterial(
         seedPhrase: String,
         expectedAddress: String?,
+        networkMode: DogecoinNetworkMode,
         derivationAccount: UInt32
     ) throws -> SigningKeyMaterial {
         try deriveSigningKeyMaterialWithWalletCore(
             seedPhrase: seedPhrase,
             expectedAddress: expectedAddress,
+            networkMode: networkMode,
             derivationAccount: derivationAccount
         )
     }
@@ -43,6 +47,7 @@ extension DogecoinWalletEngine {
     static func deriveSigningKeyMaterialWithWalletCore(
         seedPhrase: String,
         expectedAddress: String?,
+        networkMode: DogecoinNetworkMode,
         derivationAccount: UInt32
     ) throws -> SigningKeyMaterial {
         let normalizedSeedPhrase = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
@@ -64,7 +69,10 @@ extension DogecoinWalletEngine {
                 branch: .external,
                 index: UInt32(index)
             )
-            let signingAddress = signingMaterial.address
+            let signingAddress = try nativeDerivedAddress(
+                privateKeyData: signingMaterial.privateKeyData,
+                networkMode: networkMode
+            )
             if let normalizedExpectedAddress, normalizedExpectedAddress != signingAddress {
                 continue
             }
@@ -76,7 +84,10 @@ extension DogecoinWalletEngine {
                 branch: .change,
                 index: UInt32(index)
             )
-            let changeAddress = changeMaterial.address
+            let changeAddress = try nativeDerivedAddress(
+                privateKeyData: changeMaterial.privateKeyData,
+                networkMode: networkMode
+            )
             return SigningKeyMaterial(
                 address: signingAddress,
                 privateKeyData: signingMaterial.privateKeyData,
@@ -90,6 +101,7 @@ extension DogecoinWalletEngine {
 
     static func walletCoreDerivedAddress(
         seedPhrase: String,
+        networkMode: DogecoinNetworkMode,
         isChange: Bool,
         index: Int,
         account: Int
@@ -112,6 +124,9 @@ extension DogecoinWalletEngine {
         guard !material.address.isEmpty else {
             throw DogecoinWalletEngineError.keyDerivationFailed
         }
-        return material.address
+        return try nativeDerivedAddress(
+            privateKeyData: material.privateKeyData,
+            networkMode: networkMode
+        )
     }
 }

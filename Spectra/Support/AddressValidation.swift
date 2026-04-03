@@ -63,15 +63,18 @@ enum AddressValidation {
             || trimmed.hasPrefix("3")
     }
 
-    static func isValidDogecoinAddress(_ address: String) -> Bool {
+    static func isValidDogecoinAddress(
+        _ address: String,
+        networkMode: DogecoinNetworkMode = .mainnet
+    ) -> Bool {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
 
-        if CoinType.dogecoin.validate(address: trimmed) {
+        if networkMode == .mainnet, CoinType.dogecoin.validate(address: trimmed) {
             return true
         }
 
-        return DogecoinBalanceService.isValidDogecoinAddress(trimmed)
+        return DogecoinBalanceService.isValidDogecoinAddress(trimmed, networkMode: networkMode)
     }
 
     static func isValidEthereumAddress(_ address: String) -> Bool {

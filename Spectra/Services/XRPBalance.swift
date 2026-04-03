@@ -38,100 +38,13 @@ struct XRPHistoryDiagnostics: Equatable {
 }
 
 enum XRPBalanceService {
-    private static let xrpScanAccountBases = ChainBackendRegistry.XRPRuntimeEndpoints.accountHistoryBases
-    private static let rippleEpochOffset: TimeInterval = 946_684_800
-    private enum Provider: String, CaseIterable {
-        case xrpscan
-        case xrplCluster
-        case rippleS1
-        case rippleS2
-
-        var rpcEndpoint: URL {
-            switch self {
-            case .xrpscan, .rippleS1:
-                return ChainBackendRegistry.XRPRuntimeEndpoints.rpcURLs[0]
-            case .xrplCluster:
-                return ChainBackendRegistry.XRPRuntimeEndpoints.rpcURLs[2]
-            case .rippleS2:
-                return ChainBackendRegistry.XRPRuntimeEndpoints.rpcURLs[1]
-            }
-        }
-    }
-
     static func endpointCatalog() -> [String] {
-        var endpoints = xrpScanAccountBases
-        for provider in Provider.allCases {
-            let endpoint = provider.rpcEndpoint.absoluteString
-            if !endpoints.contains(endpoint) {
-                endpoints.append(endpoint)
-            }
-        }
-        return endpoints
+        XRPProvider.endpointCatalog()
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
         endpointCatalog().map { base in
             (endpoint: base, probeURL: base)
-        }
-    }
-
-    private struct XRPAccountResponse: Decodable {
-        let xrpBalance: String?
-
-        enum CodingKeys: String, CodingKey {
-            case xrpBalance = "xrpBalance"
-        }
-    }
-
-    private struct XRPTransactionRow: Decodable {
-        let hash: String?
-        let transactionType: String?
-        let destination: String?
-        let account: String?
-        let deliveredAmount: XRPDeliveredAmount?
-        let date: String?
-        let validated: Bool?
-
-        enum CodingKeys: String, CodingKey {
-            case hash
-            case transactionType = "TransactionType"
-            case destination = "Destination"
-            case account = "Account"
-            case deliveredAmount = "delivered_amount"
-            case date
-            case validated
-        }
-    }
-
-    private struct XRPTransactionEnvelope: Decodable {
-        let transactions: [XRPTransactionRow]?
-        let data: [XRPTransactionRow]?
-        let rows: [XRPTransactionRow]?
-    }
-
-    private struct XRPLRPCErrorResponse: Decodable {
-        let error: String?
-        let error_message: String?
-    }
-
-    private enum XRPDeliveredAmount: Decodable {
-        case string(String)
-        case object([String: String])
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            if let value = try? container.decode(String.self) {
-                self = .string(value)
-                return
-            }
-            if let value = try? container.decode([String: String].self) {
-                self = .object(value)
-                return
-            }
-            throw DecodingError.typeMismatch(
-                XRPDeliveredAmount.self,
-                DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Unsupported delivered_amount format")
-            )
         }
     }
 
@@ -144,7 +57,7 @@ enum XRPBalanceService {
         guard isValidAddress(normalized) else {
             throw XRPBalanceServiceError.invalidAddress
         }
-        return try await runWithProviderFallback(candidates: Provider.allCases) { provider in
+        return try await XRPProvider.runWithFallback(candidates: XRPProvider.ProviderID.allCases) { provider in
             do {
                 switch provider {
                 case .xrpscan:
@@ -177,7 +90,7 @@ enum XRPBalanceService {
 
         let boundedLimit = max(1, min(limit, 100))
         var lastError: String?
-        for provider in Provider.allCases {
+        for provider in XRPProvider.ProviderID.allCases {
             do {
                 let snapshots: [XRPHistorySnapshot]
                 switch provider {
@@ -217,35 +130,19 @@ enum XRPBalanceService {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
-        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        return try await ProviderHTTP.data(for: request, profile: .chainRead)
     }
 
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
         var request = request
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
-        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
-    }
-
-    private static func runWithProviderFallback<T>(
-        candidates: [Provider],
-        operation: @escaping (Provider) async throws -> T
-    ) async throws -> T {
-        var lastError: Error?
-        for provider in candidates {
-            do {
-                return try await operation(provider)
-            } catch {
-                lastError = error
-                try? await Task.sleep(nanoseconds: 180_000_000)
-            }
-        }
-        throw lastError ?? URLError(.cannotLoadFromNetwork)
+        return try await ProviderHTTP.data(for: request, profile: .chainRead)
     }
 
     private static func fetchBalanceViaXRPSCAN(address: String) async throws -> Double {
         var lastError: Error?
-        for base in xrpScanAccountBases {
+        for base in XRPProvider.xrpScanAccountBases {
             guard let url = URL(string: "\(base)/\(address)") else { continue }
             do {
                 let (data, response) = try await fetchData(from: url)
@@ -259,7 +156,7 @@ enum XRPBalanceService {
                     throw XRPBalanceServiceError.httpError(http.statusCode)
                 }
 
-                let decoded = try JSONDecoder().decode(XRPAccountResponse.self, from: data)
+                let decoded = try JSONDecoder().decode(XRPProvider.AccountResponse.self, from: data)
                 guard let balanceString = decoded.xrpBalance,
                       let balance = Double(balanceString),
                       balance.isFinite,
@@ -296,7 +193,7 @@ enum XRPBalanceService {
 
     private static func fetchHistoryViaXRPSCAN(address: String, limit: Int) async throws -> [XRPHistorySnapshot] {
         var lastError: Error?
-        for base in xrpScanAccountBases {
+        for base in XRPProvider.xrpScanAccountBases {
             guard let url = URL(string: "\(base)/\(address)/transactions") else { continue }
             do {
                 var request = URLRequest(url: url)
@@ -359,11 +256,11 @@ enum XRPBalanceService {
         throw lastError ?? XRPBalanceServiceError.invalidResponse
     }
 
-    private static func parseXRPSCANHistoryRows(_ data: Data) throws -> [XRPTransactionRow] {
-        if let rows = try? JSONDecoder().decode([XRPTransactionRow].self, from: data) {
+    private static func parseXRPSCANHistoryRows(_ data: Data) throws -> [XRPProvider.TransactionRow] {
+        if let rows = try? JSONDecoder().decode([XRPProvider.TransactionRow].self, from: data) {
             return rows
         }
-        let envelope = try JSONDecoder().decode(XRPTransactionEnvelope.self, from: data)
+        let envelope = try JSONDecoder().decode(XRPProvider.TransactionEnvelope.self, from: data)
         return envelope.transactions ?? envelope.data ?? envelope.rows ?? []
     }
 
@@ -400,7 +297,7 @@ enum XRPBalanceService {
 
             let amount = parseXRPLAmount(tx["Amount"])
             let dateValue = TimeInterval(tx["date"] as? Int ?? 0)
-            let createdAt = dateValue > 0 ? Date(timeIntervalSince1970: rippleEpochOffset + dateValue) : Date()
+            let createdAt = dateValue > 0 ? Date(timeIntervalSince1970: XRPProvider.rippleEpochOffset + dateValue) : Date()
 
             let status: TransactionStatus = {
                 guard let meta = row["meta"] as? [String: Any] else { return .pending }
@@ -446,7 +343,7 @@ enum XRPBalanceService {
             throw XRPBalanceServiceError.httpError(code)
         }
 
-        if let errorResponse = try? JSONDecoder().decode(XRPLRPCErrorResponse.self, from: data),
+        if let errorResponse = try? JSONDecoder().decode(XRPProvider.XRPLRPCErrorResponse.self, from: data),
            errorResponse.error != nil || errorResponse.error_message != nil {
             throw XRPBalanceServiceError.rpcError(
                 errorResponse.error_message ?? errorResponse.error ?? "Unknown XRPL RPC error"

@@ -57,60 +57,6 @@ struct SuiSendResult: Equatable {
 enum SuiWalletEngine {
     private static let suiCoinType = "0x2::sui::SUI"
     private static let defaultGasBudgetMist: UInt64 = 3_000_000
-    private static let endpointReliabilityNamespace = "sui.rpc"
-
-    private struct RPCEnvelope<ResultType: Decodable>: Decodable {
-        let result: ResultType?
-        let error: RPCError?
-
-        struct RPCError: Decodable {
-            let message: String?
-        }
-    }
-
-    private struct CoinPage: Decodable {
-        let data: [CoinItem]?
-        let hasNextPage: Bool?
-        let nextCursor: String?
-    }
-
-    private struct CoinItem: Decodable {
-        let coinObjectID: String?
-        let version: String?
-        let digest: String?
-        let balance: String?
-    }
-
-    private struct ReferenceGasPriceResult: Decodable {
-        let value: String?
-
-        init(from decoder: Swift.Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            if let number = try? container.decode(UInt64.self) {
-                self.value = String(number)
-                return
-            }
-            if let string = try? container.decode(String.self) {
-                self.value = string
-                return
-            }
-            self.value = nil
-        }
-    }
-
-    private struct ExecuteResult: Decodable {
-        let digest: String?
-        let effects: ExecuteEffects?
-
-        struct ExecuteEffects: Decodable {
-            let status: ExecuteStatus?
-        }
-
-        struct ExecuteStatus: Decodable {
-            let status: String?
-            let error: String?
-        }
-    }
 
     private struct SuiObjectRefForSigning {
         let objectID: String
@@ -339,7 +285,7 @@ enum SuiWalletEngine {
         throw SuiWalletEngineError.insufficientBalance
     }
 
-    private static func fetchCoins(address: String, cursor: String?) async throws -> CoinPage {
+    private static func fetchCoins(address: String, cursor: String?) async throws -> SuiProvider.CoinPage {
         let payload: [String: Any] = [
             "jsonrpc": "2.0",
             "id": 1,
@@ -356,7 +302,7 @@ enum SuiWalletEngine {
             "method": "suix_getReferenceGasPrice",
             "params": []
         ]
-        let result: ReferenceGasPriceResult = try await postRPC(payload: payload, profile: .chainRead)
+        let result: SuiProvider.ReferenceGasPriceResult = try await postRPC(payload: payload, profile: .chainRead)
         guard let value = result.value, let parsed = UInt64(value), parsed > 0 else {
             throw SuiWalletEngineError.invalidResponse
         }
@@ -383,7 +329,7 @@ enum SuiWalletEngine {
         var lastError: Error?
         for attempt in 0 ..< 2 {
             do {
-                let result: ExecuteResult = try await postRPC(payload: payload, profile: .chainWrite, providerIDs: providerIDs)
+                let result: SuiProvider.ExecuteResult = try await postRPC(payload: payload, profile: .chainWrite, providerIDs: providerIDs)
                 let status = result.effects?.status?.status?.lowercased()
                 if let status, status != "success" {
                     let message = result.effects?.status?.error ?? "Sui execute reported status: \(status)."
@@ -438,7 +384,7 @@ enum SuiWalletEngine {
             "params": [normalizedHash, ["showEffects": true]]
         ]
         do {
-            let _: ExecuteResult = try await postRPC(payload: payload, profile: .chainRead)
+            let _: SuiProvider.ExecuteResult = try await postRPC(payload: payload, profile: .chainRead)
             return .verified
         } catch {
             return .failed(error.localizedDescription)
@@ -453,7 +399,7 @@ enum SuiWalletEngine {
         let body = try JSONSerialization.data(withJSONObject: payload, options: [])
         var lastError: Error?
 
-        for endpoint in orderedRPCEndpoints(providerIDs: providerIDs) {
+        for endpoint in SuiProvider.orderedRPCEndpoints(providerIDs: providerIDs) {
             var request = URLRequest(url: endpoint)
             request.httpMethod = "POST"
             request.timeoutInterval = 20
@@ -461,15 +407,15 @@ enum SuiWalletEngine {
             request.httpBody = body
 
             do {
-                let (data, response): (Data, URLResponse) = try await SpectraNetworkRouter.shared.data(for: request, profile: profile)
+                let (data, response): (Data, URLResponse) = try await ProviderHTTP.data(for: request, profile: profile)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     let code = (response as? HTTPURLResponse)?.statusCode ?? -1
                     throw SuiWalletEngineError.networkError("HTTP \(code)")
                 }
 
-                let decoded = try JSONDecoder().decode(RPCEnvelope<ResultType>.self, from: data)
+                let decoded = try JSONDecoder().decode(SuiProvider.RPCEnvelope<ResultType>.self, from: data)
                 if let result = decoded.result {
-                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
+                    ChainEndpointReliability.recordAttempt(namespace: SuiProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: true)
                     return result
                 }
 
@@ -477,40 +423,11 @@ enum SuiWalletEngine {
                 throw SuiWalletEngineError.networkError(message)
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: SuiProvider.endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
             }
         }
 
         throw lastError ?? SuiWalletEngineError.networkError("Unknown Sui RPC error")
-    }
-
-    private static func orderedRPCEndpoints(providerIDs: Set<String>? = nil) -> [URL] {
-        let ordered = ChainEndpointReliability.orderedEndpoints(
-            namespace: endpointReliabilityNamespace,
-            candidates: filteredRPCEndpoints(providerIDs: providerIDs)
-        )
-        return ordered.compactMap(URL.init(string:))
-    }
-
-    private static func filteredRPCEndpoints(providerIDs: Set<String>? = nil) -> [String] {
-        let candidates = ChainBackendRegistry.SuiRuntimeEndpoints.rpcBaseURLs
-        guard let providerIDs, !providerIDs.isEmpty else { return candidates }
-        return candidates.filter { endpoint in
-            switch endpoint {
-            case "https://fullnode.mainnet.sui.io:443":
-                return providerIDs.contains("sui-mainnet")
-            case "https://sui-rpc.publicnode.com":
-                return providerIDs.contains("sui-publicnode")
-            case "https://sui-mainnet-endpoint.blockvision.org":
-                return providerIDs.contains("sui-blockvision")
-            case "https://sui.blockpi.network/v1/rpc/public":
-                return providerIDs.contains("sui-blockpi")
-            case "https://rpc-mainnet.suiscan.xyz":
-                return providerIDs.contains("sui-suiscan")
-            default:
-                return false
-            }
-        }
     }
 
     private static func normalizeAddress(_ address: String) -> String {

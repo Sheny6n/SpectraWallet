@@ -5570,6 +5570,9 @@
         }
       }
     },
+    "Dogecoin Network" : {
+
+    },
     "Dogecoin network error: %@" : {
       "localizations" : {
         "en" : {
@@ -22277,6 +22280,9 @@
       }
     },
     "This controls Bitcoin wallet import, address validation, and endpoint usage for Bitcoin wallets." : {
+
+    },
+    "This controls Dogecoin wallet import, address validation, history, and endpoint usage for Dogecoin wallets." : {
 
     },
     "This controls Ethereum wallet import, balance refresh, history, and endpoint usage for Ethereum wallets." : {

@@ -1,80 +1,5 @@
 import Foundation
 
-struct BitcoinAddressResponse: Decodable {
-    let chainStats: BitcoinAddressStats
-    let mempoolStats: BitcoinAddressStats
-
-    enum CodingKeys: String, CodingKey {
-        case chainStats = "chain_stats"
-        case mempoolStats = "mempool_stats"
-    }
-}
-
-struct BitcoinAddressStats: Decodable {
-    let fundedTXOSum: Int64
-    let spentTXOSum: Int64
-    let txCount: Int
-
-    enum CodingKeys: String, CodingKey {
-        case fundedTXOSum = "funded_txo_sum"
-        case spentTXOSum = "spent_txo_sum"
-        case txCount = "tx_count"
-    }
-}
-
-struct BitcoinTransactionStatus: Decodable {
-    let confirmed: Bool
-    let blockHeight: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case confirmed
-        case blockHeight = "block_height"
-    }
-}
-
-struct BitcoinAddressTransaction: Decodable {
-    struct VIN: Decodable {
-        struct Prevout: Decodable {
-            let scriptpubkeyAddress: String?
-            let value: Int64
-
-            enum CodingKeys: String, CodingKey {
-                case scriptpubkeyAddress = "scriptpubkey_address"
-                case value
-            }
-        }
-
-        let prevout: Prevout?
-    }
-
-    struct VOUT: Decodable {
-        let scriptpubkeyAddress: String?
-        let value: Int64
-
-        enum CodingKeys: String, CodingKey {
-            case scriptpubkeyAddress = "scriptpubkey_address"
-            case value
-        }
-    }
-
-    struct Status: Decodable {
-        let confirmed: Bool
-        let blockHeight: Int?
-        let blockTime: TimeInterval?
-
-        enum CodingKeys: String, CodingKey {
-            case confirmed
-            case blockHeight = "block_height"
-            case blockTime = "block_time"
-        }
-    }
-
-    let txid: String
-    let vin: [VIN]
-    let vout: [VOUT]
-    let status: Status
-}
-
 struct BitcoinHistorySnapshot: Equatable {
     let txid: String
     let amountBTC: Double
@@ -168,36 +93,14 @@ private struct BlockchairXPubData: Decodable {
 }
 
 enum BitcoinBalanceService {
-    private enum EsploraProvider: String, CaseIterable {
-        case blockstream
-        case mempool
-        case mempoolEmzy
-        case maestro
-    }
-
-    private static func baseURL(for provider: EsploraProvider, networkMode: BitcoinNetworkMode) -> String {
-        let endpoints = ChainBackendRegistry.BitcoinRuntimeEndpoints.esploraBaseURLs(for: networkMode)
-        let primary = endpoints[0]
-        switch provider {
-        case .blockstream:
-            return primary
-        case .mempool:
-            return endpoints.count > 1 ? endpoints[1] : primary
-        case .mempoolEmzy:
-            return endpoints.count > 2 ? endpoints[2] : primary
-        case .maestro:
-            return endpoints.count > 3 ? endpoints[3] : primary
-        }
-    }
-
     static func fetchBalance(for address: String, networkMode: BitcoinNetworkMode = .mainnet) async throws -> Double {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAddress.isEmpty,
               let encodedAddress = trimmedAddress.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             throw URLError(.badURL)
         }
-        return try await runWithProviderFallback(candidates: EsploraProvider.allCases) { provider in
-            guard let url = URL(string: "\(baseURL(for: provider, networkMode: networkMode))/address/\(encodedAddress)") else {
+        return try await EsploraProvider.runWithFallback(baseURLs: EsploraProvider.runtimeBaseURLs(for: networkMode)) { baseURL in
+            guard let url = EsploraProvider.url(baseURL: baseURL, path: "/address/\(encodedAddress)") else {
                 throw URLError(.badURL)
             }
             let (data, response) = try await fetchData(from: url)
@@ -205,7 +108,7 @@ enum BitcoinBalanceService {
                 throw URLError(.badServerResponse)
             }
 
-            let decoded = try JSONDecoder().decode(BitcoinAddressResponse.self, from: data)
+            let decoded = try JSONDecoder().decode(EsploraProvider.AddressResponse.self, from: data)
             let funded = decoded.chainStats.fundedTXOSum + decoded.mempoolStats.fundedTXOSum
             let spent = decoded.chainStats.spentTXOSum + decoded.mempoolStats.spentTXOSum
             let satoshis = max(0, funded - spent)
@@ -213,21 +116,21 @@ enum BitcoinBalanceService {
         }
     }
 
-    static func fetchTransactionStatus(txid: String, networkMode: BitcoinNetworkMode = .mainnet) async throws -> BitcoinTransactionStatus {
+    static func fetchTransactionStatus(txid: String, networkMode: BitcoinNetworkMode = .mainnet) async throws -> EsploraProvider.TransactionStatus {
         let trimmedTXID = txid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTXID.isEmpty,
               let encodedTXID = trimmedTXID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             throw URLError(.badURL)
         }
-        return try await runWithProviderFallback(candidates: EsploraProvider.allCases) { provider in
-            guard let url = URL(string: "\(baseURL(for: provider, networkMode: networkMode))/tx/\(encodedTXID)/status") else {
+        return try await EsploraProvider.runWithFallback(baseURLs: EsploraProvider.runtimeBaseURLs(for: networkMode)) { baseURL in
+            guard let url = EsploraProvider.url(baseURL: baseURL, path: "/tx/\(encodedTXID)/status") else {
                 throw URLError(.badURL)
             }
             let (data, response) = try await fetchData(from: url)
             guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
                 throw URLError(.badServerResponse)
             }
-            return try JSONDecoder().decode(BitcoinTransactionStatus.self, from: data)
+            return try JSONDecoder().decode(EsploraProvider.TransactionStatus.self, from: data)
         }
     }
 
@@ -237,8 +140,8 @@ enum BitcoinBalanceService {
               let encodedAddress = trimmedAddress.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             throw URLError(.badURL)
         }
-        return try await runWithProviderFallback(candidates: EsploraProvider.allCases) { provider in
-            guard let url = URL(string: "\(baseURL(for: provider, networkMode: networkMode))/address/\(encodedAddress)") else {
+        return try await EsploraProvider.runWithFallback(baseURLs: EsploraProvider.runtimeBaseURLs(for: networkMode)) { baseURL in
+            guard let url = EsploraProvider.url(baseURL: baseURL, path: "/address/\(encodedAddress)") else {
                 throw URLError(.badURL)
             }
 
@@ -247,7 +150,7 @@ enum BitcoinBalanceService {
                 throw URLError(.badServerResponse)
             }
 
-            let decoded = try JSONDecoder().decode(BitcoinAddressResponse.self, from: data)
+            let decoded = try JSONDecoder().decode(EsploraProvider.AddressResponse.self, from: data)
             return decoded.chainStats.txCount > 0 || decoded.mempoolStats.txCount > 0
         }
     }
@@ -270,8 +173,9 @@ enum BitcoinBalanceService {
         } else {
             endpointPath = "/address/\(encodedAddress)/txs"
         }
-        return try await runWithProviderFallback(candidates: EsploraProvider.allCases) { provider in
-            guard let url = URL(string: "\(baseURL(for: provider, networkMode: networkMode))\(endpointPath)") else {
+        let baseURLs = EsploraProvider.runtimeBaseURLs(for: networkMode)
+        return try await EsploraProvider.runWithFallback(baseURLs: baseURLs) { baseURL in
+            guard let url = EsploraProvider.url(baseURL: baseURL, path: endpointPath) else {
                 throw URLError(.badURL)
             }
 
@@ -280,14 +184,14 @@ enum BitcoinBalanceService {
                 throw URLError(.badServerResponse)
             }
 
-            let decoded = try JSONDecoder().decode([BitcoinAddressTransaction].self, from: data)
+            let decoded = try JSONDecoder().decode([EsploraProvider.AddressTransaction].self, from: data)
             let pageSize = max(1, limit)
             let snapshots = mapAddressTransactions(decoded, normalizedAddress: trimmedAddress.lowercased(), fallbackAddress: trimmedAddress)
             let nextCursor = decoded.count >= pageSize ? decoded.prefix(pageSize).last?.txid : nil
             return BitcoinHistoryPage(
                 snapshots: Array(snapshots.prefix(pageSize)),
                 nextCursor: nextCursor,
-                sourceUsed: provider.rawValue
+                sourceUsed: URL(string: baseURL)?.host ?? "esplora"
             )
         }
     }
@@ -398,7 +302,7 @@ enum BitcoinBalanceService {
     }
 
     private static func mapAddressTransactions(
-        _ transactions: [BitcoinAddressTransaction],
+        _ transactions: [EsploraProvider.AddressTransaction],
         normalizedAddress: String,
         fallbackAddress: String
     ) -> [BitcoinHistorySnapshot] {
@@ -507,33 +411,14 @@ enum BitcoinBalanceService {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
-        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        return try await ProviderHTTP.data(for: request, profile: .chainRead)
     }
 
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
         var request = request
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
-        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        return try await ProviderHTTP.data(for: request, profile: .chainRead)
     }
 
-    private static func runWithProviderFallback<T>(
-        candidates: [EsploraProvider],
-        operation: @escaping (EsploraProvider) async throws -> T
-    ) async throws -> T {
-        var firstError: Error?
-        var lastError: Error?
-        for provider in candidates {
-            do {
-                return try await operation(provider)
-            } catch {
-                if firstError == nil {
-                    firstError = error
-                }
-                lastError = error
-                try? await Task.sleep(nanoseconds: 180_000_000)
-            }
-        }
-        throw firstError ?? lastError ?? URLError(.cannotLoadFromNetwork)
-    }
 }

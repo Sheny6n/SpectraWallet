@@ -556,6 +556,11 @@ class WalletStore: ObservableObject {
             exhaustedBitcoinHistoryWalletIDs = []
         }
     }
+    @Published var dogecoinNetworkMode: DogecoinNetworkMode = .mainnet {
+        didSet {
+            UserDefaults.standard.set(dogecoinNetworkMode.rawValue, forKey: Self.dogecoinNetworkModeDefaultsKey)
+        }
+    }
     @Published var bitcoinEsploraEndpoints: String = "" {
         didSet {
             UserDefaults.standard.set(bitcoinEsploraEndpoints, forKey: Self.bitcoinEsploraEndpointsDefaultsKey)
@@ -782,6 +787,7 @@ class WalletStore: ObservableObject {
     private static let etherscanAPIKeyDefaultsKey = "ethereum.etherscan.apiKey"
     private static let ethereumNetworkModeDefaultsKey = "ethereum.network.mode"
     private static let bitcoinNetworkModeDefaultsKey = "bitcoin.network.mode"
+    private static let dogecoinNetworkModeDefaultsKey = "dogecoin.network.mode"
     private static let bitcoinEsploraEndpointsDefaultsKey = "bitcoin.esplora.endpoints"
     private static let bitcoinStopGapDefaultsKey = "bitcoin.stopGap"
     private static let bitcoinFeePriorityDefaultsKey = "bitcoin.feePriority"
@@ -1175,6 +1181,10 @@ class WalletStore: ObservableObject {
         if let storedBitcoinNetworkMode = UserDefaults.standard.string(forKey: Self.bitcoinNetworkModeDefaultsKey),
            let bitcoinNetworkMode = BitcoinNetworkMode(rawValue: storedBitcoinNetworkMode) {
             self.bitcoinNetworkMode = bitcoinNetworkMode
+        }
+        if let storedDogecoinNetworkMode = UserDefaults.standard.string(forKey: Self.dogecoinNetworkModeDefaultsKey),
+           let dogecoinNetworkMode = DogecoinNetworkMode(rawValue: storedDogecoinNetworkMode) {
+            self.dogecoinNetworkMode = dogecoinNetworkMode
         }
         if let storedEthereumNetworkMode = UserDefaults.standard.string(forKey: Self.ethereumNetworkModeDefaultsKey),
            let ethereumNetworkMode = EthereumNetworkMode(rawValue: storedEthereumNetworkMode) {
@@ -2779,8 +2789,11 @@ func resetImportForm() {
         return chainTokens.first { $0.symbol == coin.symbol }
     }
 
-    private func isValidDogecoinAddressForPolicy(_ address: String) -> Bool {
-        AddressValidation.isValidDogecoinAddress(address)
+    private func isValidDogecoinAddressForPolicy(
+        _ address: String,
+        networkMode: DogecoinNetworkMode? = nil
+    ) -> Bool {
+        AddressValidation.isValidDogecoinAddress(address, networkMode: networkMode ?? dogecoinNetworkMode)
     }
 
     private func isValidAddress(_ address: String, for chainName: String) -> Bool {
@@ -3958,7 +3971,8 @@ func resetImportForm() {
                     try await DogecoinBalanceService.fetchTransactionPage(
                         for: address,
                         limit: HistoryPaging.endpointBatchSize,
-                        cursor: nil
+                        cursor: nil,
+                        networkMode: self.dogecoinNetworkMode(for: wallet)
                     )
                 }
                 dogecoinHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
@@ -4193,9 +4207,13 @@ func resetImportForm() {
         appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE rebroadcast requested.", transactionHash: transaction.transactionHash)
 
         do {
+            let walletNetworkMode = transaction.walletID
+                .flatMap { walletID in wallets.first(where: { $0.id == walletID })?.dogecoinNetworkMode }
+                ?? dogecoinNetworkMode
             let result = try await DogecoinWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: rawTransactionHex,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                networkMode: walletNetworkMode
             )
 
             if let index = transactions.firstIndex(where: { $0.id == transactionID }) {
@@ -4365,9 +4383,13 @@ func resetImportForm() {
             )
             return (result.transactionHash, result.verificationStatus)
         case "dogecoin.raw_hex":
+            let walletNetworkMode = transaction.walletID
+                .flatMap { walletID in wallets.first(where: { $0.id == walletID })?.dogecoinNetworkMode }
+                ?? dogecoinNetworkMode
             let result = try await DogecoinWalletEngine.rebroadcastSignedTransactionInBackground(
                 rawTransactionHex: payload,
-                expectedTransactionHash: transaction.transactionHash
+                expectedTransactionHash: transaction.transactionHash,
+                networkMode: walletNetworkMode
             )
             let status: SendBroadcastVerificationStatus
             switch result.verificationStatus {
@@ -4485,6 +4507,10 @@ func resetImportForm() {
         wallet.bitcoinNetworkMode
     }
 
+    private func dogecoinNetworkMode(for wallet: ImportedWallet) -> DogecoinNetworkMode {
+        wallet.dogecoinNetworkMode
+    }
+
     func displayNetworkName(for chainName: String) -> String {
         if chainName == "Bitcoin" {
             return bitcoinNetworkMode.displayName
@@ -4493,7 +4519,7 @@ func resetImportForm() {
             return ethereumNetworkMode.displayName
         }
         if chainName == "Dogecoin" {
-            return chainName
+            return dogecoinNetworkMode.displayName
         }
         return chainName
     }
@@ -4510,6 +4536,9 @@ func resetImportForm() {
         if wallet.selectedChain == "Bitcoin" {
             return bitcoinNetworkMode(for: wallet).displayName
         }
+        if wallet.selectedChain == "Dogecoin" {
+            return dogecoinNetworkMode(for: wallet).displayName
+        }
         return displayNetworkName(for: wallet.selectedChain)
     }
 
@@ -4522,7 +4551,7 @@ func resetImportForm() {
     }
 
     func displayNetworkName(for transaction: TransactionRecord) -> String {
-        if transaction.chainName == "Bitcoin",
+        if (transaction.chainName == "Bitcoin" || transaction.chainName == "Dogecoin"),
            let walletID = transaction.walletID,
            let wallet = cachedWalletByID[walletID] {
             return displayNetworkName(for: wallet)
@@ -4531,7 +4560,7 @@ func resetImportForm() {
     }
 
     func displayChainTitle(for transaction: TransactionRecord) -> String {
-        if transaction.chainName == "Bitcoin",
+        if (transaction.chainName == "Bitcoin" || transaction.chainName == "Dogecoin"),
            let walletID = transaction.walletID,
            let wallet = cachedWalletByID[walletID] {
             return displayChainTitle(for: wallet)
@@ -4800,16 +4829,18 @@ func resetImportForm() {
     }
 
     private func resolvedDogecoinAddress(for wallet: ImportedWallet) -> String? {
+        let networkMode = dogecoinNetworkMode(for: wallet)
         if let seedPhrase = storedSeedPhrase(for: wallet.id),
            let derivedAddress = try? DogecoinWalletEngine.derivedAddress(
             for: seedPhrase,
+            networkMode: networkMode,
             account: Int(derivationAccount(for: wallet, chain: .dogecoin))
            ),
-           isValidDogecoinAddressForPolicy(derivedAddress) {
+           isValidDogecoinAddressForPolicy(derivedAddress, networkMode: networkMode) {
             return derivedAddress
         }
         if let dogecoinAddress = wallet.dogecoinAddress,
-           isValidDogecoinAddressForPolicy(dogecoinAddress) {
+           isValidDogecoinAddressForPolicy(dogecoinAddress, networkMode: networkMode) {
             return dogecoinAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return nil
@@ -4872,6 +4903,7 @@ func resetImportForm() {
             id: wallet.id,
             name: wallet.name,
             bitcoinNetworkMode: wallet.bitcoinNetworkMode,
+            dogecoinNetworkMode: wallet.dogecoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,
@@ -4900,11 +4932,12 @@ func resetImportForm() {
     private func knownDogecoinAddresses(for wallet: ImportedWallet) -> [String] {
         var ordered: [String] = []
         var seen: Set<String> = []
+        let networkMode = wallet.dogecoinNetworkMode
 
         func addIfValid(_ candidate: String?) {
             guard let candidate else { return }
             let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard isValidDogecoinAddressForPolicy(trimmed) else { return }
+            guard isValidDogecoinAddressForPolicy(trimmed, networkMode: networkMode) else { return }
             let normalized = trimmed.lowercased()
             guard !seen.contains(normalized) else { return }
             seen.insert(normalized)
@@ -5435,7 +5468,8 @@ func resetImportForm() {
         walletID: UUID?,
         derivationPath: String?,
         index: Int?,
-        branch: String?
+        branch: String?,
+        networkMode: DogecoinNetworkMode = .mainnet
     ) {
         guard let address,
               let walletID,
@@ -5446,7 +5480,7 @@ func resetImportForm() {
         }
 
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard isValidDogecoinAddressForPolicy(trimmed) else { return }
+        guard isValidDogecoinAddressForPolicy(trimmed, networkMode: networkMode) else { return }
         let key = normalizedDogecoinAddressKey(trimmed)
         dogecoinOwnedAddressMap[key] = DogecoinOwnedAddressRecord(
             address: trimmed,
@@ -5815,7 +5849,7 @@ func resetImportForm() {
         }
 
         if let derivedAddress = deriveDogecoinAddress(for: wallet, isChange: false, index: reservedIndex),
-           isValidDogecoinAddressForPolicy(derivedAddress) {
+           isValidDogecoinAddressForPolicy(derivedAddress, networkMode: wallet.dogecoinNetworkMode) {
             registerDogecoinOwnedAddress(
                 address: derivedAddress,
                 walletID: wallet.id,
@@ -5825,7 +5859,8 @@ func resetImportForm() {
                     index: UInt32(reservedIndex)
                 ),
                 index: reservedIndex,
-                branch: "external"
+                branch: "external",
+                networkMode: wallet.dogecoinNetworkMode
             )
             return derivedAddress
         }
@@ -5843,7 +5878,7 @@ func resetImportForm() {
             var state = keypoolState(for: wallet)
             guard let reservedIndex = state.reservedReceiveIndex else { continue }
             guard let reservedAddress = deriveDogecoinAddress(for: wallet, isChange: false, index: reservedIndex),
-                  isValidDogecoinAddressForPolicy(reservedAddress) else {
+                  isValidDogecoinAddressForPolicy(reservedAddress, networkMode: wallet.dogecoinNetworkMode) else {
                 continue
             }
 
@@ -5856,10 +5891,11 @@ func resetImportForm() {
                     index: UInt32(reservedIndex)
                 ),
                 index: reservedIndex,
-                branch: "external"
+                branch: "external",
+                networkMode: wallet.dogecoinNetworkMode
             )
 
-            let hasActivity = await hasDogecoinOnChainActivity(address: reservedAddress)
+            let hasActivity = await hasDogecoinOnChainActivity(address: reservedAddress, networkMode: wallet.dogecoinNetworkMode)
             guard hasActivity else { continue }
 
             let nextReserved = max(state.nextExternalIndex, reservedIndex + 1)
@@ -5868,7 +5904,7 @@ func resetImportForm() {
             dogecoinKeypoolByWalletID[wallet.id] = state
 
             if let nextAddress = deriveDogecoinAddress(for: wallet, isChange: false, index: nextReserved),
-               isValidDogecoinAddressForPolicy(nextAddress) {
+               isValidDogecoinAddressForPolicy(nextAddress, networkMode: wallet.dogecoinNetworkMode) {
                 registerDogecoinOwnedAddress(
                     address: nextAddress,
                     walletID: wallet.id,
@@ -5878,18 +5914,22 @@ func resetImportForm() {
                         index: UInt32(nextReserved)
                     ),
                     index: nextReserved,
-                    branch: "external"
+                    branch: "external",
+                    networkMode: wallet.dogecoinNetworkMode
                 )
             }
         }
     }
 
-    private func hasDogecoinOnChainActivity(address: String) async -> Bool {
-        if let snapshots = try? await DogecoinBalanceService.fetchRecentTransactions(for: address, limit: 1),
+    private func hasDogecoinOnChainActivity(
+        address: String,
+        networkMode: DogecoinNetworkMode
+    ) async -> Bool {
+        if let snapshots = try? await DogecoinBalanceService.fetchRecentTransactions(for: address, limit: 1, networkMode: networkMode),
            !snapshots.isEmpty {
             return true
         }
-        if let balance = try? await DogecoinBalanceService.fetchBalance(for: address),
+        if let balance = try? await DogecoinBalanceService.fetchBalance(for: address, networkMode: networkMode),
            balance > 0 {
             return true
         }
@@ -5936,6 +5976,7 @@ func resetImportForm() {
                 for index in 0 ... scanUpperBound {
                     if let derived = try? DogecoinWalletEngine.derivedAddress(
                         for: seedPhrase,
+                        networkMode: wallet.dogecoinNetworkMode,
                         isChange: false,
                         index: index,
                         account: Int(derivationAccount(for: wallet, chain: .dogecoin))
@@ -5953,6 +5994,7 @@ func resetImportForm() {
         guard let seedPhrase = storedSeedPhrase(for: wallet.id) else { return nil }
         return try? DogecoinWalletEngine.derivedAddress(
             for: seedPhrase,
+            networkMode: wallet.dogecoinNetworkMode,
             isChange: isChange,
             index: index,
             account: Int(derivationAccount(for: wallet, chain: .dogecoin))
@@ -6100,7 +6142,7 @@ func resetImportForm() {
         }
 
         let trimmedDestination = sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedDestination.isEmpty, !isValidDogecoinAddressForPolicy(trimmedDestination) {
+        if !trimmedDestination.isEmpty, !isValidDogecoinAddressForPolicy(trimmedDestination, networkMode: dogecoinNetworkMode(for: wallet)) {
             dogecoinSendPreview = nil
             isPreparingDogecoinSend = false
             return
@@ -7344,8 +7386,9 @@ func resetImportForm() {
                     infoMessage = nil
                     break
                 }
-                let balance = try await DogecoinBalanceService.fetchBalance(for: destinationForProbe)
-                let hasHistory = !(try await DogecoinBalanceService.fetchRecentTransactions(for: destinationForProbe, limit: 1)).isEmpty
+                let destinationNetworkMode = wallet(for: sendWalletID).map(dogecoinNetworkMode(for:)) ?? dogecoinNetworkMode
+                let balance = try await DogecoinBalanceService.fetchBalance(for: destinationForProbe, networkMode: destinationNetworkMode)
+                let hasHistory = !(try await DogecoinBalanceService.fetchRecentTransactions(for: destinationForProbe, limit: 1, networkMode: destinationNetworkMode)).isEmpty
                 warning = (balance <= 0 && !hasHistory)
                     ? "Warning: this Dogecoin address has zero balance and no transaction history. Double-check recipient details."
                     : nil
@@ -8364,7 +8407,7 @@ func resetImportForm() {
                 sendError = "Enter a valid DOGE amount with up to 8 decimal places."
                 return
             }
-            guard isValidDogecoinAddressForPolicy(destinationAddress) else {
+            guard isValidDogecoinAddressForPolicy(destinationAddress, networkMode: dogecoinNetworkMode(for: wallet)) else {
                 sendError = CommonLocalization.invalidDestinationAddressPrompt("Dogecoin")
                 return
             }
@@ -8438,7 +8481,8 @@ func resetImportForm() {
                     path: sendResult.derivationMetadata.sourceDerivationPath,
                     expectedPrefix: WalletDerivationPath.dogecoinExternalPrefix(account: 0)
                 ),
-                branch: "external"
+                branch: "external",
+                networkMode: wallet.dogecoinNetworkMode
             )
             registerDogecoinOwnedAddress(
                 address: sendResult.derivationMetadata.changeAddress,
@@ -8448,7 +8492,8 @@ func resetImportForm() {
                     path: sendResult.derivationMetadata.changeDerivationPath,
                     expectedPrefix: WalletDerivationPath.dogecoinChangePrefix(account: 0)
                 ),
-                branch: "change"
+                branch: "change",
+                networkMode: wallet.dogecoinNetworkMode
             )
             recordPendingSentTransaction(transaction)
             switch sendResult.verificationStatus {
@@ -10825,6 +10870,7 @@ func resetImportForm() {
             id: wallet.id,
             name: newName,
             bitcoinNetworkMode: wallet.bitcoinNetworkMode,
+            dogecoinNetworkMode: wallet.dogecoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,
@@ -11083,7 +11129,11 @@ func resetImportForm() {
     }
 
     private func deriveDogecoinAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try DogecoinWalletEngine.derivedAddress(for: seedPhrase, account: Int(DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0))
+        try DogecoinWalletEngine.derivedAddress(
+            for: seedPhrase,
+            networkMode: dogecoinNetworkMode,
+            account: Int(DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0)
+        )
     }
 
     private func deriveLitecoinAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
@@ -11148,6 +11198,7 @@ func resetImportForm() {
             id: id,
             name: name,
             bitcoinNetworkMode: chainName == "Bitcoin" ? bitcoinNetworkMode : .mainnet,
+            dogecoinNetworkMode: chainName == "Dogecoin" ? dogecoinNetworkMode : .mainnet,
             bitcoinAddress: chainName == "Bitcoin" ? bitcoinAddress : nil,
             bitcoinXPub: chainName == "Bitcoin" ? bitcoinXPub : nil,
             bitcoinCashAddress: chainName == "Bitcoin Cash" ? bitcoinCashAddress : nil,
@@ -11449,6 +11500,7 @@ func resetImportForm() {
             id: wallet.id,
             name: wallet.name,
             bitcoinNetworkMode: wallet.bitcoinNetworkMode,
+            dogecoinNetworkMode: wallet.dogecoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,
@@ -11483,7 +11535,7 @@ func resetImportForm() {
         guard let address, !address.isEmpty else {
             throw WalletImportSyncError.dogecoin
         }
-        return try await DogecoinBalanceService.fetchBalance(for: address)
+        return try await DogecoinBalanceService.fetchBalance(for: address, networkMode: dogecoinNetworkMode)
     }
 
     private func fetchLitecoinImportBalanceIfNeeded(
@@ -11868,6 +11920,7 @@ func resetImportForm() {
             id: wallet.id,
             name: wallet.name,
             bitcoinNetworkMode: wallet.bitcoinNetworkMode,
+            dogecoinNetworkMode: wallet.dogecoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,
@@ -11897,7 +11950,7 @@ func resetImportForm() {
             wallet.selectedChain == "Dogecoin"
                 && {
                     guard let address = wallet.dogecoinAddress else { return false }
-                    return isValidDogecoinAddressForPolicy(address)
+                    return isValidDogecoinAddressForPolicy(address, networkMode: wallet.dogecoinNetworkMode)
                 }()
         }
     }
@@ -13184,11 +13237,11 @@ func resetImportForm() {
         guard !walletsToRefresh.isEmpty else { return }
 
         var updatedWallets = walletSnapshot
-        let resolvedBalances = await collectLimitedConcurrentIndexedResults(from: walletsToRefresh) { (index, _, dogecoinAddresses) in
+        let resolvedBalances = await collectLimitedConcurrentIndexedResults(from: walletsToRefresh) { (index, wallet, dogecoinAddresses) in
             var didResolve = false
             var totalBalance: Double = 0
             for dogecoinAddress in dogecoinAddresses {
-                if let balance = try? await DogecoinBalanceService.fetchBalance(for: dogecoinAddress) {
+                if let balance = try? await DogecoinBalanceService.fetchBalance(for: dogecoinAddress, networkMode: wallet.dogecoinNetworkMode) {
                     totalBalance += balance
                     didResolve = true
                 }
@@ -17771,7 +17824,7 @@ func resetImportForm() {
                     request.timeoutInterval = 15
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.httpBody = payload
-                    let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .litecoinDiagnostics)
+                    let (data, response) = try await ProviderHTTP.data(for: request, profile: .litecoinDiagnostics)
                     let http = response as? HTTPURLResponse
                     let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
                     let reachable = http.map { (200 ... 299).contains($0.statusCode) } == true && json?["result"] != nil
@@ -17839,7 +17892,7 @@ func resetImportForm() {
                     continue
                 }
                 do {
-                    let (_, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinDiagnostics)
+                    let (_, response) = try await ProviderHTTP.data(from: url, profile: .litecoinDiagnostics)
                     let http = response as? HTTPURLResponse
                     let reachable = http.map { (200 ... 299).contains($0.statusCode) } ?? false
                     results.append(BitcoinEndpointHealthResult(endpoint: endpoint, reachable: reachable, statusCode: http?.statusCode, detail: reachable ? "OK" : "HTTP \(http?.statusCode ?? -1)"))
@@ -17865,7 +17918,7 @@ func resetImportForm() {
                 request.timeoutInterval = 15
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 request.httpBody = payload
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .litecoinDiagnostics)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .litecoinDiagnostics)
                 let http = response as? HTTPURLResponse
                 let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
                 let reachable = http.map { (200 ... 299).contains($0.statusCode) } == true && json?["result"] != nil
@@ -19540,7 +19593,7 @@ func resetImportForm() {
                 {"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}
                 """.data(using: .utf8)
 
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await ProviderHTTP.sessionData(for: request)
                 let statusCode = (response as? HTTPURLResponse)?.statusCode
                 let bodyText = String(data: data, encoding: .utf8) ?? ""
                 if let statusCode, (200 ..< 300).contains(statusCode) {
@@ -19721,7 +19774,10 @@ func resetImportForm() {
             }
 
             do {
-                let status = try await DogecoinBalanceService.fetchTransactionStatus(txid: transactionHash)
+                let walletNetworkMode = transaction.walletID
+                    .flatMap { walletID in wallets.first(where: { $0.id == walletID })?.dogecoinNetworkMode }
+                    ?? dogecoinNetworkMode
+                let status = try await DogecoinBalanceService.fetchTransactionStatus(txid: transactionHash, networkMode: walletNetworkMode)
                 resolvedStatuses[transaction.id] = status
                 markDogecoinStatusPollSuccess(
                     for: transaction,
@@ -20595,7 +20651,8 @@ func resetImportForm() {
                     let page = try await DogecoinBalanceService.fetchTransactionPage(
                         for: dogecoinAddress,
                         limit: fetchLimit,
-                        cursor: loadMore ? dogecoinHistoryCursorByWallet[wallet.id] : nil
+                        cursor: loadMore ? dogecoinHistoryCursorByWallet[wallet.id] : nil,
+                        networkMode: wallet.dogecoinNetworkMode
                     )
                     let snapshots = page.snapshots
                     for snapshot in snapshots {

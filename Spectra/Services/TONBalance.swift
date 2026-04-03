@@ -52,8 +52,6 @@ struct TONPortfolioSnapshot: Equatable {
 }
 
 enum TONBalanceService {
-    private static let endpoints = ChainBackendRegistry.TONRuntimeEndpoints.apiV2BaseURLs
-    private static let jettonEndpoints = ChainBackendRegistry.TONRuntimeEndpoints.apiV3BaseURLs
     private static let tonDivisor = Decimal(string: "1000000000")!
 
     struct KnownTokenMetadata: Equatable {
@@ -65,72 +63,12 @@ enum TONBalanceService {
         let coinGeckoID: String
     }
 
-    private struct WalletInformationEnvelope: Decodable {
-        let ok: Bool?
-        let result: WalletInformationResult?
-        let error: String?
-    }
-
-    private struct WalletInformationResult: Decodable {
-        let balance: String?
-    }
-
-    private struct TransactionsEnvelope: Decodable {
-        let ok: Bool?
-        let result: [TransactionEntry]?
-        let error: String?
-    }
-
-    private struct JettonWalletsEnvelope: Decodable {
-        let jettonWallets: [JettonWalletEntry]?
-
-        enum CodingKeys: String, CodingKey {
-            case jettonWallets = "jetton_wallets"
-        }
-    }
-
-    private struct JettonWalletEntry: Decodable {
-        let balance: String?
-        let address: String?
-        let owner: AddressEnvelope?
-        let jetton: AddressEnvelope?
-
-        struct AddressEnvelope: Decodable {
-            let address: String?
-        }
-    }
-
-    private struct TransactionEntry: Decodable {
-        let utime: Int?
-        let transactionID: TransactionID?
-        let inMsg: Message?
-        let outMsgs: [Message]?
-
-        enum CodingKeys: String, CodingKey {
-            case utime
-            case transactionID = "transaction_id"
-            case inMsg = "in_msg"
-            case outMsgs = "out_msgs"
-        }
-    }
-
-    private struct TransactionID: Decodable {
-        let hash: String?
-    }
-
-    private struct Message: Decodable {
-        let source: String?
-        let destination: String?
-        let value: String?
-    }
-
     static func endpointCatalog() -> [String] {
-        endpoints + jettonEndpoints
+        TONProvider.endpointCatalog()
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpoints.map { ($0, "\($0)/getMasterchainInfo") }
-            + jettonEndpoints.map { ($0, "\($0)/jetton/wallets") }
+        TONProvider.diagnosticsChecks()
     }
 
     static func normalizeJettonMasterAddress(_ address: String) -> String {
@@ -148,18 +86,18 @@ enum TONBalanceService {
         }
 
         var lastError: Error?
-        for endpoint in endpoints {
+        for endpoint in TONProvider.apiV2BaseURLs {
             do {
                 var components = URLComponents(string: "\(endpoint)/getWalletInformation")
                 components?.queryItems = [URLQueryItem(name: "address", value: normalized)]
                 guard let url = components?.url else {
                     throw TONBalanceServiceError.invalidResponse
                 }
-                let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     throw TONBalanceServiceError.rpcError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
-                let envelope = try JSONDecoder().decode(WalletInformationEnvelope.self, from: data)
+                let envelope = try JSONDecoder().decode(TONProvider.WalletInformationEnvelope.self, from: data)
                 guard envelope.ok == true,
                       let balanceText = envelope.result?.balance,
                       let balance = Decimal(string: balanceText) else {
@@ -206,7 +144,7 @@ enum TONBalanceService {
 
         let boundedLimit = max(1, min(limit, 80))
         var lastError: String?
-        for endpoint in endpoints {
+        for endpoint in TONProvider.apiV2BaseURLs {
             do {
                 var components = URLComponents(string: "\(endpoint)/getTransactions")
                 components?.queryItems = [
@@ -216,7 +154,7 @@ enum TONBalanceService {
                 guard let url = components?.url else {
                     throw TONBalanceServiceError.invalidResponse
                 }
-                let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     throw TONBalanceServiceError.rpcError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
@@ -234,7 +172,7 @@ enum TONBalanceService {
             [],
             TONHistoryDiagnostics(
                 address: normalized,
-                sourceUsed: endpoints.first ?? "none",
+                sourceUsed: TONProvider.apiV2BaseURLs.first ?? "none",
                 transactionCount: 0,
                 error: lastError ?? TONBalanceServiceError.invalidResponse.localizedDescription
             )
@@ -248,7 +186,7 @@ enum TONBalanceService {
         }
 
         var lastError: String?
-        for endpoint in jettonEndpoints {
+        for endpoint in TONProvider.apiV3BaseURLs {
             do {
                 var components = URLComponents(string: "\(endpoint)/transactions")
                 components?.queryItems = [
@@ -259,7 +197,7 @@ enum TONBalanceService {
                     throw TONBalanceServiceError.invalidResponse
                 }
 
-                let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     throw TONBalanceServiceError.rpcError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
@@ -285,7 +223,7 @@ enum TONBalanceService {
     }
 
     private static func parseTransactionHistoryResponse(_ data: Data, ownerAddress: String) throws -> [TONHistorySnapshot] {
-        if let envelope = try? JSONDecoder().decode(TransactionsEnvelope.self, from: data),
+        if let envelope = try? JSONDecoder().decode(TONProvider.TransactionsEnvelope.self, from: data),
            let result = envelope.result {
             return result.compactMap { snapshot(from: $0, ownerAddress: ownerAddress) }
         }
@@ -367,7 +305,7 @@ enum TONBalanceService {
         return nil
     }
 
-    private static func snapshot(from entry: TransactionEntry, ownerAddress: String) -> TONHistorySnapshot? {
+    private static func snapshot(from entry: TONProvider.TransactionEntry, ownerAddress: String) -> TONHistorySnapshot? {
         let txHash = entry.transactionID?.hash?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !txHash.isEmpty else { return nil }
 
@@ -454,7 +392,7 @@ enum TONBalanceService {
         guard !trackedByMaster.isEmpty else { return [] }
 
         var lastError: Error?
-        for endpoint in jettonEndpoints {
+        for endpoint in TONProvider.apiV3BaseURLs {
             do {
                 var components = URLComponents(string: "\(endpoint)/jetton/wallets")
                 components?.queryItems = [
@@ -465,12 +403,12 @@ enum TONBalanceService {
                     throw TONBalanceServiceError.invalidResponse
                 }
 
-                let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     throw TONBalanceServiceError.rpcError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
 
-                let envelope = try JSONDecoder().decode(JettonWalletsEnvelope.self, from: data)
+                let envelope = try JSONDecoder().decode(TONProvider.JettonWalletsEnvelope.self, from: data)
                 let wallets = envelope.jettonWallets ?? []
                 var snapshots: [TONJettonBalanceSnapshot] = []
                 snapshots.reserveCapacity(wallets.count)

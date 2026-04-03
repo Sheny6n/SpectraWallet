@@ -40,25 +40,20 @@ enum PolkadotBalanceService {
     private static let dotDivisor = Decimal(string: "10000000000")!
     private static let scanBlockLimit = 256
 
-    private static let sidecarEndpoints = ChainBackendRegistry.PolkadotRuntimeEndpoints.sidecarBaseURLs
-
-    private static let rpcEndpoints = ChainBackendRegistry.PolkadotRuntimeEndpoints.rpcBaseURLs
-
     static func endpointCatalog() -> [String] {
-        sidecarEndpoints + rpcEndpoints
+        PolkadotProvider.endpointCatalog()
     }
 
     static func rpcEndpointCatalog() -> [String] {
-        rpcEndpoints
+        PolkadotProvider.rpcBaseURLs
     }
 
     static func sidecarEndpointCatalog() -> [String] {
-        sidecarEndpoints
+        PolkadotProvider.sidecarBaseURLs
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        sidecarEndpoints.map { ($0, "\($0)/transaction/material") } +
-            rpcEndpoints.map { ($0, $0) }
+        PolkadotProvider.diagnosticsChecks()
     }
 
     static func isValidAddress(_ address: String) -> Bool {
@@ -72,7 +67,7 @@ enum PolkadotBalanceService {
         }
 
         var lastError: Error?
-        for endpoint in sidecarEndpoints {
+        for endpoint in PolkadotProvider.sidecarBaseURLs {
             do {
                 let info = try await fetchBalanceInfo(address: normalized, endpoint: endpoint)
                 if let free = decimalString(info.free) {
@@ -106,7 +101,7 @@ enum PolkadotBalanceService {
 
         let boundedLimit = max(1, min(limit, 80))
         var lastError: String?
-        for endpoint in sidecarEndpoints {
+        for endpoint in PolkadotProvider.sidecarBaseURLs {
             do {
                 let snapshots = try await fetchSidecarHistory(address: normalized, endpoint: endpoint, limit: boundedLimit)
                 return (
@@ -127,7 +122,7 @@ enum PolkadotBalanceService {
             [],
             PolkadotHistoryDiagnostics(
                 address: normalized,
-                sourceUsed: sidecarEndpoints.first ?? "none",
+                sourceUsed: PolkadotProvider.sidecarBaseURLs.first ?? "none",
                 transactionCount: 0,
                 error: lastError ?? PolkadotBalanceServiceError.invalidResponse.localizedDescription
             )
@@ -141,7 +136,7 @@ enum PolkadotBalanceService {
         }
 
         var lastError: String?
-        for endpoint in sidecarEndpoints {
+        for endpoint in PolkadotProvider.sidecarBaseURLs {
             do {
                 if try await sidecarContainsTransactionHash(normalizedHash, endpoint: endpoint) {
                     return .verified
@@ -157,16 +152,11 @@ enum PolkadotBalanceService {
         return .deferred
     }
 
-    private struct SidecarBalanceInfo: Decodable {
-        let free: String?
-        let nonce: Int?
-    }
-
     private static func normalizedAddress(_ address: String) -> String {
         address.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func fetchBalanceInfo(address: String, endpoint: String) async throws -> SidecarBalanceInfo {
+    private static func fetchBalanceInfo(address: String, endpoint: String) async throws -> PolkadotProvider.SidecarBalanceInfo {
         guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(endpoint)/accounts/\(encoded)/balance-info") else {
             throw PolkadotBalanceServiceError.invalidResponse
@@ -178,7 +168,7 @@ enum PolkadotBalanceService {
         guard (200 ... 299).contains(http.statusCode) else {
             throw PolkadotBalanceServiceError.httpError(http.statusCode)
         }
-        return try JSONDecoder().decode(SidecarBalanceInfo.self, from: data)
+        return try JSONDecoder().decode(PolkadotProvider.SidecarBalanceInfo.self, from: data)
     }
 
     private static func fetchSidecarHistory(address: String, endpoint: String, limit: Int) async throws -> [PolkadotHistorySnapshot] {
@@ -305,7 +295,7 @@ enum PolkadotBalanceService {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
-        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        return try await ProviderHTTP.data(for: request, profile: .chainRead)
     }
 
     private static func stringValue(at path: [String], in object: Any) -> String? {

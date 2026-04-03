@@ -40,6 +40,14 @@ enum BitcoinSVWalletEngine {
     private static let minimumFeeSatoshis: UInt64 = 1_000
     private static let dustThresholdSatoshis: UInt64 = 546
     private static let maxStandardTransactionBytes: UInt64 = 100_000
+    private static let feePolicy = UTXOSatVBytePolicy(
+        chainName: "Bitcoin SV",
+        baseUnitsPerCoin: satoshisPerBSV,
+        dustThreshold: dustThresholdSatoshis,
+        minimumRelayFeeRate: minimumFeeRateSatVb,
+        minimumAbsoluteFee: minimumFeeSatoshis,
+        maxStandardTransactionBytes: maxStandardTransactionBytes
+    )
     private static let whatsonchainBroadcastURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainBroadcastURL
     private static let whatsonchainTransactionURLPrefix = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainTransactionURLPrefix
     private static let blockchairPushURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairPushURL
@@ -108,19 +116,22 @@ enum BitcoinSVWalletEngine {
         let fetched = try await BitcoinSVBalanceService.fetchUTXOs(for: sourceAddress)
         let utxos = limitedUTXOs(from: fetched, maxInputCount: maxInputCount)
         let totalInputSatoshis = utxos.reduce(UInt64(0)) { $0 + $1.value }
-        let estimatedBytes = UInt64(10 + (148 * max(1, utxos.count)) + 68)
         let feeRateSatVb = try await fetchLiveFeeRateSatVb()
-        let estimatedFee = max(minimumFeeSatoshis, UInt64(Double(estimatedBytes) * Double(feeRateSatVb)))
-        let spendable = totalInputSatoshis > estimatedFee ? totalInputSatoshis - estimatedFee : 0
+        let preview = feePolicy.preview(
+            for: totalInputSatoshis,
+            inputCount: utxos.count,
+            feeRate: feeRateSatVb
+        )
+        let spendable = preview.spendable
         guard spendable > 0 else {
             throw BitcoinSVWalletEngineError.insufficientFunds
         }
         return BitcoinSendPreview(
             estimatedFeeRateSatVb: feeRateSatVb,
-            estimatedNetworkFeeBTC: Double(estimatedFee) / satoshisPerBSV,
+            estimatedNetworkFeeBTC: Double(preview.estimatedFee) / satoshisPerBSV,
             feeRateDescription: "\(feeRateSatVb) sat/vB",
             spendableBalance: Double(spendable) / satoshisPerBSV,
-            estimatedTransactionBytes: Int(estimatedBytes),
+            estimatedTransactionBytes: preview.estimatedBytes,
             selectedInputCount: utxos.count,
             usesChangeOutput: nil,
             maxSendable: Double(spendable) / satoshisPerBSV
@@ -174,7 +185,7 @@ enum BitcoinSVWalletEngine {
 
         let feeRateSatVb = try await fetchLiveFeeRateSatVb()
 
-        let selectedUTXOs = try selectUTXOs(
+        let spendPlan = try selectSpendPlan(
             from: fetchedUTXOs,
             sendAmountSatoshis: amountSatoshis,
             feeRateSatVb: feeRateSatVb,
@@ -182,7 +193,7 @@ enum BitcoinSVWalletEngine {
         )
         try validatePolicyRules(
             sendAmountSatoshis: amountSatoshis,
-            selectedUTXOs: selectedUTXOs,
+            spendPlan: spendPlan,
             feeRateSatVb: feeRateSatVb
         )
 
@@ -196,7 +207,7 @@ enum BitcoinSVWalletEngine {
         signingInput.changeAddress = changeMaterial.address
         signingInput.coinType = CoinType.bitcoin.rawValue
         signingInput.privateKey = [sourceMaterial.privateKeyData]
-        signingInput.utxo = try selectedUTXOs.map {
+        signingInput.utxo = try spendPlan.utxos.map {
             try walletCoreUnspentTransaction(
                 from: $0,
                 sourceScript: sourceScript,
@@ -278,55 +289,44 @@ enum BitcoinSVWalletEngine {
         return unspent
     }
 
-    private static func selectUTXOs(
+    private static func selectSpendPlan(
         from utxos: [BitcoinSVUTXO],
         sendAmountSatoshis: UInt64,
         feeRateSatVb: UInt64,
         maxInputCount: Int?
-    ) throws -> [BitcoinSVUTXO] {
-        let sorted = utxos.sorted(by: { $0.value > $1.value })
-        let cap = maxInputCount.map { max(1, $0) } ?? sorted.count
-        var selected: [BitcoinSVUTXO] = []
-        var runningTotal: UInt64 = 0
-
-        for utxo in sorted {
-            if selected.count >= cap { break }
-            selected.append(utxo)
-            runningTotal += utxo.value
-            let estimatedBytes = UInt64(10 + (148 * selected.count) + 68)
-            let estimatedFee = max(minimumFeeSatoshis, UInt64(Double(estimatedBytes) * Double(feeRateSatVb)))
-            if runningTotal >= sendAmountSatoshis + estimatedFee {
-                return selected
+    ) throws -> UTXOSpendPlan<BitcoinSVUTXO> {
+        guard let plan = UTXOSpendPlanner.buildPlan(
+            from: utxos,
+            targetValue: sendAmountSatoshis,
+            dustThreshold: dustThresholdSatoshis,
+            maxInputCount: maxInputCount,
+            sortBy: { $0.value > $1.value },
+            value: \.value,
+            feeForLayout: { inputCount, outputCount in
+                feePolicy.estimatedFee(
+                    inputCount: inputCount,
+                    outputCount: outputCount,
+                    feeRate: feeRateSatVb
+                )
             }
+        ) else {
+            throw BitcoinSVWalletEngineError.insufficientFunds
         }
-
-        throw BitcoinSVWalletEngineError.insufficientFunds
+        return plan
     }
 
     private static func validatePolicyRules(
         sendAmountSatoshis: UInt64,
-        selectedUTXOs: [BitcoinSVUTXO],
+        spendPlan: UTXOSpendPlan<BitcoinSVUTXO>,
         feeRateSatVb: UInt64
     ) throws {
-        guard sendAmountSatoshis >= dustThresholdSatoshis else {
-            throw BitcoinSVWalletEngineError.policyViolation("Amount is below Bitcoin SV dust threshold.")
-        }
-        guard feeRateSatVb >= minimumFeeRateSatVb else {
-            throw BitcoinSVWalletEngineError.policyViolation("Bitcoin SV fee rate is below standard relay policy.")
-        }
-        let estimatedBytes = UInt64(10 + (148 * max(1, selectedUTXOs.count)) + 68)
-        guard estimatedBytes <= maxStandardTransactionBytes else {
-            throw BitcoinSVWalletEngineError.policyViolation("Bitcoin SV transaction is too large for standard relay policy.")
-        }
-        let totalInput = selectedUTXOs.reduce(UInt64(0)) { $0 + $1.value }
-        let estimatedFee = max(minimumFeeSatoshis, UInt64(Double(estimatedBytes) * Double(feeRateSatVb)))
-        guard totalInput >= sendAmountSatoshis + estimatedFee else {
-            throw BitcoinSVWalletEngineError.insufficientFunds
-        }
-        let change = totalInput - sendAmountSatoshis - estimatedFee
-        if change > 0, change < dustThresholdSatoshis {
-            throw BitcoinSVWalletEngineError.policyViolation("Calculated Bitcoin SV change is below dust threshold.")
-        }
+        try feePolicy.validatePlan(
+            sendAmount: sendAmountSatoshis,
+            spendPlan: spendPlan,
+            feeRate: feeRateSatVb,
+            error: { BitcoinSVWalletEngineError.policyViolation($0) },
+            insufficientFunds: BitcoinSVWalletEngineError.insufficientFunds
+        )
     }
 
     private static func sourceScript(for address: String) throws -> Data {
@@ -423,7 +423,7 @@ enum BitcoinSVWalletEngine {
                 url = resolved
             }
 
-            let (_, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+            let (_, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
             guard let http = response as? HTTPURLResponse else {
                 throw BitcoinSVWalletEngineError.broadcastFailed("Invalid Bitcoin SV verification response.")
             }
@@ -464,7 +464,7 @@ enum BitcoinSVWalletEngine {
         request.setValue("text/plain; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.httpBody = rawTransactionHex.data(using: .utf8)
 
-        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+        let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainWrite)
 
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             let responseBody = String(data: data, encoding: .utf8) ?? ""
@@ -498,7 +498,7 @@ enum BitcoinSVWalletEngine {
         request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.httpBody = "data=\(rawTransactionHex)".data(using: .utf8)
 
-        let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+        let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainWrite)
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             let responseBody = String(data: data, encoding: .utf8) ?? ""
             let message = "Bitcoin SV broadcast failed. \(responseBody)".trimmingCharacters(in: .whitespacesAndNewlines)
@@ -558,7 +558,7 @@ enum BitcoinSVWalletEngine {
         guard let url = URL(string: ChainBackendRegistry.BitcoinSVRuntimeEndpoints.whatsonchainChainInfoURL) else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             throw BitcoinSVWalletEngineError.broadcastFailed("Failed to fetch Bitcoin SV chain info.")
         }
@@ -573,7 +573,7 @@ enum BitcoinSVWalletEngine {
         guard let url = URL(string: "\(ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairBaseURL)/stats") else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await SpectraNetworkRouter.shared.data(from: url, profile: .chainRead)
+        let (data, response) = try await ProviderHTTP.data(from: url, profile: .chainRead)
         guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
             throw BitcoinSVWalletEngineError.broadcastFailed("Failed to fetch Bitcoin SV fee estimates.")
         }

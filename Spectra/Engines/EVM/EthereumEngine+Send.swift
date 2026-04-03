@@ -786,16 +786,12 @@ static func performRPCOnce<Params: Encodable>(
     rpcEndpoint: URL,
     requestID: Int
 ) async throws -> String {
-    let payload = EthereumJSONRPCRequest(
-        id: requestID,
+    let request = try EthereumRPCProvider.makeRequest(
         method: method,
-        params: params
+        params: params,
+        requestID: requestID,
+        endpoint: rpcEndpoint
     )
-    var request = URLRequest(url: rpcEndpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.timeoutInterval = 20
-    request.httpBody = try JSONEncoder().encode(payload)
 
     let (data, response) = try await fetchData(for: request)
     guard let httpResponse = response as? HTTPURLResponse,
@@ -858,16 +854,12 @@ static func performRPCDecodedOnce<Params: Encodable, Result: Decodable>(
     rpcEndpoint: URL,
     requestID: Int
 ) async throws -> Result {
-    let payload = EthereumJSONRPCRequest(
-        id: requestID,
+    let request = try EthereumRPCProvider.makeRequest(
         method: method,
-        params: params
+        params: params,
+        requestID: requestID,
+        endpoint: rpcEndpoint
     )
-    var request = URLRequest(url: rpcEndpoint)
-    request.httpMethod = "POST"
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.timeoutInterval = 20
-    request.httpBody = try JSONEncoder().encode(payload)
 
     let (data, response) = try await fetchData(for: request)
     guard let httpResponse = response as? HTTPURLResponse,
@@ -888,7 +880,7 @@ static func performRPCDecodedOnce<Params: Encodable, Result: Decodable>(
 }
 
 static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
-    try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+    try await ProviderHTTP.data(for: request, profile: .chainRead)
 }
 
 static func fetchEIP1559FeeParameters(

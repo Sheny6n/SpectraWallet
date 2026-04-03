@@ -49,7 +49,6 @@ struct SolanaSendResult: Equatable {
 enum SolanaWalletEngine {
     // Primary Solana wallet path used by major wallets.
     private static let primaryDerivationPath = "m/44'/501'/0'/0'"
-    private static let endpointReliabilityNamespace = "solana.rpc"
     private static let maxSerializedTransactionBytes = 1232
 
     enum DerivationPreference {
@@ -57,10 +56,8 @@ enum SolanaWalletEngine {
         case legacy
     }
 
-    private static let solanaRPCBases = ChainBackendRegistry.SolanaRuntimeEndpoints.sendRPCBaseURLs
-
     private static func rpcClient(baseURL: String) -> SolanaAPIClient {
-        JSONRPCAPIClient(endpoint: APIEndPoint(address: baseURL, network: .mainnetBeta))
+        SolanaProvider.rpcClient(baseURL: baseURL)
     }
 
     private static func withRPCClient<T>(
@@ -71,11 +68,11 @@ enum SolanaWalletEngine {
         for baseURL in orderedRPCBases(providerIDs: providerIDs) {
             do {
                 let result = try await operation(rpcClient(baseURL: baseURL))
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: true)
+                ChainEndpointReliability.recordAttempt(namespace: SolanaProvider.endpointReliabilityNamespace, endpoint: baseURL, success: true)
                 return result
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: SolanaProvider.endpointReliabilityNamespace, endpoint: baseURL, success: false)
             }
         }
         throw lastError ?? SolanaWalletEngineError.rpcFailed("No Solana RPC endpoint was reachable.")
@@ -331,7 +328,7 @@ enum SolanaWalletEngine {
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
-                    let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                    let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                     guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                         throw SolanaWalletEngineError.rpcFailed("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                     }
@@ -352,12 +349,12 @@ enum SolanaWalletEngine {
                         return .failed("Solana reported transaction error: \(err)")
                     }
                     if status["confirmationStatus"] != nil || status["confirmations"] != nil || status["slot"] != nil {
-                        ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: true)
+                        ChainEndpointReliability.recordAttempt(namespace: SolanaProvider.endpointReliabilityNamespace, endpoint: baseURL, success: true)
                         return .verified
                     }
                 } catch {
                     lastError = error
-                    ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: false)
+                    ChainEndpointReliability.recordAttempt(namespace: SolanaProvider.endpointReliabilityNamespace, endpoint: baseURL, success: false)
                 }
             }
 
@@ -395,7 +392,7 @@ enum SolanaWalletEngine {
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                 request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     throw SolanaWalletEngineError.rpcFailed("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
@@ -407,11 +404,11 @@ enum SolanaWalletEngine {
                       lamports.uint64Value > 0 else {
                     throw SolanaWalletEngineError.rpcFailed("Missing live fee calculator data.")
                 }
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: true)
+                ChainEndpointReliability.recordAttempt(namespace: SolanaProvider.endpointReliabilityNamespace, endpoint: baseURL, success: true)
                 return lamports.uint64Value
             } catch {
                 lastError = error
-                ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: baseURL, success: false)
+                ChainEndpointReliability.recordAttempt(namespace: SolanaProvider.endpointReliabilityNamespace, endpoint: baseURL, success: false)
             }
         }
 
@@ -643,23 +640,10 @@ enum SolanaWalletEngine {
     }
 
     private static func orderedRPCBases(providerIDs: Set<String>? = nil) -> [String] {
-        ChainEndpointReliability.orderedEndpoints(
-            namespace: endpointReliabilityNamespace,
-            candidates: filteredRPCBases(providerIDs: providerIDs)
-        )
+        SolanaProvider.orderedSendRPCBaseURLs(providerIDs: providerIDs)
     }
 
     private static func filteredRPCBases(providerIDs: Set<String>? = nil) -> [String] {
-        guard let providerIDs, !providerIDs.isEmpty else { return solanaRPCBases }
-        return solanaRPCBases.filter { endpoint in
-            switch endpoint {
-            case "https://api.mainnet-beta.solana.com":
-                return providerIDs.contains("solana-mainnet-beta")
-            case "https://rpc.ankr.com/solana":
-                return providerIDs.contains("solana-ankr")
-            default:
-                return false
-            }
-        }
+        SolanaProvider.filteredSendRPCBaseURLs(providerIDs: providerIDs)
     }
 }

@@ -395,7 +395,7 @@ enum TronWalletEngine {
             request.httpBody = try JSONSerialization.data(withJSONObject: ["value": txid], options: [])
 
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainRead)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     let code = (response as? HTTPURLResponse)?.statusCode ?? -1
                     throw TronWalletEngineError.broadcastFailed("Tron verification failed with HTTP \(code).")
@@ -602,7 +602,7 @@ enum TronWalletEngine {
             request.httpBody = try JSONSerialization.data(withJSONObject: payload, options: [])
 
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: profile)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: profile)
 
                 guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                     throw TronWalletEngineError.createTransactionFailed("\(errorPrefix): invalid JSON payload.")
@@ -813,7 +813,7 @@ enum TronWalletEngine {
     }
 
     private static func makeTRC20TransferParameter(to destinationAddress: String, amountRaw: Int64) throws -> String {
-        guard let tronAddressPayload = base58CheckDecode(destinationAddress), tronAddressPayload.count == 21 else {
+        guard let tronAddressPayload = UTXOAddressCodec.base58CheckDecode(destinationAddress), tronAddressPayload.count == 21 else {
             throw TronWalletEngineError.invalidAddress
         }
         let evmAddress = tronAddressPayload.dropFirst()
@@ -832,46 +832,6 @@ enum TronWalletEngine {
         let amountSlot = Data(repeating: 0, count: 32 - amountBytes.count) + Data(amountBytes)
 
         return (addressSlot + amountSlot).hexEncodedString()
-    }
-
-    private static func base58CheckDecode(_ string: String) -> Data? {
-        let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
-        var indexes: [Character: Int] = [:]
-        for (index, character) in alphabet.enumerated() {
-            indexes[character] = index
-        }
-
-        var bytes: [UInt8] = [0]
-        for character in string {
-            guard let value = indexes[character] else { return nil }
-            var carry = value
-            for idx in bytes.indices {
-                let x = Int(bytes[idx]) * 58 + carry
-                bytes[idx] = UInt8(x & 0xff)
-                carry = x >> 8
-            }
-            while carry > 0 {
-                bytes.append(UInt8(carry & 0xff))
-                carry >>= 8
-            }
-        }
-
-        var leadingZeroCount = 0
-        for character in string where character == "1" {
-            leadingZeroCount += 1
-        }
-
-        let decoded = Data(repeating: 0, count: leadingZeroCount) + Data(bytes.reversed())
-        guard decoded.count >= 5 else { return nil }
-
-        let payload = decoded.dropLast(4)
-        let checksum = decoded.suffix(4)
-        let firstHash = SHA256.hash(data: payload)
-        let secondHash = SHA256.hash(data: Data(firstHash))
-        let computedChecksum = Data(secondHash.prefix(4))
-        guard checksum.elementsEqual(computedChecksum) else { return nil }
-
-        return Data(payload)
     }
 
     private static func scaledSignedAmount(_ amount: Double, decimals: Int) throws -> Int64 {

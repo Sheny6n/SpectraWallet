@@ -20,6 +20,7 @@ struct PersistedWallet: Codable {
     let id: UUID
     let name: String
     let bitcoinNetworkMode: BitcoinNetworkMode
+    let dogecoinNetworkMode: DogecoinNetworkMode
     let bitcoinAddress: String?
     let bitcoinXPub: String?
     let bitcoinCashAddress: String?
@@ -49,6 +50,7 @@ struct PersistedWallet: Codable {
         case id
         case name
         case bitcoinNetworkMode
+        case dogecoinNetworkMode
         case bitcoinAddress
         case bitcoinXPub
         case bitcoinCashAddress
@@ -79,6 +81,7 @@ struct PersistedWallet: Codable {
         id: UUID,
         name: String,
         bitcoinNetworkMode: BitcoinNetworkMode = .mainnet,
+        dogecoinNetworkMode: DogecoinNetworkMode = .mainnet,
         bitcoinAddress: String?,
         bitcoinXPub: String?,
         bitcoinCashAddress: String?,
@@ -107,6 +110,7 @@ struct PersistedWallet: Codable {
         self.id = id
         self.name = name
         self.bitcoinNetworkMode = bitcoinNetworkMode
+        self.dogecoinNetworkMode = dogecoinNetworkMode
         self.bitcoinAddress = bitcoinAddress
         self.bitcoinXPub = bitcoinXPub
         self.bitcoinCashAddress = bitcoinCashAddress
@@ -138,6 +142,7 @@ struct PersistedWallet: Codable {
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         bitcoinNetworkMode = try container.decodeIfPresent(BitcoinNetworkMode.self, forKey: .bitcoinNetworkMode) ?? .mainnet
+        dogecoinNetworkMode = try container.decodeIfPresent(DogecoinNetworkMode.self, forKey: .dogecoinNetworkMode) ?? .mainnet
         bitcoinAddress = try container.decodeIfPresent(String.self, forKey: .bitcoinAddress)
         bitcoinXPub = try container.decodeIfPresent(String.self, forKey: .bitcoinXPub)
         bitcoinCashAddress = try container.decodeIfPresent(String.self, forKey: .bitcoinCashAddress)

@@ -1,49 +1,20 @@
 import Foundation
 
 extension DogecoinWalletEngine {
-    static func fetchSpendableUTXOs(for address: String) throws -> [DogecoinUTXO] {
-        var providerErrors: [String] = []
-        var providerResults: [UTXOProvider: [DogecoinUTXO]] = [:]
-
-        for provider in UTXOProvider.allCases {
-            do {
-                let utxos: [DogecoinUTXO]
-                switch provider {
-                case .blockchair:
-                    utxos = try fetchBlockchairUTXOs(for: address)
-                case .blockcypher:
-                    utxos = try fetchBlockCypherUTXOs(for: address)
-                }
-                providerResults[provider] = sanitizeUTXOs(utxos)
-            } catch {
-                providerErrors.append("\(provider.rawValue): \(error.localizedDescription)")
+    static func fetchSpendableUTXOs(for address: String, networkMode: DogecoinNetworkMode) throws -> [DogecoinUTXO] {
+        do {
+            let utxos = sanitizeUTXOs(try fetchBlockCypherUTXOs(for: address, networkMode: networkMode))
+            if !utxos.isEmpty {
+                cacheUTXOs(utxos, for: address)
+                return utxos
             }
-        }
-
-        if providerResults.isEmpty {
+            return cachedUTXOs(for: address) ?? []
+        } catch {
             if let cached = cachedUTXOs(for: address) {
                 return cached
             }
-            throw DogecoinWalletEngineError.networkFailure("All UTXO providers failed (\(providerErrors.joined(separator: " | "))).")
+            throw DogecoinWalletEngineError.networkFailure(error.localizedDescription)
         }
-
-        let merged: [DogecoinUTXO]
-        if let blockchairUTXOs = providerResults[.blockchair],
-           let blockcypherUTXOs = providerResults[.blockcypher] {
-            merged = try mergeConsistentUTXOs(
-                blockchairUTXOs: blockchairUTXOs,
-                blockcypherUTXOs: blockcypherUTXOs
-            )
-        } else {
-            merged = providerResults.values.first ?? []
-        }
-
-        if !merged.isEmpty {
-            cacheUTXOs(merged, for: address)
-            return merged
-        }
-
-        return cachedUTXOs(for: address) ?? []
     }
 
     static func sanitizeUTXOs(_ utxos: [DogecoinUTXO]) -> [DogecoinUTXO] {
@@ -68,44 +39,17 @@ extension DogecoinWalletEngine {
         }
     }
 
-    static func mergeConsistentUTXOs(
-        blockchairUTXOs: [DogecoinUTXO],
-        blockcypherUTXOs: [DogecoinUTXO]
-    ) throws -> [DogecoinUTXO] {
-        let blockchairMap = Dictionary(uniqueKeysWithValues: blockchairUTXOs.map { (outpointKey(hash: $0.transactionHash, index: $0.index), $0) })
-        let blockcypherMap = Dictionary(uniqueKeysWithValues: blockcypherUTXOs.map { (outpointKey(hash: $0.transactionHash, index: $0.index), $0) })
-
-        let blockchairKeys = Set(blockchairMap.keys)
-        let blockcypherKeys = Set(blockcypherMap.keys)
-        let overlap = blockchairKeys.intersection(blockcypherKeys)
-
-        for key in overlap {
-            guard let lhs = blockchairMap[key], let rhs = blockcypherMap[key] else { continue }
-            if lhs.value != rhs.value {
-                throw DogecoinWalletEngineError.networkFailure("UTXO providers returned conflicting values for the same outpoint. Refusing to build Dogecoin transaction.")
-            }
-        }
-
-        if !blockchairKeys.isEmpty, !blockcypherKeys.isEmpty, overlap.isEmpty {
-            throw DogecoinWalletEngineError.networkFailure("UTXO providers disagree on spendable set (no overlap). Refusing to build Dogecoin transaction.")
-        }
-
-        let merged = Array(blockchairMap.values) + blockcypherMap.compactMap { key, value in
-            blockchairMap[key] == nil ? value : nil
-        }
-        return sanitizeUTXOs(merged)
-    }
-
     static func outpointKey(hash: String, index: Int) -> String {
         "\(hash.lowercased()):\(index)"
     }
 
-    static func blockchairURL(path: String) -> URL? {
-        URL(string: ChainBackendRegistry.DogecoinRuntimeEndpoints.blockchairBaseURL + path)
-    }
-
-    static func blockcypherURL(path: String) -> URL? {
-        URL(string: ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherBaseURL + path)
+    static func blockcypherURL(path: String, networkMode: DogecoinNetworkMode) -> URL? {
+        switch networkMode {
+        case .mainnet:
+            return BlockCypherProvider.url(path: path, network: .dogecoinMainnet)
+        case .testnet:
+            return BlockCypherProvider.url(path: path, network: .dogecoinTestnet)
+        }
     }
 
     static func normalizedAddressCacheKey(_ address: String) -> String {
@@ -131,31 +75,9 @@ extension DogecoinWalletEngine {
         return cached.utxos
     }
 
-    static func fetchBlockchairUTXOs(for address: String) throws -> [DogecoinUTXO] {
+    static func fetchBlockCypherUTXOs(for address: String, networkMode: DogecoinNetworkMode) throws -> [DogecoinUTXO] {
         guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let baseURL = blockchairURL(path: "/dashboards/address/\(encodedAddress)"),
-              var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            throw DogecoinWalletEngineError.networkFailure("Invalid Dogecoin address URL.")
-        }
-        components.queryItems = [URLQueryItem(name: "limit", value: "200")]
-        guard let url = components.url else {
-            throw DogecoinWalletEngineError.networkFailure("Invalid Dogecoin address URL.")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        let data = try performSynchronousRequest(
-            request,
-            timeout: networkTimeoutSeconds,
-            retries: networkRetryCount
-        )
-        let payload = try JSONDecoder().decode(DogecoinAddressDashboardResponse.self, from: data)
-        return payload.data.values.first?.utxo ?? []
-    }
-
-    static func fetchBlockCypherUTXOs(for address: String) throws -> [DogecoinUTXO] {
-        guard let encodedAddress = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let baseURL = blockcypherURL(path: "/addrs/\(encodedAddress)"),
+              let baseURL = blockcypherURL(path: "/addrs/\(encodedAddress)", networkMode: networkMode),
               var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
             throw DogecoinWalletEngineError.networkFailure("Invalid Dogecoin address URL.")
         }
@@ -175,37 +97,35 @@ extension DogecoinWalletEngine {
             timeout: networkTimeoutSeconds,
             retries: networkRetryCount
         )
-        let payload = try JSONDecoder().decode(BlockCypherAddressResponse.self, from: data)
+        let payload = try JSONDecoder().decode(BlockCypherProvider.AddressRefsResponse.self, from: data)
         let confirmed = payload.txrefs ?? []
         let pending = payload.unconfirmedTxrefs ?? []
-        return (confirmed + pending).map {
-            DogecoinUTXO(transactionHash: $0.txHash, index: $0.txOutputIndex, value: $0.value)
+        return (confirmed + pending).compactMap {
+            guard let txOutputIndex = $0.txOutputIndex, let value = $0.value else { return nil }
+            return DogecoinUTXO(transactionHash: $0.txHash, index: txOutputIndex, value: value)
         }
     }
 
-    static func resolveNetworkFeeRateDOGEPerKB(feePriority: FeePriority) throws -> Double {
-        let candidates = try fetchBlockCypherFeeRateCandidatesDOGEPerKB()
+    static func resolveNetworkFeeRateDOGEPerKB(
+        feePriority: FeePriority,
+        networkMode: DogecoinNetworkMode
+    ) throws -> Double {
+        let candidates = try fetchBlockCypherFeeRateCandidatesDOGEPerKB(networkMode: networkMode)
         let baseRate = candidates.sorted()[candidates.count / 2]
         let boundedRate = max(minRelayFeePerKB, min(baseRate, 10))
         return adjustedFeeRateDOGEPerKB(baseRate: boundedRate, feePriority: feePriority)
     }
 
     static func adjustedFeeRateDOGEPerKB(baseRate: Double, feePriority: FeePriority) -> Double {
-        let multiplier: Double
-        switch feePriority {
-        case .economy:
-            multiplier = 0.9
-        case .normal:
-            multiplier = 1.0
-        case .priority:
-            multiplier = 1.25
-        }
-        let adjusted = baseRate * multiplier
-        return max(minRelayFeePerKB, min(adjusted, 25))
+        feePolicy.adjustedFeeRatePerKB(
+            baseRate: baseRate,
+            multiplier: UTXOFeePriorityMultiplierPolicy.multiplier(for: feePriority),
+            maxRate: 25
+        )
     }
 
-    static func fetchBlockCypherFeeRateCandidatesDOGEPerKB() throws -> [Double] {
-        guard let url = blockcypherURL(path: "") else {
+    static func fetchBlockCypherFeeRateCandidatesDOGEPerKB(networkMode: DogecoinNetworkMode) throws -> [Double] {
+        guard let url = blockcypherURL(path: "", networkMode: networkMode) else {
             throw DogecoinWalletEngineError.networkFailure("Invalid Dogecoin network fee endpoint.")
         }
 
@@ -216,7 +136,7 @@ extension DogecoinWalletEngine {
             timeout: networkTimeoutSeconds,
             retries: networkRetryCount
         )
-        let payload = try JSONDecoder().decode(BlockCypherNetworkResponse.self, from: data)
+        let payload = try JSONDecoder().decode(BlockCypherProvider.NetworkFeesResponse.self, from: data)
         let candidates = [payload.lowFeePerKB, payload.mediumFeePerKB, payload.highFeePerKB]
             .compactMap { $0 }
             .map { $0 / koinuPerDOGE }

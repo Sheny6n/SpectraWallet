@@ -648,7 +648,7 @@ enum TronBalanceService {
     }
 
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
-        return try await URLSession.shared.data(for: request)
+        return try await ProviderHTTP.sessionData(for: request)
     }
 
     private static func preferredTronAddress(primary: Any?, fallback: Any?) -> String? {
@@ -670,7 +670,7 @@ enum TronBalanceService {
             keys.insert(hexAddress)
         }
         if AddressValidation.isValidTronAddress(trimmed),
-           let payload = base58CheckDecode(trimmed),
+           let payload = UTXOAddressCodec.base58CheckDecode(trimmed),
            payload.count == 21 {
             keys.insert(payload.map { String(format: "%02x", $0) }.joined())
         }
@@ -688,41 +688,5 @@ enum TronBalanceService {
             return nil
         }
         return stripped.lowercased()
-    }
-
-    private static func base58CheckDecode(_ string: String) -> Data? {
-        let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
-        var indexes: [Character: Int] = [:]
-        for (index, character) in alphabet.enumerated() {
-            indexes[character] = index
-        }
-
-        var bytes: [UInt8] = [0]
-        for character in string {
-            guard let value = indexes[character] else { return nil }
-            var carry = value
-            for idx in bytes.indices {
-                let result = Int(bytes[idx]) * 58 + carry
-                bytes[idx] = UInt8(result & 0xff)
-                carry = result >> 8
-            }
-            while carry > 0 {
-                bytes.append(UInt8(carry & 0xff))
-                carry >>= 8
-            }
-        }
-
-        let leadingZeroCount = string.prefix { $0 == "1" }.count
-        let decoded = Data(repeating: 0, count: leadingZeroCount) + Data(bytes.reversed())
-        guard decoded.count >= 5 else { return nil }
-
-        let payload = decoded.dropLast(4)
-        let checksum = decoded.suffix(4)
-        let firstHash = SHA256.hash(data: payload)
-        let secondHash = SHA256.hash(data: Data(firstHash))
-        let computedChecksum = Data(secondHash.prefix(4))
-        guard checksum.elementsEqual(computedChecksum) else { return nil }
-
-        return Data(payload)
     }
 }

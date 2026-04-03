@@ -129,6 +129,10 @@ struct EndpointCatalogSettingsView: View {
         return [MoneroBalanceService.defaultPublicBackend.baseURL]
     }
 
+    private var dogecoinEndpointsByNetwork: [(title: String, endpoints: [String])] {
+        DogecoinBalanceService.endpointCatalogByNetwork()
+    }
+
     private func addBitcoinEndpoint() {
         let trimmed = newBitcoinEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -203,7 +207,9 @@ struct EndpointCatalogSettingsView: View {
             case .litecoin:
                 endpointRows(LitecoinBalanceService.endpointCatalog())
             case .dogecoin:
-                endpointRows(DogecoinBalanceService.endpointCatalog())
+                ForEach(dogecoinEndpointsByNetwork, id: \.title) { group in
+                    namedEndpointGroup(title: group.title, endpoints: group.endpoints)
+                }
             case .ethereum:
                 ForEach(ethereumEndpointsByNetwork, id: \.title) { group in
                     namedEndpointGroup(title: group.title, endpoints: group.endpoints)

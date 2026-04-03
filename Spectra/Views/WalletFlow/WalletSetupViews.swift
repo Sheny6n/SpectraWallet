@@ -626,6 +626,10 @@ struct SetupView: View {
                     ethereumNetworkAdvancedSection
                 }
 
+                if hasDogecoinSelection {
+                    dogecoinNetworkAdvancedSection
+                }
+
                 ForEach(draft.selectableDerivationChains) { chain in
                     SeedPathSlotEditor(
                         title: chain.rawValue,
@@ -756,6 +760,51 @@ struct SetupView: View {
         }
     }
 
+    private var dogecoinNetworkAdvancedSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Dogecoin Network")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.primary.opacity(0.88))
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 10)], spacing: 10) {
+                ForEach(DogecoinNetworkMode.allCases) { mode in
+                    let isSelected = store.dogecoinNetworkMode == mode
+                    Button {
+                        store.dogecoinNetworkMode = mode
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(mode.displayName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(isSelected ? Color.yellow.opacity(0.9) : Color.primary)
+                            Spacer(minLength: 0)
+                            if isSelected {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(Color.yellow.opacity(0.9))
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 11)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(isSelected ? Color.yellow.opacity(0.12) : Color.white.opacity(colorScheme == .light ? 0.78 : 0.05))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(isSelected ? Color.yellow.opacity(0.7) : Color.primary.opacity(0.08), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Text("This controls Dogecoin wallet import, address validation, history, and endpoint usage for Dogecoin wallets.")
+                .font(.caption)
+                .foregroundStyle(Color.primary.opacity(0.65))
+        }
+    }
+
     @ViewBuilder
     private var derivationAdvancedButton: some View {
         if !isEditingWallet && !draft.selectedChainNames.isEmpty {
@@ -794,22 +843,25 @@ struct SetupView: View {
 
     private var advancedButtonSubtitle: String {
         if hasBitcoinSelection && hasEthereumSelection && hasDogecoinSelection {
-            return "Adjust derivation paths plus Bitcoin and Ethereum networks."
+            return "Adjust derivation paths plus Bitcoin, Ethereum, and Dogecoin networks."
         }
         if hasBitcoinSelection && hasEthereumSelection {
             return "Adjust derivation paths plus Bitcoin and Ethereum networks."
         }
         if hasBitcoinSelection && hasDogecoinSelection {
-            return "Adjust derivation paths and Bitcoin network."
+            return "Adjust derivation paths plus Bitcoin and Dogecoin networks."
         }
         if hasEthereumSelection && hasDogecoinSelection {
-            return "Adjust derivation paths and Ethereum network."
+            return "Adjust derivation paths plus Ethereum and Dogecoin networks."
         }
         if hasBitcoinSelection {
             return "Adjust derivation paths and Bitcoin network."
         }
         if hasEthereumSelection {
             return "Adjust derivation paths and Ethereum network."
+        }
+        if hasDogecoinSelection {
+            return "Adjust derivation paths and Dogecoin network."
         }
         return "Adjust derivation paths."
     }
@@ -1192,7 +1244,9 @@ struct SetupView: View {
                                 let dogecoinValidation = watchedAddressValidationMessage(
                                     entries: dogecoinAddressEntries,
                                     assetName: "Dogecoin",
-                                    validator: { address in AddressValidation.isValidDogecoinAddress(address) }
+                                    validator: { address in
+                                        AddressValidation.isValidDogecoinAddress(address, networkMode: store.dogecoinNetworkMode)
+                                    }
                                 )
                                 watchedAddressSection(
                                     title: "Dogecoin",

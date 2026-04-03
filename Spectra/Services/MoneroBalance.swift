@@ -38,63 +38,25 @@ struct MoneroHistoryDiagnostics: Equatable {
 }
 
 enum MoneroBalanceService {
-    struct TrustedBackend: Identifiable, Hashable {
-        let id: String
-        let displayName: String
-        let baseURL: String
-    }
-
-    static let backendBaseURLDefaultsKey = "monero.backend.baseURL"
-    static let backendAPIKeyDefaultsKey = "monero.backend.apiKey"
-    static let defaultBackendID = "edge_lws_public"
-    static let defaultPublicBackend = TrustedBackend(
-        id: defaultBackendID,
-        displayName: "Edge Monero LWS (Default)",
-        baseURL: ChainBackendRegistry.MoneroRuntimeEndpoints.trustedBackendBaseURLs[0]
-    )
-    static let trustedBackends: [TrustedBackend] = [
-        defaultPublicBackend,
-        TrustedBackend(
-            id: "edge_lws_public_2",
-            displayName: "Edge Monero LWS (Fallback 1)",
-            baseURL: ChainBackendRegistry.MoneroRuntimeEndpoints.trustedBackendBaseURLs[1]
-        ),
-        TrustedBackend(
-            id: "edge_lws_public_3",
-            displayName: "Edge Monero LWS (Fallback 2)",
-            baseURL: ChainBackendRegistry.MoneroRuntimeEndpoints.trustedBackendBaseURLs[2]
-        )
-    ]
-
-    private struct BalanceResponse: Decodable {
-        let balanceXMR: Double
-    }
-
-    private struct HistoryResponse: Decodable {
-        let transactions: [HistoryItem]
-    }
-
-    private struct HistoryItem: Decodable {
-        let txid: String
-        let direction: String
-        let amountXMR: Double
-        let counterpartyAddress: String?
-        let timestamp: TimeInterval
-        let status: String?
-    }
+    typealias TrustedBackend = MoneroProvider.TrustedBackend
+    static let backendBaseURLDefaultsKey = MoneroProvider.backendBaseURLDefaultsKey
+    static let backendAPIKeyDefaultsKey = MoneroProvider.backendAPIKeyDefaultsKey
+    static let defaultBackendID = MoneroProvider.defaultBackendID
+    static let defaultPublicBackend = MoneroProvider.defaultPublicBackend
+    static let trustedBackends = MoneroProvider.trustedBackends
 
     static func isValidAddress(_ address: String) -> Bool {
         AddressValidation.isValidMoneroAddress(address)
     }
 
     static func configuredBackendBaseURL() -> URL? {
-        if let value = UserDefaults.standard.string(forKey: backendBaseURLDefaultsKey) {
+        if let value = UserDefaults.standard.string(forKey: MoneroProvider.backendBaseURLDefaultsKey) {
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty, let url = URL(string: trimmed) {
                 return url
             }
         }
-        return URL(string: defaultPublicBackend.baseURL)
+        return URL(string: MoneroProvider.defaultPublicBackend.baseURL)
     }
 
     static func candidateBackendBaseURLs() -> [URL] {
@@ -102,7 +64,7 @@ enum MoneroBalanceService {
         if let primary = configuredBackendBaseURL() {
             urls.append(primary)
         }
-        for backend in trustedBackends {
+        for backend in MoneroProvider.trustedBackends {
             guard let url = URL(string: backend.baseURL) else { continue }
             if !urls.contains(url) {
                 urls.append(url)
@@ -116,7 +78,7 @@ enum MoneroBalanceService {
     }
 
     static func configuredBackendAPIKey() -> String? {
-        let value = UserDefaults.standard.string(forKey: backendAPIKeyDefaultsKey) ?? ""
+        let value = UserDefaults.standard.string(forKey: MoneroProvider.backendAPIKeyDefaultsKey) ?? ""
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
@@ -155,7 +117,7 @@ enum MoneroBalanceService {
                     }
                     throw lastError
                 }
-                let decoded = try JSONDecoder().decode(BalanceResponse.self, from: data)
+                let decoded = try JSONDecoder().decode(MoneroProvider.BalanceResponse.self, from: data)
                 guard decoded.balanceXMR.isFinite, decoded.balanceXMR >= 0 else {
                     lastError = MoneroBalanceServiceError.invalidResponse
                     continue
@@ -226,7 +188,7 @@ enum MoneroBalanceService {
                         MoneroHistoryDiagnostics(address: normalized, sourceUsed: baseURL.host ?? "backend", transactionCount: 0, error: lastErrorMessage)
                     )
                 }
-                let decoded = try JSONDecoder().decode(HistoryResponse.self, from: data)
+                let decoded = try JSONDecoder().decode(MoneroProvider.HistoryResponse.self, from: data)
                 let snapshots: [MoneroHistorySnapshot] = decoded.transactions.compactMap { item in
                     let txid = item.txid.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !txid.isEmpty else { return nil }
@@ -268,6 +230,6 @@ enum MoneroBalanceService {
     }
 
     private static func fetchData(for request: URLRequest) async throws -> (Data, URLResponse) {
-        try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        try await ProviderHTTP.data(for: request, profile: .chainRead)
     }
 }

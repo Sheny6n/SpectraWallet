@@ -364,7 +364,6 @@ enum ChainBackendRegistry {
             ]
         case "Dogecoin":
             return [
-                ChainBroadcastProviderOption(id: "blockchair", title: "Blockchair"),
                 ChainBroadcastProviderOption(id: "blockcypher", title: "BlockCypher")
             ]
         case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid":
@@ -443,131 +442,84 @@ enum ChainBackendRegistry {
     }
 
     enum BitcoinRuntimeEndpoints {
-        static let blockchainInfoMultiAddressBaseURL = "https://blockchain.info/multiaddr"
-        static let blockchairXPubDashboardBaseURL = "https://api.blockchair.com/bitcoin/dashboards/xpub/"
+        static let blockchainInfoMultiAddressBaseURL = AppEndpointDirectory.endpoint("bitcoin.blockchain_info.multiaddr")
+        static let blockchairXPubDashboardBaseURL = AppEndpointDirectory.endpoint("bitcoin.blockchair.xpub")
 
         static func esploraBaseURLs(for networkMode: BitcoinNetworkMode) -> [String] {
-            switch networkMode {
-            case .mainnet:
-                return [
-                    "https://blockstream.info/api",
-                    "https://mempool.space/api",
-                    "https://mempool.emzy.de/api",
-                    "https://xbt-mainnet.gomaestro-api.org/v0/esplora"
-                ]
-            case .testnet:
-                return [
-                    "https://blockstream.info/testnet/api",
-                    "https://mempool.space/testnet/api"
-                ]
-            case .testnet4:
-                return [
-                    "https://mempool.space/testnet4/api"
-                ]
-            case .signet:
-                return [
-                    "https://blockstream.info/signet/api",
-                    "https://mempool.space/signet/api"
-                ]
-            }
+            AppEndpointDirectory.bitcoinEsploraBaseURLs(for: networkMode)
         }
 
         static func walletStoreDefaultBaseURLs(for networkMode: BitcoinNetworkMode) -> [String] {
-            switch networkMode {
-            case .mainnet:
-                return [
-                    "https://blockstream.info/api",
-                    "https://mempool.space/api",
-                    "https://xbt-mainnet.gomaestro-api.org/v0/esplora"
-                ]
-            case .testnet:
-                return [
-                    "https://blockstream.info/testnet/api",
-                    "https://mempool.space/testnet/api"
-                ]
-            case .testnet4:
-                return [
-                    "https://mempool.space/testnet4/api"
-                ]
-            case .signet:
-                return [
-                    "https://mempool.space/signet/api"
-                ]
-            }
+            AppEndpointDirectory.bitcoinWalletStoreDefaultBaseURLs(for: networkMode)
         }
     }
 
     enum BitcoinCashRuntimeEndpoints {
-        static let blockchairBaseURL = "https://api.blockchair.com/bitcoin-cash"
-        static let blockchairPushURL = "https://api.blockchair.com/bitcoin-cash/push/transaction"
-        static let blockchairTransactionURLPrefix = "https://api.blockchair.com/bitcoin-cash/dashboards/transaction/"
-        static let actorforthBaseURL = "https://rest.bch.actorforth.org/v2"
-        static let actorforthTransactionURLPrefix = "https://rest.bch.actorforth.org/v2/transaction/details/"
-        static let actorforthBroadcastURLPrefix = "https://rest.bch.actorforth.org/v2/rawtransactions/sendRawTransaction/"
+        static let blockchairBaseURL = AppEndpointDirectory.endpoint("bitcoincash.blockchair.api")
+        static let blockchairPushURL = AppEndpointDirectory.endpoint("bitcoincash.blockchair.push")
+        static let blockchairTransactionURLPrefix = AppEndpointDirectory.endpoint("bitcoincash.blockchair.txprefix")
+        static let actorforthBaseURL = AppEndpointDirectory.endpoint("bitcoincash.actorforth.api")
+        static let actorforthTransactionURLPrefix = AppEndpointDirectory.endpoint("bitcoincash.actorforth.txprefix")
+        static let actorforthBroadcastURLPrefix = AppEndpointDirectory.endpoint("bitcoincash.actorforth.broadcast")
     }
 
     enum BitcoinSVRuntimeEndpoints {
-        static let whatsonchainBaseURL = "https://api.whatsonchain.com/v1/bsv/main"
-        static let whatsonchainChainInfoURL = "https://api.whatsonchain.com/v1/bsv/main/chain/info"
-        static let whatsonchainBroadcastURL = "https://api.whatsonchain.com/v1/bsv/main/tx/raw"
-        static let whatsonchainTransactionURLPrefix = "https://api.whatsonchain.com/v1/bsv/main/tx/hash/"
-        static let blockchairBaseURL = "https://api.blockchair.com/bitcoin-sv"
-        static let blockchairPushURL = "https://api.blockchair.com/bitcoin-sv/push/transaction"
-        static let blockchairTransactionURLPrefix = "https://api.blockchair.com/bitcoin-sv/dashboards/transaction/"
+        static let whatsonchainBaseURL = AppEndpointDirectory.endpoint("bitcoinsv.whatsonchain.api")
+        static let whatsonchainChainInfoURL = AppEndpointDirectory.endpoint("bitcoinsv.whatsonchain.chaininfo")
+        static let whatsonchainBroadcastURL = AppEndpointDirectory.endpoint("bitcoinsv.whatsonchain.broadcast")
+        static let whatsonchainTransactionURLPrefix = AppEndpointDirectory.endpoint("bitcoinsv.whatsonchain.txprefix")
+        static let blockchairBaseURL = AppEndpointDirectory.endpoint("bitcoinsv.blockchair.api")
+        static let blockchairPushURL = AppEndpointDirectory.endpoint("bitcoinsv.blockchair.push")
+        static let blockchairTransactionURLPrefix = AppEndpointDirectory.endpoint("bitcoinsv.blockchair.txprefix")
     }
 
     enum LitecoinRuntimeEndpoints {
-        static let litecoinspaceBaseURL = "https://litecoinspace.org/api"
-        static let blockcypherBaseURL = "https://api.blockcypher.com/v1/ltc/main"
-        static let sochainBaseURL = "https://sochain.com/api/v2"
+        static let litecoinspaceBaseURL = AppEndpointDirectory.endpoint("litecoin.litecoinspace.api")
+        static let blockcypherBaseURL = AppEndpointDirectory.endpoint("litecoin.blockcypher.api")
+        static let sochainBaseURL = AppEndpointDirectory.endpoint("litecoin.sochain.api")
     }
 
     enum DogecoinRuntimeEndpoints {
-        static let blockchairBaseURL = "https://api.blockchair.com/dogecoin"
-        static let blockcypherBaseURL = "https://api.blockcypher.com/v1/doge/main"
-        static let dogechainBaseURL = "https://dogechain.info/api/v1"
-        static let sochainBaseURL = "https://sochain.com/api/v2"
-        static let testnetElectrsBaseURL = "https://doge-electrs-testnet-demo.qed.me"
+        static let blockcypherBaseURL = AppEndpointDirectory.endpoint("dogecoin.mainnet.blockcypher")
+        static let blockcypherTestnetBaseURL = AppEndpointDirectory.endpoint("dogecoin.testnet.blockcypher")
     }
 
     enum TronRuntimeEndpoints {
-        static let tronScanAddressInfoBases = [
-            "https://apilist.tronscanapi.com/api/accountv2"
-        ]
-        static let tronGridAccountsBases = [
-            "https://api.trongrid.io/v1/accounts",
-            "https://api.trongrid.pro/v1/accounts",
-            "https://api.trongrid.network/v1/accounts"
-        ]
-        static let tronGridBroadcastBaseURLs = [
-            "https://api.trongrid.io",
-            "https://api.trongrid.pro",
-            "https://api.trongrid.network"
-        ]
-        static let tronScanProbeURL = "https://apilist.tronscanapi.com/api/system/status"
-        static let tronGridProbeURL = "https://api.trongrid.io/wallet/getnowblock"
-        static let tronGridBaseURL = "https://api.trongrid.io"
+        static let tronScanAddressInfoBases = AppEndpointDirectory.endpoints(for: ["tron.tronscan.account"])
+        static let tronGridAccountsBases = AppEndpointDirectory.endpoints(for: [
+            "tron.trongrid.accounts.io",
+            "tron.trongrid.accounts.pro",
+            "tron.trongrid.accounts.network"
+        ])
+        static let tronGridBroadcastBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "tron.trongrid.rpc.io",
+            "tron.trongrid.rpc.pro",
+            "tron.trongrid.rpc.network"
+        ])
+        static let tronScanProbeURL = AppEndpointDirectory.diagnosticsChecks(for: tronChainName).first(where: { $0.endpoint.contains("tronscan") })?.probeURL ?? ""
+        static let tronGridProbeURL = AppEndpointDirectory.diagnosticsChecks(for: tronChainName).first(where: { $0.endpoint.contains("trongrid") })?.probeURL ?? ""
+        static let tronGridBaseURL = AppEndpointDirectory.endpoint("tron.trongrid.rpc.io")
     }
 
     enum SolanaRuntimeEndpoints {
-        static let balanceRPCBaseURLs = [
-            "https://api.mainnet-beta.solana.com",
-            "https://rpc.ankr.com/solana",
-            "https://solana-rpc.publicnode.com"
-        ]
+        static let balanceRPCBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "solana.rpc.mainnet",
+            "solana.rpc.ankr",
+            "solana.rpc.publicnode"
+        ])
         static let sendRPCBaseURLs = Array(balanceRPCBaseURLs.prefix(2))
     }
 
     enum XRPRuntimeEndpoints {
-        static let accountHistoryBases = [
-            "https://api.xrpscan.com/api/v1/account",
-            "https://xrpscan.com/api/v1/account"
-        ]
-        static let rpcBaseURLs = [
-            "https://s1.ripple.com:51234/",
-            "https://s2.ripple.com:51234/",
-            "https://xrplcluster.com/"
-        ]
+        static let accountHistoryBases = AppEndpointDirectory.endpoints(for: [
+            "xrp.history.xrpscan_api",
+            "xrp.history.xrpscan"
+        ])
+        static let rpcBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "xrp.rpc.s1",
+            "xrp.rpc.s2",
+            "xrp.rpc.cluster"
+        ])
 
         static var rpcURLs: [URL] {
             rpcBaseURLs.compactMap(URL.init(string:))
@@ -575,11 +527,11 @@ enum ChainBackendRegistry {
     }
 
     enum CardanoRuntimeEndpoints {
-        static let koiosBaseURLs = [
-            "https://api.koios.rest/api/v1",
-            "https://graph.xray.app/output/services/koios/mainnet/api/v1",
-            "https://koios.happystaking.io:8453/api/v1"
-        ]
+        static let koiosBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "cardano.koios.primary",
+            "cardano.koios.xray",
+            "cardano.koios.happystaking"
+        ])
 
         static var primaryBaseURL: URL {
             URL(string: koiosBaseURLs[0])!
@@ -587,11 +539,11 @@ enum ChainBackendRegistry {
     }
 
     enum AptosRuntimeEndpoints {
-        static let rpcBaseURLs = [
-            "https://api.mainnet.aptoslabs.com/v1",
-            "https://aptos-mainnet.public.blastapi.io/v1",
-            "https://mainnet.aptoslabs.com/v1"
-        ]
+        static let rpcBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "aptos.rpc.aptoslabs",
+            "aptos.rpc.blastapi",
+            "aptos.rpc.mainnet"
+        ])
 
         static var rpcURLs: [URL] {
             rpcBaseURLs.compactMap(URL.init(string:))
@@ -603,8 +555,8 @@ enum ChainBackendRegistry {
     }
 
     enum TONRuntimeEndpoints {
-        static let apiV2BaseURLs = ["https://toncenter.com/api/v2"]
-        static let apiV3BaseURLs = ["https://toncenter.com/api/v3"]
+        static let apiV2BaseURLs = AppEndpointDirectory.endpoints(for: ["ton.api.v2"])
+        static let apiV3BaseURLs = AppEndpointDirectory.endpoints(for: ["ton.api.v3"])
 
         static var primaryAPIv2URL: URL {
             URL(string: apiV2BaseURLs[0])!
@@ -612,13 +564,13 @@ enum ChainBackendRegistry {
     }
 
     enum SuiRuntimeEndpoints {
-        static let rpcBaseURLs = [
-            "https://fullnode.mainnet.sui.io:443",
-            "https://sui-rpc.publicnode.com",
-            "https://sui-mainnet-endpoint.blockvision.org",
-            "https://sui.blockpi.network/v1/rpc/public",
-            "https://rpc-mainnet.suiscan.xyz"
-        ]
+        static let rpcBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "sui.rpc.mainnet",
+            "sui.rpc.publicnode",
+            "sui.rpc.blockvision",
+            "sui.rpc.blockpi",
+            "sui.rpc.suiscan"
+        ])
 
         static var rpcURLs: [URL] {
             rpcBaseURLs.compactMap(URL.init(string:))
@@ -630,104 +582,53 @@ enum ChainBackendRegistry {
     }
 
     enum NearRuntimeEndpoints {
-        static let rpcBaseURLs = [
-            "https://rpc.mainnet.near.org",
-            "https://free.rpc.fastnear.com",
-            "https://near.lava.build"
-        ]
-        static let historyBaseURLs = [
-            "https://api.nearblocks.io/v1"
-        ]
+        static let rpcBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "near.rpc.mainnet",
+            "near.rpc.fastnear",
+            "near.rpc.lava"
+        ])
+        static let historyBaseURLs = AppEndpointDirectory.endpoints(for: ["near.history.nearblocks"])
     }
 
     enum PolkadotRuntimeEndpoints {
-        static let sidecarBaseURLs = [
-            "https://polkadot-public-sidecar.parity-chains.parity.io"
-        ]
-        static let rpcBaseURLs = [
-            "https://polkadot.api.onfinality.io/public",
-            "https://polkadot.dotters.network",
-            "https://rpc.ibp.network/polkadot"
-        ]
+        static let sidecarBaseURLs = AppEndpointDirectory.endpoints(for: ["polkadot.sidecar.parity"])
+        static let rpcBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "polkadot.rpc.onfinality",
+            "polkadot.rpc.dotters",
+            "polkadot.rpc.ibp"
+        ])
     }
 
     enum StellarRuntimeEndpoints {
-        static let horizonBaseURLs = [
-            "https://horizon.stellar.org",
-            "https://horizon.stellar.lobstr.co"
-        ]
+        static let horizonBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "stellar.horizon.primary",
+            "stellar.horizon.lobstr"
+        ])
     }
 
     enum MoneroRuntimeEndpoints {
-        static let trustedBackendBaseURLs = [
-            "https://monerolws1.edge.app",
-            "https://monerolws2.edge.app",
-            "https://monerolws3.edge.app"
-        ]
+        static let trustedBackendBaseURLs = AppEndpointDirectory.endpoints(for: [
+            "monero.backend.1",
+            "monero.backend.2",
+            "monero.backend.3"
+        ])
     }
 
     enum ICPRuntimeEndpoints {
-        static let rosettaBaseURLs = [
-            "https://rosetta-api.internetcomputer.org"
-        ]
+        static let rosettaBaseURLs = AppEndpointDirectory.endpoints(for: ["icp.rosetta"])
     }
 
     enum ExplorerRegistry {
-        private static let transactionBases: [String: String] = [
-            bitcoinChainName: "https://mempool.space/tx/",
-            bitcoinCashChainName: "https://blockchair.com/bitcoin-cash/transaction/",
-            "Bitcoin SV": "https://whatsonchain.com/tx/",
-            litecoinChainName: "https://litecoinspace.org/tx/",
-            dogecoinChainName: "https://dogechain.info/tx/",
-            ethereumChainName: "https://etherscan.io/tx/",
-            ethereumClassicChainName: "https://blockscout.com/etc/mainnet/tx/",
-            arbitrumChainName: "https://arbiscan.io/tx/",
-            optimismChainName: "https://optimistic.etherscan.io/tx/",
-            bnbChainName: "https://bscscan.com/tx/",
-            avalancheChainName: "https://snowtrace.io/tx/",
-            hyperliquidChainName: "https://app.hyperliquid.xyz/explorer/tx/",
-            icpChainName: "https://dashboard.internetcomputer.org/transaction/",
-            stellarChainName: "https://stellar.expert/explorer/public/tx/",
-            tonChainName: "https://tonviewer.com/",
-            tronChainName: "https://tronscan.org/#/transaction/",
-            nearChainName: "https://nearblocks.io/txns/",
-            polkadotChainName: "https://polkadot.subscan.io/extrinsic/"
-        ]
-
-        private static let transactionLabels: [String: String] = [
-            bitcoinChainName: "Open In Mempool",
-            bitcoinCashChainName: "Open In Blockchair",
-            "Bitcoin SV": "Open In WhatsOnChain",
-            litecoinChainName: "Open In LitecoinSpace",
-            dogecoinChainName: "Open In Dogechain",
-            ethereumChainName: "Open In Etherscan",
-            ethereumClassicChainName: "Open In Blockscout",
-            arbitrumChainName: "Open In Arbiscan",
-            optimismChainName: "Open In Optimism Etherscan",
-            bnbChainName: "Open In BscScan",
-            avalancheChainName: "Open In Snowtrace",
-            hyperliquidChainName: "Open In Hyperliquid Explorer",
-            icpChainName: "Open In ICP Dashboard",
-            stellarChainName: "Open In Stellar Expert",
-            aptosChainName: "Open In Aptos Explorer",
-            tonChainName: "Open In Tonviewer",
-            tronChainName: "Open In TronScan",
-            nearChainName: "Open In NearBlocks",
-            polkadotChainName: "Open In Subscan"
-        ]
-
         static func transactionURL(for chainName: String, transactionHash: String) -> URL? {
-            switch chainName {
-            case aptosChainName:
-                return URL(string: "https://explorer.aptoslabs.com/txn/\(transactionHash)?network=mainnet")
-            default:
-                guard let baseURL = transactionBases[chainName] else { return nil }
-                return URL(string: baseURL + transactionHash)
+            guard let baseURL = AppEndpointDirectory.transactionExplorerBaseURL(for: chainName) else { return nil }
+            if chainName == aptosChainName {
+                return URL(string: "\(baseURL)\(transactionHash)?network=mainnet")
             }
+            return URL(string: baseURL + transactionHash)
         }
 
         static func transactionLabel(for chainName: String) -> String? {
-            transactionLabels[chainName]
+            AppEndpointDirectory.transactionExplorerLabel(for: chainName)
         }
     }
 
@@ -745,18 +646,17 @@ enum ChainBackendRegistry {
 
     enum EVMExplorerRegistry {
         static func etherscanStyleAPIURL(for chainName: String) -> URL? {
-            let rawURL: String?
-            switch chainName {
+            let rawURL: String? = switch chainName {
             case ethereumChainName:
-                rawURL = "https://api.etherscan.io/v2/api"
+                AppEndpointDirectory.endpoint("ethereum.explorer.etherscan").replacingOccurrences(of: "/api", with: "/v2/api")
             case bnbChainName:
-                rawURL = "https://api.bscscan.com/api"
+                AppEndpointDirectory.endpoint("bnb.explorer.bscscan")
             case avalancheChainName:
-                rawURL = "https://api.snowtrace.io/api"
+                "https://api.snowtrace.io/api"
             case hyperliquidChainName:
-                rawURL = "https://api.hyperevmscan.io/api"
+                AppEndpointDirectory.endpoint("hyperliquid.explorer.api")
             default:
-                rawURL = nil
+                nil
             }
             return rawURL.flatMap(URL.init(string:))
         }
@@ -769,12 +669,14 @@ enum ChainBackendRegistry {
         ) -> URL? {
             switch chainName {
             case ethereumChainName:
+                let baseURL = AppEndpointDirectory.endpoint("ethereum.explorer.blockscout")
                 return URL(
-                    string: "https://eth.blockscout.com/api/v2/addresses/\(normalizedAddress)/token-transfers?type=ERC-20&items_count=\(pageSize)&page=\(page)"
+                    string: "\(baseURL)/api/v2/addresses/\(normalizedAddress)/token-transfers?type=ERC-20&items_count=\(pageSize)&page=\(page)"
                 )
             case ethereumClassicChainName:
+                let baseURL = AppEndpointDirectory.endpoint("ethereumclassic.explorer.blockscout")
                 return URL(
-                    string: "https://blockscout.com/etc/mainnet/api/v2/addresses/\(normalizedAddress)/token-transfers?type=ERC-20&items_count=\(pageSize)&page=\(page)"
+                    string: "\(baseURL)/api/v2/addresses/\(normalizedAddress)/token-transfers?type=ERC-20&items_count=\(pageSize)&page=\(page)"
                 )
             default:
                 return nil
@@ -791,13 +693,15 @@ enum ChainBackendRegistry {
             switch chainName {
             case ethereumChainName:
                 guard action == "txlist" else { return nil }
+                let baseURL = AppEndpointDirectory.endpoint("ethereum.explorer.blockscout")
                 return URL(
-                    string: "https://eth.blockscout.com/api/v2/addresses/\(normalizedAddress)/transactions?items_count=\(max(10, min(pageSize, 500)))&page=\(max(1, page))"
+                    string: "\(baseURL)/api/v2/addresses/\(normalizedAddress)/transactions?items_count=\(max(10, min(pageSize, 500)))&page=\(max(1, page))"
                 )
             case ethereumClassicChainName:
                 guard action == "txlist" else { return nil }
+                let baseURL = AppEndpointDirectory.endpoint("ethereumclassic.explorer.blockscout")
                 return URL(
-                    string: "https://blockscout.com/etc/mainnet/api/v2/addresses/\(normalizedAddress)/transactions?items_count=\(max(10, min(pageSize, 500)))&page=\(max(1, page))"
+                    string: "\(baseURL)/api/v2/addresses/\(normalizedAddress)/transactions?items_count=\(max(10, min(pageSize, 500)))&page=\(max(1, page))"
                 )
             default:
                 return nil
@@ -810,14 +714,15 @@ enum ChainBackendRegistry {
             requestedLimit: Int
         ) -> URL? {
             guard chainName == ethereumChainName else { return nil }
+            let baseURL = AppEndpointDirectory.endpoint("ethereum.explorer.ethplorer")
             return URL(
-                string: "https://api.ethplorer.io/getAddressHistory/\(normalizedAddress)?apiKey=freekey&type=transfer&limit=\(requestedLimit)"
+                string: "\(baseURL)/getAddressHistory/\(normalizedAddress)?apiKey=freekey&type=transfer&limit=\(requestedLimit)"
             )
         }
 
         static func addressExplorerURL(for chainName: String, normalizedAddress: String) -> URL? {
             guard chainName == hyperliquidChainName else { return nil }
-            return URL(string: "https://hyperevmscan.io/address/\(normalizedAddress)")
+            return URL(string: "\(AppEndpointDirectory.endpoint("hyperliquid.explorer.web"))/address/\(normalizedAddress)")
         }
 
         static func diagnosticProbeEntries(for chainName: String) -> [(String, URL)] {
@@ -837,19 +742,7 @@ enum ChainBackendRegistry {
         }
 
         static func supplementalEndpointCatalogEntries(for chainName: String) -> [String] {
-            switch chainName {
-            case ethereumChainName:
-                return [
-                    "https://api.etherscan.io/api",
-                    "https://api.ethplorer.io"
-                ]
-            case bnbChainName:
-                return [
-                    "https://api.bscscan.com/api"
-                ]
-            default:
-                return []
-            }
+            AppEndpointDirectory.explorerSupplementalEndpoints(for: chainName)
         }
     }
 

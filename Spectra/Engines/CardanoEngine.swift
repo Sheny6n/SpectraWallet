@@ -249,7 +249,7 @@ enum CardanoWalletEngine {
 
             let (data, response): (Data, URLResponse)
             do {
-                (data, response) = try await URLSession.shared.data(for: request)
+                (data, response) = try await ProviderHTTP.sessionData(for: request)
             } catch {
                 lastError = CardanoWalletEngineError.networkError(error.localizedDescription)
                 ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
@@ -311,7 +311,7 @@ enum CardanoWalletEngine {
             request.timeoutInterval = 20
 
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await ProviderHTTP.sessionData(for: request)
                 guard let http = response as? HTTPURLResponse, (200 ... 299).contains(http.statusCode) else {
                     throw CardanoWalletEngineError.networkError("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
                 }
@@ -357,7 +357,7 @@ enum CardanoWalletEngine {
 
             let (data, response): (Data, URLResponse)
             do {
-                (data, response) = try await URLSession.shared.data(for: request)
+                (data, response) = try await ProviderHTTP.sessionData(for: request)
             } catch {
                 lastError = CardanoWalletEngineError.networkError(error.localizedDescription)
                 ChainEndpointReliability.recordAttempt(namespace: endpointReliabilityNamespace, endpoint: endpoint.absoluteString, success: false)
@@ -424,7 +424,7 @@ enum CardanoWalletEngine {
 
                 let (data, response): (Data, URLResponse)
                 do {
-                    (data, response) = try await URLSession.shared.data(for: request)
+                    (data, response) = try await ProviderHTTP.sessionData(for: request)
                 } catch {
                     let disposition = classifySendBroadcastFailure(error.localizedDescription)
                     if disposition == .alreadyBroadcast, !fallbackTransactionHash.isEmpty {

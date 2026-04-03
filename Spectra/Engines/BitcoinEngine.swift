@@ -875,21 +875,15 @@ struct BitcoinWalletEngine {
     }
 
     private static func defaultEsploraEndpoints(for mode: BitcoinNetworkMode) -> [String] {
-        ChainBackendRegistry.BitcoinRuntimeEndpoints.esploraBaseURLs(for: mode)
+        EsploraProvider.defaultBaseURLs(for: mode)
     }
 
     private static func resolvedEsploraEndpoints() -> [String] {
-        if !customEsploraEndpoints.isEmpty {
-            return customEsploraEndpoints
-        }
-        return defaultEsploraEndpoints(for: networkMode)
+        EsploraProvider.runtimeBaseURLs(for: networkMode, custom: customEsploraEndpoints)
     }
 
     static func endpointCatalog(for mode: BitcoinNetworkMode, custom: [String] = []) -> [String] {
-        if !custom.isEmpty {
-            return custom
-        }
-        return defaultEsploraEndpoints(for: mode)
+        EsploraProvider.runtimeBaseURLs(for: mode, custom: custom)
     }
 
     private static func performWithClientFallback<T>(
@@ -897,7 +891,7 @@ struct BitcoinWalletEngine {
         _ operation: (EsploraClient) throws -> T
     ) throws -> T {
         var lastError: Error?
-        for endpoint in orderedEsploraEndpoints() {
+        for endpoint in orderedEsploraEndpoints(providerIDs: providerIDs) {
             let client = EsploraClient(url: endpoint)
             do {
                 let value = try operation(client)
@@ -958,7 +952,7 @@ struct BitcoinWalletEngine {
                 request.httpMethod = "POST"
                 request.setValue("text/plain", forHTTPHeaderField: "Content-Type")
                 request.httpBody = trimmedRawHex.data(using: .utf8)
-                let (data, response) = try await SpectraNetworkRouter.shared.data(for: request, profile: .chainWrite)
+                let (data, response) = try await ProviderHTTP.data(for: request, profile: .chainWrite)
                 guard let http = response as? HTTPURLResponse, (200 ..< 300).contains(http.statusCode) else {
                     let message = String(data: data, encoding: .utf8) ?? "Unknown Bitcoin broadcast failure."
                     if classifySendBroadcastFailure(message) == .alreadyBroadcast, !fallbackTransactionHash.isEmpty {
@@ -1038,7 +1032,7 @@ struct BitcoinWalletEngine {
 
             let semaphore = DispatchSemaphore(value: 0)
             var result: Result<Bool, Error> = .success(false)
-            let task = URLSession.shared.dataTask(with: url) { _, response, error in
+            let task = ProviderHTTP.sessionDataTask(with: url) { _, response, error in
                 defer { semaphore.signal() }
                 if let error {
                     result = .failure(error)
@@ -1088,19 +1082,11 @@ struct BitcoinWalletEngine {
     }
 
     private static func filteredEsploraEndpoints(providerIDs: Set<String>? = nil) -> [String] {
-        let allEndpoints = resolvedEsploraEndpoints()
-        guard let providerIDs, !providerIDs.isEmpty else {
-            return allEndpoints
-        }
-
-        let normalized = Set(providerIDs.map { $0.lowercased() })
-        let allowEsplora = normalized.contains("esplora")
-        let allowMaestro = normalized.contains("maestro-esplora")
-        let filtered = allEndpoints.filter { endpoint in
-            let isMaestro = endpoint.contains("gomaestro-api.org")
-            return isMaestro ? allowMaestro : allowEsplora
-        }
-        return filtered.isEmpty ? allEndpoints : filtered
+        EsploraProvider.filteredBaseURLs(
+            for: networkMode,
+            custom: customEsploraEndpoints,
+            providerIDs: providerIDs
+        )
     }
 
     private static func endpointScore(_ counter: EndpointReliabilityCounter?) -> Double {

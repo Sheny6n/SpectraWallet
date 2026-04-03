@@ -150,6 +150,7 @@ extension WalletStore {
             id: wallet.id,
             name: wallet.name,
             bitcoinNetworkMode: wallet.bitcoinNetworkMode,
+            dogecoinNetworkMode: wallet.dogecoinNetworkMode,
             bitcoinAddress: wallet.bitcoinAddress,
             bitcoinXPub: wallet.bitcoinXPub,
             bitcoinCashAddress: wallet.bitcoinCashAddress,

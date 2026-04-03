@@ -41,28 +41,6 @@ struct MoneroSendResult: Equatable {
 }
 
 enum MoneroWalletEngine {
-    private struct PreviewRequest: Encodable {
-        let fromAddress: String
-        let toAddress: String
-        let amountXMR: Double
-    }
-
-    private struct PreviewResponse: Decodable {
-        let estimatedFeeXMR: Double
-        let priority: String?
-    }
-
-    private struct SendRequest: Encodable {
-        let fromAddress: String
-        let toAddress: String
-        let amountXMR: Double
-    }
-
-    private struct SendResponse: Decodable {
-        let txid: String
-        let feeXMR: Double?
-    }
-
     static func estimateSendPreview(
         from ownerAddress: String,
         to destinationAddress: String,
@@ -91,9 +69,9 @@ enum MoneroWalletEngine {
             if let apiKey = MoneroBalanceService.configuredBackendAPIKey() {
                 request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             }
-            request.httpBody = try JSONEncoder().encode(PreviewRequest(fromAddress: source, toAddress: destination, amountXMR: amount))
+            request.httpBody = try JSONEncoder().encode(MoneroProvider.PreviewRequest(fromAddress: source, toAddress: destination, amountXMR: amount))
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await ProviderHTTP.sessionData(for: request)
                 guard let http = response as? HTTPURLResponse else {
                     lastError = MoneroWalletEngineError.invalidResponse
                     continue
@@ -106,7 +84,7 @@ enum MoneroWalletEngine {
                     }
                     throw lastError
                 }
-                let decoded = try JSONDecoder().decode(PreviewResponse.self, from: data)
+                let decoded = try JSONDecoder().decode(MoneroProvider.PreviewResponse.self, from: data)
                 guard decoded.estimatedFeeXMR.isFinite, decoded.estimatedFeeXMR >= 0 else {
                     lastError = MoneroWalletEngineError.invalidResponse
                     continue
@@ -160,9 +138,9 @@ enum MoneroWalletEngine {
             if let apiKey = MoneroBalanceService.configuredBackendAPIKey() {
                 request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             }
-            request.httpBody = try JSONEncoder().encode(SendRequest(fromAddress: source, toAddress: destination, amountXMR: amount))
+            request.httpBody = try JSONEncoder().encode(MoneroProvider.SendRequest(fromAddress: source, toAddress: destination, amountXMR: amount))
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await ProviderHTTP.sessionData(for: request)
                 guard let http = response as? HTTPURLResponse else {
                     lastError = MoneroWalletEngineError.invalidResponse
                     continue
@@ -175,7 +153,7 @@ enum MoneroWalletEngine {
                     }
                     throw lastError
                 }
-                let decoded = try JSONDecoder().decode(SendResponse.self, from: data)
+                let decoded = try JSONDecoder().decode(MoneroProvider.SendResponse.self, from: data)
                 let txid = decoded.txid.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !txid.isEmpty else {
                     lastError = MoneroWalletEngineError.invalidResponse

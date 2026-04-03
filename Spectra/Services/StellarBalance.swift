@@ -35,17 +35,16 @@ struct StellarHistoryDiagnostics: Equatable {
 }
 
 enum StellarBalanceService {
-    static let horizonEndpoints = ChainBackendRegistry.StellarRuntimeEndpoints.horizonBaseURLs
     private static let stroopDivisor = Decimal(string: "10000000")!
     private static let iso8601Formatter = ISO8601DateFormatter()
     private static let endpointReliabilityNamespace = "stellar.horizon"
 
     static func endpointCatalog() -> [String] {
-        horizonEndpoints
+        StellarProvider.endpointCatalog()
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        horizonEndpoints.map { ($0, "\($0)/fee_stats") }
+        StellarProvider.diagnosticsChecks()
     }
 
     static func isValidAddress(_ address: String) -> Bool {
@@ -59,7 +58,7 @@ enum StellarBalanceService {
         }
 
         var lastError: Error?
-        for endpoint in horizonEndpoints {
+        for endpoint in StellarProvider.horizonEndpoints {
             do {
                 let account = try await fetchAccount(address: normalized, endpoint: endpoint)
                 guard let nativeBalance = account.balances.first(where: { $0.assetType == "native" }),
@@ -93,7 +92,7 @@ enum StellarBalanceService {
 
         let boundedLimit = max(1, min(limit, 80))
         var lastError: String?
-        for endpoint in horizonEndpoints {
+        for endpoint in StellarProvider.horizonEndpoints {
             do {
                 let snapshots = try await fetchPayments(address: normalized, endpoint: endpoint, limit: boundedLimit)
                 return (
@@ -125,7 +124,7 @@ enum StellarBalanceService {
             [],
             StellarHistoryDiagnostics(
                 address: normalized,
-                sourceUsed: horizonEndpoints.first ?? "none",
+                sourceUsed: StellarProvider.horizonEndpoints.first ?? "none",
                 transactionCount: 0,
                 error: lastError ?? StellarBalanceServiceError.invalidResponse.localizedDescription
             )
@@ -139,7 +138,7 @@ enum StellarBalanceService {
         }
 
         var lastError: Error?
-        for endpoint in horizonEndpoints {
+        for endpoint in StellarProvider.horizonEndpoints {
             do {
                 let account = try await fetchAccount(address: normalized, endpoint: endpoint)
                 guard let sequenceText = account.sequence,
@@ -157,7 +156,7 @@ enum StellarBalanceService {
 
     static func fetchBaseFeeStroops() async throws -> Int64 {
         var lastError: Error?
-        for endpoint in horizonEndpoints {
+        for endpoint in StellarProvider.horizonEndpoints {
             guard let url = URL(string: "\(endpoint)/fee_stats") else { continue }
             do {
                 let (data, response) = try await fetchData(from: url)
@@ -167,7 +166,7 @@ enum StellarBalanceService {
                 guard (200 ... 299).contains(http.statusCode) else {
                     throw StellarBalanceServiceError.httpError(http.statusCode)
                 }
-                let stats = try JSONDecoder().decode(FeeStatsResponse.self, from: data)
+                let stats = try JSONDecoder().decode(StellarProvider.FeeStatsResponse.self, from: data)
                 if let feeText = stats.lastLedgerBaseFee ?? stats.feeCharged?.p50,
                    let fee = Int64(feeText),
                    fee > 0 {
@@ -202,7 +201,7 @@ enum StellarBalanceService {
                     throw StellarBalanceServiceError.invalidResponse
                 }
                 guard (200 ... 299).contains(http.statusCode) else {
-                    if let envelope = try? JSONDecoder().decode(SubmitTransactionResponse.self, from: data),
+                    if let envelope = try? JSONDecoder().decode(StellarProvider.SubmitTransactionResponse.self, from: data),
                        let hash = envelope.hash?.trimmingCharacters(in: .whitespacesAndNewlines),
                        !hash.isEmpty,
                        classifySendBroadcastFailure(String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)") == .alreadyBroadcast {
@@ -211,7 +210,7 @@ enum StellarBalanceService {
                     }
                     throw StellarBalanceServiceError.httpError(http.statusCode)
                 }
-                let envelope = try JSONDecoder().decode(SubmitTransactionResponse.self, from: data)
+                let envelope = try JSONDecoder().decode(StellarProvider.SubmitTransactionResponse.self, from: data)
                 guard let hash = envelope.hash?.trimmingCharacters(in: .whitespacesAndNewlines),
                       !hash.isEmpty else {
                     throw StellarBalanceServiceError.invalidResponse
@@ -234,8 +233,8 @@ enum StellarBalanceService {
     }
 
     private static func filteredHorizonEndpoints(providerIDs: Set<String>? = nil) -> [String] {
-        guard let providerIDs, !providerIDs.isEmpty else { return horizonEndpoints }
-        return horizonEndpoints.filter { endpoint in
+        guard let providerIDs, !providerIDs.isEmpty else { return StellarProvider.horizonEndpoints }
+        return StellarProvider.horizonEndpoints.filter { endpoint in
             switch endpoint {
             case "https://horizon.stellar.org":
                 return providerIDs.contains("stellar-horizon")
@@ -244,80 +243,6 @@ enum StellarBalanceService {
             default:
                 return false
             }
-        }
-    }
-
-    private struct AccountResponse: Decodable {
-        struct BalanceEntry: Decodable {
-            let balance: String?
-            let assetType: String?
-
-            enum CodingKeys: String, CodingKey {
-                case balance
-                case assetType = "asset_type"
-            }
-        }
-
-        let sequence: String?
-        let balances: [BalanceEntry]
-    }
-
-    private struct FeeStatsResponse: Decodable {
-        struct FeeCharged: Decodable {
-            let p50: String?
-        }
-
-        let lastLedgerBaseFee: String?
-        let feeCharged: FeeCharged?
-
-        enum CodingKeys: String, CodingKey {
-            case lastLedgerBaseFee = "last_ledger_base_fee"
-            case feeCharged = "fee_charged"
-        }
-    }
-
-    private struct SubmitTransactionResponse: Decodable {
-        let hash: String?
-    }
-
-    private struct PaymentsEnvelope: Decodable {
-        struct Embedded: Decodable {
-            let records: [PaymentRecord]
-        }
-
-        let embedded: Embedded
-
-        enum CodingKeys: String, CodingKey {
-            case embedded = "_embedded"
-        }
-    }
-
-    private struct PaymentsEnvelopeVariant: Decodable {
-        let records: [PaymentRecord]?
-        let data: [PaymentRecord]?
-    }
-
-    private struct PaymentRecord: Decodable {
-        let id: String?
-        let type: String?
-        let assetType: String?
-        let from: String?
-        let to: String?
-        let account: String?
-        let amount: String?
-        let createdAt: String?
-        let transactionHash: String?
-
-        enum CodingKeys: String, CodingKey {
-            case id
-            case type
-            case assetType = "asset_type"
-            case from
-            case to
-            case account
-            case amount
-            case createdAt = "created_at"
-            case transactionHash = "transaction_hash"
         }
     }
 
@@ -330,17 +255,17 @@ enum StellarBalanceService {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
-        return try await SpectraNetworkRouter.shared.data(for: request, profile: .chainRead)
+        return try await ProviderHTTP.data(for: request, profile: .chainRead)
     }
 
     private static func fetchData(for request: URLRequest, profile: NetworkRetryProfile) async throws -> (Data, URLResponse) {
         var request = request
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
-        return try await SpectraNetworkRouter.shared.data(for: request, profile: profile)
+        return try await ProviderHTTP.data(for: request, profile: profile)
     }
 
-    private static func fetchAccount(address: String, endpoint: String) async throws -> AccountResponse {
+    private static func fetchAccount(address: String, endpoint: String) async throws -> StellarProvider.AccountResponse {
         guard let encoded = address.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(endpoint)/accounts/\(encoded)") else {
             throw StellarBalanceServiceError.invalidResponse
@@ -352,7 +277,7 @@ enum StellarBalanceService {
         guard (200 ... 299).contains(http.statusCode) else {
             throw StellarBalanceServiceError.httpError(http.statusCode)
         }
-        return try JSONDecoder().decode(AccountResponse.self, from: data)
+        return try JSONDecoder().decode(StellarProvider.AccountResponse.self, from: data)
     }
 
     private static func fetchPayments(address: String, endpoint: String, limit: Int) async throws -> [StellarHistorySnapshot] {
@@ -439,14 +364,14 @@ enum StellarBalanceService {
         }
     }
 
-    private static func parsePaymentRecords(_ data: Data) throws -> [PaymentRecord] {
-        if let envelope = try? JSONDecoder().decode(PaymentsEnvelope.self, from: data) {
+    private static func parsePaymentRecords(_ data: Data) throws -> [StellarProvider.PaymentRecord] {
+        if let envelope = try? JSONDecoder().decode(StellarProvider.PaymentsEnvelope.self, from: data) {
             return envelope.embedded.records
         }
-        if let envelope = try? JSONDecoder().decode(PaymentsEnvelopeVariant.self, from: data) {
+        if let envelope = try? JSONDecoder().decode(StellarProvider.PaymentsEnvelopeVariant.self, from: data) {
             return envelope.records ?? envelope.data ?? []
         }
-        if let rows = try? JSONDecoder().decode([PaymentRecord].self, from: data) {
+        if let rows = try? JSONDecoder().decode([StellarProvider.PaymentRecord].self, from: data) {
             return rows
         }
         throw StellarBalanceServiceError.invalidResponse

@@ -126,7 +126,7 @@ enum CoinGeckoService {
             }
 
             do {
-                let (data, response) = try await SpectraNetworkRouter.shared.data(
+                let (data, response) = try await ProviderHTTP.data(
                     for: request,
                     profile: .chainRead
                 )
@@ -471,7 +471,7 @@ enum LivePriceService {
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Spectra", forHTTPHeaderField: "User-Agent")
-        let (data, response) = try await SpectraNetworkRouter.shared.data(
+        let (data, response) = try await ProviderHTTP.data(
             for: request,
             profile: .chainRead
         )
@@ -518,7 +518,7 @@ enum FiatRateService {
         guard let url = URL(string: ChainBackendRegistry.MarketDataRegistry.openERLatestUSDURL) else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await ProviderHTTP.sessionData(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
@@ -535,7 +535,7 @@ enum FiatRateService {
         guard let url = components?.url else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await ProviderHTTP.sessionData(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
@@ -552,7 +552,7 @@ enum FiatRateService {
         guard let url = components?.url else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await ProviderHTTP.sessionData(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
@@ -568,7 +568,7 @@ enum FiatRateService {
         guard let url = URL(string: ChainBackendRegistry.MarketDataRegistry.fawazAhmedUSDRatesURL) else {
             throw URLError(.badURL)
         }
-        let (data, response) = try await URLSession.shared.data(from: url)
+        let (data, response) = try await ProviderHTTP.sessionData(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }

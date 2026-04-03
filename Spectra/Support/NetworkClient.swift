@@ -47,7 +47,7 @@ enum NetworkResilience {
 
         for attempt in 1 ... max(1, policy.maxAttempts) {
             do {
-                let (data, response) = try await session.data(for: request)
+                let (data, response) = try await ProviderHTTP.sessionData(for: request, session: session)
                 if let http = response as? HTTPURLResponse,
                    retryStatusCodes.contains(http.statusCode),
                    attempt < policy.maxAttempts {

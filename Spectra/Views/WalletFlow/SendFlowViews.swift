@@ -1057,7 +1057,10 @@ struct SendView: View {
         case "Litecoin":
             return AddressValidation.isValidLitecoinAddress(address)
         case "Dogecoin":
-            return AddressValidation.isValidDogecoinAddress(address)
+            return AddressValidation.isValidDogecoinAddress(
+                address,
+                networkMode: store.wallet(for: store.sendWalletID)?.dogecoinNetworkMode ?? store.dogecoinNetworkMode
+            )
         case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid":
             return AddressValidation.isValidEthereumAddress(address)
         case "Tron":

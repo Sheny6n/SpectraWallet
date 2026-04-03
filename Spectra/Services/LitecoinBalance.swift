@@ -93,7 +93,7 @@ struct LitecoinHistoryPage {
 
 enum LitecoinBalanceService {
     private static let litecoinspaceBaseURL = ChainBackendRegistry.LitecoinRuntimeEndpoints.litecoinspaceBaseURL
-    private static let blockcypherBaseURL = ChainBackendRegistry.LitecoinRuntimeEndpoints.blockcypherBaseURL
+    private static let blockcypherBaseURL = BlockCypherProvider.Network.litecoinMainnet.baseURL
     private static let sochainBaseURL = ChainBackendRegistry.LitecoinRuntimeEndpoints.sochainBaseURL
     private static let iso8601Formatter = ISO8601DateFormatter()
 
@@ -124,69 +124,6 @@ enum LitecoinBalanceService {
         case historyExists
         case status
         case historyPage
-    }
-
-    private struct BlockCypherAddressStatsResponse: Decodable {
-        let finalBalance: Int64?
-        let balance: Int64?
-        let finalNTx: Int?
-        let nTx: Int?
-
-        enum CodingKeys: String, CodingKey {
-            case finalBalance = "final_balance"
-            case balance
-            case finalNTx = "final_n_tx"
-            case nTx = "n_tx"
-        }
-    }
-
-    private struct BlockCypherTransactionStatusResponse: Decodable {
-        let confirmations: Int?
-        let blockHeight: Int?
-
-        enum CodingKeys: String, CodingKey {
-            case confirmations
-            case blockHeight = "block_height"
-        }
-    }
-
-    private struct BlockCypherAddressTransactionsResponse: Decodable {
-        struct Transaction: Decodable {
-            struct Input: Decodable {
-                let addresses: [String]?
-                let outputValue: Int64?
-                let value: Int64?
-
-                enum CodingKeys: String, CodingKey {
-                    case addresses
-                    case outputValue = "output_value"
-                    case value
-                }
-            }
-
-            struct Output: Decodable {
-                let addresses: [String]?
-                let value: Int64?
-            }
-
-            let hash: String?
-            let received: String?
-            let blockHeight: Int?
-            let confirmations: Int?
-            let inputs: [Input]?
-            let outputs: [Output]?
-
-            enum CodingKeys: String, CodingKey {
-                case hash
-                case received
-                case blockHeight = "block_height"
-                case confirmations
-                case inputs
-                case outputs
-            }
-        }
-
-        let txs: [Transaction]?
     }
 
     private struct SoChainEnvelope<Payload: Decodable>: Decodable {
@@ -373,7 +310,7 @@ enum LitecoinBalanceService {
     }
 
     private static func fetchData(from url: URL) async throws -> (Data, URLResponse) {
-        try await SpectraNetworkRouter.shared.data(from: url, profile: .litecoinRead)
+        try await ProviderHTTP.data(from: url, profile: .litecoinRead)
     }
 
     private static func fetchBalanceViaLitecoinspace(_ address: String) async throws -> Double {
@@ -401,7 +338,7 @@ enum LitecoinBalanceService {
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        let decoded = try JSONDecoder().decode(BlockCypherAddressStatsResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(BlockCypherProvider.AddressStatsResponse.self, from: data)
         let litoshis = max(0, decoded.finalBalance ?? decoded.balance ?? 0)
         return Double(litoshis) / 100_000_000
     }
@@ -445,7 +382,7 @@ enum LitecoinBalanceService {
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        let decoded = try JSONDecoder().decode(BlockCypherAddressStatsResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(BlockCypherProvider.AddressStatsResponse.self, from: data)
         return (decoded.finalNTx ?? decoded.nTx ?? 0) > 0
     }
 
@@ -483,7 +420,7 @@ enum LitecoinBalanceService {
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        let decoded = try JSONDecoder().decode(BlockCypherTransactionStatusResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(BlockCypherProvider.TransactionStatusResponse.self, from: data)
         return LitecoinTransactionStatus(
             confirmed: (decoded.confirmations ?? 0) > 0,
             blockHeight: decoded.blockHeight
@@ -553,7 +490,7 @@ enum LitecoinBalanceService {
         guard let httpResponse = response as? HTTPURLResponse, (200 ..< 300).contains(httpResponse.statusCode) else {
             throw URLError(.badServerResponse)
         }
-        let decoded = try JSONDecoder().decode(BlockCypherAddressTransactionsResponse.self, from: data)
+        let decoded = try JSONDecoder().decode(BlockCypherProvider.AddressTransactionsResponse.self, from: data)
         let transactions = decoded.txs ?? []
         let snapshots = mapBlockCypherTransactions(transactions, normalizedAddress: address.lowercased(), fallbackAddress: address)
         let nextCursor = transactions.count >= limit ? "bc:\(offset + limit)" : nil
@@ -565,7 +502,7 @@ enum LitecoinBalanceService {
     }
 
     private static func mapBlockCypherTransactions(
-        _ transactions: [BlockCypherAddressTransactionsResponse.Transaction],
+        _ transactions: [BlockCypherProvider.TransactionDetailResponse],
         normalizedAddress: String,
         fallbackAddress: String
     ) -> [LitecoinHistorySnapshot] {

@@ -317,60 +317,7 @@ enum EVMChainContext: Equatable {
     }
 
     var defaultRPCEndpoints: [String] {
-        switch self {
-        case .ethereum:
-            return [
-                "https://ethereum-rpc.publicnode.com",
-                "https://eth.llamarpc.com",
-                "https://cloudflare-eth.com",
-                "https://rpc.ankr.com/eth",
-                "https://1rpc.io/eth"
-            ]
-        case .ethereumSepolia:
-            return [
-                "https://ethereum-sepolia-rpc.publicnode.com"
-            ]
-        case .ethereumHoodi:
-            return [
-                "https://ethereum-hoodi-rpc.publicnode.com"
-            ]
-        case .arbitrum:
-            return [
-                "https://arbitrum-one-rpc.publicnode.com",
-                "https://arb1.arbitrum.io/rpc",
-                "https://1rpc.io/arb"
-            ]
-        case .optimism:
-            return [
-                "https://mainnet.optimism.io",
-                "https://optimism-rpc.publicnode.com",
-                "https://1rpc.io/op"
-            ]
-        case .ethereumClassic:
-            return [
-                "https://etc.rivet.link",
-                "https://geth-at.etc-network.info",
-                "https://besu-at.etc-network.info"
-            ]
-        case .bnb:
-            return [
-                "https://bsc-dataseed.bnbchain.org",
-                "https://bsc-dataseed1.binance.org",
-                "https://bsc-dataseed1.defibit.io",
-                "https://bsc-dataseed1.ninicoin.io"
-            ]
-        case .avalanche:
-            return [
-                "https://api.avax.network/ext/bc/C/rpc",
-                "https://avalanche-c-chain-rpc.publicnode.com",
-                "https://1rpc.io/avax/c"
-            ]
-        case .hyperliquid:
-            return [
-                "https://rpc.hyperliquid.xyz/evm",
-                "https://hyperliquid.api.onfinality.io/evm/public"
-            ]
-        }
+        AppEndpointDirectory.evmRPCEndpoints(for: displayName)
     }
 
     var isEthereumFamily: Bool {
@@ -422,65 +369,16 @@ struct EthereumTransactionReceipt: Equatable {
     }
 }
 
-struct EthereumJSONRPCRequest<Params: Encodable>: Encodable {
-    let jsonrpc = "2.0"
-    let id: Int
-    let method: String
-    let params: Params
-}
-
-struct EthereumJSONRPCResponse: Decodable {
-    let result: String?
-    let error: EthereumJSONRPCError?
-}
-
-struct EthereumJSONRPCDecodedResponse<Result: Decodable>: Decodable {
-    let result: Result?
-    let error: EthereumJSONRPCError?
-}
-
-struct EthereumTransactionReceiptJSONRPCResponse: Decodable {
-    let result: EthereumTransactionReceiptPayload?
-    let error: EthereumJSONRPCError?
-}
-
-struct EthereumTransactionReceiptPayload: Decodable {
-    let transactionHash: String
-    let blockNumber: String?
-    let status: String?
-    let gasUsed: String?
-    let effectiveGasPrice: String?
-}
-
-struct EthereumTransactionPayload: Decodable {
-    let nonce: String?
-}
-
-struct EthereumTransactionByHashPayload: Decodable {
-    let hash: String?
-    let blockNumber: String?
-    let from: String
-    let to: String?
-    let value: String
-}
-
-struct EthereumBlockPayload: Decodable {
-    let timestamp: String
-}
-
-struct EthereumTransactionReceiptWithLogsPayload: Decodable {
-    let transactionHash: String
-    let blockNumber: String?
-    let status: String?
-    let logs: [EthereumLogPayload]
-}
-
-struct EthereumLogPayload: Decodable {
-    let address: String
-    let topics: [String]
-    let data: String
-    let logIndex: String?
-}
+typealias EthereumJSONRPCRequest<Params: Encodable> = EthereumRPCProvider.JSONRPCRequest<Params>
+typealias EthereumJSONRPCResponse = EthereumRPCProvider.JSONRPCResponse
+typealias EthereumJSONRPCDecodedResponse<Result: Decodable> = EthereumRPCProvider.JSONRPCDecodedResponse<Result>
+typealias EthereumTransactionReceiptJSONRPCResponse = EthereumRPCProvider.TransactionReceiptJSONRPCResponse
+typealias EthereumTransactionReceiptPayload = EthereumRPCProvider.TransactionReceiptPayload
+typealias EthereumTransactionPayload = EthereumRPCProvider.TransactionPayload
+typealias EthereumTransactionByHashPayload = EthereumRPCProvider.TransactionByHashPayload
+typealias EthereumBlockPayload = EthereumRPCProvider.BlockPayload
+typealias EthereumTransactionReceiptWithLogsPayload = EthereumRPCProvider.TransactionReceiptWithLogsPayload
+typealias EthereumLogPayload = EthereumRPCProvider.LogPayload
 
 struct HyperliquidExplorerResolvedTransaction {
     let transactionHash: String
@@ -492,196 +390,28 @@ struct HyperliquidExplorerResolvedTransaction {
     let logs: [EthereumLogPayload]
 }
 
-struct EthereumJSONRPCError: Decodable {
-    let code: Int
-    let message: String
-}
-
-struct ENSIdeasResolveResponse: Decodable {
-    let address: String?
-}
-
-struct EthereumCallRequest: Encodable {
-    let to: String
-    let data: String
-}
-
-struct EthereumEstimateGasRequest: Encodable {
-    let from: String
-    let to: String
-    let value: String
-    let data: String?
-}
-
-struct EthereumBlockByNumberParameters: Encodable {
-    let blockNumber: String
-    let includeTransactions: Bool
-
-    nonisolated func encode(to encoder: Encoder) throws {
-        var container = encoder.unkeyedContainer()
-        try container.encode(blockNumber)
-        try container.encode(includeTransactions)
-    }
-}
-
-struct EtherscanTokenTransferResponse: Decodable {
-    let status: String?
-    let message: String?
-    let result: [EtherscanTokenTransferItem]
-    let resultText: String?
-
-    enum CodingKeys: String, CodingKey {
-        case status
-        case message
-        case result
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        status = try container.decodeIfPresent(String.self, forKey: .status)
-        message = try container.decodeIfPresent(String.self, forKey: .message)
-        if let items = try? container.decode([EtherscanTokenTransferItem].self, forKey: .result) {
-            result = items
-            resultText = nil
-        } else if let text = try? container.decode(String.self, forKey: .result) {
-            result = []
-            resultText = text
-        } else {
-            result = []
-            resultText = nil
-        }
-    }
-}
-
-struct EtherscanTokenTransferItem: Decodable {
-    let blockNumber: String
-    let timeStamp: String
-    let hash: String
-    let from: String
-    let to: String
-    let contractAddress: String
-    let tokenName: String
-    let tokenSymbol: String
-    let tokenDecimal: String
-    let value: String
-}
-
-struct EtherscanNormalTransactionResponse: Decodable {
-    let status: String?
-    let message: String?
-    let result: [EtherscanNormalTransactionItem]
-    let resultText: String?
-
-    enum CodingKeys: String, CodingKey {
-        case status
-        case message
-        case result
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        status = try container.decodeIfPresent(String.self, forKey: .status)
-        message = try container.decodeIfPresent(String.self, forKey: .message)
-        if let items = try? container.decode([EtherscanNormalTransactionItem].self, forKey: .result) {
-            result = items
-            resultText = nil
-        } else if let text = try? container.decode(String.self, forKey: .result) {
-            result = []
-            resultText = text
-        } else {
-            result = []
-            resultText = nil
-        }
-    }
-}
-
-struct EtherscanNormalTransactionItem: Decodable {
-    let blockNumber: String
-    let timeStamp: String
-    let hash: String
-    let from: String
-    let to: String
-    let value: String
-    let isError: String?
-    let txreceipt_status: String?
-}
-
-struct BlockscoutTokenTransfersResponse: Decodable {
-    let items: [BlockscoutTokenTransferItem]
-}
-
-struct BlockscoutNormalTransactionsResponse: Decodable {
-    let items: [BlockscoutNormalTransactionItem]
-}
-
-struct BlockscoutNormalTransactionItem: Decodable {
-    let hash: String?
-    let timestamp: String?
-    let from: BlockscoutAddress?
-    let to: BlockscoutAddress?
-    let value: String?
-    let result: String?
-    let block: BlockscoutBlock?
-}
-
-struct BlockscoutTokenTransferItem: Decodable {
-    let transaction_hash: String?
-    let block_number: Int?
-    let timestamp: String?
-    let from: BlockscoutAddress?
-    let to: BlockscoutAddress?
-    let token: BlockscoutToken?
-    let total: BlockscoutAmount?
-}
-
-struct BlockscoutAddress: Decodable {
-    let hash: String?
-}
-
-struct BlockscoutBlock: Decodable {
-    let height: Int?
-}
-
-struct BlockscoutToken: Decodable {
-    let address: String?
-    let symbol: String?
-    let name: String?
-    let decimals: String?
-}
-
-struct BlockscoutAmount: Decodable {
-    let value: String?
-}
-
-struct EthplorerErrorResponse: Decodable {
-    let error: EthplorerErrorBody?
-}
-
-struct EthplorerErrorBody: Decodable {
-    let code: Int?
-    let message: String?
-}
-
-struct EthplorerAddressHistoryResponse: Decodable {
-    let operations: [EthplorerOperation]?
-}
-
-struct EthplorerOperation: Decodable {
-    let timestamp: TimeInterval?
-    let transactionHash: String?
-    let from: String?
-    let to: String?
-    let value: String?
-    let blockNumber: Int?
-    let tokenInfo: EthplorerTokenInfo?
-}
-
-struct EthplorerTokenInfo: Decodable {
-    let address: String?
-    let symbol: String?
-    let name: String?
-    let decimals: String?
-}
+typealias EthereumJSONRPCError = EthereumRPCProvider.JSONRPCError
+typealias ENSIdeasResolveResponse = EVMExplorerProvider.ENSIdeasResolveResponse
+typealias EthereumCallRequest = EthereumRPCProvider.CallRequest
+typealias EthereumEstimateGasRequest = EthereumRPCProvider.EstimateGasRequest
+typealias EthereumBlockByNumberParameters = EthereumRPCProvider.BlockByNumberParameters
+typealias EtherscanTokenTransferResponse = EVMExplorerProvider.EtherscanTokenTransferResponse
+typealias EtherscanTokenTransferItem = EVMExplorerProvider.EtherscanTokenTransferItem
+typealias EtherscanNormalTransactionResponse = EVMExplorerProvider.EtherscanNormalTransactionResponse
+typealias EtherscanNormalTransactionItem = EVMExplorerProvider.EtherscanNormalTransactionItem
+typealias BlockscoutTokenTransfersResponse = EVMExplorerProvider.BlockscoutTokenTransfersResponse
+typealias BlockscoutNormalTransactionsResponse = EVMExplorerProvider.BlockscoutNormalTransactionsResponse
+typealias BlockscoutNormalTransactionItem = EVMExplorerProvider.BlockscoutNormalTransactionItem
+typealias BlockscoutTokenTransferItem = EVMExplorerProvider.BlockscoutTokenTransferItem
+typealias BlockscoutAddress = EVMExplorerProvider.BlockscoutAddress
+typealias BlockscoutBlock = EVMExplorerProvider.BlockscoutBlock
+typealias BlockscoutToken = EVMExplorerProvider.BlockscoutToken
+typealias BlockscoutAmount = EVMExplorerProvider.BlockscoutAmount
+typealias EthplorerErrorResponse = EVMExplorerProvider.EthplorerErrorResponse
+typealias EthplorerErrorBody = EVMExplorerProvider.EthplorerErrorBody
+typealias EthplorerAddressHistoryResponse = EVMExplorerProvider.EthplorerAddressHistoryResponse
+typealias EthplorerOperation = EVMExplorerProvider.EthplorerOperation
+typealias EthplorerTokenInfo = EVMExplorerProvider.EthplorerTokenInfo
 
 struct EthereumSendParameters {
     let nonce: Int
