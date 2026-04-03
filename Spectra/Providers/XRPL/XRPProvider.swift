@@ -145,18 +145,11 @@ enum XRPProvider {
     }
 
     static func endpointCatalog() -> [String] {
-        var endpoints = xrpScanAccountBases
-        for provider in ProviderID.allCases {
-            let endpoint = provider.rpcEndpoint.absoluteString
-            if !endpoints.contains(endpoint) {
-                endpoints.append(endpoint)
-            }
-        }
-        return endpoints
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.xrpChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpointCatalog().map { ($0, $0) }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.xrpChainName)
     }
 
     static func runWithFallback<T>(

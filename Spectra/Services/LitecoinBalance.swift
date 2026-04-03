@@ -98,19 +98,11 @@ enum LitecoinBalanceService {
     private static let iso8601Formatter = ISO8601DateFormatter()
 
     static func endpointCatalog() -> [String] {
-        [
-            litecoinspaceBaseURL,
-            blockcypherBaseURL,
-            sochainBaseURL,
-        ]
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.litecoinChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        [
-            (endpoint: litecoinspaceBaseURL, probeURL: litecoinspaceBaseURL + "/blocks/tip/height"),
-            (endpoint: blockcypherBaseURL, probeURL: blockcypherBaseURL),
-            (endpoint: sochainBaseURL, probeURL: sochainBaseURL + "/get_info/LTC"),
-        ]
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.litecoinChainName)
     }
 
     private enum Provider: String {

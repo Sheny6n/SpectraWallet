@@ -83,10 +83,10 @@ enum StellarProvider {
     }
 
     static func endpointCatalog() -> [String] {
-        horizonEndpoints
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.stellarChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        horizonEndpoints.map { ($0, "\($0)/fee_stats") }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.stellarChainName)
     }
 }

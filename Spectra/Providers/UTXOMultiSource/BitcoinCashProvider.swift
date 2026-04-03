@@ -10,17 +10,11 @@ enum BitcoinCashProvider {
     static let actorforthBaseURL = ChainBackendRegistry.BitcoinCashRuntimeEndpoints.actorforthBaseURL
 
     static func endpointCatalog() -> [String] {
-        [
-            blockchairBaseURL,
-            actorforthBaseURL,
-        ]
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.bitcoinCashChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        [
-            (endpoint: blockchairBaseURL, probeURL: blockchairBaseURL + "/stats"),
-            (endpoint: actorforthBaseURL, probeURL: actorforthBaseURL + "/blockchain/getBlockchainInfo"),
-        ]
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.bitcoinCashChainName)
     }
 
     struct BlockchairAddressResponse: Decodable {

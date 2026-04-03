@@ -120,11 +120,11 @@ enum SuiProvider {
     }
 
     static func endpointCatalog() -> [String] {
-        rpcURLs.map(\.absoluteString)
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.suiChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        rpcURLs.map { ($0.absoluteString, $0.absoluteString) }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.suiChainName)
     }
 
     static func filteredRPCEndpoints(providerIDs: Set<String>? = nil) -> [String] {

@@ -15,7 +15,7 @@ enum SolanaProvider {
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        balanceRPCBaseURLs.map { ($0, $0) }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.solanaChainName)
     }
 
     static func rpcClient(baseURL: String) -> SolanaAPIClient {

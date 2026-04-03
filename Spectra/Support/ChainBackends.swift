@@ -748,6 +748,7 @@ enum ChainBackendRegistry {
 
     static let bitcoinChainName = "Bitcoin"
     static let bitcoinCashChainName = "Bitcoin Cash"
+    static let bitcoinSVChainName = "Bitcoin SV"
     static let litecoinChainName = "Litecoin"
     static let ethereumChainName = "Ethereum"
     static let arbitrumChainName = "Arbitrum"

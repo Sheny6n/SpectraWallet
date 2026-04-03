@@ -215,31 +215,15 @@ enum DogecoinBalanceService {
     }
 
     static func endpointCatalog() -> [String] {
-        endpointCatalogByNetwork().flatMap(\.endpoints)
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.dogecoinChainName)
     }
 
     static func endpointCatalogByNetwork() -> [(title: String, endpoints: [String])] {
-        [
-            (
-                title: "Dogecoin",
-                endpoints: [
-                    ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherBaseURL
-                ]
-            ),
-            (
-                title: "Dogecoin Testnet",
-                endpoints: [
-                    ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherTestnetBaseURL
-                ]
-            )
-        ]
+        AppEndpointDirectory.groupedSettingsEntries(for: ChainBackendRegistry.dogecoinChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        return [
-            (endpoint: ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherBaseURL, probeURL: ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherBaseURL),
-            (endpoint: ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherTestnetBaseURL, probeURL: ChainBackendRegistry.DogecoinRuntimeEndpoints.blockcypherTestnetBaseURL),
-        ]
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.dogecoinChainName)
     }
 
     private static func blockcypherURL(path: String, networkMode: NetworkMode) -> URL? {

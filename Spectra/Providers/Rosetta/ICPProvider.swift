@@ -9,11 +9,11 @@ enum ICPProvider {
     )
 
     static func endpointCatalog() -> [String] {
-        rosettaEndpoints
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.icpChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        rosettaEndpoints.map { ($0, "\($0)/network/list") }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.icpChainName)
     }
 
     static func orderedRosettaEndpoints() -> [String] {

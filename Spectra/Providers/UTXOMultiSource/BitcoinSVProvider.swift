@@ -11,17 +11,11 @@ enum BitcoinSVProvider {
     static let blockchairBaseURL = ChainBackendRegistry.BitcoinSVRuntimeEndpoints.blockchairBaseURL
 
     static func endpointCatalog() -> [String] {
-        [
-            whatsonchainBaseURL,
-            blockchairBaseURL,
-        ]
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.bitcoinSVChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        [
-            (endpoint: whatsonchainBaseURL, probeURL: whatsonchainChainInfoURL),
-            (endpoint: blockchairBaseURL, probeURL: blockchairBaseURL + "/stats"),
-        ]
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.bitcoinSVChainName)
     }
 
     struct WhatsOnChainBalanceResponse: Decodable {

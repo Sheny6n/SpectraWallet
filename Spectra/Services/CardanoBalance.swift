@@ -55,13 +55,11 @@ enum CardanoBalanceService {
     }
 
     static func endpointCatalog() -> [String] {
-        Provider.allCases.map { baseURL(for: $0) }
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.cardanoChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpointCatalog().map { baseURL in
-            return (baseURL, "\(baseURL)/tip")
-        }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.cardanoChainName)
     }
 
     static func isValidAddress(_ address: String) -> Bool {

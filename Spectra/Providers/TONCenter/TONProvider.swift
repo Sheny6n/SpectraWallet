@@ -76,12 +76,11 @@ enum TONProvider {
     }
 
     static func endpointCatalog() -> [String] {
-        apiV2BaseURLs + apiV3BaseURLs
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.tonChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        apiV2BaseURLs.map { ($0, "\($0)/getMasterchainInfo") }
-            + apiV3BaseURLs.map { ($0, "\($0)/jetton/wallets") }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.tonChainName)
     }
 
     static func orderedAPIv2Endpoints() -> [URL] {

@@ -67,22 +67,11 @@ enum TronBalanceService {
     private static let tronGridRPCBases = ChainBackendRegistry.TronRuntimeEndpoints.tronGridBroadcastBaseURLs
 
     static func endpointCatalog() -> [String] {
-        var endpoints: [String] = []
-        for endpoint in tronScanAddressInfoBases + tronGridAccountsBases {
-            if !endpoints.contains(endpoint) {
-                endpoints.append(endpoint)
-            }
-        }
-        return endpoints
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.tronChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpointCatalog().map { endpoint in
-            if endpoint.contains("tronscan") {
-                return (endpoint: endpoint, probeURL: ChainBackendRegistry.TronRuntimeEndpoints.tronScanProbeURL)
-            }
-            return (endpoint: endpoint, probeURL: ChainBackendRegistry.TronRuntimeEndpoints.tronGridProbeURL)
-        }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.tronChainName)
     }
 
     private struct TronGridTRC20HistoryResponse: Decodable {

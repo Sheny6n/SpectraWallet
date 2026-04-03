@@ -6,12 +6,11 @@ enum PolkadotProvider {
     static let rpcBaseURLs = ChainBackendRegistry.PolkadotRuntimeEndpoints.rpcBaseURLs
 
     static func endpointCatalog() -> [String] {
-        sidecarBaseURLs + rpcBaseURLs
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.polkadotChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        sidecarBaseURLs.map { ($0, "\($0)/transaction/material") }
-            + rpcBaseURLs.map { ($0, $0) }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.polkadotChainName)
     }
 
     static func orderedSidecarEndpoints() -> [String] {

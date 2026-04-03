@@ -65,11 +65,11 @@ enum NearProvider {
     }
 
     static func endpointCatalog() -> [String] {
-        rpcEndpoints + historyEndpoints
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.nearChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        rpcEndpoints.map { ($0, $0) } + historyEndpoints.map { ($0, "\($0)/stats") }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.nearChainName)
     }
 
     static func orderedRPCEndpoints(providerIDs: Set<String>? = nil) -> [String] {

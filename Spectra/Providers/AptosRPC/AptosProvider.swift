@@ -63,10 +63,10 @@ enum AptosProvider {
     }
 
     static func endpointCatalog() -> [String] {
-        endpoints.map(\.absoluteString)
+        AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.aptosChainName)
     }
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpoints.map { ($0.absoluteString, $0.appendingPathComponent("spec").absoluteString) }
+        AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.aptosChainName)
     }
 }

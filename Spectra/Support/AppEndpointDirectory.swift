@@ -222,8 +222,13 @@ enum AppEndpointDirectory {
 
     static func groupedSettingsEntries(for chainName: String) -> [(title: String, endpoints: [String])] {
         let visibleRecords = endpointRecords(for: chainName, settingsVisibleOnly: true)
+        let titles = visibleRecords.reduce(into: [String]()) { partialResult, record in
+            if !partialResult.contains(record.groupTitle) {
+                partialResult.append(record.groupTitle)
+            }
+        }
         let grouped = Dictionary(grouping: visibleRecords, by: \.groupTitle)
-        return grouped.keys.sorted().compactMap { title in
+        return titles.compactMap { title in
             guard let records = grouped[title] else { return nil }
             var endpoints: [String] = []
             for record in records {
@@ -233,6 +238,10 @@ enum AppEndpointDirectory {
             }
             return endpoints.isEmpty ? nil : (title, endpoints)
         }
+    }
+
+    static func settingsEndpoints(for chainName: String) -> [String] {
+        groupedSettingsEntries(for: chainName).flatMap(\.endpoints)
     }
 
     static func diagnosticsChecks(for chainName: String) -> [(endpoint: String, probeURL: String)] {
