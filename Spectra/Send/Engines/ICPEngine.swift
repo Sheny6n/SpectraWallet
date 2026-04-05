@@ -57,25 +57,30 @@ enum ICPWalletEngine {
     private static let permittedDriftNanos: UInt64 = 60_000_000_000
 
     static func derivedAddress(for seedPhrase: String, derivationPath: String = "m/44'/223'/0'/0/0") throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: seedPhrase,
-            coin: .internetComputer,
-            derivationPath: derivationPath
-        )
-        let normalized = normalizeAddress(material.address)
-        guard AddressValidation.isValidICPAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                for: seedPhrase,
+                coin: .internetComputer,
+                derivationPath: derivationPath,
+                normalizer: { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() },
+                validator: AddressValidation.isValidICPAddress
+            )
+        } catch {
             throw ICPWalletEngineError.invalidSeedPhrase
         }
-        return normalized
     }
 
     static func derivedAddress(forPrivateKey privateKeyHex: String) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .internetComputer)
-        let normalized = normalizeAddress(material.address)
-        guard AddressValidation.isValidICPAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                forPrivateKey: privateKeyHex,
+                coin: .internetComputer,
+                normalizer: { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() },
+                validator: AddressValidation.isValidICPAddress
+            )
+        } catch {
             throw ICPWalletEngineError.invalidAddress
         }
-        return normalized
     }
 
     static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) async throws -> ICPSendPreview {
@@ -128,7 +133,7 @@ enum ICPWalletEngine {
             throw ICPWalletEngineError.insufficientBalance
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .internetComputer,
             derivationPath: derivationPath
@@ -187,7 +192,7 @@ enum ICPWalletEngine {
             throw ICPWalletEngineError.insufficientBalance
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .internetComputer)
+        let material = try SeedPhraseSigningMaterial.material(privateKeyHex: privateKeyHex, coin: .internetComputer)
         guard normalizeAddress(material.address) == normalizedOwner else {
             throw ICPWalletEngineError.invalidAddress
         }

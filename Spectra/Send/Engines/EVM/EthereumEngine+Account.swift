@@ -138,27 +138,28 @@ static func derivedAddress(
     chain: EVMChainContext = .ethereum,
     derivationPath: String? = nil
 ) throws -> String {
-    let normalizedSeedPhrase = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
-    let wordCount = BitcoinWalletEngine.normalizedMnemonicWords(from: normalizedSeedPhrase).count
-    guard wordCount > 0,
-          BitcoinWalletEngine.validateMnemonic(normalizedSeedPhrase, expectedWordCount: wordCount) == nil else {
+    do {
+        return try SeedPhraseAddressDerivation.evmAddress(
+            seedPhrase: seedPhrase,
+            account: account,
+            chain: chain,
+            derivationPath: derivationPath
+        )
+    } catch {
         throw EthereumWalletEngineError.invalidSeedPhrase
     }
-
-    return try walletCoreDerivedAddress(
-        seedPhrase: normalizedSeedPhrase,
-        account: account,
-        chain: chain,
-        derivationPath: derivationPath
-    )
 }
 
 static func derivedAddress(
     forPrivateKey privateKeyHex: String,
     chain: EVMChainContext = .ethereum
 ) throws -> String {
-    let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .ethereum)
-    return normalizeAddress(material.address)
+    _ = chain
+    do {
+        return try SeedPhraseAddressDerivation.evmAddress(forPrivateKey: privateKeyHex)
+    } catch {
+        throw EthereumWalletEngineError.invalidAddress
+    }
 }
 
 static func fetchAccountSnapshot(

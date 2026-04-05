@@ -44,17 +44,27 @@ private enum WalletAddressInventoryFactory {
 
     static func deriveEntry(
         seedPhrase: String,
-        coin: WalletCoreSupportedCoin,
+        chain: SeedDerivationChain,
         derivationPath: String,
         role: WalletAddressInventoryRole
     ) throws -> WalletAddressInventoryEntry {
+        let values = try WalletDerivationEngine.derive(
+            seedPhrase: seedPhrase,
+            request: WalletDerivationRequest(
+                chain: chain,
+                network: .mainnet,
+                derivationPath: derivationPath,
+                curve: WalletDerivationEngine.curve(for: chain),
+                requestedOutputs: [.address]
+            )
+        )
         let material = try WalletCoreDerivation.deriveMaterial(
             seedPhrase: seedPhrase,
-            coin: coin,
+            coin: walletCoreCoin(for: chain),
             derivationPath: derivationPath
         )
         return entry(
-            address: material.address,
+            address: values.address ?? material.address,
             derivationPath: material.derivationPath,
             account: material.account,
             branchIndex: material.branch.rawValue == WalletDerivationBranch.change.rawValue ? 1 : 0,
@@ -65,7 +75,7 @@ private enum WalletAddressInventoryFactory {
 
     static func scannedBranchInventory(
         seedPhrase: String,
-        coin: WalletCoreSupportedCoin,
+        chain: SeedDerivationChain,
         account: UInt32,
         scanLimit: UInt32,
         externalPath: (UInt32) -> String,
@@ -76,7 +86,7 @@ private enum WalletAddressInventoryFactory {
             entries.append(
                 try deriveEntry(
                     seedPhrase: seedPhrase,
-                    coin: coin,
+                    chain: chain,
                     derivationPath: externalPath(index),
                     role: index == 0 ? .primary : .external
                 )
@@ -84,7 +94,7 @@ private enum WalletAddressInventoryFactory {
             entries.append(
                 try deriveEntry(
                     seedPhrase: seedPhrase,
-                    coin: coin,
+                    chain: chain,
                     derivationPath: changePath(index),
                     role: .change
                 )
@@ -107,7 +117,7 @@ extension DogecoinWalletEngine {
     ) throws -> WalletAddressInventory {
         try WalletAddressInventoryFactory.scannedBranchInventory(
             seedPhrase: seedPhrase,
-            coin: .dogecoin,
+            chain: .dogecoin,
             account: account,
             scanLimit: scanLimit,
             externalPath: { WalletDerivationPath.dogecoin(account: account, branch: .external, index: $0) },
@@ -124,7 +134,7 @@ extension LitecoinWalletEngine {
     ) throws -> WalletAddressInventory {
         try WalletAddressInventoryFactory.scannedBranchInventory(
             seedPhrase: seedPhrase,
-            coin: .litecoin,
+            chain: .litecoin,
             account: account,
             scanLimit: scanLimit,
             externalPath: { WalletDerivationPath.litecoin(account: account, branch: .external, index: $0) },
@@ -141,7 +151,7 @@ extension BitcoinCashWalletEngine {
     ) throws -> WalletAddressInventory {
         try WalletAddressInventoryFactory.scannedBranchInventory(
             seedPhrase: seedPhrase,
-            coin: .bitcoinCash,
+            chain: .bitcoinCash,
             account: account,
             scanLimit: scanLimit,
             externalPath: { WalletDerivationPath.bitcoinCash(account: account, branch: .external, index: $0) },
@@ -158,7 +168,7 @@ extension BitcoinSVWalletEngine {
     ) throws -> WalletAddressInventory {
         try WalletAddressInventoryFactory.scannedBranchInventory(
             seedPhrase: seedPhrase,
-            coin: .bitcoinSV,
+            chain: .bitcoinSV,
             account: account,
             scanLimit: scanLimit,
             externalPath: { WalletDerivationPath.bitcoinSV(account: account, branch: .external, index: $0) },
@@ -175,7 +185,7 @@ extension CardanoWalletEngine {
     ) throws -> WalletAddressInventory {
         try WalletAddressInventoryFactory.scannedBranchInventory(
             seedPhrase: seedPhrase,
-            coin: .cardano,
+            chain: .cardano,
             account: account,
             scanLimit: scanLimit,
             externalPath: { "m/1852'/1815'/\(account)'/0/\($0)" },
@@ -341,5 +351,44 @@ extension MoneroWalletEngine {
             derivationPath: nil,
             account: nil
         )
+    }
+}
+
+private func walletCoreCoin(for chain: SeedDerivationChain) -> WalletCoreSupportedCoin {
+    switch chain {
+    case .bitcoin:
+        return .bitcoin
+    case .bitcoinCash:
+        return .bitcoinCash
+    case .bitcoinSV:
+        return .bitcoinSV
+    case .litecoin:
+        return .litecoin
+    case .dogecoin:
+        return .dogecoin
+    case .ethereum, .ethereumClassic, .arbitrum, .optimism, .avalanche, .hyperliquid:
+        return .ethereum
+    case .tron:
+        return .tron
+    case .solana:
+        return .solana
+    case .stellar:
+        return .stellar
+    case .xrp:
+        return .xrp
+    case .cardano:
+        return .cardano
+    case .sui:
+        return .sui
+    case .aptos:
+        return .aptos
+    case .ton:
+        return .ton
+    case .internetComputer:
+        return .internetComputer
+    case .near:
+        return .near
+    case .polkadot:
+        return .polkadot
     }
 }

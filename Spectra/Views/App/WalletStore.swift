@@ -4166,18 +4166,20 @@ func resetImportForm() {
         index: Int
     ) -> String? {
         guard let seedPhrase = storedSeedPhrase(for: wallet.id),
-              let coin = utxoDiscoveryCoin(for: chainName),
+              let _ = utxoDiscoveryCoin(for: chainName),
               let derivationPath = utxoDiscoveryDerivationPath(
                 for: wallet,
                 chainName: chainName,
                 branch: branch,
                 index: index
               ),
-              let address = try? WalletCoreDerivation.deriveMaterial(
+              let derivationChain = utxoDiscoveryDerivationChain(for: chainName),
+              let address = try? deriveSeedPhraseAddress(
                 seedPhrase: seedPhrase,
-                coin: coin,
+                chain: derivationChain,
+                network: derivationNetwork(for: derivationChain, wallet: wallet),
                 derivationPath: derivationPath
-              ).address,
+              ),
               isValidUTXOAddressForPolicy(address, chainName: chainName) else {
             return nil
         }
@@ -5084,12 +5086,15 @@ func resetImportForm() {
             )
             if scanUpperBound >= 0 {
                 for index in 0 ... scanUpperBound {
-                    if let derived = try? DogecoinWalletEngine.derivedAddress(
-                        for: seedPhrase,
-                        networkMode: wallet.dogecoinNetworkMode,
-                        isChange: false,
-                        index: index,
-                        account: Int(derivationAccount(for: wallet, chain: .dogecoin))
+                    if let derived = try? deriveSeedPhraseAddress(
+                        seedPhrase: seedPhrase,
+                        chain: .dogecoin,
+                        network: derivationNetwork(for: .dogecoin, wallet: wallet),
+                        derivationPath: WalletDerivationPath.dogecoin(
+                            account: derivationAccount(for: wallet, chain: .dogecoin),
+                            branch: .external,
+                            index: UInt32(index)
+                        )
                     ) {
                         appendAddress(derived)
                     }
@@ -5102,12 +5107,15 @@ func resetImportForm() {
 
     private func deriveDogecoinAddress(for wallet: ImportedWallet, isChange: Bool, index: Int) -> String? {
         guard let seedPhrase = storedSeedPhrase(for: wallet.id) else { return nil }
-        return try? DogecoinWalletEngine.derivedAddress(
-            for: seedPhrase,
-            networkMode: wallet.dogecoinNetworkMode,
-            isChange: isChange,
-            index: index,
-            account: Int(derivationAccount(for: wallet, chain: .dogecoin))
+        return try? deriveSeedPhraseAddress(
+            seedPhrase: seedPhrase,
+            chain: .dogecoin,
+            network: derivationNetwork(for: .dogecoin, wallet: wallet),
+            derivationPath: WalletDerivationPath.dogecoin(
+                account: derivationAccount(for: wallet, chain: .dogecoin),
+                branch: isChange ? .change : .external,
+                index: UInt32(index)
+            )
         )
     }
 
@@ -6299,7 +6307,7 @@ func resetImportForm() {
 
         let coins = importDraft.selectedCoins
         let trimmedSeedPhrase = BitcoinWalletEngine.normalizedMnemonicPhrase(from: importDraft.seedPhrase)
-        let trimmedPrivateKey = WalletCoreDerivation.normalizedPrivateKeyHex(from: importDraft.privateKeyInput)
+        let trimmedPrivateKey = PrivateKeyHex.normalized(from: importDraft.privateKeyInput)
         let trimmedWalletPassword = importDraft.normalizedWalletPassword
         let bitcoinAddressEntries = importDraft.watchOnlyEntries(from: importDraft.bitcoinAddressInput)
         let trimmedBitcoinAddress = importDraft.bitcoinAddressInput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -6430,7 +6438,7 @@ func resetImportForm() {
             : nil
 
         if isPrivateKeyImport {
-            guard WalletCoreDerivation.isLikelyPrivateKeyHex(trimmedPrivateKey) else {
+            guard PrivateKeyHex.isLikely(trimmedPrivateKey) else {
                 importError = "Enter a valid 32-byte hex private key."
                 return
             }
@@ -6623,9 +6631,11 @@ func resetImportForm() {
                             importError = "Bitcoin wallet initialization failed."
                             return
                         }
-                        derivedBitcoinAddress = try BitcoinWalletEngine.derivedAddress(
-                            for: bitcoinWalletID,
+                        _ = bitcoinWalletID
+                        derivedBitcoinAddress = try deriveSeedPhraseAddress(
                             seedPhrase: trimmedSeedPhrase,
+                            chain: .bitcoin,
+                            network: derivationNetwork(for: .bitcoin),
                             derivationPath: selectedDerivationPaths.bitcoin
                         )
                     } else {
@@ -7386,36 +7396,21 @@ func resetImportForm() {
     }
 
     private func deriveEthereumAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let address = try EthereumWalletEngine.derivedAddress(
-                        for: seedPhrase,
-                        account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0,
-                        derivationPath: derivationPath
-                    )
-                    continuation.resume(returning: address)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .ethereum,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveBitcoinSVAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    let address = try BitcoinSVWalletEngine.derivedAddress(
-                        for: seedPhrase,
-                        derivationPath: derivationPath
-                    )
-                    continuation.resume(returning: address)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .bitcoinSV,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func derivePrivateKeyImportAddress(
@@ -7446,55 +7441,55 @@ func resetImportForm() {
 
         switch chainName {
         case "Bitcoin":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .bitcoin).address
+            let address = try? SeedPhraseAddressDerivation.bitcoinAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: address, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Bitcoin Cash":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .bitcoinCash).address
+            let address = try? SeedPhraseAddressDerivation.bitcoinCashAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: address, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Bitcoin SV":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .bitcoinSV).address
+            let address = try? SeedPhraseAddressDerivation.bitcoinSVAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: address, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Litecoin":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .litecoin).address
+            let address = try? SeedPhraseAddressDerivation.litecoinAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: address, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Dogecoin":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .dogecoin).address
+            let address = try? SeedPhraseAddressDerivation.dogecoinAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: address, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid":
-            let address = try? EthereumWalletEngine.derivedAddress(forPrivateKey: privateKeyHex)
+            let address = try? SeedPhraseAddressDerivation.evmAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: address, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Tron":
-            let address = try? TronWalletEngine.derivedAddress(forPrivateKey: privateKeyHex)
+            let address = try? SeedPhraseAddressDerivation.tronAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: address, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Solana":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .solana).address
+            let address = try? SeedPhraseAddressDerivation.solanaAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: address, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "XRP Ledger":
-            let address = try? XRPWalletEngine.derivedAddress(forPrivateKey: privateKeyHex)
+            let address = try? SeedPhraseAddressDerivation.xrpAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: address, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Stellar":
-            let address = try? StellarWalletEngine.derivedAddress(forPrivateKey: privateKeyHex)
+            let address = try? SeedPhraseAddressDerivation.stellarAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: address, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Cardano":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .cardano).address
+            let address = try? SeedPhraseAddressDerivation.cardanoAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: address, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Sui":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .sui).address
-            return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: address?.lowercased(), aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
+            let address = try? SeedPhraseAddressDerivation.suiAddress(forPrivateKey: privateKeyHex)
+            return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: address, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "Aptos":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .aptos).address
-            return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: address?.lowercased(), ton: nil, icp: nil, near: nil, polkadot: nil)
+            let address = try? SeedPhraseAddressDerivation.aptosAddress(forPrivateKey: privateKeyHex)
+            return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: address, ton: nil, icp: nil, near: nil, polkadot: nil)
         case "TON":
-            let address = try? TONWalletEngine.derivedAddress(forPrivateKey: privateKeyHex)
+            let address = try? SeedPhraseAddressDerivation.tonAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: address, icp: nil, near: nil, polkadot: nil)
         case "Internet Computer":
-            let address = try? ICPWalletEngine.derivedAddress(forPrivateKey: privateKeyHex)
-            return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: address?.lowercased(), near: nil, polkadot: nil)
+            let address = try? SeedPhraseAddressDerivation.icpAddress(forPrivateKey: privateKeyHex)
+            return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: address, near: nil, polkadot: nil)
         case "NEAR":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .near).address
-            return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: address?.lowercased(), polkadot: nil)
+            let address = try? SeedPhraseAddressDerivation.nearAddress(forPrivateKey: privateKeyHex)
+            return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: address, polkadot: nil)
         case "Polkadot":
-            let address = try? WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .polkadot).address
+            let address = try? SeedPhraseAddressDerivation.polkadotAddress(forPrivateKey: privateKeyHex)
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: address)
         default:
             return PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
@@ -7502,84 +7497,257 @@ func resetImportForm() {
     }
 
     static func deriveTronAddress(seedPhrase: String, wallet: ImportedWallet) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
+        try deriveSeedPhraseAddress(
             seedPhrase: seedPhrase,
-            coin: .tron,
-            account: DerivationPathParser.segmentValue(at: 2, in: wallet.seedDerivationPaths.tron) ?? 0
+            chain: .tron,
+            network: .mainnet,
+            derivationPath: wallet.seedDerivationPaths.tron
         )
-        return material.address
     }
 
     private func deriveTronAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
+        try await deriveSeedPhraseAddressInBackground(
             seedPhrase: seedPhrase,
-            coin: .tron,
-            account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0
+            chain: .tron,
+            network: .mainnet,
+            derivationPath: derivationPath
         )
-        return material.address
     }
 
     private func deriveSolanaAddressInBackground(
         seedPhrase: String,
         derivationPath: String
     ) async throws -> String {
-        try SolanaWalletEngine.derivedAddress(
-            for: seedPhrase,
-            preference: (DerivationPathParser.parse(derivationPath)?.count == 3) ? .legacy : .standard,
-            account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .solana,
+            network: .mainnet,
+            derivationPath: derivationPath
         )
     }
 
     private func deriveXRPAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try XRPWalletEngine.derivedAddress(for: seedPhrase, account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .xrp,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveStellarAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try StellarWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .stellar,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveSuiAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try SuiWalletEngine.derivedAddress(for: seedPhrase, account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .sui,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveAptosAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try AptosWalletEngine.derivedAddress(for: seedPhrase, account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .aptos,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveTONAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try TONWalletEngine.derivedAddress(for: seedPhrase, account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .ton,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveICPAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try ICPWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .internetComputer,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveCardanoAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try CardanoWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .cardano,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveNearAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try NearWalletEngine.derivedAddress(for: seedPhrase, account: DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .near,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func derivePolkadotAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try PolkadotWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .polkadot,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveDogecoinAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try DogecoinWalletEngine.derivedAddress(
-            for: seedPhrase,
-            networkMode: dogecoinNetworkMode,
-            account: Int(DerivationPathParser.segmentValue(at: 2, in: derivationPath) ?? 0)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .dogecoin,
+            network: derivationNetwork(for: .dogecoin),
+            derivationPath: derivationPath
         )
     }
 
     private func deriveLitecoinAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try LitecoinWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .litecoin,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
     }
 
     private func deriveBitcoinCashAddressInBackground(seedPhrase: String, derivationPath: String) async throws -> String {
-        try BitcoinCashWalletEngine.derivedAddress(for: seedPhrase, derivationPath: derivationPath)
+        try await deriveSeedPhraseAddressInBackground(
+            seedPhrase: seedPhrase,
+            chain: .bitcoinCash,
+            network: .mainnet,
+            derivationPath: derivationPath
+        )
+    }
+
+    private static func deriveSeedPhraseAddress(
+        seedPhrase: String,
+        chain: SeedDerivationChain,
+        network: WalletDerivationNetwork,
+        derivationPath: String
+    ) throws -> String {
+        let result = try WalletDerivationLayer.derive(
+            seedPhrase: seedPhrase,
+            request: WalletDerivationRequest(
+                chain: chain,
+                network: network,
+                derivationPath: derivationPath,
+                curve: WalletDerivationEngine.curve(for: chain),
+                requestedOutputs: [.address]
+            )
+        )
+        guard let address = result.address else {
+            throw WalletDerivationEngineError.emptyRequestedOutputs
+        }
+        return address
+    }
+
+    private func deriveSeedPhraseAddress(
+        seedPhrase: String,
+        chain: SeedDerivationChain,
+        network: WalletDerivationNetwork,
+        derivationPath: String
+    ) throws -> String {
+        try Self.deriveSeedPhraseAddress(
+            seedPhrase: seedPhrase,
+            chain: chain,
+            network: network,
+            derivationPath: derivationPath
+        )
+    }
+
+    private func deriveSeedPhraseAddressInBackground(
+        seedPhrase: String,
+        chain: SeedDerivationChain,
+        network: WalletDerivationNetwork,
+        derivationPath: String
+    ) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    let result = try WalletDerivationEngine.derive(
+                        seedPhrase: seedPhrase,
+                        request: WalletDerivationRequest(
+                            chain: chain,
+                            network: network,
+                            derivationPath: derivationPath,
+                            curve: WalletDerivationEngine.curve(for: chain),
+                            requestedOutputs: [.address]
+                        )
+                    )
+                    guard let address = result.address else {
+                        throw WalletDerivationEngineError.emptyRequestedOutputs
+                    }
+                    continuation.resume(returning: address)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    private func derivationNetwork(for chain: SeedDerivationChain, wallet: ImportedWallet? = nil) -> WalletDerivationNetwork {
+        switch chain {
+        case .bitcoin:
+            return derivationNetwork(for: wallet.map(bitcoinNetworkMode(for:)) ?? bitcoinNetworkMode)
+        case .dogecoin:
+            return derivationNetwork(for: wallet.map(dogecoinNetworkMode(for:)) ?? dogecoinNetworkMode)
+        default:
+            return .mainnet
+        }
+    }
+
+    private func derivationNetwork(for networkMode: BitcoinNetworkMode) -> WalletDerivationNetwork {
+        switch networkMode {
+        case .mainnet:
+            return .mainnet
+        case .testnet:
+            return .testnet
+        case .testnet4:
+            return .testnet4
+        case .signet:
+            return .signet
+        }
+    }
+
+    private func derivationNetwork(for networkMode: DogecoinNetworkMode) -> WalletDerivationNetwork {
+        switch networkMode {
+        case .mainnet:
+            return .mainnet
+        case .testnet:
+            return .testnet
+        }
+    }
+
+    private func utxoDiscoveryDerivationChain(for chainName: String) -> SeedDerivationChain? {
+        switch chainName {
+        case "Bitcoin":
+            return .bitcoin
+        case "Bitcoin Cash":
+            return .bitcoinCash
+        case "Bitcoin SV":
+            return .bitcoinSV
+        case "Litecoin":
+            return .litecoin
+        case "Dogecoin":
+            return .dogecoin
+        default:
+            return nil
+        }
     }
 
     private func walletDisplayName(

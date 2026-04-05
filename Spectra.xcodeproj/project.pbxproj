@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9034B3352F81D84B00F139B6 /* WalletAddressInventory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9034B20E2F81D84B00F139B6 /* WalletAddressInventory.swift */; };
+		9034B3362F81D84B00F139B6 /* WalletAddressValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9034B20F2F81D84B00F139B6 /* WalletAddressValidation.swift */; };
 		9059229D2F5D2C49003ACDA5 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 9059229C2F5D2C49003ACDA5 /* KeychainAccess */; };
 		905923012F5D3777003ACDA5 /* WalletCoreSwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = 905923002F5D3777003ACDA5 /* WalletCoreSwiftProtobuf */; };
 		9067974A2F580FA9005E53E0 /* BitcoinDevKit in Frameworks */ = {isa = PBXBuildFile; productRef = 906797492F580FA9005E53E0 /* BitcoinDevKit */; };
@@ -48,6 +50,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		9034B20E2F81D84B00F139B6 /* WalletAddressInventory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletAddressInventory.swift; sourceTree = "<group>"; };
+		9034B20F2F81D84B00F139B6 /* WalletAddressValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletAddressValidation.swift; sourceTree = "<group>"; };
 		907491632F56D1E500D098D2 /* Spectra.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Spectra.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		90AEE1792F5AFB43008CFE5E /* Spectra.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Spectra.xctestplan; sourceTree = "<group>"; };
 		91B000012F5B000100AAA001 /* SpectraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SpectraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -153,6 +157,8 @@
 			children = (
 				90AEE1792F5AFB43008CFE5E /* Spectra.xctestplan */,
 				907491652F56D1E500D098D2 /* Spectra */,
+				9034B20F2F81D84B00F139B6 /* WalletAddressValidation.swift */,
+				9034B20E2F81D84B00F139B6 /* WalletAddressInventory.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -316,6 +322,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9034B3352F81D84B00F139B6 /* WalletAddressInventory.swift in Sources */,
+				9034B3362F81D84B00F139B6 /* WalletAddressValidation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -476,11 +484,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Spectra uses the camera to scan QR codes for wallet addresses.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Spectra uses Face ID to verify your identity before revealing your wallet seed phrase.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Spectra saves wallet QR codes to your photo library when you choose Save QR Code.";
@@ -515,11 +525,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Spectra uses the camera to scan QR codes for wallet addresses.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Spectra uses Face ID to verify your identity before revealing your wallet seed phrase.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Spectra saves wallet QR codes to your photo library when you choose Save QR Code.";

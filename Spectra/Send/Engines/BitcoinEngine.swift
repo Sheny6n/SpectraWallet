@@ -154,79 +154,27 @@ struct BitcoinWalletEngine {
     }
 
     static func normalizedMnemonicWords(from seedPhrase: String) -> [String] {
-        seedPhrase
-            .lowercased()
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
+        SeedPhraseSafety.normalizedWords(from: seedPhrase)
     }
 
     static func normalizedMnemonicPhrase(from seedPhrase: String) -> String {
-        normalizedMnemonicWords(from: seedPhrase).joined(separator: " ")
+        SeedPhraseSafety.normalizedPhrase(from: seedPhrase)
     }
 
     static func invalidEnglishWords(in seedPhrase: String) -> [String] {
-        var seen: Set<String> = []
-        return normalizedMnemonicWords(from: seedPhrase).reduce(into: [String]()) { result, word in
-            guard !BIP39EnglishWordList.words.contains(word) else { return }
-            guard seen.insert(word).inserted else { return }
-            result.append(word)
-        }
+        SeedPhraseSafety.invalidEnglishWords(in: seedPhrase)
     }
 
     static func validateMnemonic(_ seedPhrase: String, expectedWordCount: Int? = nil) -> String? {
-        let trimmedPhrase = seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPhrase.isEmpty else {
-            return "Enter a BIP-39 seed phrase."
-        }
-
-        let words = normalizedMnemonicWords(from: trimmedPhrase)
-        let normalizedPhrase = words.joined(separator: " ")
-
-        if let expectedWordCount, words.count != expectedWordCount {
-            return "This seed phrase has \(words.count) words. Selected length is \(expectedWordCount)."
-        }
-
-        guard validMnemonicWordCounts.contains(words.count) else {
-            return "Use a valid BIP-39 seed phrase with 12, 15, 18, 21, or 24 words."
-        }
-
-        let invalidWords = invalidEnglishWords(in: normalizedPhrase)
-        guard invalidWords.isEmpty else {
-            let joinedWords = invalidWords.joined(separator: ", ")
-            return "These words are not in the BIP-39 English word list: \(joinedWords)."
-        }
-
-        do {
-            _ = try Mnemonic.fromString(mnemonic: normalizedPhrase)
-            return nil
-        } catch {
-            return "This seed phrase is not a valid BIP-39 mnemonic. Check the word spelling and checksum."
-        }
+        SeedPhraseSafety.validationError(for: seedPhrase, expectedWordCount: expectedWordCount)
     }
 
     static func hasValidMnemonicChecksum(_ seedPhrase: String, expectedWordCount: Int? = nil) -> Bool {
-        validateMnemonic(seedPhrase, expectedWordCount: expectedWordCount) == nil
+        SeedPhraseSafety.hasValidChecksum(seedPhrase, expectedWordCount: expectedWordCount)
     }
 
     static func generateMnemonic(wordCount: Int) throws -> String {
-        let targetWordCount = validMnemonicWordCounts.contains(wordCount) ? wordCount : 12
-        let mnemonicWordCount: WordCount
-        switch targetWordCount {
-        case 12:
-            mnemonicWordCount = .words12
-        case 15:
-            mnemonicWordCount = .words15
-        case 18:
-            mnemonicWordCount = .words18
-        case 21:
-            mnemonicWordCount = .words21
-        case 24:
-            mnemonicWordCount = .words24
-        default:
-            mnemonicWordCount = .words12
-        }
-        let mnemonic = Mnemonic(wordCount: mnemonicWordCount)
-        return normalizedMnemonicPhrase(from: String(describing: mnemonic))
+        try SeedPhraseSafety.generateMnemonic(wordCount: wordCount)
     }
 
     static func syncBalance(for importedWallet: ImportedWallet, seedPhrase: String) throws -> Double {
@@ -302,9 +250,11 @@ struct BitcoinWalletEngine {
         seedPhrase: String,
         derivationPath: String = SeedDerivationChain.bitcoin.defaultPath
     ) throws -> String {
-        let session = try makeSession(for: walletID, seedPhrase: seedPhrase, derivationPath: derivationPath)
-        let addressInfo = session.wallet.peekAddress(keychain: .external, index: 0)
-        return String(describing: addressInfo.address)
+        _ = walletID
+        return try SeedPhraseAddressDerivation.bitcoinAddress(
+            seedPhrase: seedPhrase,
+            derivationPath: derivationPath
+        )
     }
 
     static func nextReceiveAddressInBackground(for importedWallet: ImportedWallet, seedPhrase: String) async throws -> String {
@@ -620,7 +570,7 @@ struct BitcoinWalletEngine {
         derivationPath: String,
         networkMode: BitcoinNetworkMode? = nil
     ) throws -> Session {
-        let mnemonic = try Mnemonic.fromString(mnemonic: seedPhrase)
+        let mnemonic = try SeedPhraseSafety.validatedMnemonic(from: seedPhrase)
         let network = (networkMode ?? self.networkMode).bdkNetwork
         let secretKey = DescriptorSecretKey(network: network, mnemonic: mnemonic, password: nil)
         let descriptors = try descriptors(for: secretKey, derivationPath: derivationPath, network: network)

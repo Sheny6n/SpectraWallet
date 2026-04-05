@@ -76,25 +76,36 @@ enum AptosWalletEngine {
     }
 
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: seedPhrase,
-            coin: .aptos,
-            derivationPath: "m/44'/637'/\(account)'/0'/0'"
-        )
-        let normalized = normalizeAddress(material.address)
-        guard AddressValidation.isValidAptosAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                for: seedPhrase,
+                coin: .aptos,
+                derivationPath: "m/44'/637'/\(account)'/0'/0'",
+                normalizer: {
+                    let trimmed = $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    return trimmed.hasPrefix("0x") ? trimmed : "0x\(trimmed)"
+                },
+                validator: AddressValidation.isValidAptosAddress
+            )
+        } catch {
             throw AptosWalletEngineError.invalidSeedPhrase
         }
-        return normalized
     }
 
     static func derivedAddress(forPrivateKey privateKeyHex: String) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .aptos)
-        let normalized = normalizeAddress(material.address)
-        guard AddressValidation.isValidAptosAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                forPrivateKey: privateKeyHex,
+                coin: .aptos,
+                normalizer: {
+                    let trimmed = $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    return trimmed.hasPrefix("0x") ? trimmed : "0x\(trimmed)"
+                },
+                validator: AddressValidation.isValidAptosAddress
+            )
+        } catch {
             throw AptosWalletEngineError.invalidAddress
         }
-        return normalized
     }
 
     static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) async throws -> AptosSendPreview {
@@ -150,7 +161,7 @@ enum AptosWalletEngine {
             throw AptosWalletEngineError.insufficientBalance
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .aptos,
             derivationPath: "m/44'/637'/\(derivationAccount)'/0'/0'"

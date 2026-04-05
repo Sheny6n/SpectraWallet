@@ -228,4 +228,5 @@ final class WalletStorePlatformBridgeTests: XCTestCase {
         XCTAssertEqual(decoded.app.wallets.first?.name, "Primary ETH")
     }
 }
+
 #endif

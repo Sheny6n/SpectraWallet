@@ -279,7 +279,7 @@ struct SetupView: View {
         let hasChains = !draft.selectedChainNames.isEmpty
         if draft.isPrivateKeyImportMode {
             return hasChains
-                && WalletCoreDerivation.isLikelyPrivateKeyHex(draft.privateKeyInput)
+                && PrivateKeyHex.isLikely(draft.privateKeyInput)
                 && draft.unsupportedPrivateKeyChainNames.isEmpty
                 && draft.selectedChainNames.count == 1
                 && !flowState.isImportingWallet
@@ -974,7 +974,7 @@ struct SetupView: View {
                     .font(.footnote)
                     .foregroundStyle(.orange.opacity(0.9))
             } else if !draft.privateKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                      !WalletCoreDerivation.isLikelyPrivateKeyHex(draft.privateKeyInput) {
+                      !PrivateKeyHex.isLikely(draft.privateKeyInput) {
                 Text("Enter a valid 32-byte hex private key.")
                     .font(.footnote)
                     .foregroundStyle(.red.opacity(0.9))

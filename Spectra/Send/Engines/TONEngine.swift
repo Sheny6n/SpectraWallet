@@ -57,25 +57,30 @@ enum TONWalletEngine {
     private static let expirationWindowSeconds: UInt32 = 600
 
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: seedPhrase,
-            coin: .ton,
-            derivationPath: "m/44'/607'/\(account)'/0/0"
-        )
-        let normalized = normalizeAddress(material.address)
-        guard AddressValidation.isValidTONAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                for: seedPhrase,
+                coin: .ton,
+                derivationPath: "m/44'/607'/\(account)'/0/0",
+                normalizer: { $0.trimmingCharacters(in: .whitespacesAndNewlines) },
+                validator: AddressValidation.isValidTONAddress
+            )
+        } catch {
             throw TONWalletEngineError.invalidSeedPhrase
         }
-        return normalized
     }
 
     static func derivedAddress(forPrivateKey privateKeyHex: String) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .ton)
-        let normalized = normalizeAddress(material.address)
-        guard AddressValidation.isValidTONAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                forPrivateKey: privateKeyHex,
+                coin: .ton,
+                normalizer: { $0.trimmingCharacters(in: .whitespacesAndNewlines) },
+                validator: AddressValidation.isValidTONAddress
+            )
+        } catch {
             throw TONWalletEngineError.invalidAddress
         }
-        return normalized
     }
 
     static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) async throws -> TONSendPreview {
@@ -111,7 +116,7 @@ enum TONWalletEngine {
             throw TONWalletEngineError.invalidAmount
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .ton,
             derivationPath: "m/44'/607'/\(derivationAccount)'/0/0"

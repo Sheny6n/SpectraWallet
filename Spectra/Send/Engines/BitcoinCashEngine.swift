@@ -98,21 +98,19 @@ enum BitcoinCashWalletEngine {
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
         try derivedAddress(
             for: seedPhrase,
-            derivationPath: defaultDerivationPath
-                .replacingOccurrences(of: "/0'/0/0", with: "/\(account)'/0/0")
+            derivationPath: WalletDerivationPath.bitcoinCash(account: account)
         )
     }
 
     static func derivedAddress(for seedPhrase: String, derivationPath: String) throws -> String {
-        let normalized = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
-        let words = BitcoinWalletEngine.normalizedMnemonicWords(from: normalized)
-        guard !words.isEmpty else { throw BitcoinCashWalletEngineError.invalidSeedPhrase }
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: normalized,
-            coin: .bitcoinCash,
-            derivationPath: derivationPath
-        )
-        return material.address
+        do {
+            return try SeedPhraseAddressDerivation.bitcoinCashAddress(
+                seedPhrase: seedPhrase,
+                derivationPath: derivationPath
+            )
+        } catch {
+            throw BitcoinCashWalletEngineError.invalidSeedPhrase
+        }
     }
 
     static func estimateSendPreview(
@@ -158,13 +156,12 @@ enum BitcoinCashWalletEngine {
             throw BitcoinCashWalletEngineError.invalidAddress
         }
 
-        let normalizedSeed = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
         let normalizedDerivationPath = DerivationPathParser.normalize(
             derivationPath,
             fallback: defaultDerivationPath
         )
-        let sourceMaterial = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: normalizedSeed,
+        let sourceMaterial = try SeedPhraseSigningMaterial.material(
+            seedPhrase: seedPhrase,
             coin: .bitcoinCash,
             derivationPath: normalizedDerivationPath
         )
@@ -173,8 +170,8 @@ enum BitcoinCashWalletEngine {
             throw BitcoinCashWalletEngineError.sourceAddressDoesNotMatchSeed
         }
         let changePath = changeDerivationPath(for: normalizedDerivationPath)
-        let changeMaterial = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: normalizedSeed,
+        let changeMaterial = try SeedPhraseSigningMaterial.material(
+            seedPhrase: seedPhrase,
             coin: .bitcoinCash,
             derivationPath: changePath
         )

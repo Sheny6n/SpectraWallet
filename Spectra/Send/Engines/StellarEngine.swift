@@ -54,25 +54,30 @@ enum StellarWalletEngine {
     private static let minimumBaseFeeStroops: Int64 = 100
 
     static func derivedAddress(for seedPhrase: String, derivationPath: String = "m/44'/148'/0'") throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: seedPhrase,
-            coin: .stellar,
-            derivationPath: derivationPath
-        )
-        let normalized = material.address.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard AddressValidation.isValidStellarAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                for: seedPhrase,
+                coin: .stellar,
+                derivationPath: derivationPath,
+                normalizer: { $0.trimmingCharacters(in: .whitespacesAndNewlines) },
+                validator: AddressValidation.isValidStellarAddress
+            )
+        } catch {
             throw StellarWalletEngineError.invalidSeedPhrase
         }
-        return normalized
     }
 
     static func derivedAddress(forPrivateKey privateKeyHex: String) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .stellar)
-        let normalized = material.address.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard AddressValidation.isValidStellarAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                forPrivateKey: privateKeyHex,
+                coin: .stellar,
+                normalizer: { $0.trimmingCharacters(in: .whitespacesAndNewlines) },
+                validator: AddressValidation.isValidStellarAddress
+            )
+        } catch {
             throw StellarWalletEngineError.invalidAddress
         }
-        return normalized
     }
 
     static func estimateSendPreview(
@@ -115,7 +120,7 @@ enum StellarWalletEngine {
         providerIDs: Set<String>? = nil
     ) async throws -> StellarSendResult {
         let preview = try await estimateSendPreview(from: ownerAddress, to: destinationAddress, amount: amount)
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .stellar,
             derivationPath: derivationPath
@@ -165,7 +170,7 @@ enum StellarWalletEngine {
         providerIDs: Set<String>? = nil
     ) async throws -> StellarSendResult {
         let preview = try await estimateSendPreview(from: ownerAddress, to: destinationAddress, amount: amount)
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .stellar)
+        let material = try SeedPhraseSigningMaterial.material(privateKeyHex: privateKeyHex, coin: .stellar)
         guard material.address == ownerAddress else {
             throw StellarWalletEngineError.invalidAddress
         }

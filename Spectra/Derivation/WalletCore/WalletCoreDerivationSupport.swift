@@ -234,23 +234,8 @@ enum WalletCoreDerivation {
             .joined(separator: " ")
     }
 
-    static func normalizedPrivateKeyHex(from rawValue: String) -> String {
-        let trimmed = rawValue
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return trimmed.hasPrefix("0x") ? String(trimmed.dropFirst(2)) : trimmed
-    }
-
-    static func isLikelyPrivateKeyHex(_ rawValue: String) -> Bool {
-        let normalized = normalizedPrivateKeyHex(from: rawValue)
-        guard normalized.count == 64 else { return false }
-        return normalized.unicodeScalars.allSatisfy { scalar in
-            CharacterSet(charactersIn: "0123456789abcdef").contains(scalar)
-        }
-    }
-
     private static func privateKeyData(from rawValue: String) throws -> Data {
-        let normalized = normalizedPrivateKeyHex(from: rawValue)
+        let normalized = PrivateKeyHex.normalized(from: rawValue)
         guard normalized.count == 64 else {
             throw WalletCoreDerivationError.invalidPrivateKey
         }
@@ -295,13 +280,8 @@ enum WalletCoreDerivation {
         branch: WalletDerivationBranch = .external,
         index: UInt32 = 0
     ) throws -> WalletCoreDerivationMaterial {
-        let mnemonic = normalizedMnemonic(seedPhrase)
-        guard HDWallet(mnemonic: mnemonic, passphrase: "") != nil else {
-            throw WalletCoreDerivationError.invalidMnemonic
-        }
-
         let path = derivationPath(for: coin, account: account, branch: branch, index: index)
-        return try deriveMaterial(seedPhrase: seedPhrase, coin: coin, derivationPath: path)
+        return try deriveMaterial(seedPhrase: seedPhrase, coin: coin, derivationPath: path, passphrase: nil)
     }
 
     static func deriveMaterial(
@@ -309,17 +289,36 @@ enum WalletCoreDerivation {
         coin: WalletCoreSupportedCoin,
         derivationPath: String
     ) throws -> WalletCoreDerivationMaterial {
+        try deriveMaterial(
+            seedPhrase: seedPhrase,
+            coin: coin,
+            derivationPath: Optional(derivationPath),
+            passphrase: nil
+        )
+    }
+
+    static func deriveMaterial(
+        seedPhrase: String,
+        coin: WalletCoreSupportedCoin,
+        derivationPath: String?,
+        passphrase: String?
+    ) throws -> WalletCoreDerivationMaterial {
         let mnemonic = normalizedMnemonic(seedPhrase)
-        guard let wallet = HDWallet(mnemonic: mnemonic, passphrase: "") else {
+        let normalizedPassphrase = passphrase?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let wallet = HDWallet(mnemonic: mnemonic, passphrase: normalizedPassphrase) else {
             throw WalletCoreDerivationError.invalidMnemonic
         }
 
-        guard let segments = DerivationPathParser.parse(derivationPath) else {
-            throw WalletCoreDerivationError.invalidDerivationPath(derivationPath)
+        let requestedPath = derivationPath?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPath = requestedPath?.isEmpty == false ? requestedPath! : "m"
+
+        guard let segments = DerivationPathParser.parse(normalizedPath) else {
+            throw WalletCoreDerivationError.invalidDerivationPath(normalizedPath)
         }
 
-        let normalizedPath = DerivationPathParser.string(from: segments)
-        let key = wallet.getKey(coin: coin.coinType, derivationPath: normalizedPath)
+        let canonicalPath = DerivationPathParser.string(from: segments)
+        let key = wallet.getKey(coin: coin.coinType, derivationPath: canonicalPath)
         let address = coin.coinType.deriveAddress(privateKey: key)
         let branchValue = segments.count >= 2 ? segments[segments.count - 2].value : 0
         let indexValue = segments.last?.value ?? 0
@@ -327,7 +326,7 @@ enum WalletCoreDerivation {
         return WalletCoreDerivationMaterial(
             address: address,
             privateKeyData: key.data,
-            derivationPath: normalizedPath,
+            derivationPath: canonicalPath,
             account: segments.count >= 3 ? segments[2].value : 0,
             branch: branchValue == 1 ? .change : .external,
             index: indexValue

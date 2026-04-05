@@ -102,7 +102,12 @@ enum EthereumChainSelfTestSuite {
 
     private static func testSeedDerivationProducesValidAddress() -> ChainSelfTestResult {
         let mnemonic = "test test test test test test test test test test test junk"
-        guard let derivedAddress = try? EthereumWalletEngine.derivedAddress(for: mnemonic) else {
+        guard let derivedAddress = try? SeedPhraseAddressDerivation.materialAddress(
+            seedPhrase: mnemonic,
+            coin: .ethereum,
+            derivationPath: SeedDerivationChain.ethereum.defaultPath,
+            normalizer: { $0.lowercased() }
+        ) else {
             return ChainSelfTestResult(
                 name: "ETH Seed Derivation",
                 passed: false,
@@ -235,7 +240,12 @@ enum BitcoinSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Bitcoin",
-                derive: { try WalletCoreDerivation.deriveMaterial(seedPhrase: GenericChainSelfTestHelpers.mnemonic, coin: .bitcoin).address },
+                derive: {
+                    try SeedPhraseAddressDerivation.bitcoinAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        derivationPath: "m/84'/0'/0'/0/0"
+                    )
+                },
                 validator: { AddressValidation.isValidBitcoinAddress($0, networkMode: .mainnet) }
             )
         ]
@@ -258,7 +268,12 @@ enum BitcoinCashSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Bitcoin Cash",
-                derive: { try BitcoinCashWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: {
+                    try SeedPhraseAddressDerivation.bitcoinCashAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        derivationPath: WalletDerivationPath.bitcoinCash(account: 0)
+                    )
+                },
                 validator: AddressValidation.isValidBitcoinCashAddress
             )
         ]
@@ -281,7 +296,12 @@ enum LitecoinSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Litecoin",
-                derive: { try LitecoinWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: {
+                    try SeedPhraseAddressDerivation.litecoinAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        derivationPath: "m/44'/2'/0'/0/0"
+                    )
+                },
                 validator: AddressValidation.isValidLitecoinAddress
             )
         ]
@@ -304,7 +324,12 @@ enum BitcoinSVSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Bitcoin SV",
-                derive: { try BitcoinSVWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: {
+                    try SeedPhraseAddressDerivation.bitcoinSVAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        derivationPath: WalletDerivationPath.bitcoinSV(account: 0)
+                    )
+                },
                 validator: AddressValidation.isValidBitcoinSVAddress
             )
         ]
@@ -327,7 +352,12 @@ enum CardanoSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Cardano",
-                derive: { try CardanoWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: {
+                    try SeedPhraseAddressDerivation.cardanoAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        derivationPath: "m/1852'/1815'/0'/0/0"
+                    )
+                },
                 validator: AddressValidation.isValidCardanoAddress
             )
         ]
@@ -350,7 +380,13 @@ enum SolanaChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Solana",
-                derive: { try SolanaWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: {
+                    try SeedPhraseAddressDerivation.solanaAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        preference: .standard,
+                        account: 0
+                    )
+                },
                 validator: AddressValidation.isValidSolanaAddress
             )
         ]
@@ -373,7 +409,7 @@ enum StellarSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Stellar",
-                derive: { try StellarWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: { try SeedPhraseAddressDerivation.stellarAddress(seedPhrase: GenericChainSelfTestHelpers.mnemonic) },
                 validator: AddressValidation.isValidStellarAddress
             )
         ]
@@ -396,7 +432,7 @@ enum XRPChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "XRP",
-                derive: { try XRPWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: { try SeedPhraseAddressDerivation.xrpAddress(seedPhrase: GenericChainSelfTestHelpers.mnemonic) },
                 validator: AddressValidation.isValidXRPAddress
             )
         ]
@@ -419,7 +455,12 @@ enum TronChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Tron",
-                derive: { try WalletCoreDerivation.deriveMaterial(seedPhrase: GenericChainSelfTestHelpers.mnemonic, coin: .tron).address },
+                derive: {
+                    try SeedPhraseAddressDerivation.tronAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        derivationPath: "m/44'/195'/0'/0/0"
+                    )
+                },
                 validator: AddressValidation.isValidTronAddress
             )
         ]
@@ -442,7 +483,7 @@ enum SuiChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Sui",
-                derive: { try SuiWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: { try SeedPhraseAddressDerivation.suiAddress(seedPhrase: GenericChainSelfTestHelpers.mnemonic) },
                 validator: AddressValidation.isValidSuiAddress
             )
         ]
@@ -465,7 +506,7 @@ enum AptosChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Aptos",
-                derive: { try AptosWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: { try SeedPhraseAddressDerivation.aptosAddress(seedPhrase: GenericChainSelfTestHelpers.mnemonic) },
                 validator: AddressValidation.isValidAptosAddress
             )
         ]
@@ -488,7 +529,7 @@ enum TONChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "TON",
-                derive: { try TONWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: { try SeedPhraseAddressDerivation.tonAddress(seedPhrase: GenericChainSelfTestHelpers.mnemonic) },
                 validator: AddressValidation.isValidTONAddress
             )
         ]
@@ -511,7 +552,7 @@ enum ICPChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Internet Computer",
-                derive: { try ICPWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: { try SeedPhraseAddressDerivation.icpAddress(seedPhrase: GenericChainSelfTestHelpers.mnemonic) },
                 validator: AddressValidation.isValidICPAddress
             )
         ]
@@ -534,7 +575,7 @@ enum NearChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "NEAR",
-                derive: { try NearWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: { try SeedPhraseAddressDerivation.nearAddress(seedPhrase: GenericChainSelfTestHelpers.mnemonic) },
                 validator: AddressValidation.isValidNearAddress
             )
         ]
@@ -557,7 +598,7 @@ enum PolkadotChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Polkadot",
-                derive: { try PolkadotWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic) },
+                derive: { try SeedPhraseAddressDerivation.polkadotAddress(seedPhrase: GenericChainSelfTestHelpers.mnemonic) },
                 validator: AddressValidation.isValidPolkadotAddress
             )
         ]
@@ -598,7 +639,14 @@ enum BNBChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "BNB Chain",
-                derive: { try EthereumWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic, chain: .bnb) },
+                derive: {
+                    try SeedPhraseAddressDerivation.materialAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        coin: .ethereum,
+                        derivationPath: SeedDerivationChain.ethereum.defaultPath,
+                        normalizer: { $0.lowercased() }
+                    )
+                },
                 validator: AddressValidation.isValidEthereumAddress
             )
         ]
@@ -621,7 +669,14 @@ enum AvalancheChainSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Avalanche",
-                derive: { try EthereumWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic, chain: .avalanche) },
+                derive: {
+                    try SeedPhraseAddressDerivation.materialAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        coin: .ethereum,
+                        derivationPath: SeedDerivationChain.avalanche.defaultPath,
+                        normalizer: { $0.lowercased() }
+                    )
+                },
                 validator: AddressValidation.isValidEthereumAddress
             )
         ]
@@ -644,7 +699,14 @@ enum EthereumClassicSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Ethereum Classic",
-                derive: { try EthereumWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic, chain: .ethereumClassic) },
+                derive: {
+                    try SeedPhraseAddressDerivation.materialAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        coin: .ethereum,
+                        derivationPath: SeedDerivationChain.ethereumClassic.defaultPath,
+                        normalizer: { $0.lowercased() }
+                    )
+                },
                 validator: AddressValidation.isValidEthereumAddress
             )
         ]
@@ -667,7 +729,14 @@ enum HyperliquidSelfTestSuite {
             ),
             GenericChainSelfTestHelpers.derivationProducesValidAddress(
                 chainLabel: "Hyperliquid",
-                derive: { try EthereumWalletEngine.derivedAddress(for: GenericChainSelfTestHelpers.mnemonic, chain: .hyperliquid) },
+                derive: {
+                    try SeedPhraseAddressDerivation.materialAddress(
+                        seedPhrase: GenericChainSelfTestHelpers.mnemonic,
+                        coin: .ethereum,
+                        derivationPath: SeedDerivationChain.hyperliquid.defaultPath,
+                        normalizer: { $0.lowercased() }
+                    )
+                },
                 validator: AddressValidation.isValidEthereumAddress
             )
         ]

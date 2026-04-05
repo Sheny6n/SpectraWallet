@@ -300,7 +300,7 @@ final class WalletImportDraft: ObservableObject {
         let hasValidPolkadotAddress = !wantsPolkadot
             || !isWatchOnlyMode
             || polkadotAddressEntries.allSatisfy(AddressValidation.isValidPolkadotAddress)
-        let hasValidPrivateKey = !isPrivateKeyImportMode || WalletCoreDerivation.isLikelyPrivateKeyHex(privateKeyInput)
+        let hasValidPrivateKey = !isPrivateKeyImportMode || PrivateKeyHex.isLikely(privateKeyInput)
         let supportsSelectedMode = (!wantsMonero || !isWatchOnlyMode)
             && (!isPrivateKeyImportMode || unsupportedPrivateKeyChainNames.isEmpty)
             && (!isPrivateKeyImportMode || selectedChainNames.count == 1)

@@ -196,7 +196,7 @@ struct DogecoinWalletEngine {
         networkMode: DogecoinNetworkMode,
         account: Int = 0
     ) throws -> String {
-        try walletCoreDerivedAddress(
+        try SeedPhraseAddressDerivation.dogecoinAddress(
             seedPhrase: seedPhrase,
             networkMode: networkMode,
             isChange: false,
@@ -222,7 +222,7 @@ struct DogecoinWalletEngine {
         index: Int,
         account: Int = 0
     ) throws -> String {
-        try walletCoreDerivedAddress(
+        try SeedPhraseAddressDerivation.dogecoinAddress(
             seedPhrase: seedPhrase,
             networkMode: networkMode,
             isChange: isChange,
@@ -483,19 +483,19 @@ extension DogecoinWalletEngine {
         networkMode: DogecoinNetworkMode,
         derivationAccount: UInt32
     ) throws -> SigningKeyMaterial {
-        let normalizedSeedPhrase = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
+        let normalizedSeedPhrase = SeedPhraseSafety.normalizedPhrase(from: seedPhrase)
         let normalizedExpectedAddress: String?
         if let expectedAddress {
             normalizedExpectedAddress = expectedAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
             normalizedExpectedAddress = nil
         }
-        let mnemonicWords = BitcoinWalletEngine.normalizedMnemonicWords(from: normalizedSeedPhrase)
+        let mnemonicWords = SeedPhraseSafety.normalizedWords(from: normalizedSeedPhrase)
         guard !mnemonicWords.isEmpty else {
             throw DogecoinWalletEngineError.invalidSeedPhrase
         }
         for index in 0 ..< derivationScanLimit {
-            let signingMaterial = try WalletCoreDerivation.deriveMaterial(
+            let signingMaterial = try SeedPhraseSigningMaterial.material(
                 seedPhrase: normalizedSeedPhrase,
                 coin: .dogecoin,
                 account: derivationAccount,
@@ -510,7 +510,7 @@ extension DogecoinWalletEngine {
                 continue
             }
 
-            let changeMaterial = try WalletCoreDerivation.deriveMaterial(
+            let changeMaterial = try SeedPhraseSigningMaterial.material(
                 seedPhrase: normalizedSeedPhrase,
                 coin: .dogecoin,
                 account: derivationAccount,
@@ -542,12 +542,12 @@ extension DogecoinWalletEngine {
         guard index >= 0 else {
             throw DogecoinWalletEngineError.keyDerivationFailed
         }
-        let normalizedSeedPhrase = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
-        let mnemonicWords = BitcoinWalletEngine.normalizedMnemonicWords(from: normalizedSeedPhrase)
+        let normalizedSeedPhrase = SeedPhraseSafety.normalizedPhrase(from: seedPhrase)
+        let mnemonicWords = SeedPhraseSafety.normalizedWords(from: normalizedSeedPhrase)
         guard !mnemonicWords.isEmpty else {
             throw DogecoinWalletEngineError.invalidSeedPhrase
         }
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: normalizedSeedPhrase,
             coin: .dogecoin,
             account: UInt32(max(0, account)),

@@ -72,16 +72,17 @@ enum NearWalletEngine {
     }
 
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: seedPhrase,
-            coin: .near,
-            derivationPath: "m/44'/397'/\(account)'"
-        )
-        let normalized = normalizeAddress(material.address)
-        guard AddressValidation.isValidNearAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                for: seedPhrase,
+                coin: .near,
+                derivationPath: "m/44'/397'/\(account)'",
+                normalizer: { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() },
+                validator: AddressValidation.isValidNearAddress
+            )
+        } catch {
             throw NearWalletEngineError.invalidSeedPhrase
         }
-        return normalized
     }
 
     static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) async throws -> NearSendPreview {
@@ -130,7 +131,7 @@ enum NearWalletEngine {
             throw NearWalletEngineError.invalidAmount
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .near,
             derivationPath: "m/44'/397'/\(derivationAccount)'"

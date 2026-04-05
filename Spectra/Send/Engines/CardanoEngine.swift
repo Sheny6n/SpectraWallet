@@ -72,15 +72,16 @@ enum CardanoWalletEngine {
     }
 
     static func derivedAddress(for seedPhrase: String, derivationPath: String) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: seedPhrase,
-            coin: .cardano,
-            derivationPath: derivationPath
-        )
-        guard AddressValidation.isValidCardanoAddress(material.address) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                for: seedPhrase,
+                coin: .cardano,
+                derivationPath: derivationPath,
+                validator: AddressValidation.isValidCardanoAddress
+            )
+        } catch {
             throw CardanoWalletEngineError.invalidSeedPhrase
         }
-        return material.address
     }
 
     static func estimateSendPreview(
@@ -128,7 +129,7 @@ enum CardanoWalletEngine {
             throw CardanoWalletEngineError.invalidAmount
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .cardano,
             derivationPath: derivationPath

@@ -52,16 +52,17 @@ enum PolkadotWalletEngine {
     private static let dotDivisor = Decimal(string: "10000000000")!
 
     static func derivedAddress(for seedPhrase: String, derivationPath: String = "m/44'/354'/0'") throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: seedPhrase,
-            coin: .polkadot,
-            derivationPath: derivationPath
-        )
-        let normalized = material.address.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard AddressValidation.isValidPolkadotAddress(normalized) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                for: seedPhrase,
+                coin: .polkadot,
+                derivationPath: derivationPath,
+                normalizer: { $0.trimmingCharacters(in: .whitespacesAndNewlines) },
+                validator: AddressValidation.isValidPolkadotAddress
+            )
+        } catch {
             throw PolkadotWalletEngineError.invalidSeedPhrase
         }
-        return normalized
     }
 
     static func estimateSendPreview(
@@ -183,7 +184,7 @@ enum PolkadotWalletEngine {
             throw PolkadotWalletEngineError.invalidAmount
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .polkadot,
             derivationPath: derivationPath

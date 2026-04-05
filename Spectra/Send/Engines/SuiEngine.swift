@@ -65,15 +65,16 @@ enum SuiWalletEngine {
     }
 
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: seedPhrase,
-            coin: .sui,
-            account: account
-        )
-        guard AddressValidation.isValidSuiAddress(material.address) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                for: seedPhrase,
+                coin: .sui,
+                derivationPath: WalletDerivationPath.bip44(slip44CoinType: 784, account: account),
+                validator: AddressValidation.isValidSuiAddress
+            )
+        } catch {
             throw SuiWalletEngineError.invalidSeedPhrase
         }
-        return material.address
     }
 
     static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) async throws -> SuiSendPreview {
@@ -139,7 +140,7 @@ enum SuiWalletEngine {
             throw SuiWalletEngineError.insufficientBalance
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .sui,
             account: derivationAccount

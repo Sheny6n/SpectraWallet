@@ -3,6 +3,11 @@ import CryptoKit
 import WalletCore
 
 enum UTXOAddressCodec {
+    enum SegWitAddressEncoding {
+        case bech32
+        case bech32m
+    }
+
     static func base58CheckDecode(_ string: String) -> Data? {
         let alphabet = Array("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
         var indexes: [Character: Int] = [:]
@@ -107,10 +112,159 @@ enum UTXOAddressCodec {
         let payload = Data([version]) + hash160(publicKey)
         return base58CheckEncode(payload)
     }
+
+    static func nestedSegWitP2SHAddress(
+        privateKeyData: Data,
+        scriptVersion: UInt8
+    ) throws -> String {
+        guard let privateKey = PrivateKey(data: privateKeyData) else {
+            throw UTXOAddressCodecError.invalidPrivateKey
+        }
+        let publicKey = privateKey.getPublicKeySecp256k1(compressed: true).data
+        let witnessProgram = hash160(publicKey)
+        let redeemScript = Data([0x00, 0x14]) + witnessProgram
+        let payload = Data([scriptVersion]) + hash160(redeemScript)
+        return base58CheckEncode(payload)
+    }
+
+    static func segWitAddress(
+        privateKeyData: Data,
+        hrp: String,
+        witnessVersion: UInt8 = 0,
+        encoding: SegWitAddressEncoding = .bech32
+    ) throws -> String {
+        guard let privateKey = PrivateKey(data: privateKeyData) else {
+            throw UTXOAddressCodecError.invalidPrivateKey
+        }
+        let program: Data
+        switch witnessVersion {
+        case 0:
+            let publicKey = privateKey.getPublicKeySecp256k1(compressed: true).data
+            program = hash160(publicKey)
+        case 1:
+            let publicKey = privateKey.getPublicKeySecp256k1(compressed: true).data
+            guard publicKey.count == 33 else {
+                throw UTXOAddressCodecError.unsupportedWitnessVersion
+            }
+            program = publicKey.dropFirst()
+        default:
+            throw UTXOAddressCodecError.unsupportedWitnessVersion
+        }
+
+        guard let convertedProgram = convertBits(
+            Array(program),
+            fromBits: 8,
+            toBits: 5,
+            pad: true
+        ) else {
+            throw UTXOAddressCodecError.invalidWitnessProgram
+        }
+
+        let data = [witnessVersion] + convertedProgram
+        return try bech32Encode(
+            hrp: hrp.lowercased(),
+            data: data,
+            encoding: encoding
+        )
+    }
+
+    private static func bech32Encode(
+        hrp: String,
+        data: [UInt8],
+        encoding: SegWitAddressEncoding
+    ) throws -> String {
+        let alphabet = Array("qpzry9x8gf2tvdw0s3jn54khce6mua7l")
+        let checksum = createBech32Checksum(hrp: hrp, data: data, encoding: encoding)
+        let combined = data + checksum
+        guard combined.allSatisfy({ Int($0) < alphabet.count }) else {
+            throw UTXOAddressCodecError.invalidWitnessProgram
+        }
+        let payload = combined.map { String(alphabet[Int($0)]) }.joined()
+        return "\(hrp)1\(payload)"
+    }
+
+    private static func createBech32Checksum(
+        hrp: String,
+        data: [UInt8],
+        encoding: SegWitAddressEncoding
+    ) -> [UInt8] {
+        let polymodInput = expandBech32Hrp(hrp) + data + Array(repeating: 0, count: 6)
+        let constant: UInt32 = {
+            switch encoding {
+            case .bech32:
+                return 1
+            case .bech32m:
+                return 0x2bc830a3
+            }
+        }()
+        let polymod = bech32Polymod(polymodInput) ^ constant
+        return (0..<6).map { index in
+            UInt8((polymod >> (5 * (5 - index))) & 31)
+        }
+    }
+
+    private static func expandBech32Hrp(_ hrp: String) -> [UInt8] {
+        let scalarValues = hrp.unicodeScalars.map(\.value)
+        return scalarValues.map { UInt8($0 >> 5) } + [0] + scalarValues.map { UInt8($0 & 31) }
+    }
+
+    private static func bech32Polymod(_ values: [UInt8]) -> UInt32 {
+        let generators: [UInt32] = [
+            0x3b6a57b2,
+            0x26508e6d,
+            0x1ea119fa,
+            0x3d4233dd,
+            0x2a1462b3
+        ]
+
+        var checksum: UInt32 = 1
+        for value in values {
+            let top = checksum >> 25
+            checksum = (checksum & 0x1ffffff) << 5 ^ UInt32(value)
+            for (index, generator) in generators.enumerated() where ((top >> index) & 1) != 0 {
+                checksum ^= generator
+            }
+        }
+        return checksum
+    }
+
+    private static func convertBits(
+        _ data: [UInt8],
+        fromBits: Int,
+        toBits: Int,
+        pad: Bool
+    ) -> [UInt8]? {
+        var accumulator = 0
+        var bits = 0
+        let maxValue = (1 << toBits) - 1
+        var result: [UInt8] = []
+
+        for value in data {
+            guard (Int(value) >> fromBits) == 0 else { return nil }
+            accumulator = (accumulator << fromBits) | Int(value)
+            bits += fromBits
+            while bits >= toBits {
+                bits -= toBits
+                result.append(UInt8((accumulator >> bits) & maxValue))
+            }
+        }
+
+        if pad {
+            if bits > 0 {
+                result.append(UInt8((accumulator << (toBits - bits)) & maxValue))
+            }
+        } else if bits >= fromBits || ((accumulator << (toBits - bits)) & maxValue) != 0 {
+            return nil
+        }
+
+        return result
+    }
 }
 
 enum UTXOAddressCodecError: Error {
     case invalidPrivateKey
+    case invalidWitnessProgram
+    case unsupportedWitnessVersion
 }
 
 private enum RIPEMD160 {

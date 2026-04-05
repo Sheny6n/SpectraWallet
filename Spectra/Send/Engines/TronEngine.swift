@@ -142,11 +142,11 @@ enum TronWalletEngine {
     }
 
     static func derivedAddress(forPrivateKey privateKeyHex: String) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .tron)
-        guard AddressValidation.isValidTronAddress(material.address) else {
+        do {
+            return try SeedPhraseAddressDerivation.tronAddress(forPrivateKey: privateKeyHex)
+        } catch {
             throw TronWalletEngineError.invalidAddress
         }
-        return material.address
     }
 
     static func sendInBackground(
@@ -167,7 +167,7 @@ enum TronWalletEngine {
             throw TronWalletEngineError.invalidAmount
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .tron,
             account: derivationAccount
@@ -259,7 +259,7 @@ enum TronWalletEngine {
             throw TronWalletEngineError.invalidAmount
         }
 
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .tron)
+        let material = try SeedPhraseSigningMaterial.material(privateKeyHex: privateKeyHex, coin: .tron)
         guard !material.privateKeyData.isEmpty else {
             throw TronWalletEngineError.invalidSeedPhrase
         }

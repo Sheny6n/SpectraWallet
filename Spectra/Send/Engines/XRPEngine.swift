@@ -109,7 +109,7 @@ enum XRPWalletEngine {
         }
 
         let preview = try await estimateSendPreview(from: ownerAddress, to: destinationAddress, amount: amount)
-        let material = try WalletCoreDerivation.deriveMaterial(
+        let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: seedPhrase,
             coin: .xrp,
             account: derivationAccount
@@ -161,11 +161,15 @@ enum XRPWalletEngine {
     }
 
     static func derivedAddress(forPrivateKey privateKeyHex: String) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .xrp)
-        guard AddressValidation.isValidXRPAddress(material.address) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                forPrivateKey: privateKeyHex,
+                coin: .xrp,
+                validator: AddressValidation.isValidXRPAddress
+            )
+        } catch {
             throw XRPWalletEngineError.invalidAddress
         }
-        return material.address
     }
 
     static func sendInBackground(
@@ -189,7 +193,7 @@ enum XRPWalletEngine {
         }
 
         let preview = try await estimateSendPreview(from: ownerAddress, to: destinationAddress, amount: amount)
-        let material = try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .xrp)
+        let material = try SeedPhraseSigningMaterial.material(privateKeyHex: privateKeyHex, coin: .xrp)
         guard !material.privateKeyData.isEmpty else {
             throw XRPWalletEngineError.invalidSeedPhrase
         }
@@ -429,15 +433,16 @@ enum XRPWalletEngine {
     }
 
     static func derivedAddress(for seedPhrase: String, account: UInt32 = 0) throws -> String {
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: seedPhrase,
-            coin: .xrp,
-            account: account
-        )
-        guard AddressValidation.isValidXRPAddress(material.address) else {
+        do {
+            return try SeedPhraseAddressDerivation.address(
+                for: seedPhrase,
+                coin: .xrp,
+                derivationPath: WalletDerivationPath.bip44(slip44CoinType: 144, account: account),
+                validator: AddressValidation.isValidXRPAddress
+            )
+        } catch {
             throw XRPWalletEngineError.invalidSeedPhrase
         }
-        return material.address
     }
 
     private static func orderedRPCEndpoints(providerIDs: Set<String>? = nil) -> [URL] {

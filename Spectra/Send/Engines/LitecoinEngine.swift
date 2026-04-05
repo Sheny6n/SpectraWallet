@@ -112,15 +112,14 @@ enum LitecoinWalletEngine {
     }
 
     static func derivedAddress(for seedPhrase: String, derivationPath: String) throws -> String {
-        let normalized = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
-        let words = BitcoinWalletEngine.normalizedMnemonicWords(from: normalized)
-        guard !words.isEmpty else { throw LitecoinWalletEngineError.invalidSeedPhrase }
-        let material = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: normalized,
-            coin: .litecoin,
-            derivationPath: derivationPath
-        )
-        return material.address
+        do {
+            return try SeedPhraseAddressDerivation.litecoinAddress(
+                seedPhrase: seedPhrase,
+                derivationPath: derivationPath
+            )
+        } catch {
+            throw LitecoinWalletEngineError.invalidSeedPhrase
+        }
     }
 
     static func estimateSendPreview(
@@ -178,9 +177,8 @@ enum LitecoinWalletEngine {
             throw LitecoinWalletEngineError.invalidAddress
         }
 
-        let normalizedSeed = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
-        let keyMaterial = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: normalizedSeed,
+        let keyMaterial = try SeedPhraseSigningMaterial.material(
+            seedPhrase: seedPhrase,
             coin: .litecoin,
             derivationPath: derivationPath
         )
@@ -194,8 +192,8 @@ enum LitecoinWalletEngine {
             index: 0,
             fallback: "m/44'/2'/0'/1/0"
         )
-        let changeMaterial = try WalletCoreDerivation.deriveMaterial(
-            seedPhrase: normalizedSeed,
+        let changeMaterial = try SeedPhraseSigningMaterial.material(
+            seedPhrase: seedPhrase,
             coin: .litecoin,
             derivationPath: changePath
         )

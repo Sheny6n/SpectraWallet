@@ -1420,7 +1420,7 @@ static func walletCoreMaterial(
     derivationPath: String?
 ) throws -> WalletCoreDerivationMaterial {
     let resolvedPath = derivationPath ?? chain.derivationPath(account: account)
-    return try WalletCoreDerivation.deriveMaterial(
+    return try SeedPhraseSigningMaterial.material(
         seedPhrase: seedPhrase,
         coin: .ethereum,
         derivationPath: resolvedPath
@@ -1431,6 +1431,6 @@ static func walletCoreMaterial(
     privateKeyHex: String,
     chain _: EVMChainContext
 ) throws -> WalletCoreDerivationMaterial {
-    try WalletCoreDerivation.deriveMaterial(privateKeyHex: privateKeyHex, coin: .ethereum)
+    try SeedPhraseSigningMaterial.material(privateKeyHex: privateKeyHex, coin: .ethereum)
 }
 }

@@ -83,18 +83,15 @@ enum SolanaWalletEngine {
         preference: DerivationPreference = .standard,
         account: UInt32 = 0
     ) throws -> String {
-        let preferredPath = preferredSolanaPath(preference: preference, account: account)
-        let resolved = try resolvedSolanaKeyMaterial(
-            seedPhrase: seedPhrase,
-            ownerAddress: nil,
-            preferredDerivationPath: preferredPath,
-            account: account
-        )
-        let address = resolved.address
-        guard AddressValidation.isValidSolanaAddress(address) else {
+        do {
+            return try SeedPhraseAddressDerivation.solanaAddress(
+                seedPhrase: seedPhrase,
+                preference: preference,
+                account: account
+            )
+        } catch {
             throw SolanaWalletEngineError.invalidSeedPhrase
         }
-        return address
     }
 
     static func estimateSendPreview(from ownerAddress: String, to destinationAddress: String, amount: Double) async throws -> SolanaSendPreview {
@@ -576,51 +573,21 @@ enum SolanaWalletEngine {
         preferredDerivationPath: String? = nil,
         account: UInt32 = 0
     ) throws -> SolanaKeyMaterial {
-        let normalizedMnemonic = BitcoinWalletEngine.normalizedMnemonicPhrase(from: seedPhrase)
-        guard let wallet = HDWallet(mnemonic: normalizedMnemonic, passphrase: "") else {
+        do {
+            let resolved = try SeedPhraseSigningMaterial.resolvedSolanaKeyMaterial(
+                seedPhrase: seedPhrase,
+                ownerAddress: ownerAddress,
+                preferredDerivationPath: preferredDerivationPath,
+                account: account
+            )
+            return SolanaKeyMaterial(
+                address: resolved.address,
+                privateKeyData: resolved.privateKeyData,
+                derivationPath: resolved.derivationPath
+            )
+        } catch {
             throw SolanaWalletEngineError.invalidSeedPhrase
         }
-
-        let normalizedOwner = ownerAddress?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        var firstValid: SolanaKeyMaterial?
-        let accountScopedPaths = supportedDerivationPaths(for: account)
-        let derivationPathsToTry: [String] = {
-            guard let preferredDerivationPath else { return accountScopedPaths }
-            var ordered = [preferredDerivationPath]
-            for path in accountScopedPaths where path != preferredDerivationPath {
-                ordered.append(path)
-            }
-            return ordered
-        }()
-
-        for path in derivationPathsToTry {
-            let key = wallet.getKey(coin: .solana, derivationPath: path)
-            let address = CoinType.solana.deriveAddress(privateKey: key)
-            guard AddressValidation.isValidSolanaAddress(address) else { continue }
-            let candidate = SolanaKeyMaterial(
-                address: address,
-                privateKeyData: key.data,
-                derivationPath: path
-            )
-            if firstValid == nil {
-                firstValid = candidate
-            }
-            if let normalizedOwner, address.lowercased() == normalizedOwner {
-                return candidate
-            }
-        }
-
-        if let firstValid, normalizedOwner == nil {
-            return firstValid
-        }
-        if let firstValid, let normalizedOwner, firstValid.address.lowercased() == normalizedOwner {
-            return firstValid
-        }
-
-        throw SolanaWalletEngineError.invalidSeedPhrase
     }
 
     private static func supportedDerivationPaths(for account: UInt32) -> [String] {
