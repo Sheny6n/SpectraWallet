@@ -1,5 +1,4 @@
 import Foundation
-import WalletCore
 
 struct WalletDerivationRequestedOutputs: OptionSet {
     let rawValue: Int
@@ -155,69 +154,29 @@ enum WalletDerivationEngine {
         }
 
         try validateAdvancedOptions(query)
+        return try deriveViaRust(seedPhrase: seedPhrase, query: query)
+    }
 
-        let expectedCurve = curve(for: query.chain)
-        try validate(network: query.network, for: query.chain)
-
-        let chainMaterial = try SeedPhraseSigningMaterial.material(
+    private static func deriveViaRust(
+        seedPhrase: String,
+        query: WalletDerivationQuery
+    ) throws -> WalletDerivationResult {
+        let request = try WalletRustDerivationBridge.makeRequestModel(
+            chain: query.chain,
+            network: query.network,
             seedPhrase: seedPhrase,
-            coin: walletCoreCoin(for: query.chain),
             derivationPath: query.derivationPath,
-            passphrase: query.passphrase
+            curve: query.curve,
+            passphrase: query.passphrase,
+            iterationCount: query.iterationCount,
+            hmacKeyString: query.hmacKeyString,
+            requestedOutputs: query.requestedOutputs
         )
-
-        let signingMaterial: WalletCoreDerivationMaterial
-        if query.curve == expectedCurve {
-            signingMaterial = chainMaterial
-        } else {
-            signingMaterial = try SeedPhraseSigningMaterial.material(
-                seedPhrase: seedPhrase,
-                coin: representativeCoin(for: query.curve),
-                derivationPath: query.derivationPath,
-                passphrase: query.passphrase
-            )
-        }
-
-        let address: String?
-        if query.requestedOutputs.contains(.address) {
-            guard query.curve == expectedCurve else {
-                throw WalletDerivationEngineError.unsupportedAddressCurve(
-                    chain: query.chain,
-                    expected: expectedCurve,
-                    provided: query.curve
-                )
-            }
-            address = try deriveAddress(
-                chain: query.chain,
-                network: query.network,
-                derivationPath: query.derivationPath,
-                material: chainMaterial
-            )
-        } else {
-            address = nil
-        }
-
-        let publicKeyHex: String? = if query.requestedOutputs.contains(.publicKey) {
-            hexString(
-                try derivePublicKeyData(
-                    curve: query.curve,
-                    privateKeyData: signingMaterial.privateKeyData
-                )
-            )
-        } else {
-            nil
-        }
-
-        let privateKeyHex: String? = if query.requestedOutputs.contains(.privateKey) {
-            hexString(signingMaterial.privateKeyData)
-        } else {
-            nil
-        }
-
+        let response = try WalletRustDerivationBridge.derive(request)
         return WalletDerivationResult(
-            address: address,
-            publicKeyHex: publicKeyHex,
-            privateKeyHex: privateKeyHex
+            address: response.address,
+            publicKeyHex: response.publicKeyHex,
+            privateKeyHex: response.privateKeyHex
         )
     }
 
@@ -248,207 +207,6 @@ enum WalletDerivationEngine {
              .polkadot:
             return .ed25519
         }
-    }
-
-    private static func validate(
-        network: WalletDerivationNetwork,
-        for chain: SeedDerivationChain
-    ) throws {
-        switch chain {
-        case .bitcoin:
-            return
-        case .dogecoin:
-            guard network == .mainnet || network == .testnet else {
-                throw WalletDerivationEngineError.unsupportedNetwork(chain: chain, network: network)
-            }
-        case .bitcoinCash,
-             .bitcoinSV,
-             .litecoin,
-             .ethereum,
-             .ethereumClassic,
-             .arbitrum,
-             .optimism,
-             .avalanche,
-             .hyperliquid,
-             .tron,
-             .solana,
-             .stellar,
-             .xrp,
-             .cardano,
-             .sui,
-             .aptos,
-             .ton,
-             .internetComputer,
-             .near,
-             .polkadot:
-            guard network == .mainnet else {
-                throw WalletDerivationEngineError.unsupportedNetwork(chain: chain, network: network)
-            }
-        }
-    }
-
-    private static func deriveAddress(
-        chain: SeedDerivationChain,
-        network: WalletDerivationNetwork,
-        derivationPath: String?,
-        material: WalletCoreDerivationMaterial
-    ) throws -> String {
-        switch chain {
-        case .bitcoin:
-            return try deriveBitcoinAddress(
-                privateKeyData: material.privateKeyData,
-                derivationPath: derivationPath,
-                network: network
-            )
-        case .dogecoin:
-            return try UTXOAddressCodec.legacyP2PKHAddress(
-                privateKeyData: material.privateKeyData,
-                version: dogecoinP2PKHVersion(for: network)
-            )
-        case .ethereum, .arbitrum, .optimism, .ethereumClassic, .avalanche, .hyperliquid:
-            return material.address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        case .tron:
-            return material.address.trimmingCharacters(in: .whitespacesAndNewlines)
-        case .stellar, .ton, .solana, .bitcoinCash, .bitcoinSV, .litecoin, .xrp, .cardano, .polkadot:
-            return material.address.trimmingCharacters(in: .whitespacesAndNewlines)
-        case .sui, .aptos, .internetComputer, .near:
-            return material.address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        }
-    }
-
-    private static func deriveBitcoinAddress(
-        privateKeyData: Data,
-        derivationPath: String?,
-        network: WalletDerivationNetwork
-    ) throws -> String {
-        let purpose = derivationPath.flatMap { DerivationPathParser.segmentValue(at: 0, in: $0) } ?? 44
-        switch purpose {
-        case 44:
-            return try UTXOAddressCodec.legacyP2PKHAddress(
-                privateKeyData: privateKeyData,
-                version: bitcoinLegacyP2PKHVersion(for: network)
-            )
-        case 49:
-            return try UTXOAddressCodec.nestedSegWitP2SHAddress(
-                privateKeyData: privateKeyData,
-                scriptVersion: bitcoinP2SHVersion(for: network)
-            )
-        case 84:
-            return try UTXOAddressCodec.segWitAddress(
-                privateKeyData: privateKeyData,
-                hrp: bitcoinBech32HRP(for: network),
-                witnessVersion: 0,
-                encoding: .bech32
-            )
-        default:
-            throw WalletDerivationEngineError.unsupportedBitcoinPurpose(derivationPath ?? "m")
-        }
-    }
-
-    private static func derivePublicKeyData(
-        curve: WalletDerivationCurve,
-        privateKeyData: Data
-    ) throws -> Data {
-        guard let privateKey = PrivateKey(data: privateKeyData) else {
-            throw WalletCoreDerivationError.invalidPrivateKey
-        }
-
-        switch curve {
-        case .secp256k1:
-            return privateKey.getPublicKeySecp256k1(compressed: true).data
-        case .ed25519:
-            return privateKey.getPublicKeyEd25519().data
-        }
-    }
-
-    private static func walletCoreCoin(for chain: SeedDerivationChain) -> WalletCoreSupportedCoin {
-        switch chain {
-        case .bitcoin:
-            return .bitcoin
-        case .bitcoinCash:
-            return .bitcoinCash
-        case .bitcoinSV:
-            return .bitcoinSV
-        case .litecoin:
-            return .litecoin
-        case .dogecoin:
-            return .dogecoin
-        case .ethereum, .ethereumClassic, .arbitrum, .optimism, .avalanche, .hyperliquid:
-            return .ethereum
-        case .tron:
-            return .tron
-        case .solana:
-            return .solana
-        case .stellar:
-            return .stellar
-        case .xrp:
-            return .xrp
-        case .cardano:
-            return .cardano
-        case .sui:
-            return .sui
-        case .aptos:
-            return .aptos
-        case .ton:
-            return .ton
-        case .internetComputer:
-            return .internetComputer
-        case .near:
-            return .near
-        case .polkadot:
-            return .polkadot
-        }
-    }
-
-    private static func representativeCoin(for curve: WalletDerivationCurve) -> WalletCoreSupportedCoin {
-        switch curve {
-        case .secp256k1:
-            return .bitcoin
-        case .ed25519:
-            return .solana
-        }
-    }
-
-    private static func bitcoinBech32HRP(for network: WalletDerivationNetwork) -> String {
-        switch network {
-        case .mainnet:
-            return "bc"
-        case .testnet, .testnet4, .signet:
-            return "tb"
-        }
-    }
-
-    private static func bitcoinLegacyP2PKHVersion(for network: WalletDerivationNetwork) -> UInt8 {
-        switch network {
-        case .mainnet:
-            return 0x00
-        case .testnet, .testnet4, .signet:
-            return 0x6f
-        }
-    }
-
-    private static func bitcoinP2SHVersion(for network: WalletDerivationNetwork) -> UInt8 {
-        switch network {
-        case .mainnet:
-            return 0x05
-        case .testnet, .testnet4, .signet:
-            return 0xc4
-        }
-    }
-
-    private static func dogecoinP2PKHVersion(for network: WalletDerivationNetwork) -> UInt8 {
-        switch network {
-        case .mainnet:
-            return 0x1e
-        case .testnet:
-            return 0x71
-        case .testnet4, .signet:
-            return 0x71
-        }
-    }
-
-    fileprivate static func hexString(_ data: Data) -> String {
-        data.map { String(format: "%02x", $0) }.joined()
     }
 
     private static func validateAdvancedOptions(_ query: WalletDerivationQuery) throws {

@@ -78,10 +78,9 @@ Keep the existing Swift derivation surface alive while moving the derivation cor
 
 ## What is intentionally not done yet
 
-- no Swift call site is switched to Rust
-- no Xcode linking is configured yet
+- Xcode Rust linking setup is still pending
 - no non-Bitcoin chain derivation logic is implemented in Rust yet
-- no Swift derivation file is deleted yet
+- Swift WalletCore-backed derivation path has been removed from `WalletDerivationEngine`
 
 ## Next concrete steps
 

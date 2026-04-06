@@ -1,15 +1,18 @@
 import Foundation
 
 enum WalletRustDerivationBridgeError: LocalizedError {
-    case rustCoreNotLinked
-    case rustCoreBitcoinOnly
+    case rustCoreUnsupportedChain(String)
+    case rustCoreReturnedNullResponse
+    case rustCoreFailed(String)
 
     var errorDescription: String? {
         switch self {
-        case .rustCoreNotLinked:
-            return "The Rust derivation core is not linked yet."
-        case .rustCoreBitcoinOnly:
-            return "The Rust derivation core currently supports only Bitcoin."
+        case .rustCoreUnsupportedChain(let chain):
+            return "The Rust derivation core does not support \(chain) yet."
+        case .rustCoreReturnedNullResponse:
+            return "The Rust derivation core returned an empty response."
+        case .rustCoreFailed(let message):
+            return message
         }
     }
 }
@@ -87,6 +90,44 @@ struct WalletRustDerivationRequestModel {
     let iterationCount: UInt32
 }
 
+struct WalletRustFFIBuffer {
+    var ptr: UnsafeMutablePointer<UInt8>?
+    var len: Int
+
+    static let empty = WalletRustFFIBuffer(ptr: nil, len: 0)
+}
+
+struct WalletRustFFIRequest {
+    var chain: UInt32
+    var network: UInt32
+    var curve: UInt32
+    var requestedOutputs: UInt32
+    var derivationAlgorithm: UInt32
+    var addressAlgorithm: UInt32
+    var publicKeyFormat: UInt32
+    var scriptType: UInt32
+    var seedPhraseUTF8: WalletRustFFIBuffer
+    var derivationPathUTF8: WalletRustFFIBuffer
+    var passphraseUTF8: WalletRustFFIBuffer
+    var hmacKeyUTF8: WalletRustFFIBuffer
+    var mnemonicWordlistUTF8: WalletRustFFIBuffer
+    var iterationCount: UInt32
+}
+
+struct WalletRustFFIResponse {
+    var statusCode: Int32
+    var addressUTF8: WalletRustFFIBuffer
+    var publicKeyHexUTF8: WalletRustFFIBuffer
+    var privateKeyHexUTF8: WalletRustFFIBuffer
+    var errorMessageUTF8: WalletRustFFIBuffer
+}
+
+struct WalletRustDerivationResponseModel {
+    let address: String?
+    let publicKeyHex: String?
+    let privateKeyHex: String?
+}
+
 extension WalletRustFFIChain {
     init?(chain: SeedDerivationChain) {
         switch chain {
@@ -144,9 +185,90 @@ extension WalletRustFFIRequestedOutputs {
     }
 }
 
+private extension Array where Element == UInt8 {
+    mutating func zeroize() {
+        guard !isEmpty else { return }
+        withUnsafeMutableBytes { mutableBytes in
+            mutableBytes.initializeMemory(as: UInt8.self, repeating: 0)
+        }
+    }
+}
+
+extension WalletRustDerivationRequestModel {
+    func withFFIRequest<T>(_ body: (inout WalletRustFFIRequest) throws -> T) rethrows -> T {
+        var seedPhraseStorage = Array(seedPhrase.utf8)
+        var derivationPathStorage = Array((derivationPath ?? "").utf8)
+        var passphraseStorage = Array((passphrase ?? "").utf8)
+        var hmacKeyStorage = Array((hmacKey ?? "").utf8)
+        var mnemonicWordlistStorage = Array((mnemonicWordlist ?? "").utf8)
+
+        defer {
+            seedPhraseStorage.zeroize()
+            derivationPathStorage.zeroize()
+            passphraseStorage.zeroize()
+            hmacKeyStorage.zeroize()
+            mnemonicWordlistStorage.zeroize()
+        }
+
+        var request = WalletRustFFIRequest(
+            chain: chain.rawValue,
+            network: network.rawValue,
+            curve: curve.rawValue,
+            requestedOutputs: requestedOutputs.rawValue,
+            derivationAlgorithm: derivationAlgorithm.rawValue,
+            addressAlgorithm: addressAlgorithm.rawValue,
+            publicKeyFormat: publicKeyFormat.rawValue,
+            scriptType: scriptType.rawValue,
+            seedPhraseUTF8: seedPhraseStorage.withUnsafeMutableBytes { bytes in
+                WalletRustFFIBuffer(
+                    ptr: bytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                    len: bytes.count
+                )
+            },
+            derivationPathUTF8: derivationPathStorage.withUnsafeMutableBytes { bytes in
+                WalletRustFFIBuffer(
+                    ptr: bytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                    len: bytes.count
+                )
+            },
+            passphraseUTF8: passphraseStorage.withUnsafeMutableBytes { bytes in
+                WalletRustFFIBuffer(
+                    ptr: bytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                    len: bytes.count
+                )
+            },
+            hmacKeyUTF8: hmacKeyStorage.withUnsafeMutableBytes { bytes in
+                WalletRustFFIBuffer(
+                    ptr: bytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                    len: bytes.count
+                )
+            },
+            mnemonicWordlistUTF8: mnemonicWordlistStorage.withUnsafeMutableBytes { bytes in
+                WalletRustFFIBuffer(
+                    ptr: bytes.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                    len: bytes.count
+                )
+            },
+            iterationCount: iterationCount
+        )
+
+        return try body(&request)
+    }
+}
+
+@_silgen_name("spectra_derivation_derive")
+private func spectra_derivation_derive(
+    _ request: UnsafePointer<WalletRustFFIRequest>?
+) -> UnsafeMutablePointer<WalletRustFFIResponse>?
+
+@_silgen_name("spectra_derivation_response_free")
+private func spectra_derivation_response_free(
+    _ response: UnsafeMutablePointer<WalletRustFFIResponse>?
+)
+
 enum WalletRustDerivationBridge {
     static var isAvailable: Bool {
-        false
+        true
     }
 
     static func makeRequestModel(
@@ -161,7 +283,7 @@ enum WalletRustDerivationBridge {
         requestedOutputs: WalletDerivationRequestedOutputs
     ) throws -> WalletRustDerivationRequestModel {
         guard let ffiChain = WalletRustFFIChain(chain: chain) else {
-            throw WalletRustDerivationBridgeError.rustCoreBitcoinOnly
+            throw WalletRustDerivationBridgeError.rustCoreUnsupportedChain(chain.rawValue)
         }
 
         return WalletRustDerivationRequestModel(
@@ -182,8 +304,34 @@ enum WalletRustDerivationBridge {
         )
     }
 
-    static func derivePlaceholder() throws -> Never {
-        throw WalletRustDerivationBridgeError.rustCoreNotLinked
+    static func derive(_ requestModel: WalletRustDerivationRequestModel) throws -> WalletRustDerivationResponseModel {
+        return try requestModel.withFFIRequest { request in
+            guard let responsePointer = withUnsafePointer(to: request, { spectra_derivation_derive($0) }) else {
+                throw WalletRustDerivationBridgeError.rustCoreReturnedNullResponse
+            }
+
+            defer {
+                spectra_derivation_response_free(responsePointer)
+            }
+
+            let response = responsePointer.pointee
+            if response.statusCode != 0 {
+                let errorMessage = string(from: response.errorMessageUTF8) ?? "Rust derivation failed."
+                throw WalletRustDerivationBridgeError.rustCoreFailed(errorMessage)
+            }
+
+            return WalletRustDerivationResponseModel(
+                address: string(from: response.addressUTF8),
+                publicKeyHex: string(from: response.publicKeyHexUTF8),
+                privateKeyHex: string(from: response.privateKeyHexUTF8)
+            )
+        }
+    }
+
+    private static func string(from buffer: WalletRustFFIBuffer) -> String? {
+        guard let ptr = buffer.ptr, buffer.len > 0 else { return nil }
+        let bytes = UnsafeBufferPointer(start: UnsafePointer(ptr), count: buffer.len)
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     private static func defaultDerivationAlgorithm(
