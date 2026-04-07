@@ -50,6 +50,19 @@ private struct WalletDerivationQuery {
         self.hmacKeyString = hmacKeyString
         self.requestedOutputs = requestedOutputs
     }
+
+    init(request: WalletDerivationRequest) {
+        self.init(
+            chain: request.chain,
+            network: request.network,
+            derivationPath: request.derivationPath,
+            curve: request.curve,
+            passphrase: request.passphrase,
+            iterationCount: request.iterationCount,
+            hmacKeyString: request.hmacKeyString,
+            requestedOutputs: request.requestedOutputs
+        )
+    }
 }
 
 struct WalletDerivationResult {
@@ -151,16 +164,7 @@ enum WalletDerivationEngineError: LocalizedError {
 
 enum WalletDerivationEngine {
     static func derive(seedPhrase: String, request: WalletDerivationRequest) throws -> WalletDerivationResult {
-        let query = WalletDerivationQuery(
-            chain: request.chain,
-            network: request.network,
-            derivationPath: request.derivationPath,
-            curve: request.curve,
-            passphrase: request.passphrase,
-            iterationCount: request.iterationCount,
-            hmacKeyString: request.hmacKeyString,
-            requestedOutputs: request.requestedOutputs
-        )
+        let query = WalletDerivationQuery(request: request)
         return try derive(seedPhrase: seedPhrase, query: query)
     }
 

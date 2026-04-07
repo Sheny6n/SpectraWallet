@@ -92,13 +92,9 @@ enum WalletDerivationPresetCatalog {
 
     static func defaultPath(
         for chain: SeedDerivationChain,
-        network: WalletDerivationNetwork = .mainnet
+        network _: WalletDerivationNetwork = .mainnet
     ) -> String {
-        let preset = chainPreset(for: chain)
-        if preset.networks.contains(where: { $0.network == network }) {
-            return preset.defaultPath.derivationPath
-        }
-        return preset.defaultPath.derivationPath
+        return chainPreset(for: chain).defaultPath.derivationPath
     }
 
     static func mainnetUIPresets(for chain: SeedDerivationChain) -> [SeedDerivationPathPreset] {

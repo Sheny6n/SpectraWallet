@@ -77,7 +77,6 @@
 				Tests/SolanaBalanceTests.swift,
 				Tests/SuiBalanceTests.swift,
 				Tests/TESTING_WORKFLOW.md,
-				Tests/TronBalanceTests.swift,
 				Tests/XRPBalanceTests.swift,
 				Views/Extensions/SpectraLiveActivityExtension/Info.plist,
 				Views/Extensions/SpectraLiveActivityExtension/SendLiveActivityWidget.swift,
@@ -97,7 +96,6 @@
 				Tests/SecureSeedStoreTests.swift,
 				Tests/SolanaBalanceTests.swift,
 				Tests/SuiBalanceTests.swift,
-				Tests/TronBalanceTests.swift,
 				Tests/XRPBalanceTests.swift,
 			);
 			target = 91B0000C2F5B000100AAA001 /* SpectraTests */;

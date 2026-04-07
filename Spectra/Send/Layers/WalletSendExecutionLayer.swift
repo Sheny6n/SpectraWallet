@@ -1302,7 +1302,7 @@ extension WalletSendLayer {
                 store.sendError = "An \(holding.chainName) send is already in progress for this wallet."
                 return
             }
-            if let customEthereumNonceValidationError = store.customEthereumNonceValidationError {
+            if store.customEthereumNonceValidationError != nil {
                 store.sendError = store.customEthereumNonceValidationError
                 return
             }
@@ -1352,7 +1352,7 @@ extension WalletSendLayer {
             }
 
             do {
-                if let customEthereumFeeValidationError = store.customEthereumFeeValidationError {
+                if store.customEthereumFeeValidationError != nil {
                     store.sendError = store.customEthereumFeeValidationError
                     return
                 }

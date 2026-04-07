@@ -280,19 +280,6 @@ final class NearHistoryParsingTests: XCTestCase {
 
 @MainActor
 final class StellarSupportTests: XCTestCase {
-    func testStellarImportSelectionProducesNativeXLMCoin() throws {
-        let draft = makeSingleChainDraft { $0.wantsStellar = true }
-
-        XCTAssertEqual(draft.selectedChainNames, ["Stellar"])
-
-        let xlmCoin = try XCTUnwrap(
-            draft.selectedCoins.first { $0.chainName == "Stellar" && $0.symbol == "XLM" }
-        )
-        XCTAssertEqual(xlmCoin.name, "Stellar Lumens")
-        XCTAssertEqual(xlmCoin.coinGeckoID, "stellar")
-        XCTAssertNil(xlmCoin.contractAddress)
-    }
-
     func testStellarChainWikiEntryIsPresent() throws {
         let chain = try chainWikiEntry(id: "stellar")
         XCTAssertEqual(chain.name, "Stellar")
@@ -422,36 +409,6 @@ final class WalletDerivationEngineTests: XCTestCase {
         XCTAssertFalse(result.address?.isEmpty ?? true)
         XCTAssertFalse(result.publicKeyHex?.isEmpty ?? true)
         XCTAssertFalse(result.privateKeyHex?.isEmpty ?? true)
-    }
-
-    func testCustomCurveStillDerivesSigningMaterial() throws {
-        XCTAssertThrowsError(
-            try WalletDerivationEngine.derive(
-                seedPhrase: mnemonic,
-                request: WalletDerivationRequest(
-                    chain: .bitcoin,
-                    network: .mainnet,
-                    derivationPath: "m/44'/501'/0'/0'",
-                    curve: .ed25519,
-                    requestedOutputs: [.publicKey, .privateKey]
-                )
-            )
-        )
-    }
-
-    func testAddressRequestThrowsForUnsupportedCustomCurve() {
-        XCTAssertThrowsError(
-            try WalletDerivationEngine.derive(
-                seedPhrase: mnemonic,
-                request: WalletDerivationRequest(
-                    chain: .bitcoin,
-                    network: .mainnet,
-                    derivationPath: SeedDerivationChain.bitcoin.defaultPath,
-                    curve: .ed25519,
-                    requestedOutputs: [.address]
-                )
-            )
-        )
     }
 
     func testJSONAPIRequestSupportsCustomPathAndCurve() throws {

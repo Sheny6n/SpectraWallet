@@ -412,24 +412,10 @@ enum WalletRustDerivationBridge {
 
     static func derive(_ requestModel: WalletRustDerivationRequestModel) throws -> WalletRustDerivationResponseModel {
         return try requestModel.withFFIRequest { request in
-            guard let responsePointer = withUnsafePointer(to: request, { spectra_derivation_derive($0) }) else {
-                throw WalletRustDerivationBridgeError.rustCoreReturnedNullResponse
-            }
-
-            defer {
-                spectra_derivation_response_free(responsePointer)
-            }
-
-            let response = responsePointer.pointee
-            if response.statusCode != 0 {
-                let errorMessage = string(from: response.errorMessageUTF8) ?? "Rust derivation failed."
-                throw WalletRustDerivationBridgeError.rustCoreFailed(errorMessage)
-            }
-
-            return WalletRustDerivationResponseModel(
-                address: string(from: response.addressUTF8),
-                publicKeyHex: string(from: response.publicKeyHexUTF8),
-                privateKeyHex: string(from: response.privateKeyHexUTF8)
+            try withRustResponse(
+                request: &request,
+                invoke: spectra_derivation_derive,
+                fallbackErrorMessage: "Rust derivation failed."
             )
         }
     }
@@ -454,26 +440,37 @@ enum WalletRustDerivationBridge {
         )
 
         return try requestModel.withFFIRequest { request in
-            guard let responsePointer = withUnsafePointer(to: request, { spectra_derivation_derive_from_private_key($0) }) else {
-                throw WalletRustDerivationBridgeError.rustCoreReturnedNullResponse
-            }
-
-            defer {
-                spectra_derivation_response_free(responsePointer)
-            }
-
-            let response = responsePointer.pointee
-            if response.statusCode != 0 {
-                let errorMessage = string(from: response.errorMessageUTF8) ?? "Rust private-key derivation failed."
-                throw WalletRustDerivationBridgeError.rustCoreFailed(errorMessage)
-            }
-
-            return WalletRustDerivationResponseModel(
-                address: string(from: response.addressUTF8),
-                publicKeyHex: string(from: response.publicKeyHexUTF8),
-                privateKeyHex: string(from: response.privateKeyHexUTF8)
+            try withRustResponse(
+                request: &request,
+                invoke: spectra_derivation_derive_from_private_key,
+                fallbackErrorMessage: "Rust private-key derivation failed."
             )
         }
+    }
+
+    private static func withRustResponse<Request>(
+        request: inout Request,
+        invoke: (UnsafePointer<Request>?) -> UnsafeMutablePointer<WalletRustFFIResponse>?,
+        fallbackErrorMessage: String
+    ) throws -> WalletRustDerivationResponseModel {
+        guard let responsePointer = withUnsafePointer(to: request, { invoke($0) }) else {
+            throw WalletRustDerivationBridgeError.rustCoreReturnedNullResponse
+        }
+        defer {
+            spectra_derivation_response_free(responsePointer)
+        }
+
+        let response = responsePointer.pointee
+        if response.statusCode != 0 {
+            let errorMessage = string(from: response.errorMessageUTF8) ?? fallbackErrorMessage
+            throw WalletRustDerivationBridgeError.rustCoreFailed(errorMessage)
+        }
+
+        return WalletRustDerivationResponseModel(
+            address: string(from: response.addressUTF8),
+            publicKeyHex: string(from: response.publicKeyHexUTF8),
+            privateKeyHex: string(from: response.privateKeyHexUTF8)
+        )
     }
 
     private static func string(from buffer: WalletRustFFIBuffer) -> String? {

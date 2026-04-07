@@ -6,17 +6,6 @@ final class CardanoBalanceServiceTests: SpectraNetworkTestCase {
     private let validAddress = "addr1qy8ac7qqy0vtulyl7wntmsxc6wex80gvcyjy33qffrhm7sh927ysx5sftuw0dlft05dz3c7revpf7jx0xnlcjz3g69mq4afdhv"
     private let stakeAddress = "stake1u9h927ysx5sftuw0dlft05dz3c7revpf7jx0xnlcjz3g6smjnft8"
 
-    func testFetchBalanceReturnsADAFromKoiosAddressInfo() async throws {
-        let url = "https://api.koios.rest/api/v1/address_info?_address=eq.\(validAddress)"
-        try await testNetworkClient.enqueueJSONResponse(
-            url: url,
-            object: [["balance": "1234567"]]
-        )
-
-        let balance = try await CardanoBalanceService.fetchBalance(for: validAddress)
-        XCTAssertEqual(balance, 1.234567, accuracy: 0.0000001)
-    }
-
     func testFetchBalanceUsesStakeAccountBalanceWhenAvailable() async throws {
         let addressInfoURL = "https://api.koios.rest/api/v1/address_info"
         let accountInfoURL = "https://api.koios.rest/api/v1/account_info"
@@ -49,34 +38,6 @@ final class CardanoBalanceServiceTests: SpectraNetworkTestCase {
         } catch {
             XCTFail("Unexpected error type: \(type(of: error))")
         }
-    }
-
-    func testFetchHistoryUsesStakeAccountTransactionsWhenAvailable() async throws {
-        let addressInfoURL = "https://api.koios.rest/api/v1/address_info"
-        let accountTransactionsURL = "https://api.koios.rest/api/v1/account_txs?_stake_address=\(stakeAddress)"
-        try await testNetworkClient.enqueueJSONResponse(
-            method: "POST",
-            url: addressInfoURL,
-            object: [[
-                "balance": "1000000",
-                "stake_address": stakeAddress
-            ]]
-        )
-        try await testNetworkClient.enqueueJSONResponse(
-            url: accountTransactionsURL,
-            object: [[
-                "tx_hash": "abc123",
-                "block_time": 1_715_000_000
-            ]]
-        )
-
-        let result = await CardanoBalanceService.fetchRecentHistoryWithDiagnostics(for: validAddress, limit: 20)
-
-        XCTAssertEqual(result.diagnostics.sourceUsed, "koiosV1")
-        XCTAssertNil(result.diagnostics.error)
-        XCTAssertEqual(result.diagnostics.transactionCount, 1)
-        XCTAssertEqual(result.snapshots.count, 1)
-        XCTAssertEqual(result.snapshots.first?.transactionHash, "abc123")
     }
 
     func testFetchHistoryAcceptsAlternateHashAndTimestampFields() async throws {

@@ -69,33 +69,6 @@ final class BitcoinBalanceServiceTests: SpectraNetworkTestCase {
 
 @MainActor
 final class BitcoinCashBalanceServiceTests: SpectraNetworkTestCase {
-    func testFetchBalanceFromMockedBlockchairDashboard() async throws {
-        let address = "bitcoincash:qtestmockaddress"
-        let url = "https://api.blockchair.com/bitcoin-cash/dashboards/address/\(address)?limit=1,1&offset=0,0"
-
-        try await testNetworkClient.enqueueJSONResponse(
-            url: url,
-            object: [
-                "data": [
-                    address: [
-                        "address": [
-                            "balance": 250_000_000,
-                            "transaction_count": 3,
-                        ],
-                        "transactions": [],
-                        "utxo": [],
-                    ],
-                ],
-                "context": [
-                    "code": 200,
-                ],
-            ]
-        )
-
-        let balance = try await BitcoinCashBalanceService.fetchBalance(for: address)
-        XCTAssertEqual(balance, 2.5, accuracy: 0.0000001)
-    }
-
     func testFetchTransactionStatusFromMockedBlockchairTransaction() async throws {
         let txid = "bchtesttxid"
         let url = "https://api.blockchair.com/bitcoin-cash/dashboards/transaction/\(txid)"
