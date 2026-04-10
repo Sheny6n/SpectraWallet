@@ -3,11 +3,17 @@ import SwiftUI
 
 enum AppLocalization {
     private final class BundleMarker {}
+
     private struct LocalizationState {
         let signature: String
         let identifiers: [String]
         let locale: Locale
         let bundles: [Bundle]
+    }
+
+    private struct RuntimeStringCatalog: Decodable {
+        let sourceLanguage: String
+        let locales: [String: [String: String]]
     }
 
     private static let candidateBundles: [Bundle] = {
@@ -19,8 +25,11 @@ enum AppLocalization {
             return seen.insert(bundleURL).inserted
         }
     }()
+
     private static var localizedStringCache: [String: String] = [:]
     private static var cachedState: LocalizationState?
+    private static var runtimeCatalog: RuntimeStringCatalog?
+    private static var runtimeCatalogLoadAttempted = false
 
     static var locale: Locale {
         localizationState().locale
@@ -32,6 +41,11 @@ enum AppLocalization {
         let cacheKey = "\(signature)|\(table ?? "<default>")|\(key)"
         if let cachedValue = localizedStringCache[cacheKey] {
             return cachedValue
+        }
+
+        if let runtimeValue = runtimeString(for: key, localizationIdentifiers: state.identifiers) {
+            localizedStringCache[cacheKey] = runtimeValue
+            return runtimeValue
         }
 
         for bundle in state.bundles {
@@ -67,7 +81,7 @@ enum AppLocalization {
         guard !supported.isEmpty else {
             let state = LocalizationState(
                 signature: signature,
-                identifiers: ["Base"],
+                identifiers: ["en"],
                 locale: Locale(identifier: "en"),
                 bundles: [Bundle.main]
             )
@@ -75,7 +89,7 @@ enum AppLocalization {
             return state
         }
 
-        let development = Bundle.main.developmentLocalization ?? "en"
+        let development = loadRuntimeCatalog()?.sourceLanguage ?? Bundle.main.developmentLocalization ?? "en"
         let preferred = preferredLanguageCandidates()
         let resolved = preferred.compactMap { preferredLocalization(for: $0, supported: supported) }
 
@@ -91,6 +105,7 @@ enum AppLocalization {
         if seen.insert("Base").inserted {
             ordered.append("Base")
         }
+
         let bundles = ordered.compactMap { identifier in
             guard identifier != "Base" else { return Bundle.main }
             guard let path = Bundle.main.path(forResource: identifier, ofType: "lproj"),
@@ -99,6 +114,7 @@ enum AppLocalization {
             }
             return bundle
         } + [Bundle.main]
+
         let state = LocalizationState(
             signature: signature,
             identifiers: ordered,
@@ -110,27 +126,30 @@ enum AppLocalization {
     }
 
     private static func preferenceSignature() -> String {
-        let bundlePreferred = Bundle.main.preferredLocalizations
-        return bundlePreferred.joined(separator: "|")
+        (Locale.preferredLanguages + Bundle.main.preferredLocalizations).joined(separator: "|")
     }
 
     private static func supportedLocalizationIdentifiers() -> [String] {
-        let supported = Bundle.main.localizations.filter { $0 != "Base" }
-        return supported.isEmpty ? ["en"] : supported
+        var supported = Set(Bundle.main.localizations.filter { $0 != "Base" })
+        if let catalog = loadRuntimeCatalog() {
+            supported.formUnion(catalog.locales.keys)
+            supported.insert(catalog.sourceLanguage)
+        }
+        return supported.isEmpty ? ["en"] : supported.sorted()
     }
 
     private static func preferredLanguageCandidates() -> [String] {
         var candidates: [String] = []
         var seen = Set<String>()
 
-        for identifier in Bundle.main.preferredLocalizations {
+        for identifier in Locale.preferredLanguages + Bundle.main.preferredLocalizations {
             for fallback in localizationFallbacks(for: identifier) where seen.insert(fallback).inserted {
                 candidates.append(fallback)
             }
         }
 
         if candidates.isEmpty {
-            let fallbackIdentifiers = [Bundle.main.developmentLocalization ?? "en"]
+            let fallbackIdentifiers = [loadRuntimeCatalog()?.sourceLanguage ?? Bundle.main.developmentLocalization ?? "en"]
             for identifier in fallbackIdentifiers {
                 for fallback in localizationFallbacks(for: identifier) where seen.insert(fallback).inserted {
                     candidates.append(fallback)
@@ -172,5 +191,55 @@ enum AppLocalization {
             fallbacks.append(components.prefix(index).joined(separator: "-"))
         }
         return fallbacks
+    }
+
+    private static func runtimeString(for key: String, localizationIdentifiers: [String]) -> String? {
+        guard let catalog = loadRuntimeCatalog() else {
+            return nil
+        }
+
+        for identifier in localizationIdentifiers {
+            for fallback in localizationFallbacks(for: identifier) {
+                if let value = catalog.locales[fallback]?[key] {
+                    return value
+                }
+            }
+        }
+
+        return catalog.locales[catalog.sourceLanguage]?[key]
+    }
+
+    private static func loadRuntimeCatalog() -> RuntimeStringCatalog? {
+        if runtimeCatalogLoadAttempted {
+            return runtimeCatalog
+        }
+
+        runtimeCatalogLoadAttempted = true
+        let decoder = JSONDecoder()
+
+        for bundle in candidateBundles {
+            guard let resourceURL = bundle.resourceURL else { continue }
+            let candidateURLs = [
+                resourceURL
+                    .appendingPathComponent("Resources", isDirectory: true)
+                    .appendingPathComponent("Localization", isDirectory: true)
+                    .appendingPathComponent("RuntimeStrings.json", isDirectory: false),
+                resourceURL
+                    .appendingPathComponent("Localization", isDirectory: true)
+                    .appendingPathComponent("RuntimeStrings.json", isDirectory: false),
+                resourceURL.appendingPathComponent("RuntimeStrings.json", isDirectory: false),
+            ]
+
+            for url in candidateURLs {
+                guard let data = try? Data(contentsOf: url),
+                      let catalog = try? decoder.decode(RuntimeStringCatalog.self, from: data) else {
+                    continue
+                }
+                runtimeCatalog = catalog
+                return catalog
+            }
+        }
+
+        return nil
     }
 }

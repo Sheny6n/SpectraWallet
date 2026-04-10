@@ -2,7 +2,7 @@
 
 ## Ownership Rules
 
-- Use `Localizable.xcstrings` for short UI strings:
+- Use `RuntimeStrings.json` for short UI strings:
   - buttons
   - navigation titles
   - alerts
@@ -13,6 +13,20 @@
   - explanatory paragraphs
   - feature configuration copy
   - grouped format strings owned by one feature
+
+## Platform Strategy
+
+- `RuntimeStrings.json` is the platform-neutral source of truth and should be shared across Swift, Android, web, and future clients.
+- `Localizable.xcstrings` is now a generated Apple compatibility artifact for remaining legacy call sites.
+- Prefer `AppLocalization.string(...)` for Swift short-string lookups instead of direct Apple catalog APIs.
+
+## Sync Workflow
+
+- Bootstrap `RuntimeStrings.json` from the legacy Apple catalog:
+  - `python3 Resources/Localization/Tools/sync_runtime_strings.py --direction xcstrings-to-runtime`
+- Regenerate the Apple compatibility catalog from runtime JSON:
+  - `python3 Resources/Localization/Tools/sync_runtime_strings.py --direction runtime-to-xcstrings`
+- Delete stale keys from the runtime catalog instead of leaving removed strings behind.
 
 ## String Authoring Rules
 
