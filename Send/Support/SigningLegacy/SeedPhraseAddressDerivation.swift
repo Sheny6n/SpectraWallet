@@ -139,7 +139,7 @@ enum SeedPhraseAddressDerivation {
 
     static func solanaAddress(
         seedPhrase: String,
-        preference: SolanaWalletEngine.DerivationPreference,
+        preference: SolanaDerivationPreference,
         account: UInt32
     ) throws -> String {
         let normalizedMnemonic = SeedPhraseSafety.normalizedPhrase(from: seedPhrase)

@@ -432,7 +432,7 @@ extension WalletStore {
     ) -> [Coin] {
         let trackedTokens = enabledAvalancheTrackedTokens()
         let tokenBalanceLookup = Dictionary(
-            uniqueKeysWithValues: tokenBalances.map { (EthereumWalletEngine.normalizeAddress($0.contractAddress), $0) }
+            uniqueKeysWithValues: tokenBalances.map { (normalizeEVMAddress($0.contractAddress), $0) }
         )
         var updatedHoldings = holdings.filter { $0.chainName != "Avalanche" || $0.symbol == "AVAX" }
         if let avaxIndex = updatedHoldings.firstIndex(where: { $0.symbol == "AVAX" && $0.chainName == "Avalanche" }) {
@@ -455,7 +455,7 @@ extension WalletStore {
         }
 
         for token in trackedTokens {
-            let normalizedContract = EthereumWalletEngine.normalizeAddress(token.contractAddress)
+            let normalizedContract = normalizeEVMAddress(token.contractAddress)
             let amount = tokenBalanceLookup[normalizedContract].map { NSDecimalNumber(decimal: $0.balance).doubleValue } ?? 0
             guard amount > 0 else { continue }
             updatedHoldings.append(
@@ -484,7 +484,7 @@ extension WalletStore {
     ) -> [Coin] {
         let trackedTokens = enabledArbitrumTrackedTokens()
         let tokenBalanceLookup = Dictionary(
-            uniqueKeysWithValues: tokenBalances.map { (EthereumWalletEngine.normalizeAddress($0.contractAddress), $0) }
+            uniqueKeysWithValues: tokenBalances.map { (normalizeEVMAddress($0.contractAddress), $0) }
         )
         var updatedHoldings = holdings.filter { $0.chainName != "Arbitrum" || $0.symbol == "ETH" }
         if let ethIndex = updatedHoldings.firstIndex(where: { $0.symbol == "ETH" && $0.chainName == "Arbitrum" }) {
@@ -507,7 +507,7 @@ extension WalletStore {
         }
 
         for token in trackedTokens {
-            let normalizedContract = EthereumWalletEngine.normalizeAddress(token.contractAddress)
+            let normalizedContract = normalizeEVMAddress(token.contractAddress)
             let amount = tokenBalanceLookup[normalizedContract].map { NSDecimalNumber(decimal: $0.balance).doubleValue } ?? 0
             guard amount > 0 else { continue }
             updatedHoldings.append(
@@ -536,7 +536,7 @@ extension WalletStore {
     ) -> [Coin] {
         let trackedTokens = enabledOptimismTrackedTokens()
         let tokenBalanceLookup = Dictionary(
-            uniqueKeysWithValues: tokenBalances.map { (EthereumWalletEngine.normalizeAddress($0.contractAddress), $0) }
+            uniqueKeysWithValues: tokenBalances.map { (normalizeEVMAddress($0.contractAddress), $0) }
         )
         var updatedHoldings = holdings.filter { $0.chainName != "Optimism" || $0.symbol == "ETH" }
         if let ethIndex = updatedHoldings.firstIndex(where: { $0.symbol == "ETH" && $0.chainName == "Optimism" }) {
@@ -559,7 +559,7 @@ extension WalletStore {
         }
 
         for token in trackedTokens {
-            let normalizedContract = EthereumWalletEngine.normalizeAddress(token.contractAddress)
+            let normalizedContract = normalizeEVMAddress(token.contractAddress)
             let amount = tokenBalanceLookup[normalizedContract].map { NSDecimalNumber(decimal: $0.balance).doubleValue } ?? 0
             guard amount > 0 else { continue }
             updatedHoldings.append(
@@ -588,7 +588,7 @@ extension WalletStore {
     ) -> [Coin] {
         let trackedTokens = enabledHyperliquidTrackedTokens()
         let tokenBalanceLookup = Dictionary(
-            uniqueKeysWithValues: tokenBalances.map { (EthereumWalletEngine.normalizeAddress($0.contractAddress), $0) }
+            uniqueKeysWithValues: tokenBalances.map { (normalizeEVMAddress($0.contractAddress), $0) }
         )
         var updatedHoldings = holdings.filter { $0.chainName != "Hyperliquid" || $0.symbol == "HYPE" }
         if let hypeIndex = updatedHoldings.firstIndex(where: { $0.symbol == "HYPE" && $0.chainName == "Hyperliquid" }) {
@@ -611,7 +611,7 @@ extension WalletStore {
         }
 
         for token in trackedTokens {
-            let normalizedContract = EthereumWalletEngine.normalizeAddress(token.contractAddress)
+            let normalizedContract = normalizeEVMAddress(token.contractAddress)
             let amount = tokenBalanceLookup[normalizedContract].map { NSDecimalNumber(decimal: $0.balance).doubleValue } ?? 0
             guard amount > 0 else { continue }
             updatedHoldings.append(
@@ -684,7 +684,7 @@ extension WalletStore {
     ) -> [Coin] {
         let trackedTokens = enabledEthereumTrackedTokens()
         let tokenBalanceLookup = Dictionary(
-            uniqueKeysWithValues: tokenBalances.map { (EthereumWalletEngine.normalizeAddress($0.contractAddress), $0) }
+            uniqueKeysWithValues: tokenBalances.map { (normalizeEVMAddress($0.contractAddress), $0) }
         )
 
         var updatedHoldings = holdings.filter { holding in
@@ -725,7 +725,7 @@ extension WalletStore {
         }
 
         for token in trackedTokens {
-            let contract = EthereumWalletEngine.normalizeAddress(token.contractAddress)
+            let contract = normalizeEVMAddress(token.contractAddress)
             let amount = tokenBalanceLookup[contract].map { NSDecimalNumber(decimal: $0.balance).doubleValue } ?? 0
             guard amount > 0 else { continue }
             updatedHoldings.append(
@@ -755,7 +755,7 @@ extension WalletStore {
     ) -> [Coin] {
         let trackedTokens = enabledBNBTrackedTokens()
         let tokenBalanceLookup = Dictionary(
-            uniqueKeysWithValues: tokenBalances.map { (EthereumWalletEngine.normalizeAddress($0.contractAddress), $0) }
+            uniqueKeysWithValues: tokenBalances.map { (normalizeEVMAddress($0.contractAddress), $0) }
         )
 
         var updatedHoldings = holdings.filter { holding in
@@ -798,7 +798,7 @@ extension WalletStore {
         }
 
         for token in trackedTokens {
-            let normalizedContract = EthereumWalletEngine.normalizeAddress(token.contractAddress)
+            let normalizedContract = normalizeEVMAddress(token.contractAddress)
             let tokenBalance = tokenBalanceLookup[normalizedContract]
             let amount = tokenBalance.map { NSDecimalNumber(decimal: $0.balance).doubleValue } ?? 0
             guard amount > 0 else { continue }
@@ -1427,101 +1427,55 @@ extension WalletStore {
 
     func fetchEthereumPortfolio(for address: String) async throws -> (nativeBalance: Double, tokenBalances: [EthereumTokenBalanceSnapshot]) {
         let ethereumContext = evmChainContext(for: "Ethereum") ?? .ethereum
-        // If a custom endpoint is invalid, fall back to built-in provider rotation instead of hard-failing ETH.
-        let useFallbackEndpoint = ethereumRPCEndpointValidationError != nil
-            && !ethereumRPCEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let rpcEndpoint = useFallbackEndpoint ? nil : configuredEVMRPCEndpointURL(for: "Ethereum")
-        let accountSnapshot = try await EthereumWalletEngine.fetchAccountSnapshot(
-            for: address,
-            rpcEndpoint: rpcEndpoint,
-            chainID: ethereumContext.expectedChainID,
-            chain: ethereumContext
-        )
+        let balanceJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.ethereum, address: address)
+        let nativeBalance = RustBalanceDecoder.evmNativeBalance(from: balanceJSON) ?? 0
         let tokenBalances = ethereumContext.isEthereumMainnet
-            ? ((try? await EthereumWalletEngine.fetchTokenBalances(
-                for: address,
-                trackedTokens: enabledEthereumTrackedTokens(),
-                rpcEndpoint: rpcEndpoint,
-                chain: ethereumContext
+            ? ((try? await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(
+                chainId: SpectraChainID.ethereum,
+                address: address,
+                tokens: enabledEthereumTrackedTokens().map { ($0.contractAddress, $0.symbol, $0.decimals) }
             )) ?? [])
             : []
-        return (
-            EthereumWalletEngine.nativeBalanceETH(from: accountSnapshot),
-            tokenBalances
-        )
+        return (nativeBalance, tokenBalances)
     }
 
     func fetchEVMNativePortfolio(
         for address: String,
         chainName: String
     ) async throws -> (nativeBalance: Double, tokenBalances: [EthereumTokenBalanceSnapshot]) {
-        guard let chain = evmChainContext(for: chainName) else {
+        guard let chain = evmChainContext(for: chainName),
+              let chainId = SpectraChainID.id(for: chainName) else {
             throw EthereumWalletEngineError.invalidResponse
         }
-        let useFallbackEndpoint = chain.isEthereumFamily
-            && ethereumRPCEndpointValidationError != nil
-            && !ethereumRPCEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let rpcEndpoint = useFallbackEndpoint ? nil : configuredEVMRPCEndpointURL(for: chainName)
-        let accountSnapshot = try await EthereumWalletEngine.fetchAccountSnapshot(
-            for: address,
-            rpcEndpoint: rpcEndpoint,
-            chainID: chain.expectedChainID,
-            chain: chain
-        )
+        let balanceJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address)
+        let nativeBalance = RustBalanceDecoder.evmNativeBalance(from: balanceJSON) ?? 0
         let tokenBalances: [EthereumTokenBalanceSnapshot]
+        let trackedForChain: [EthereumSupportedToken]
         if chain.isEthereumMainnet {
-            tokenBalances = try await EthereumWalletEngine.fetchTokenBalances(
-                for: address,
-                trackedTokens: enabledEthereumTrackedTokens(),
-                rpcEndpoint: rpcEndpoint,
-                chain: chain
-            )
+            trackedForChain = enabledEthereumTrackedTokens()
         } else if chain == .arbitrum {
-            tokenBalances = try await EthereumWalletEngine.fetchTokenBalances(
-                for: address,
-                trackedTokens: enabledArbitrumTrackedTokens(),
-                rpcEndpoint: rpcEndpoint,
-                chain: chain
-            )
+            trackedForChain = enabledArbitrumTrackedTokens()
         } else if chain == .optimism {
-            tokenBalances = try await EthereumWalletEngine.fetchTokenBalances(
-                for: address,
-                trackedTokens: enabledOptimismTrackedTokens(),
-                rpcEndpoint: rpcEndpoint,
-                chain: chain
-            )
+            trackedForChain = enabledOptimismTrackedTokens()
         } else if chain == .bnb {
-            tokenBalances = try await EthereumWalletEngine.fetchTokenBalances(
-                for: address,
-                trackedTokens: enabledBNBTrackedTokens(),
-                rpcEndpoint: rpcEndpoint,
-                chain: chain
-            )
+            trackedForChain = enabledBNBTrackedTokens()
         } else if chain == .avalanche {
-            tokenBalances = try await EthereumWalletEngine.fetchTokenBalances(
-                for: address,
-                trackedTokens: enabledAvalancheTrackedTokens(),
-                rpcEndpoint: rpcEndpoint,
-                chain: chain
-            )
+            trackedForChain = enabledAvalancheTrackedTokens()
         } else if chain == .hyperliquid {
-            tokenBalances = try await EthereumWalletEngine.fetchTokenBalances(
-                for: address,
-                trackedTokens: enabledHyperliquidTrackedTokens(),
-                rpcEndpoint: rpcEndpoint,
-                chain: chain
-            )
+            trackedForChain = enabledHyperliquidTrackedTokens()
         } else {
-            tokenBalances = try await EthereumWalletEngine.fetchSupportedTokenBalances(
-                for: address,
-                rpcEndpoint: rpcEndpoint,
-                chain: chain
-            )
+            trackedForChain = EthereumWalletEngine.supportedTokens(for: chain)
         }
-        return (
-            EthereumWalletEngine.nativeBalanceETH(from: accountSnapshot),
-            tokenBalances
-        )
+        if !trackedForChain.isEmpty {
+            tokenBalances = (try? await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(
+                chainId: chainId,
+                address: address,
+                tokens: trackedForChain.map { ($0.contractAddress, $0.symbol, $0.decimals) }
+            )) ?? []
+        } else {
+            tokenBalances = []
+        }
+        return (nativeBalance, tokenBalances)
     }
 
 }

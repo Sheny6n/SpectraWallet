@@ -1174,10 +1174,9 @@ extension WalletStore {
             return
         }
 
-        let rpcEndpoint = configuredEthereumRPCEndpointURL()
         for (wallet, address) in walletsToRefresh {
             ethereumHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                address: EthereumWalletEngine.normalizeAddress(address),
+                address: normalizeEVMAddress(address),
                 rpcTransferCount: 0,
                 rpcError: "Running...",
                 blockscoutTransferCount: 0,
@@ -1191,18 +1190,13 @@ extension WalletStore {
             ethereumHistoryDiagnosticsLastUpdatedAt = Date()
 
             do {
-                let result = try await withTimeout(seconds: 20) {
-                    try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryWithDiagnostics(
-                        for: address,
-                        rpcEndpoint: rpcEndpoint,
-                        etherscanAPIKey: self.normalizedEtherscanAPIKey(),
-                        maxResults: 150
-                    )
-                }
-                ethereumHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
+                ethereumHistoryDiagnosticsByWallet[wallet.id] = try await Self.rustEVMHistoryDiagnostics(
+                    chainName: "Ethereum",
+                    address: address
+                )
             } catch {
                 ethereumHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                    address: EthereumWalletEngine.normalizeAddress(address),
+                    address: normalizeEVMAddress(address),
                     rpcTransferCount: 0,
                     rpcError: error.localizedDescription,
                     blockscoutTransferCount: 0,
@@ -1228,9 +1222,8 @@ extension WalletStore {
         isRunningEthereumHistoryDiagnostics = true
         defer { isRunningEthereumHistoryDiagnostics = false }
 
-        let rpcEndpoint = configuredEthereumRPCEndpointURL()
         ethereumHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-            address: EthereumWalletEngine.normalizeAddress(address),
+            address: normalizeEVMAddress(address),
             rpcTransferCount: 0,
             rpcError: "Running...",
             blockscoutTransferCount: 0,
@@ -1244,18 +1237,13 @@ extension WalletStore {
         ethereumHistoryDiagnosticsLastUpdatedAt = Date()
 
         do {
-            let result = try await withTimeout(seconds: 20) {
-                try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryWithDiagnostics(
-                    for: address,
-                    rpcEndpoint: rpcEndpoint,
-                    etherscanAPIKey: self.normalizedEtherscanAPIKey(),
-                    maxResults: 150
-                )
-            }
-            ethereumHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
+            ethereumHistoryDiagnosticsByWallet[wallet.id] = try await Self.rustEVMHistoryDiagnostics(
+                chainName: "Ethereum",
+                address: address
+            )
         } catch {
             ethereumHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                address: EthereumWalletEngine.normalizeAddress(address),
+                address: normalizeEVMAddress(address),
                 rpcTransferCount: 0,
                 rpcError: error.localizedDescription,
                 blockscoutTransferCount: 0,
@@ -1287,10 +1275,9 @@ extension WalletStore {
             return
         }
 
-        let rpcEndpoint = configuredEVMRPCEndpointURL(for: "Ethereum Classic")
         for (wallet, address) in walletsToRefresh {
             etcHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                address: EthereumWalletEngine.normalizeAddress(address),
+                address: normalizeEVMAddress(address),
                 rpcTransferCount: 0,
                 rpcError: "Running...",
                 blockscoutTransferCount: 0,
@@ -1304,19 +1291,13 @@ extension WalletStore {
             etcHistoryDiagnosticsLastUpdatedAt = Date()
 
             do {
-                let result = try await withTimeout(seconds: 20) {
-                    try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryWithDiagnostics(
-                        for: address,
-                        rpcEndpoint: rpcEndpoint,
-                        etherscanAPIKey: self.normalizedEtherscanAPIKey(),
-                        maxResults: 150,
-                        chain: .ethereumClassic
-                    )
-                }
-                etcHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
+                etcHistoryDiagnosticsByWallet[wallet.id] = try await Self.rustEVMHistoryDiagnostics(
+                    chainName: "Ethereum Classic",
+                    address: address
+                )
             } catch {
                 etcHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                    address: EthereumWalletEngine.normalizeAddress(address),
+                    address: normalizeEVMAddress(address),
                     rpcTransferCount: 0,
                     rpcError: error.localizedDescription,
                     blockscoutTransferCount: 0,
@@ -1350,10 +1331,9 @@ extension WalletStore {
             return
         }
 
-        let rpcEndpoint = configuredEVMRPCEndpointURL(for: "BNB Chain")
         for (wallet, address) in walletsToRefresh {
             bnbHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                address: EthereumWalletEngine.normalizeAddress(address),
+                address: normalizeEVMAddress(address),
                 rpcTransferCount: 0,
                 rpcError: "Running...",
                 blockscoutTransferCount: 0,
@@ -1367,19 +1347,13 @@ extension WalletStore {
             bnbHistoryDiagnosticsLastUpdatedAt = Date()
 
             do {
-                let result = try await withTimeout(seconds: 20) {
-                    try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryWithDiagnostics(
-                        for: address,
-                        rpcEndpoint: rpcEndpoint,
-                        etherscanAPIKey: self.normalizedEtherscanAPIKey(),
-                        maxResults: 150,
-                        chain: .bnb
-                    )
-                }
-                bnbHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
+                bnbHistoryDiagnosticsByWallet[wallet.id] = try await Self.rustEVMHistoryDiagnostics(
+                    chainName: "BNB Chain",
+                    address: address
+                )
             } catch {
                 bnbHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                    address: EthereumWalletEngine.normalizeAddress(address),
+                    address: normalizeEVMAddress(address),
                     rpcTransferCount: 0,
                     rpcError: error.localizedDescription,
                     blockscoutTransferCount: 0,
@@ -1413,10 +1387,9 @@ extension WalletStore {
             return
         }
 
-        let rpcEndpoint = configuredEVMRPCEndpointURL(for: "Arbitrum")
         for (wallet, address) in walletsToRefresh {
             arbitrumHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                address: EthereumWalletEngine.normalizeAddress(address),
+                address: normalizeEVMAddress(address),
                 rpcTransferCount: 0,
                 rpcError: "Running...",
                 blockscoutTransferCount: 0,
@@ -1430,20 +1403,13 @@ extension WalletStore {
             arbitrumHistoryDiagnosticsLastUpdatedAt = Date()
 
             do {
-                let result = try await withTimeout(seconds: 20) {
-                    try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryWithDiagnostics(
-                        for: address,
-                        rpcEndpoint: rpcEndpoint,
-                        etherscanAPIKey: self.normalizedEtherscanAPIKey(),
-                        maxResults: 150,
-                        trackedTokens: self.enabledArbitrumTrackedTokens(),
-                        chain: .arbitrum
-                    )
-                }
-                arbitrumHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
+                arbitrumHistoryDiagnosticsByWallet[wallet.id] = try await Self.rustEVMHistoryDiagnostics(
+                    chainName: "Arbitrum",
+                    address: address
+                )
             } catch {
                 arbitrumHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                    address: EthereumWalletEngine.normalizeAddress(address),
+                    address: normalizeEVMAddress(address),
                     rpcTransferCount: 0,
                     rpcError: error.localizedDescription,
                     blockscoutTransferCount: 0,
@@ -1477,10 +1443,9 @@ extension WalletStore {
             return
         }
 
-        let rpcEndpoint = configuredEVMRPCEndpointURL(for: "Optimism")
         for (wallet, address) in walletsToRefresh {
             optimismHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                address: EthereumWalletEngine.normalizeAddress(address),
+                address: normalizeEVMAddress(address),
                 rpcTransferCount: 0,
                 rpcError: "Running...",
                 blockscoutTransferCount: 0,
@@ -1494,20 +1459,13 @@ extension WalletStore {
             optimismHistoryDiagnosticsLastUpdatedAt = Date()
 
             do {
-                let result = try await withTimeout(seconds: 20) {
-                    try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryWithDiagnostics(
-                        for: address,
-                        rpcEndpoint: rpcEndpoint,
-                        etherscanAPIKey: self.normalizedEtherscanAPIKey(),
-                        maxResults: 150,
-                        trackedTokens: self.enabledOptimismTrackedTokens(),
-                        chain: .optimism
-                    )
-                }
-                optimismHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
+                optimismHistoryDiagnosticsByWallet[wallet.id] = try await Self.rustEVMHistoryDiagnostics(
+                    chainName: "Optimism",
+                    address: address
+                )
             } catch {
                 optimismHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                    address: EthereumWalletEngine.normalizeAddress(address),
+                    address: normalizeEVMAddress(address),
                     rpcTransferCount: 0,
                     rpcError: error.localizedDescription,
                     blockscoutTransferCount: 0,
@@ -1541,10 +1499,9 @@ extension WalletStore {
             return
         }
 
-        let rpcEndpoint = configuredEVMRPCEndpointURL(for: "Avalanche")
         for (wallet, address) in walletsToRefresh {
             avalancheHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                address: EthereumWalletEngine.normalizeAddress(address),
+                address: normalizeEVMAddress(address),
                 rpcTransferCount: 0,
                 rpcError: "Running...",
                 blockscoutTransferCount: 0,
@@ -1558,19 +1515,13 @@ extension WalletStore {
             avalancheHistoryDiagnosticsLastUpdatedAt = Date()
 
             do {
-                let result = try await withTimeout(seconds: 20) {
-                    try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryWithDiagnostics(
-                        for: address,
-                        rpcEndpoint: rpcEndpoint,
-                        etherscanAPIKey: self.normalizedEtherscanAPIKey(),
-                        maxResults: 150,
-                        chain: .avalanche
-                    )
-                }
-                avalancheHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
+                avalancheHistoryDiagnosticsByWallet[wallet.id] = try await Self.rustEVMHistoryDiagnostics(
+                    chainName: "Avalanche",
+                    address: address
+                )
             } catch {
                 avalancheHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                    address: EthereumWalletEngine.normalizeAddress(address),
+                    address: normalizeEVMAddress(address),
                     rpcTransferCount: 0,
                     rpcError: error.localizedDescription,
                     blockscoutTransferCount: 0,
@@ -1604,10 +1555,9 @@ extension WalletStore {
             return
         }
 
-        let rpcEndpoint = configuredEVMRPCEndpointURL(for: "Hyperliquid")
         for (wallet, address) in walletsToRefresh {
             hyperliquidHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                address: EthereumWalletEngine.normalizeAddress(address),
+                address: normalizeEVMAddress(address),
                 rpcTransferCount: 0,
                 rpcError: "Running...",
                 blockscoutTransferCount: 0,
@@ -1621,20 +1571,13 @@ extension WalletStore {
             hyperliquidHistoryDiagnosticsLastUpdatedAt = Date()
 
             do {
-                let result = try await withTimeout(seconds: 20) {
-                    try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryWithDiagnostics(
-                        for: address,
-                        rpcEndpoint: rpcEndpoint,
-                        etherscanAPIKey: self.normalizedEtherscanAPIKey(),
-                        maxResults: 150,
-                        trackedTokens: self.enabledHyperliquidTrackedTokens(),
-                        chain: .hyperliquid
-                    )
-                }
-                hyperliquidHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
+                hyperliquidHistoryDiagnosticsByWallet[wallet.id] = try await Self.rustEVMHistoryDiagnostics(
+                    chainName: "Hyperliquid",
+                    address: address
+                )
             } catch {
                 hyperliquidHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                    address: EthereumWalletEngine.normalizeAddress(address),
+                    address: normalizeEVMAddress(address),
                     rpcTransferCount: 0,
                     rpcError: error.localizedDescription,
                     blockscoutTransferCount: 0,
@@ -1660,9 +1603,8 @@ extension WalletStore {
         isRunningBNBHistoryDiagnostics = true
         defer { isRunningBNBHistoryDiagnostics = false }
 
-        let rpcEndpoint = configuredEVMRPCEndpointURL(for: "BNB Chain")
         bnbHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-            address: EthereumWalletEngine.normalizeAddress(address),
+            address: normalizeEVMAddress(address),
             rpcTransferCount: 0,
             rpcError: "Running...",
             blockscoutTransferCount: 0,
@@ -1676,19 +1618,13 @@ extension WalletStore {
         bnbHistoryDiagnosticsLastUpdatedAt = Date()
 
         do {
-            let result = try await withTimeout(seconds: 20) {
-                try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryWithDiagnostics(
-                    for: address,
-                    rpcEndpoint: rpcEndpoint,
-                    etherscanAPIKey: self.normalizedEtherscanAPIKey(),
-                    maxResults: 150,
-                    chain: .bnb
-                )
-            }
-            bnbHistoryDiagnosticsByWallet[wallet.id] = result.diagnostics
+            bnbHistoryDiagnosticsByWallet[wallet.id] = try await Self.rustEVMHistoryDiagnostics(
+                chainName: "BNB Chain",
+                address: address
+            )
         } catch {
             bnbHistoryDiagnosticsByWallet[wallet.id] = EthereumTokenTransferHistoryDiagnostics(
-                address: EthereumWalletEngine.normalizeAddress(address),
+                address: normalizeEVMAddress(address),
                 rpcTransferCount: 0,
                 rpcError: error.localizedDescription,
                 blockscoutTransferCount: 0,
@@ -1701,6 +1637,47 @@ extension WalletStore {
             )
         }
         bnbHistoryDiagnosticsLastUpdatedAt = Date()
+    }
+
+    // MARK: - Rust EVM history diagnostics helper
+
+    /// Fetch one page of EVM history via Rust and return a populated diagnostics struct.
+    /// Counts appear as `etherscanTransferCount`; all other provider counts are zeroed.
+    /// Throws `WalletServiceBridgeError.unsupportedChain` for chains not yet in Rust.
+    private static func rustEVMHistoryDiagnostics(
+        chainName: String,
+        address: String
+    ) async throws -> EthereumTokenTransferHistoryDiagnostics {
+        guard let chainId = SpectraChainID.id(for: chainName) else {
+            throw WalletServiceBridgeError.unsupportedChain(chainName)
+        }
+        let historyJSON = try await WalletServiceBridge.shared.fetchEVMHistoryPageJSON(
+            chainId: chainId,
+            address: address,
+            tokens: [],
+            page: 1,
+            pageSize: 50
+        )
+        let count: Int
+        if let data = historyJSON.data(using: .utf8),
+           let obj  = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let native = obj["native"] as? [[String: Any]] {
+            count = native.count
+        } else {
+            count = 0
+        }
+        return EthereumTokenTransferHistoryDiagnostics(
+            address: normalizeEVMAddress(address),
+            rpcTransferCount: 0,
+            rpcError: nil,
+            blockscoutTransferCount: 0,
+            blockscoutError: nil,
+            etherscanTransferCount: count,
+            etherscanError: nil,
+            ethplorerTransferCount: 0,
+            ethplorerError: nil,
+            sourceUsed: "rust"
+        )
     }
 
     func runEthereumEndpointReachabilityDiagnostics() async {

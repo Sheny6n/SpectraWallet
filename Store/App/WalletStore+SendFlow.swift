@@ -509,9 +509,9 @@ extension WalletStore {
         isPreparingEthereumReplacementContext = true
         defer { isPreparingEthereumReplacementContext = false }
         do {
-            let nonce = try await EthereumWalletEngine.fetchTransactionNonce(
-                for: txHash,
-                rpcEndpoint: configuredEthereumRPCEndpointURL()
+            let nonce = try await WalletServiceBridge.shared.fetchEVMTxNonce(
+                chainId: SpectraChainID.ethereum,
+                txHash: txHash
             )
             guard let walletID = pendingTransaction.walletID,
                   let wallet = wallets.first(where: { $0.id == walletID }) else {
@@ -666,7 +666,7 @@ extension WalletStore {
         }
 
         if let contractAddress = coin.contractAddress {
-            let normalizedContract = EthereumWalletEngine.normalizeAddress(contractAddress)
+            let normalizedContract = normalizeEVMAddress(contractAddress)
             return chainTokens.first {
                 $0.symbol == coin.symbol && $0.contractAddress == normalizedContract
             }
@@ -732,7 +732,7 @@ extension WalletStore {
         let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
         switch chainName {
         case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid":
-            return EthereumWalletEngine.normalizeAddress(trimmedAddress)
+            return normalizeEVMAddress(trimmedAddress)
         case "Tron":
             return trimmedAddress
         case "Solana":
@@ -773,7 +773,7 @@ extension WalletStore {
         }
 
         if AddressValidation.isValidEthereumAddress(trimmed) {
-            return (EthereumWalletEngine.normalizeAddress(trimmed), false)
+            return (normalizeEVMAddress(trimmed), false)
         }
 
         guard chainName == "Ethereum", isENSNameCandidate(trimmed) else {
@@ -785,7 +785,7 @@ extension WalletStore {
             return (cached, true)
         }
 
-        guard let resolved = try await EthereumWalletEngine.resolveENSAddress(trimmed, chain: .ethereum) else {
+        guard let resolved = try await WalletServiceBridge.shared.resolveENSName(trimmed) else {
             throw EthereumWalletEngineError.rpcFailure("Unable to resolve ENS name '\(trimmed)'.")
         }
         cachedResolvedENSAddresses[cacheKey] = resolved
@@ -798,15 +798,15 @@ extension WalletStore {
         destinationAddress: String
     ) async -> [String] {
         var reasons: [String] = []
-        let rpcEndpoint = configuredEVMRPCEndpointURL(for: holding.chainName)
+        guard let chainId = SpectraChainID.id(for: holding.chainName) else { return reasons }
 
         do {
-            let recipientCode = try await EthereumWalletEngine.fetchCode(
-                at: destinationAddress,
-                rpcEndpoint: rpcEndpoint,
-                chain: chain
+            let codeJSON = try await WalletServiceBridge.shared.fetchEVMCodeJSON(
+                chainId: chainId,
+                address: destinationAddress
             )
-            if EthereumWalletEngine.hasContractCode(recipientCode) {
+            let code = WalletSendLayer.rustField("code", from: codeJSON)
+            if evmHasContractCode(code) {
                 reasons.append(localizedStoreFormat("Recipient is a smart contract on %@. Confirm it can receive %@ safely.", holding.chainName, holding.symbol))
             }
         } catch {
@@ -815,12 +815,12 @@ extension WalletStore {
 
         if let token = supportedEVMToken(for: holding) {
             do {
-                let contractCode = try await EthereumWalletEngine.fetchCode(
-                    at: token.contractAddress,
-                    rpcEndpoint: rpcEndpoint,
-                    chain: chain
+                let codeJSON = try await WalletServiceBridge.shared.fetchEVMCodeJSON(
+                    chainId: chainId,
+                    address: token.contractAddress
                 )
-                if !EthereumWalletEngine.hasContractCode(contractCode) {
+                let code = WalletSendLayer.rustField("code", from: codeJSON)
+                if !evmHasContractCode(code) {
                     reasons.append(localizedStoreFormat("Token contract %@ appears missing on %@. This may be a wrong-network token selection.", token.symbol, holding.chainName))
                 }
             } catch {
@@ -1318,7 +1318,7 @@ extension WalletStore {
         }
     }
 
-    func mapDogecoinFeePriorityToChainOption(_ priority: DogecoinWalletEngine.FeePriority) -> ChainFeePriorityOption {
+    func mapDogecoinFeePriorityToChainOption(_ priority: DogecoinFeePriority) -> ChainFeePriorityOption {
         switch priority {
         case .economy:
             return .economy
@@ -1329,7 +1329,7 @@ extension WalletStore {
         }
     }
 
-    func mapChainOptionToDogecoinFeePriority(_ option: ChainFeePriorityOption) -> DogecoinWalletEngine.FeePriority {
+    func mapChainOptionToDogecoinFeePriority(_ option: ChainFeePriorityOption) -> DogecoinFeePriority {
         switch option {
         case .economy:
             return .economy
@@ -1948,6 +1948,107 @@ extension WalletStore {
                 chain: chain
             )
             return (transactionHash, verificationStatus)
+
+        // --- Rust-originated sends (*.rust_json) ---
+
+        case "bitcoin.rust_json":
+            let rawHex = WalletSendLayer.rustField("raw_tx_hex", from: payload)
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.bitcoin, payload: rawHex)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "bitcoin_cash.rust_json":
+            let rawHex = WalletSendLayer.rustField("raw_tx_hex", from: payload)
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.bitcoinCash, payload: rawHex)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "bitcoin_sv.rust_json":
+            let rawHex = WalletSendLayer.rustField("raw_tx_hex", from: payload)
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.bitcoinSv, payload: rawHex)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "litecoin.rust_json":
+            let rawHex = WalletSendLayer.rustField("raw_tx_hex", from: payload)
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.litecoin, payload: rawHex)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "dogecoin.rust_json":
+            let rawHex = WalletSendLayer.rustField("raw_tx_hex", from: payload)
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.dogecoin, payload: rawHex)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "solana.rust_json":
+            let signedTxBase64 = WalletSendLayer.rustField("signed_tx_base64", from: payload)
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.solana, payload: signedTxBase64)
+            let sig = WalletSendLayer.rustField("signature", from: resultJSON)
+            return (sig.isEmpty ? transaction.transactionHash ?? "" : sig, .deferred)
+
+        case "tron.rust_json":
+            let signedTxJSON = WalletSendLayer.rustField("signed_tx_json", from: payload)
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.tron, payload: signedTxJSON)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "xrp.rust_json":
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.xrp, payload: payload)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "stellar.rust_json":
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.stellar, payload: payload)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "cardano.rust_json":
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.cardano, payload: payload)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "polkadot.rust_json":
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.polkadot, payload: payload)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "sui.rust_json":
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.sui, payload: payload)
+            let digest = WalletSendLayer.rustField("digest", from: resultJSON)
+            return (digest.isEmpty ? transaction.transactionHash ?? "" : digest, .deferred)
+
+        case "aptos.rust_json":
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.aptos, payload: payload)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "ton.rust_json":
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.ton, payload: payload)
+            let hash = WalletSendLayer.rustField("message_hash", from: resultJSON)
+            return (hash.isEmpty ? transaction.transactionHash ?? "" : hash, .deferred)
+
+        case "near.rust_json":
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.near, payload: payload)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "icp.rust_json":
+            // ICP Rosetta rebroadcast not supported — return existing hash as deferred
+            return (transaction.transactionHash ?? "", .deferred)
+
+        case "evm.rust_json":
+            guard let chainId = SpectraChainID.id(for: transaction.chainName) else {
+                throw NSError(domain: "Spectra", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unsupported EVM chain for rebroadcast."])
+            }
+            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: chainId, payload: payload)
+            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            return (txid.isEmpty ? transaction.transactionHash ?? "" : txid, .deferred)
+
+        case "monero.rust_json":
+            // Monero rebroadcast not supported from stored payload
+            return (transaction.transactionHash ?? "", .deferred)
+
         default:
             throw NSError(domain: "Spectra", code: -1, userInfo: [NSLocalizedDescriptionKey: "Rebroadcast is not supported for this transaction format yet."])
         }
@@ -2030,7 +2131,7 @@ extension WalletStore {
         return displayChainTitle(for: transaction.chainName)
     }
 
-    func solanaDerivationPreference(for wallet: ImportedWallet) -> SolanaWalletEngine.DerivationPreference {
+    func solanaDerivationPreference(for wallet: ImportedWallet) -> SolanaDerivationPreference {
         derivationResolution(for: wallet, chain: .solana).flavor == .legacy ? .legacy : .standard
     }
 
@@ -3401,7 +3502,7 @@ extension WalletStore {
                     infoMessage = nil
                     break
                 }
-                let normalizedAddress = try EthereumWalletEngine.validateAddress(destinationForProbe)
+                let normalizedAddress = try validateEVMAddress(destinationForProbe)
                 let transactionCount = try await EthereumWalletEngine.fetchTransactionCount(
                     for: normalizedAddress,
                     rpcEndpoint: configuredEVMRPCEndpointURL(for: coin.chainName),

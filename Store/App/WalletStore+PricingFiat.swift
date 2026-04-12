@@ -24,10 +24,17 @@ extension WalletStore {
         }
 
         do {
-            let fetchedPrices = try await LivePriceService.fetchQuotes(
-                for: requestedCoins,
-                provider: pricingProvider,
-                coinGeckoAPIKey: coinGeckoAPIKey
+            let rustInputs = requestedCoins.map { coin in
+                WalletServiceBridge.PriceRequestCoinInput(
+                    holdingKey: coin.holdingKey,
+                    symbol: coin.symbol,
+                    coinGeckoId: coin.coinGeckoID
+                )
+            }
+            let fetchedPrices = try await WalletServiceBridge.shared.fetchPricesViaRust(
+                provider: pricingProvider.rawValue,
+                coins: rustInputs,
+                apiKey: coinGeckoAPIKey
             )
             guard !fetchedPrices.isEmpty else {
                 quoteRefreshError = localizedStoreFormat("%@ returned no supported asset quotes", pricingProvider.rawValue)
@@ -72,7 +79,10 @@ extension WalletStore {
     func refreshFiatExchangeRates() async {
         do {
             var rates: [String: Double] = [FiatCurrency.usd.rawValue: 1.0]
-            let fetchedRates = try await FiatRateService.fetchRates(from: fiatRateProvider, currencies: FiatCurrency.allCases)
+            let fetchedRates = try await WalletServiceBridge.shared.fetchFiatRatesViaRust(
+                provider: fiatRateProvider.rawValue,
+                currencies: FiatCurrency.allCases.map(\.rawValue)
+            )
             for currency in FiatCurrency.allCases where currency != .usd {
                 if let rate = fetchedRates[currency.rawValue], rate > 0 {
                     rates[currency.rawValue] = rate

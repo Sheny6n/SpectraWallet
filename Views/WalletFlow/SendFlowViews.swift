@@ -42,7 +42,7 @@ struct SendView: View {
         Binding(get: { store.sendEnableCPFP }, set: { store.sendEnableCPFP = $0 })
     }
 
-    private var sendLitecoinChangeStrategyBinding: Binding<LitecoinWalletEngine.ChangeStrategy> {
+    private var sendLitecoinChangeStrategyBinding: Binding<LitecoinChangeStrategy> {
         Binding(get: { store.sendLitecoinChangeStrategy }, set: { store.sendLitecoinChangeStrategy = $0 })
     }
 
@@ -332,7 +332,7 @@ struct SendView: View {
                     if selectedCoin.chainName == "Litecoin" {
                         Toggle("Enable RBF Policy", isOn: sendEnableRBFBinding)
                         Picker("Change Strategy", selection: sendLitecoinChangeStrategyBinding) {
-                            ForEach(LitecoinWalletEngine.ChangeStrategy.allCases) { strategy in
+                            ForEach(LitecoinChangeStrategy.allCases) { strategy in
                                 Text(strategy.displayName).tag(strategy)
                             }
                         }
@@ -1012,7 +1012,7 @@ struct SendView: View {
         for candidate in candidates {
             if isValidScannedAddress(candidate, for: chainName) {
                 if chainName == "Ethereum" || chainName == "Ethereum Classic" || chainName == "Arbitrum" || chainName == "Optimism" || chainName == "BNB Chain" || chainName == "Avalanche" || chainName == "Hyperliquid" {
-                    return EthereumWalletEngine.normalizeAddress(candidate)
+                    return normalizeEVMAddress(candidate)
                 }
                 return candidate
             }
@@ -1096,7 +1096,7 @@ struct SendView: View {
         }
     }
 
-    private func confirmationPreferenceText(for priority: DogecoinWalletEngine.FeePriority) -> String {
+    private func confirmationPreferenceText(for priority: DogecoinFeePriority) -> String {
         switch priority {
         case .economy:
             return "Economy (cost-optimized)"

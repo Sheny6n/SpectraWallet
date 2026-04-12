@@ -40,7 +40,7 @@ extension WalletStore {
         }
         fiatRatesFromUSD[FiatCurrency.usd.rawValue] = 1.0
         if let storedDogecoinFeePriority = UserDefaults.standard.string(forKey: Self.dogecoinFeePriorityDefaultsKey),
-           let dogecoinFeePriority = DogecoinWalletEngine.FeePriority(rawValue: storedDogecoinFeePriority) {
+           let dogecoinFeePriority = DogecoinFeePriority(rawValue: storedDogecoinFeePriority) {
             self.dogecoinFeePriority = dogecoinFeePriority
         }
         coinGeckoAPIKey = SecureStore.loadValue(for: Self.coinGeckoAPIKeyAccount)

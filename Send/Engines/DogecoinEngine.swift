@@ -59,26 +59,9 @@ struct DogecoinWalletEngine {
         let transactionHash: String
     }
 
-    enum FeePriority: String, CaseIterable, Equatable {
-        case economy
-        case normal
-        case priority
-    }
+    typealias FeePriority = DogecoinFeePriority
 
-    struct DogecoinSendPreview: Equatable {
-        let spendableBalanceDOGE: Double
-        let requestedAmountDOGE: Double
-        let estimatedNetworkFeeDOGE: Double
-        let estimatedFeeRateDOGEPerKB: Double
-        let estimatedTransactionBytes: Int
-        let selectedInputCount: Int
-        let usesChangeOutput: Bool
-        let feePriority: FeePriority
-        let maxSendableDOGE: Double
-        let spendableBalance: Double
-        let feeRateDescription: String?
-        let maxSendable: Double
-    }
+    typealias DogecoinSendPreview = Spectra.DogecoinSendPreview
 
     enum PostBroadcastVerificationStatus: Equatable {
         case verified

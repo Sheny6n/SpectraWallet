@@ -92,7 +92,7 @@ enum EthereumChainSelfTestSuite {
 
     private static func testReceiveAddressNormalization() -> ChainSelfTestResult {
         let mixedCaseAddress = "0x52908400098527886E0F7030069857D2E4169EE7"
-        let passed = (try? EthereumWalletEngine.receiveAddress(for: mixedCaseAddress)) == mixedCaseAddress.lowercased()
+        let passed = (try? receiveEVMAddress(for: mixedCaseAddress)) == mixedCaseAddress.lowercased()
         return ChainSelfTestResult(
             name: "ETH Receive Address Normalization",
             passed: passed,

@@ -51,10 +51,7 @@ enum SolanaWalletEngine {
     private static let primaryDerivationPath = "m/44'/501'/0'/0'"
     private static let maxSerializedTransactionBytes = 1232
 
-    enum DerivationPreference {
-        case standard
-        case legacy
-    }
+    typealias DerivationPreference = SolanaDerivationPreference
 
     private static func rpcClient(baseURL: String) -> SolanaAPIClient {
         SolanaProvider.rpcClient(baseURL: baseURL)

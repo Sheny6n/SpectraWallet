@@ -9,7 +9,7 @@ final class WalletSendState: ObservableObject {
     @Published var bitcoinCashSendPreview: BitcoinSendPreview?
     @Published var bitcoinSVSendPreview: BitcoinSendPreview?
     @Published var litecoinSendPreview: BitcoinSendPreview?
-    @Published var dogecoinSendPreview: DogecoinWalletEngine.DogecoinSendPreview?
+    @Published var dogecoinSendPreview: DogecoinSendPreview?
     @Published var tronSendPreview: TronSendPreview?
     @Published var solanaSendPreview: SolanaSendPreview?
     @Published var xrpSendPreview: XRPSendPreview?

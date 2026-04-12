@@ -35,7 +35,7 @@ extension WalletStore {
     // Polls pending EVM tx statuses and upgrades local records to confirmed/failed as receipts arrive.
     func refreshPendingEVMTransactions(chainName: String) async {
         let now = Date()
-        guard let chain = evmChainContext(for: chainName) else { return }
+        guard let chainId = SpectraChainID.id(for: chainName) else { return }
         let pendingTransactions = transactions.filter { transaction in
             transaction.kind == .send
                 && transaction.chainName == chainName
@@ -50,12 +50,15 @@ extension WalletStore {
             guard let transactionHash = transaction.transactionHash else { continue }
             guard shouldPollTransactionStatus(for: transaction, now: now) else { continue }
             do {
-                let receipt = try await EthereumWalletEngine.fetchTransactionReceipt(
-                    transactionHash: transactionHash,
-                    rpcEndpoint: configuredEVMRPCEndpointURL(for: chainName),
-                    chain: chain
-                )
-                if let receipt, receipt.isConfirmed {
+                guard let receiptJSON = try await WalletServiceBridge.shared.fetchEVMReceiptJSON(
+                    chainId: chainId,
+                    txHash: transactionHash
+                ) else {
+                    markTransactionStatusPollSuccess(for: transaction, resolvedStatus: .pending, now: now)
+                    continue
+                }
+                let receipt = try Self.decodeEVMReceipt(json: receiptJSON, txHash: transactionHash)
+                if receipt.isConfirmed {
                     let resolvedStatus: TransactionStatus = receipt.isFailed ? .failed : .confirmed
                     markTransactionStatusPollSuccess(for: transaction, resolvedStatus: resolvedStatus, now: now)
                     resolvedReceipts[transaction.id] = (resolvedStatus, receipt)
@@ -85,4 +88,25 @@ extension WalletStore {
     // Diagnostics runners:
     // Each chain has history + endpoint probes so users can distinguish
     // "provider reachable" from "provider returning usable chain data".
+
+    // MARK: - Helpers
+
+    private static func decodeEVMReceipt(json: String, txHash: String) throws -> EthereumTransactionReceipt {
+        guard let data = json.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw NSError(domain: "EvmReceipt", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Invalid receipt JSON"])
+        }
+        let blockNumber = obj["block_number"] as? Int
+        let status = obj["status"] as? String
+        let gasUsed = (obj["gas_used"] as? String).flatMap { Decimal(string: $0) }
+        let effectiveGasPriceWei = (obj["effective_gas_price_wei"] as? String).flatMap { Decimal(string: $0) }
+        return EthereumTransactionReceipt(
+            transactionHash: txHash,
+            blockNumber: blockNumber,
+            status: status,
+            gasUsed: gasUsed,
+            effectiveGasPriceWei: effectiveGasPriceWei
+        )
+    }
 }

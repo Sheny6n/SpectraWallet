@@ -68,21 +68,7 @@ enum LitecoinWalletEngine {
         let updatedAt: Date
     }
 
-    enum ChangeStrategy: String, CaseIterable, Identifiable {
-        case derivedChange
-        case reuseSourceAddress
-
-        var id: String { rawValue }
-
-        var displayName: String {
-            switch self {
-            case .derivedChange:
-                return "Derived change address"
-            case .reuseSourceAddress:
-                return "Reuse source address"
-            }
-        }
-    }
+    typealias ChangeStrategy = LitecoinChangeStrategy
 
     struct SendOptions {
         let maxInputCount: Int?

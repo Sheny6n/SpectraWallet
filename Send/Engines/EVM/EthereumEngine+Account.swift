@@ -57,31 +57,10 @@ static func inferredChainContext(for rpcEndpoint: URL) -> EVMChainContext {
     return .ethereum
 }
 
-static func normalizeAddress(_ address: String) -> String {
-    address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-}
-
-static func isValidAddress(_ address: String) -> Bool {
-    let normalizedAddress = normalizeAddress(address)
-    guard normalizedAddress.count == 42, normalizedAddress.hasPrefix("0x") else {
-        return false
-    }
-
-    let hexBody = normalizedAddress.dropFirst(2)
-    return hexBody.allSatisfy(\.isHexDigit)
-}
-
-static func validateAddress(_ address: String) throws -> String {
-    let normalizedAddress = normalizeAddress(address)
-    guard isValidAddress(normalizedAddress) else {
-        throw EthereumWalletEngineError.invalidAddress
-    }
-    return normalizedAddress
-}
-
-static func receiveAddress(for address: String) throws -> String {
-    try validateAddress(address)
-}
+static func normalizeAddress(_ address: String) -> String { normalizeEVMAddress(address) }
+static func isValidAddress(_ address: String) -> Bool { isValidEVMAddress(address) }
+static func validateAddress(_ address: String) throws -> String { try validateEVMAddress(address) }
+static func receiveAddress(for address: String) throws -> String { try receiveEVMAddress(for: address) }
 
 static func resolveENSAddress(_ name: String, chain: EVMChainContext = .ethereum) async throws -> String? {
     guard chain == .ethereum else { return nil }
@@ -127,10 +106,7 @@ static func fetchCode(
     )
 }
 
-static func hasContractCode(_ code: String) -> Bool {
-    let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    return normalized != "0x" && normalized != "0x0"
-}
+static func hasContractCode(_ code: String) -> Bool { evmHasContractCode(code) }
 
 static func derivedAddress(
     for seedPhrase: String,

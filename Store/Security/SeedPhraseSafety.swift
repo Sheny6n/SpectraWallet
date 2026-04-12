@@ -1,6 +1,8 @@
 import Foundation
-import WalletCore
 import BitcoinDevKit
+
+// File-scope alias captures the UniFFI free function before SeedPhraseSafety shadows it.
+private let _rustGenerateMnemonic: (UInt32) -> String = generateMnemonic(wordCount:)
 
 enum SeedPhraseSafety {
     private static let validWordCounts: Set<Int> = [12, 15, 18, 21, 24]
@@ -48,12 +50,10 @@ enum SeedPhraseSafety {
             return "These words are not in the BIP-39 English word list: \(joinedWords)."
         }
 
-        do {
-            _ = try Mnemonic.fromString(mnemonic: normalizedPhrase)
-            return nil
-        } catch {
+        guard validateMnemonic(phrase: normalizedPhrase) else {
             return "This seed phrase is not a valid BIP-39 mnemonic. Check the word spelling and checksum."
         }
+        return nil
     }
 
     static func hasValidChecksum(_ seedPhrase: String, expectedWordCount: Int? = nil) -> Bool {
@@ -65,23 +65,7 @@ enum SeedPhraseSafety {
     }
 
     static func generateMnemonic(wordCount: Int) throws -> String {
-        let targetWordCount = validWordCounts.contains(wordCount) ? wordCount : 12
-        let mnemonicWordCount: WordCount
-        switch targetWordCount {
-        case 12:
-            mnemonicWordCount = .words12
-        case 15:
-            mnemonicWordCount = .words15
-        case 18:
-            mnemonicWordCount = .words18
-        case 21:
-            mnemonicWordCount = .words21
-        case 24:
-            mnemonicWordCount = .words24
-        default:
-            mnemonicWordCount = .words12
-        }
-        let mnemonic = Mnemonic(wordCount: mnemonicWordCount)
-        return normalizedPhrase(from: String(describing: mnemonic))
+        // Delegate to the Rust/UniFFI free function via file-scope alias (avoids name shadowing).
+        normalizedPhrase(from: _rustGenerateMnemonic(UInt32(wordCount)))
     }
 }

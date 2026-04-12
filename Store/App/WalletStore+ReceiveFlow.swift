@@ -364,7 +364,7 @@ extension WalletStore {
 
             do {
                 receiveResolvedAddress = activateLiveReceiveAddress(
-                    try EthereumWalletEngine.receiveAddress(for: evmAddress),
+                    try receiveEVMAddress(for: evmAddress),
                     for: wallet,
                     chainName: receiveCoin.chainName
                 )
@@ -964,7 +964,7 @@ extension WalletStore {
                 litecoinAddress = derivedPrivateKeyAddress.litecoin ?? (AddressValidation.isValidLitecoinAddress(typedLitecoinAddress) ? typedLitecoinAddress : nil)
                 dogecoinAddress = derivedPrivateKeyAddress.dogecoin ?? (isValidDogecoinAddressForPolicy(typedDogecoinAddress) ? typedDogecoinAddress : nil)
                 ethereumAddress = derivedPrivateKeyAddress.evm ?? (AddressValidation.isValidEthereumAddress(typedEthereumAddress)
-                    ? EthereumWalletEngine.normalizeAddress(typedEthereumAddress)
+                    ? normalizeEVMAddress(typedEthereumAddress)
                     : nil)
                 ethereumClassicAddress = ethereumAddress
                 tronAddress = derivedPrivateKeyAddress.tron ?? (AddressValidation.isValidTronAddress(typedTronAddress)
@@ -1096,7 +1096,7 @@ extension WalletStore {
                     bitcoinSVAddresses: bitcoinSVAddressEntries,
                     litecoinAddresses: litecoinAddressEntries,
                     dogecoinAddresses: dogecoinAddressEntries,
-                    ethereumAddresses: ethereumAddressEntries.map(EthereumWalletEngine.normalizeAddress),
+                    ethereumAddresses: ethereumAddressEntries.map { normalizeEVMAddress($0) },
                     tronAddresses: tronAddressEntries,
                     solanaAddresses: solanaAddressEntries,
                     xrpAddresses: xrpAddressEntries,
@@ -1971,7 +1971,22 @@ extension WalletStore {
         seedPhrase: String
     ) async throws -> Double? {
         guard shouldFetch else { return nil }
-        return try await BitcoinWalletEngine.syncBalanceInBackground(for: wallet, seedPhrase: seedPhrase)
+        // Prefer xpub already stored on the wallet; derive it if not yet available.
+        let xpub: String
+        if let stored = wallet.bitcoinXPub?.trimmingCharacters(in: .whitespacesAndNewlines), !stored.isEmpty {
+            xpub = stored
+        } else {
+            xpub = try await WalletServiceBridge.shared.deriveBitcoinAccountXpub(
+                mnemonicPhrase: seedPhrase,
+                passphrase: "",
+                accountPath: "m/84'/0'/0'"
+            )
+        }
+        let balJSON = try await WalletServiceBridge.shared.fetchBitcoinXpubBalanceJSON(xpub: xpub)
+        guard let data = balJSON.data(using: .utf8),
+              let obj  = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let confirmedSats = obj["confirmed_sats"] as? UInt64 else { return nil }
+        return Double(confirmedSats) / 100_000_000
     }
 
     func fetchBitcoinCashImportBalanceIfNeeded(

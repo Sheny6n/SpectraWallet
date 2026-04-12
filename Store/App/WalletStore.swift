@@ -472,7 +472,7 @@ class WalletStore: ObservableObject {
     @Published var sendUTXOMaxInputCount: Int = 0
     @Published var sendEnableRBF: Bool = true
     @Published var sendEnableCPFP: Bool = false
-    @Published var sendLitecoinChangeStrategy: LitecoinWalletEngine.ChangeStrategy = .derivedChange
+    @Published var sendLitecoinChangeStrategy: LitecoinChangeStrategy = .derivedChange
     @Published var ethereumManualNonceEnabled: Bool = false
     @Published var ethereumManualNonce: String = ""
     @Published var bitcoinNetworkMode: BitcoinNetworkMode = .mainnet {
@@ -512,7 +512,7 @@ class WalletStore: ObservableObject {
             UserDefaults.standard.set(bitcoinFeePriority.rawValue, forKey: Self.bitcoinFeePriorityDefaultsKey)
         }
     }
-    @Published var dogecoinFeePriority: DogecoinWalletEngine.FeePriority = .normal {
+    @Published var dogecoinFeePriority: DogecoinFeePriority = .normal {
         didSet {
             UserDefaults.standard.set(dogecoinFeePriority.rawValue, forKey: Self.dogecoinFeePriorityDefaultsKey)
         }
@@ -1139,6 +1139,7 @@ class WalletStore: ObservableObject {
         Task { @MainActor in
             rebuildTransactionDerivedState()
             startMaintenanceLoopIfNeeded()
+            await reloadPersistedStateFromSQLite()
             await refreshFiatExchangeRates()
         }
     }
@@ -1246,27 +1247,27 @@ class WalletStore: ObservableObject {
 
         switch chain {
         case .ethereum:
-            guard EthereumWalletEngine.isValidAddress(normalizedContract) else {
+            guard isValidEVMAddress(normalizedContract) else {
                 return localizedStoreString("Enter a valid Ethereum token contract address.")
             }
         case .arbitrum:
-            guard EthereumWalletEngine.isValidAddress(normalizedContract) else {
+            guard isValidEVMAddress(normalizedContract) else {
                 return localizedStoreString("Enter a valid Arbitrum token contract address.")
             }
         case .optimism:
-            guard EthereumWalletEngine.isValidAddress(normalizedContract) else {
+            guard isValidEVMAddress(normalizedContract) else {
                 return localizedStoreString("Enter a valid Optimism token contract address.")
             }
         case .bnb:
-            guard EthereumWalletEngine.isValidAddress(normalizedContract) else {
+            guard isValidEVMAddress(normalizedContract) else {
                 return localizedStoreString("Enter a valid BNB Chain token contract address.")
             }
         case .avalanche:
-            guard EthereumWalletEngine.isValidAddress(normalizedContract) else {
+            guard isValidEVMAddress(normalizedContract) else {
                 return localizedStoreString("Enter a valid Avalanche token contract address.")
             }
         case .hyperliquid:
-            guard EthereumWalletEngine.isValidAddress(normalizedContract) else {
+            guard isValidEVMAddress(normalizedContract) else {
                 return localizedStoreString("Enter a valid Hyperliquid token contract address.")
             }
         case .solana:
@@ -1338,7 +1339,7 @@ class WalletStore: ObservableObject {
         let trimmed = contractAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         switch chain {
         case .ethereum, .arbitrum, .bnb, .avalanche, .hyperliquid:
-            return EthereumWalletEngine.normalizeAddress(trimmed)
+            return normalizeEVMAddress(trimmed)
         case .aptos:
             return normalizeAptosTokenIdentifier(trimmed)
         case .sui:
@@ -1406,7 +1407,7 @@ class WalletStore: ObservableObject {
             EthereumSupportedToken(
                 name: entry.name,
                 symbol: entry.symbol,
-                contractAddress: EthereumWalletEngine.normalizeAddress(entry.contractAddress),
+                contractAddress: normalizeEVMAddress(entry.contractAddress),
                 decimals: entry.decimals,
                 marketDataID: entry.marketDataID,
                 coinGeckoID: entry.coinGeckoID
@@ -1419,7 +1420,7 @@ class WalletStore: ObservableObject {
             EthereumSupportedToken(
                 name: entry.name,
                 symbol: entry.symbol,
-                contractAddress: EthereumWalletEngine.normalizeAddress(entry.contractAddress),
+                contractAddress: normalizeEVMAddress(entry.contractAddress),
                 decimals: entry.decimals,
                 marketDataID: entry.marketDataID,
                 coinGeckoID: entry.coinGeckoID
@@ -1432,7 +1433,7 @@ class WalletStore: ObservableObject {
             EthereumSupportedToken(
                 name: entry.name,
                 symbol: entry.symbol,
-                contractAddress: EthereumWalletEngine.normalizeAddress(entry.contractAddress),
+                contractAddress: normalizeEVMAddress(entry.contractAddress),
                 decimals: entry.decimals,
                 marketDataID: entry.marketDataID,
                 coinGeckoID: entry.coinGeckoID
@@ -1445,7 +1446,7 @@ class WalletStore: ObservableObject {
             EthereumSupportedToken(
                 name: entry.name,
                 symbol: entry.symbol,
-                contractAddress: EthereumWalletEngine.normalizeAddress(entry.contractAddress),
+                contractAddress: normalizeEVMAddress(entry.contractAddress),
                 decimals: entry.decimals,
                 marketDataID: entry.marketDataID,
                 coinGeckoID: entry.coinGeckoID
@@ -1458,7 +1459,7 @@ class WalletStore: ObservableObject {
             EthereumSupportedToken(
                 name: entry.name,
                 symbol: entry.symbol,
-                contractAddress: EthereumWalletEngine.normalizeAddress(entry.contractAddress),
+                contractAddress: normalizeEVMAddress(entry.contractAddress),
                 decimals: entry.decimals,
                 marketDataID: entry.marketDataID,
                 coinGeckoID: entry.coinGeckoID
@@ -1471,7 +1472,7 @@ class WalletStore: ObservableObject {
             EthereumSupportedToken(
                 name: entry.name,
                 symbol: entry.symbol,
-                contractAddress: EthereumWalletEngine.normalizeAddress(entry.contractAddress),
+                contractAddress: normalizeEVMAddress(entry.contractAddress),
                 decimals: entry.decimals,
                 marketDataID: entry.marketDataID,
                 coinGeckoID: entry.coinGeckoID

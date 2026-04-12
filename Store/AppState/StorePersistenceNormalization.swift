@@ -481,7 +481,7 @@ extension WalletStore {
                     && existing.transactionHash == transactionHash
                     && existing.kind == incoming.kind
                     && existing.symbol == incoming.symbol
-                    && EthereumWalletEngine.normalizeAddress(existing.address) == EthereumWalletEngine.normalizeAddress(incoming.address)
+                    && normalizeEVMAddress(existing.address) == normalizeEVMAddress(incoming.address)
                     && abs(existing.amount - incoming.amount) < 0.0000000001
                     && existing.walletID == incomingWalletID
             }) {

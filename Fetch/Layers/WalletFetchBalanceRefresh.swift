@@ -28,20 +28,29 @@ extension WalletFetchLayer {
             let bitcoinXPub = wallet.bitcoinXPub
             let storedSeedPhrase = store.storedSeedPhrase(for: walletID)
 
-            if let storedSeedPhrase,
-               let liveBalance = try? await BitcoinWalletEngine.syncBalanceInBackground(for: wallet, seedPhrase: storedSeedPhrase) {
-                return (index, liveBalance)
+            // Priority 1 — HD xpub path via Rust (preferred for accuracy).
+            let effectiveXpub: String?
+            if let xp = bitcoinXPub?.trimmingCharacters(in: .whitespacesAndNewlines), !xp.isEmpty {
+                effectiveXpub = xp
+            } else if let seed = storedSeedPhrase,
+                      let derived = try? await WalletServiceBridge.shared.deriveBitcoinAccountXpub(
+                          mnemonicPhrase: seed, passphrase: "", accountPath: "m/84'/0'/0'") {
+                effectiveXpub = derived
+            } else {
+                effectiveXpub = nil
+            }
+            if let xp = effectiveXpub,
+               let balJSON = try? await WalletServiceBridge.shared.fetchBitcoinXpubBalanceJSON(xpub: xp),
+               let data = balJSON.data(using: .utf8),
+               let obj  = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let confirmedSats = obj["confirmed_sats"] as? UInt64 {
+                return (index, Double(confirmedSats) / 100_000_000)
             }
 
+            // Fallback — single-address balance via Blockstream/Mempool.
             if let bitcoinAddress,
                !bitcoinAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                let fallbackBalance = try? await BitcoinBalanceService.fetchBalance(for: bitcoinAddress, networkMode: wallet.bitcoinNetworkMode) {
-                return (index, fallbackBalance)
-            }
-
-            if let bitcoinXPub,
-               !bitcoinXPub.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               let fallbackBalance = try? await BitcoinBalanceService.fetchBalance(forExtendedPublicKey: bitcoinXPub) {
                 return (index, fallbackBalance)
             }
 
@@ -980,7 +989,7 @@ extension WalletFetchLayer {
             Dictionary(uniqueKeysWithValues: plannedGroups.map { ($0.normalizedAddress, $0.address) })
         } else {
             Dictionary(grouping: walletsToRefresh) { target in
-                EthereumWalletEngine.normalizeAddress(target.address)
+                normalizeEVMAddress(target.address)
             }
             .compactMapValues { $0.first?.address }
         }
@@ -1001,7 +1010,7 @@ extension WalletFetchLayer {
 
         var fallbackNativeBalances: [Int: Double] = [:]
         var usedLedgerFallback = false
-        for target in walletsToRefresh where resolvedPortfoliosByAddress[EthereumWalletEngine.normalizeAddress(target.address)] == nil {
+        for target in walletsToRefresh where resolvedPortfoliosByAddress[normalizeEVMAddress(target.address)] == nil {
             if let fallback = store.ledgerDerivedNativeBalanceIfAvailable(for: target.wallet.id, chainName: chainName, symbol: nativeSymbol) {
                 fallbackNativeBalances[target.index] = fallback
                 if fallback > 0 {
@@ -1011,7 +1020,7 @@ extension WalletFetchLayer {
         }
 
         for target in walletsToRefresh {
-            guard let portfolio = resolvedPortfoliosByAddress[EthereumWalletEngine.normalizeAddress(target.address)] else {
+            guard let portfolio = resolvedPortfoliosByAddress[normalizeEVMAddress(target.address)] else {
                 continue
             }
             let wallet = updatedWallets[target.index]
@@ -1038,7 +1047,7 @@ extension WalletFetchLayer {
             chainName: chainName,
             attemptedWalletCount: walletsToRefresh.count,
             resolvedWalletCount: walletsToRefresh.filter {
-                resolvedPortfoliosByAddress[EthereumWalletEngine.normalizeAddress($0.address)] != nil
+                resolvedPortfoliosByAddress[normalizeEVMAddress($0.address)] != nil
             }.count,
             usedLedgerFallback: usedLedgerFallback,
             using: store

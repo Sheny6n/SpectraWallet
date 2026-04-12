@@ -1142,15 +1142,15 @@ func refreshEVMTokenTransactions(
         targetWalletIDs: targetWalletIDs
     ) ?? {
         if loadMore {
-            return walletsToRefresh.map { ([$0.0], $0.1, EthereumWalletEngine.normalizeAddress($0.1)) }
+            return walletsToRefresh.map { ([$0.0], $0.1, normalizeEVMAddress($0.1)) }
         }
         return Dictionary(grouping: walletsToRefresh) {
-            EthereumWalletEngine.normalizeAddress($0.1)
+            normalizeEVMAddress($0.1)
         }
         .values
         .compactMap { group in
             guard let first = group.first else { return nil }
-            return (group.map(\.0), first.1, EthereumWalletEngine.normalizeAddress(first.1))
+            return (group.map(\.0), first.1, normalizeEVMAddress(first.1))
         }
     }()
 
@@ -1192,7 +1192,6 @@ func refreshEVMTokenTransactions(
             }
         }
     }
-    let rpcEndpoint = configuredEVMRPCEndpointURL(for: chainName)
     for (targetWallets, _, normalizedAddress) in historyTargets {
         guard let representativeWallet = targetWallets.first else { continue }
         if loadMore {
@@ -1232,57 +1231,66 @@ func refreshEVMTokenTransactions(
         var tokenHistory: [EthereumTokenTransferSnapshot] = []
         var tokenDiagnostics: EthereumTokenTransferHistoryDiagnostics?
         var tokenHistoryError: Error?
-        do {
-            let result = try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryPageWithDiagnostics(
-                for: normalizedAddress,
-                rpcEndpoint: rpcEndpoint,
-                etherscanAPIKey: normalizedEtherscanAPIKey(),
-                page: page,
-                pageSize: requestedPageSize,
-                trackedTokens: trackedTokens,
-                chain: chain
-            )
-            tokenHistory = result.snapshots
-            tokenDiagnostics = result.diagnostics
-        } catch {
-            tokenHistoryError = error
-            encounteredErrors = true
-        }
+        var nativeTransfers: [EthereumNativeTransferSnapshot] = []
 
-        let nativeTransfers: [EthereumNativeTransferSnapshot]
-        do {
-            if chain.isEthereumMainnet {
-                let blockscoutNativeTransfers = try? await EthereumWalletEngine.fetchNativeTransferHistoryPageFromBlockscout(
+        // Fetch both native and token transfers.
+        // Rust path: all Etherscan-indexed EVM chains (ETH, ARB, OP, AVAX, BASE, ETC, BSC).
+        // Swift fallback: Hyperliquid (custom explorer, not yet in Rust).
+        if let chainId = SpectraChainID.id(for: chainName) {
+            let tokenTuples: [(contract: String, symbol: String, name: String, decimals: Int)] =
+                (trackedTokens ?? []).map { ($0.contractAddress, $0.symbol, $0.name, $0.decimals) }
+            do {
+                let json = try await WalletServiceBridge.shared.fetchEVMHistoryPageJSON(
+                    chainId: chainId,
+                    address: normalizedAddress,
+                    tokens: tokenTuples,
+                    page: page,
+                    pageSize: requestedPageSize
+                )
+                let (decodedToken, decodedNative) = decodeEvmHistoryPageJSON(json)
+                tokenHistory = decodedToken
+                nativeTransfers = decodedNative
+                tokenDiagnostics = EthereumTokenTransferHistoryDiagnostics(
+                    address: normalizedAddress,
+                    rpcTransferCount: 0, rpcError: nil,
+                    blockscoutTransferCount: 0, blockscoutError: nil,
+                    etherscanTransferCount: decodedToken.count, etherscanError: nil,
+                    ethplorerTransferCount: 0, ethplorerError: nil,
+                    sourceUsed: "rust/etherscan"
+                )
+            } catch {
+                tokenHistoryError = error
+                encounteredErrors = true
+            }
+        } else {
+            // Swift fallback for chains not yet in Rust (Hyperliquid etc.)
+            do {
+                let result = try await EthereumWalletEngine.fetchSupportedTokenTransferHistoryPageWithDiagnostics(
                     for: normalizedAddress,
+                    rpcEndpoint: nil,
+                    etherscanAPIKey: nil,
                     page: page,
                     pageSize: requestedPageSize,
+                    trackedTokens: trackedTokens,
                     chain: chain
                 )
-                if let blockscoutNativeTransfers, !blockscoutNativeTransfers.isEmpty {
-                    nativeTransfers = blockscoutNativeTransfers
-                } else {
-                    nativeTransfers = try await EthereumWalletEngine.fetchNativeTransferHistoryPageFromEtherscan(
-                        for: normalizedAddress,
-                        apiKey: normalizedEtherscanAPIKey(),
-                        page: page,
-                        pageSize: requestedPageSize,
-                        chain: chain
-                    )
-                }
-            } else if chain == .arbitrum || chain == .optimism || chain == .bnb || chain == .avalanche || chain == .hyperliquid {
+                tokenHistory = result.snapshots
+                tokenDiagnostics = result.diagnostics
+            } catch {
+                tokenHistoryError = error
+                encounteredErrors = true
+            }
+            do {
                 nativeTransfers = try await EthereumWalletEngine.fetchNativeTransferHistoryPageFromEtherscan(
                     for: normalizedAddress,
-                    apiKey: normalizedEtherscanAPIKey(),
+                    apiKey: nil,
                     page: page,
                     pageSize: requestedPageSize,
                     chain: chain
                 )
-            } else {
-                nativeTransfers = []
+            } catch {
+                encounteredErrors = true
             }
-        } catch {
-            encounteredErrors = true
-            nativeTransfers = []
         }
 
         if chain.isEthereumFamily {
@@ -1730,4 +1738,105 @@ private func plannedDogecoinHistoryWallets(
         return (wallet, target.addresses)
     }
 }
+}
+
+// MARK: - EVM history JSON decoding (Rust response → Swift typed snapshots)
+
+/// Decode the JSON produced by `WalletServiceBridge.fetchEVMHistoryPageJSON` into
+/// typed `EthereumTokenTransferSnapshot` and `EthereumNativeTransferSnapshot` arrays.
+///
+/// Expected JSON shape:
+/// ```json
+/// {
+///   "native": [{"txid":"0x…","block_number":N,"timestamp":N,"from":"0x…","to":"0x…","value_wei":"N","fee_wei":"N","is_incoming":true}],
+///   "tokens": [{"contract":"0x…","symbol":"…","token_name":"…","decimals":N,"from":"0x…","to":"0x…","amount_raw":"N","amount_display":"1.5","txid":"0x…","block_number":N,"log_index":N,"timestamp":N}]
+/// }
+/// ```
+private func decodeEvmHistoryPageJSON(_ json: String) -> (
+    tokens: [EthereumTokenTransferSnapshot],
+    native: [EthereumNativeTransferSnapshot]
+) {
+    guard
+        let data = json.data(using: .utf8),
+        let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return ([], []) }
+
+    // ── Token transfers ────────────────────────────────────────────────────
+    var tokens: [EthereumTokenTransferSnapshot] = []
+    if let rawTokens = obj["tokens"] as? [[String: Any]] {
+        for item in rawTokens {
+            guard
+                let contract   = item["contract"]     as? String,
+                let symbol     = item["symbol"]       as? String,
+                let tokenName  = item["token_name"]   as? String,
+                let fromAddr   = item["from"]         as? String,
+                let toAddr     = item["to"]           as? String,
+                let txid       = item["txid"]         as? String,
+                let blockNum   = item["block_number"] as? Int,
+                let logIdx     = item["log_index"]    as? Int,
+                let tsecs      = item["timestamp"]    as? TimeInterval
+            else { continue }
+
+            let decimals = item["decimals"] as? Int ?? 18
+            // Prefer the pre-formatted display string from Rust.
+            let amountDecimal: Decimal
+            if let display = item["amount_display"] as? String, let d = Decimal(string: display) {
+                amountDecimal = d
+            } else if let raw = item["amount_raw"] as? String, let rawDec = Decimal(string: raw) {
+                let scale = decimalPow(Decimal(10), decimals)
+                amountDecimal = rawDec / scale
+            } else {
+                amountDecimal = 0
+            }
+
+            tokens.append(EthereumTokenTransferSnapshot(
+                contractAddress: contract,
+                tokenName: tokenName,
+                symbol: symbol,
+                decimals: decimals,
+                fromAddress: fromAddr,
+                toAddress: toAddr,
+                amount: amountDecimal,
+                transactionHash: txid,
+                blockNumber: blockNum,
+                logIndex: logIdx,
+                timestamp: tsecs > 0 ? Date(timeIntervalSince1970: tsecs) : nil
+            ))
+        }
+    }
+
+    // ── Native transfers ───────────────────────────────────────────────────
+    var native: [EthereumNativeTransferSnapshot] = []
+    if let rawNative = obj["native"] as? [[String: Any]] {
+        let weiPerCoin = Decimal(string: "1000000000000000000")! // 1e18
+        for item in rawNative {
+            guard
+                let fromAddr = item["from"]         as? String,
+                let toAddr   = item["to"]           as? String,
+                let txid     = item["txid"]         as? String,
+                let blockNum = item["block_number"] as? Int,
+                let tsecs    = item["timestamp"]    as? TimeInterval,
+                let weiStr   = item["value_wei"]    as? String,
+                let weiDec   = Decimal(string: weiStr)
+            else { continue }
+
+            let amount = weiDec / weiPerCoin
+            native.append(EthereumNativeTransferSnapshot(
+                fromAddress: fromAddr,
+                toAddress: toAddr,
+                amount: amount,
+                transactionHash: txid,
+                blockNumber: blockNum,
+                timestamp: tsecs > 0 ? Date(timeIntervalSince1970: tsecs) : nil
+            ))
+        }
+    }
+
+    return (tokens, native)
+}
+
+private func decimalPow(_ base: Decimal, _ exponent: Int) -> Decimal {
+    var result = Decimal(1)
+    for _ in 0 ..< exponent { result *= base }
+    return result
 }

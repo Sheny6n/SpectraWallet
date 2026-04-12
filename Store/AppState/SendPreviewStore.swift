@@ -36,7 +36,7 @@ extension WalletStore {
         set { sendState.litecoinSendPreview = newValue }
     }
 
-    var dogecoinSendPreview: DogecoinWalletEngine.DogecoinSendPreview? {
+    var dogecoinSendPreview: DogecoinSendPreview? {
         get { sendState.dogecoinSendPreview }
         set { sendState.dogecoinSendPreview = newValue }
     }

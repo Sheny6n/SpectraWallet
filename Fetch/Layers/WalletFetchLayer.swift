@@ -266,7 +266,7 @@ enum WalletFetchLayer {
 
 // MARK: - JSON field extractors for Rust balance responses
 
-private enum RustBalanceDecoder {
+enum RustBalanceDecoder {
 
     static func uint64Field(_ key: String, from json: String) -> UInt64? {
         guard let data = json.data(using: .utf8),

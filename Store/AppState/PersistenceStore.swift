@@ -11,8 +11,51 @@ extension WalletStore {
         return try? JSONDecoder().decode(type, from: data)
     }
 
+    // MARK: SQLite dual-write helpers
+
+    /// Fire-and-forget async SQLite write. Safe to call from synchronous `didSet` observers.
+    func persistCodableToSQLite<T: Encodable>(_ value: T, key: String) {
+        guard let data = try? JSONEncoder().encode(value),
+              let json = String(data: data, encoding: .utf8) else { return }
+        Task {
+            try? await WalletServiceBridge.shared.saveState(key: key, stateJSON: json)
+        }
+    }
+
+    /// Async SQLite read. Returns nil when the key is absent or the JSON cannot be decoded.
+    func loadCodableFromSQLite<T: Decodable>(_ type: T.Type, key: String) async -> T? {
+        guard let json = try? await WalletServiceBridge.shared.loadState(key: key),
+              json != "{}",
+              let data = json.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(type, from: data)
+    }
+
+    /// After synchronous startup (which reads from UserDefaults), this method reads SQLite and
+    /// overwrites in-memory state with the durable copy — so SQLite is the authoritative backend.
+    func reloadPersistedStateFromSQLite() async {
+        if let prices = await loadCodableFromSQLite([String: Double].self, key: Self.livePricesDefaultsKey),
+           !prices.isEmpty {
+            livePrices = prices
+        }
+        if let tokenPrefs = await loadCodableFromSQLite([TokenPreferenceEntry].self, key: Self.tokenPreferencesDefaultsKey),
+           !tokenPrefs.isEmpty {
+            tokenPreferences = mergeBuiltInTokenPreferences(with: tokenPrefs)
+        }
+        if let alertsPayload = await loadCodableFromSQLite(PersistedPriceAlertStore.self, key: Self.priceAlertsDefaultsKey),
+           alertsPayload.version == PersistedPriceAlertStore.currentVersion {
+            priceAlerts = alertsPayload.alerts.map(PriceAlertRule.init(snapshot:))
+        }
+        if let abPayload = await loadCodableFromSQLite(PersistedAddressBookStore.self, key: Self.addressBookDefaultsKey),
+           abPayload.version == PersistedAddressBookStore.currentVersion {
+            addressBook = abPayload.entries.map {
+                AddressBookEntry(id: $0.id, name: $0.name, chainName: $0.chainName, address: $0.address, note: $0.note)
+            }
+        }
+    }
+
     func persistLivePrices() {
         persistCodableToUserDefaults(livePrices, key: Self.livePricesDefaultsKey)
+        persistCodableToSQLite(livePrices, key: Self.livePricesDefaultsKey)
     }
 
     func loadAssetDisplayDecimalsByChain() -> [String: Int]? {
@@ -183,6 +226,7 @@ extension WalletStore {
             alerts: priceAlerts.map(\.persistedSnapshot)
         )
         persistCodableToUserDefaults(payload, key: Self.priceAlertsDefaultsKey)
+        persistCodableToSQLite(payload, key: Self.priceAlertsDefaultsKey)
     }
 
     func persistAddressBook() {
@@ -199,6 +243,7 @@ extension WalletStore {
             }
         )
         persistCodableToUserDefaults(payload, key: Self.addressBookDefaultsKey)
+        persistCodableToSQLite(payload, key: Self.addressBookDefaultsKey)
     }
 
     func loadPersistedAddressBook() -> [AddressBookEntry] {
@@ -224,6 +269,7 @@ extension WalletStore {
 
     func persistTokenPreferences() {
         persistCodableToUserDefaults(tokenPreferences, key: Self.tokenPreferencesDefaultsKey)
+        persistCodableToSQLite(tokenPreferences, key: Self.tokenPreferencesDefaultsKey)
     }
 
     func loadPersistedTokenPreferences() -> [TokenPreferenceEntry] {

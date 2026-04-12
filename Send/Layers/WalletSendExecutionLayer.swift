@@ -80,13 +80,16 @@ extension WalletSendLayer {
             defer { store.isSendingSui = false }
 
             do {
-                let sendResult = try await SuiWalletEngine.sendInBackground(
+                let mistAmount = UInt64(amount * 1e9)
+                let gasBudget = UInt64(preview.estimatedNetworkFeeSUI * 1e9)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                    chainId: SpectraChainID.sui,
                     seedPhrase: seedPhrase,
-                    ownerAddress: sourceAddress,
-                    destinationAddress: destinationAddress,
-                    amount: amount,
-                    derivationAccount: store.derivationAccount(for: wallet, chain: .sui),
-                )
+                    chain: .sui,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .sui)
+                ) { privKeyHex, pubKeyHex in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"mist\":\(mistAmount),\"gas_budget\":\(gasBudget),\"private_key_hex\":\"\(privKeyHex)\",\"public_key_hex\":\"\(pubKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -97,17 +100,17 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.signedTransactionPayloadJSON,
-                    signedTransactionPayloadFormat: "sui.signed_json"
+                    transactionHash: WalletSendLayer.rustField("digest", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "sui.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.suiSendPreview = nil
                 }
             } catch {
-                store.sendError = store.userFacingSuiSendError(error)
+                store.sendError = error.localizedDescription
                 store.noteSendBroadcastFailure(for: holding.chainName, message: store.sendError ?? error.localizedDescription)
             }
             return
@@ -148,13 +151,15 @@ extension WalletSendLayer {
             defer { store.isSendingAptos = false }
 
             do {
-                let sendResult = try await AptosWalletEngine.sendInBackground(
+                let octasAmount = UInt64(amount * 1e8)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                    chainId: SpectraChainID.aptos,
                     seedPhrase: seedPhrase,
-                    ownerAddress: sourceAddress,
-                    destinationAddress: destinationAddress,
-                    amount: amount,
-                    derivationAccount: store.derivationAccount(for: wallet, chain: .aptos),
-                )
+                    chain: .aptos,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .aptos)
+                ) { privKeyHex, pubKeyHex in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"octas\":\(octasAmount),\"private_key_hex\":\"\(privKeyHex)\",\"public_key_hex\":\"\(pubKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -165,17 +170,17 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.signedTransactionJSON,
-                    signedTransactionPayloadFormat: "aptos.signed_json"
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "aptos.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.aptosSendPreview = nil
                 }
             } catch {
-                store.sendError = store.userFacingAptosSendError(error)
+                store.sendError = error.localizedDescription
                 store.noteSendBroadcastFailure(for: holding.chainName, message: store.sendError ?? error.localizedDescription)
             }
             return
@@ -216,13 +221,15 @@ extension WalletSendLayer {
             defer { store.isSendingTON = false }
 
             do {
-                let sendResult = try await TONWalletEngine.sendInBackground(
+                let nanotons = UInt64(amount * 1e9)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                    chainId: SpectraChainID.ton,
                     seedPhrase: seedPhrase,
-                    ownerAddress: sourceAddress,
-                    destinationAddress: destinationAddress,
-                    amount: amount,
-                    derivationAccount: store.derivationAccount(for: wallet, chain: .ton)
-                )
+                    chain: .ton,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .ton)
+                ) { privKeyHex, pubKeyHex in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"nanotons\":\(nanotons),\"private_key_hex\":\"\(privKeyHex)\",\"public_key_hex\":\"\(pubKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -233,17 +240,17 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.signedBOC,
-                    signedTransactionPayloadFormat: "ton.boc"
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "ton.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.tonSendPreview = nil
                 }
             } catch {
-                store.sendError = store.userFacingTONSendError(error)
+                store.sendError = error.localizedDescription
                 store.noteSendBroadcastFailure(for: holding.chainName, message: store.sendError ?? error.localizedDescription)
             }
             return
@@ -279,26 +286,30 @@ extension WalletSendLayer {
             defer { store.isSendingICP = false }
 
             do {
-                let sendResult: ICPSendResult
-                if let privateKey {
-                    sendResult = try await ICPWalletEngine.sendInBackground(
-                        privateKeyHex: privateKey,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        amount: amount
-                    )
-                } else if let seedPhrase {
-                    sendResult = try await ICPWalletEngine.sendInBackground(
+                let e8sAmount = UInt64(amount * 1e8)
+                let resultJSON: String
+                if let seedPhrase {
+                    resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                        chainId: SpectraChainID.icp,
                         seedPhrase: seedPhrase,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        amount: amount,
+                        chain: .internetComputer,
                         derivationPath: wallet.seedDerivationPaths.internetComputer
+                    ) { privKeyHex, pubKeyHex in
+                        "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"e8s\":\(e8sAmount),\"private_key_hex\":\"\(privKeyHex)\",\"public_key_hex\":\"\(pubKeyHex)\"}"
+                    }
+                } else if let privateKey {
+                    // Private-key-only path: Rust derives the secp256k1 pubkey from the privkey.
+                    let normalizedPriv = privateKey.hasPrefix("0x") ? String(privateKey.dropFirst(2)) : privateKey
+                    let paramsJson = "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"e8s\":\(e8sAmount),\"private_key_hex\":\"\(normalizedPriv)\"}"
+                    resultJSON = try await WalletServiceBridge.shared.signAndSend(
+                        chainId: SpectraChainID.icp,
+                        paramsJson: paramsJson
                     )
                 } else {
                     throw ICPWalletEngineError.invalidSeedPhrase
                 }
 
+                let txid = WalletSendLayer.rustField("block_index", from: resultJSON)
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -309,12 +320,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.signedTransactionHex,
-                    signedTransactionPayloadFormat: "icp.signed_hex"
+                    transactionHash: txid.isEmpty ? resultJSON : txid,
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "icp.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.icpSendPreview = nil
                     store.wallets[walletIndex] = store.wallets[walletIndex]
@@ -392,13 +403,23 @@ extension WalletSendLayer {
                     store.sendError = "This wallet's seed phrase is unavailable."
                     return
                 }
-                let sendResult = try await BitcoinWalletEngine.sendInBackground(
-                    from: wallet,
+                guard let sourceAddress = store.resolvedBitcoinAddress(for: wallet) else {
+                    store.sendError = "Unable to resolve this wallet's Bitcoin address from the seed phrase."
+                    return
+                }
+                if store.bitcoinSendPreview == nil {
+                    await store.refreshBitcoinSendPreview()
+                }
+                let amountSat = UInt64(amount * 1e8)
+                let feeRateSvB: Double = Double(store.bitcoinSendPreview?.estimatedFeeRateSatVb ?? 10)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivation(
+                    chainId: SpectraChainID.bitcoin,
                     seedPhrase: seedPhrase,
-                    to: destinationAddress,
-                    amountBTC: amount,
-                    feePriority: store.bitcoinFeePriority(for: holding.chainName),
-                )
+                    chain: .bitcoin,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .bitcoin)
+                ) { privKeyHex, _ in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"amount_sat\":\(amountSat),\"fee_rate_svb\":\(feeRateSvB),\"private_key_hex\":\"\(privKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -409,13 +430,15 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.rawTransactionHex,
-                    signedTransactionPayloadFormat: "bitcoin.raw_hex"
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "bitcoin.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
-                store.resetSendComposerState()
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
+                store.resetSendComposerState {
+                    store.bitcoinSendPreview = nil
+                }
             } catch {
                 store.sendError = error.localizedDescription
                 store.noteSendBroadcastFailure(for: holding.chainName, message: store.sendError ?? error.localizedDescription)
@@ -449,17 +472,16 @@ extension WalletSendLayer {
                         return
                     }
                 }
-                let sendResult = try await BitcoinCashWalletEngine.sendInBackground(
+                let amountSat = UInt64(amount * 1e8)
+                let feeSat = UInt64((store.bitcoinCashSendPreview?.estimatedNetworkFeeBTC ?? 0.00001) * 1e8)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivation(
+                    chainId: SpectraChainID.bitcoinCash,
                     seedPhrase: seedPhrase,
-                    sourceAddress: sourceAddress,
-                    to: destinationAddress,
-                    amountBCH: amount,
-                    options: BitcoinCashWalletEngine.SendOptions(
-                        maxInputCount: store.sendAdvancedMode && store.sendUTXOMaxInputCount > 0 ? store.sendUTXOMaxInputCount : nil,
-                        enableRBF: store.sendEnableRBF
-                    ),
-                    derivationPath: store.walletDerivationPath(for: wallet, chain: .bitcoinCash),
-                )
+                    chain: .bitcoinCash,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .bitcoinCash)
+                ) { privKeyHex, _ in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"amount_sat\":\(amountSat),\"fee_sat\":\(feeSat),\"private_key_hex\":\"\(privKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -470,12 +492,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.rawTransactionHex,
-                    signedTransactionPayloadFormat: "bitcoin_cash.raw_hex"
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "bitcoin_cash.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.bitcoinCashSendPreview = nil
                 }
@@ -512,17 +534,16 @@ extension WalletSendLayer {
                         return
                     }
                 }
-                let sendResult = try await BitcoinSVWalletEngine.sendInBackground(
+                let amountSat = UInt64(amount * 1e8)
+                let feeSat = UInt64((store.bitcoinSVSendPreview?.estimatedNetworkFeeBTC ?? 0.00001) * 1e8)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivation(
+                    chainId: SpectraChainID.bitcoinSv,
                     seedPhrase: seedPhrase,
-                    sourceAddress: sourceAddress,
-                    to: destinationAddress,
-                    amountBSV: amount,
-                    options: BitcoinSVWalletEngine.SendOptions(
-                        maxInputCount: store.sendAdvancedMode && store.sendUTXOMaxInputCount > 0 ? store.sendUTXOMaxInputCount : nil,
-                        enableRBF: store.sendEnableRBF
-                    ),
-                    derivationPath: store.walletDerivationPath(for: wallet, chain: .bitcoinSV),
-                )
+                    chain: .bitcoinSV,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .bitcoinSV)
+                ) { privKeyHex, _ in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"amount_sat\":\(amountSat),\"fee_sat\":\(feeSat),\"private_key_hex\":\"\(privKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -533,12 +554,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.rawTransactionHex,
-                    signedTransactionPayloadFormat: "bitcoin_sv.raw_hex"
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "bitcoin_sv.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.bitcoinSVSendPreview = nil
                 }
@@ -575,19 +596,16 @@ extension WalletSendLayer {
                         return
                     }
                 }
-                let sendResult = try await LitecoinWalletEngine.sendInBackground(
+                let amountSat = UInt64(amount * 1e8)
+                let feeSat = UInt64((store.litecoinSendPreview?.estimatedNetworkFeeBTC ?? 0.0001) * 1e8)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivation(
+                    chainId: SpectraChainID.litecoin,
                     seedPhrase: seedPhrase,
-                    sourceAddress: sourceAddress,
-                    to: destinationAddress,
-                    amountLTC: amount,
-                    feePriority: store.bitcoinFeePriority(for: holding.chainName),
-                    options: LitecoinWalletEngine.SendOptions(
-                        maxInputCount: store.sendAdvancedMode && store.sendUTXOMaxInputCount > 0 ? store.sendUTXOMaxInputCount : nil,
-                        changeStrategy: store.sendLitecoinChangeStrategy,
-                        enableRBF: store.sendEnableRBF
-                    ),
-                    derivationPath: store.walletDerivationPath(for: wallet, chain: .litecoin),
-                )
+                    chain: .litecoin,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .litecoin)
+                ) { privKeyHex, _ in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"amount_sat\":\(amountSat),\"fee_sat\":\(feeSat),\"private_key_hex\":\"\(privKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -598,12 +616,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.rawTransactionHex,
-                    signedTransactionPayloadFormat: "litecoin.raw_hex"
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "litecoin.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.litecoinSendPreview = nil
                 }
@@ -645,85 +663,57 @@ extension WalletSendLayer {
             store.isSendingDogecoin = true
             defer { store.isSendingDogecoin = false }
 
-            let sendResult: DogecoinWalletEngine.DogecoinSendResult
-            do {
-                sendResult = try await DogecoinWalletEngine.sendInBackground(
-                    from: store.walletWithResolvedDogecoinAddress(wallet),
-                    seedPhrase: seedPhrase,
-                    to: destinationAddress,
-                    amountDOGE: dogecoinAmount,
-                    feePriority: store.dogecoinFeePriority,
-                    changeIndex: store.reserveDogecoinChangeIndex(for: wallet),
-                    maxInputCount: store.sendAdvancedMode && store.sendUTXOMaxInputCount > 0 ? store.sendUTXOMaxInputCount : nil
-                )
-            } catch {
-                store.sendError = error.localizedDescription
-                store.appendChainOperationalEvent(.error, chainName: "Dogecoin", message: "DOGE send failed: \(error.localizedDescription)")
+            guard let sourceAddress = store.resolvedDogecoinAddress(for: wallet) else {
+                store.sendError = "Unable to resolve this wallet's Dogecoin signing address."
                 return
             }
 
-            let transaction = store.decoratePendingSendTransaction(TransactionRecord(
-                walletID: wallet.id,
-                kind: .send,
-                status: .pending,
-                walletName: wallet.name,
-                assetName: holding.name,
-                symbol: holding.symbol,
-                chainName: holding.chainName,
-                amount: dogecoinAmount,
-                address: destinationAddress,
-                transactionHash: sendResult.transactionHash,
-                dogecoinConfirmations: 0,
-                dogecoinFeePriorityRaw: store.dogecoinFeePriority.rawValue,
-                dogecoinEstimatedFeeRateDOGEPerKB: store.dogecoinSendPreview?.estimatedFeeRateDOGEPerKB,
-                dogecoinUsedChangeOutput: store.dogecoinSendPreview?.usesChangeOutput,
-                sourceDerivationPath: sendResult.derivationMetadata.sourceDerivationPath,
-                changeDerivationPath: sendResult.derivationMetadata.changeDerivationPath,
-                sourceAddress: sendResult.derivationMetadata.sourceAddress,
-                changeAddress: sendResult.derivationMetadata.changeAddress,
-                dogecoinRawTransactionHex: sendResult.rawTransactionHex,
-                signedTransactionPayload: sendResult.rawTransactionHex,
-                signedTransactionPayloadFormat: "dogecoin.raw_hex"
-            ), holding: holding)
-            store.registerDogecoinOwnedAddress(
-                address: sendResult.derivationMetadata.sourceAddress,
-                walletID: wallet.id,
-                derivationPath: sendResult.derivationMetadata.sourceDerivationPath,
-                index: store.parseDogecoinDerivationIndex(
-                    path: sendResult.derivationMetadata.sourceDerivationPath,
-                    expectedPrefix: WalletDerivationPath.dogecoinExternalPrefix(account: 0)
-                ),
-                branch: "external",
-                networkMode: wallet.dogecoinNetworkMode
-            )
-            store.registerDogecoinOwnedAddress(
-                address: sendResult.derivationMetadata.changeAddress,
-                walletID: wallet.id,
-                derivationPath: sendResult.derivationMetadata.changeDerivationPath,
-                index: store.parseDogecoinDerivationIndex(
-                    path: sendResult.derivationMetadata.changeDerivationPath,
-                    expectedPrefix: WalletDerivationPath.dogecoinChangePrefix(account: 0)
-                ),
-                branch: "change",
-                networkMode: wallet.dogecoinNetworkMode
-            )
-            store.recordPendingSentTransaction(transaction)
-            switch sendResult.verificationStatus {
-            case .verified:
+            do {
+                let amountSat = UInt64(dogecoinAmount * 1e8)
+                let feeRateDOGEPerKB = store.dogecoinSendPreview?.estimatedFeeRateDOGEPerKB ?? 0.01
+                let feeSat = UInt64(feeRateDOGEPerKB * 350.0 / 1000.0 * 1e8)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivation(
+                    chainId: SpectraChainID.dogecoin,
+                    seedPhrase: seedPhrase,
+                    chain: .dogecoin,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .dogecoin)
+                ) { privKeyHex, _ in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"amount_sat\":\(amountSat),\"fee_sat\":\(feeSat),\"private_key_hex\":\"\(privKeyHex)\"}"
+                }
+                let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+                let transaction = store.decoratePendingSendTransaction(TransactionRecord(
+                    walletID: wallet.id,
+                    kind: .send,
+                    status: .pending,
+                    walletName: wallet.name,
+                    assetName: holding.name,
+                    symbol: holding.symbol,
+                    chainName: holding.chainName,
+                    amount: dogecoinAmount,
+                    address: destinationAddress,
+                    transactionHash: txid,
+                    dogecoinConfirmations: 0,
+                    dogecoinFeePriorityRaw: store.dogecoinFeePriority.rawValue,
+                    dogecoinEstimatedFeeRateDOGEPerKB: store.dogecoinSendPreview?.estimatedFeeRateDOGEPerKB,
+                    dogecoinUsedChangeOutput: store.dogecoinSendPreview?.usesChangeOutput,
+                    sourceAddress: sourceAddress,
+                    dogecoinRawTransactionHex: resultJSON,
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "dogecoin.rust_json"
+                ), holding: holding)
+                store.recordPendingSentTransaction(transaction)
                 store.clearSendVerificationNotice()
-                store.appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE send broadcast verified.", transactionHash: sendResult.transactionHash)
-            case .deferred:
-                store.setDeferredSendVerificationNotice(for: holding.chainName)
-                store.appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE send broadcast accepted; verification deferred.", transactionHash: sendResult.transactionHash)
-            case .failed(let message):
-                store.setFailedSendVerificationNotice("Broadcast succeeded, but post-broadcast verification reported: \(message)")
-                store.appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE send verification warning: \(message)", transactionHash: sendResult.transactionHash)
-            }
-            await store.refreshDogecoinTransactions()
-            await store.refreshPendingDogecoinTransactions()
-            store.updateSendVerificationNoticeForLastSentTransaction()
-            store.resetSendComposerState {
-                store.dogecoinSendPreview = nil
+                store.appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE send broadcast.", transactionHash: txid)
+                await store.refreshDogecoinTransactions()
+                await store.refreshPendingDogecoinTransactions()
+                store.updateSendVerificationNoticeForLastSentTransaction()
+                store.resetSendComposerState {
+                    store.dogecoinSendPreview = nil
+                }
+            } catch {
+                store.sendError = error.localizedDescription
+                store.appendChainOperationalEvent(.error, chainName: "Dogecoin", message: "DOGE send failed: \(error.localizedDescription)")
+                store.noteSendBroadcastFailure(for: holding.chainName, message: error.localizedDescription)
             }
             return
         }
@@ -768,25 +758,74 @@ extension WalletSendLayer {
 
             do {
                 let sendResult: TronSendResult
-                if let seedPhrase {
-                    sendResult = try await TronWalletEngine.sendInBackground(
+                if holding.symbol == "TRX", let seedPhrase {
+                    // Native TRX: route through Rust
+                    let amountSun = UInt64(amount * 1e6)
+                    let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivation(
+                        chainId: SpectraChainID.tron,
                         seedPhrase: seedPhrase,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        symbol: holding.symbol,
-                        amount: amount,
-                        contractAddress: holding.contractAddress,
-                        derivationAccount: store.derivationAccount(for: wallet, chain: .tron),
+                        chain: .tron,
+                        derivationPath: wallet.seedDerivationPaths.tron
+                    ) { privKeyHex, _ in
+                        "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"amount_sun\":\(amountSun),\"private_key_hex\":\"\(privKeyHex)\"}"
+                    }
+                    sendResult = TronSendResult(
+                        transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                        estimatedNetworkFeeTRX: store.tronSendPreview?.estimatedNetworkFeeTRX ?? 0,
+                        signedTransactionJSON: resultJSON,
+                        verificationStatus: .verified
+                    )
+                } else if let seedPhrase, let contract = holding.contractAddress {
+                    // TRC-20 USDT (and other supported TRC-20 tokens): route through Rust.
+                    // USDT-TRC20 uses 6 decimals; scale amount × 1e6 as a decimal string.
+                    let amountRawUInt = UInt64((amount * 1_000_000.0).rounded())
+                    let resultJSON = try await WalletServiceBridge.shared.signAndSendTokenWithDerivation(
+                        chainId: SpectraChainID.tron,
+                        seedPhrase: seedPhrase,
+                        chain: .tron,
+                        derivationPath: wallet.seedDerivationPaths.tron
+                    ) { privKeyHex, _ in
+                        "{\"from\":\"\(sourceAddress)\",\"contract\":\"\(contract)\",\"to\":\"\(destinationAddress)\",\"amount_raw\":\"\(amountRawUInt)\",\"private_key_hex\":\"\(privKeyHex)\"}"
+                    }
+                    sendResult = TronSendResult(
+                        transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                        estimatedNetworkFeeTRX: store.tronSendPreview?.estimatedNetworkFeeTRX ?? 0,
+                        signedTransactionJSON: resultJSON,
+                        verificationStatus: .verified
                     )
                 } else if let privateKey {
-                    sendResult = try await TronWalletEngine.sendInBackground(
-                        privateKeyHex: privateKey,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        symbol: holding.symbol,
-                        amount: amount,
-                        contractAddress: holding.contractAddress,
-                    )
+                    // Private-key-only path: route through Rust directly.
+                    let normalizedPriv = privateKey.hasPrefix("0x") ? String(privateKey.dropFirst(2)) : privateKey
+                    if holding.symbol == "TRX" {
+                        let amountSun = UInt64(amount * 1e6)
+                        let paramsJson = "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"amount_sun\":\(amountSun),\"private_key_hex\":\"\(normalizedPriv)\"}"
+                        let resultJSON = try await WalletServiceBridge.shared.signAndSend(
+                            chainId: SpectraChainID.tron,
+                            paramsJson: paramsJson
+                        )
+                        sendResult = TronSendResult(
+                            transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                            estimatedNetworkFeeTRX: store.tronSendPreview?.estimatedNetworkFeeTRX ?? 0,
+                            signedTransactionJSON: resultJSON,
+                            verificationStatus: .verified
+                        )
+                    } else if let contract = holding.contractAddress {
+                        let amountRawUInt = UInt64((amount * 1_000_000.0).rounded())
+                        let paramsJson = "{\"from\":\"\(sourceAddress)\",\"contract\":\"\(contract)\",\"to\":\"\(destinationAddress)\",\"amount_raw\":\"\(amountRawUInt)\",\"private_key_hex\":\"\(normalizedPriv)\"}"
+                        let resultJSON = try await WalletServiceBridge.shared.signAndSendToken(
+                            chainId: SpectraChainID.tron,
+                            paramsJson: paramsJson
+                        )
+                        sendResult = TronSendResult(
+                            transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                            estimatedNetworkFeeTRX: store.tronSendPreview?.estimatedNetworkFeeTRX ?? 0,
+                            signedTransactionJSON: resultJSON,
+                            verificationStatus: .verified
+                        )
+                    } else {
+                        store.sendError = "Unsupported Tron asset for private-key send."
+                        return
+                    }
                 } else {
                     store.sendError = "This wallet's signing key is unavailable."
                     return
@@ -803,7 +842,7 @@ extension WalletSendLayer {
                     address: destinationAddress,
                     transactionHash: sendResult.transactionHash,
                     signedTransactionPayload: sendResult.signedTransactionJSON,
-                    signedTransactionPayloadFormat: "tron.signed_json"
+                    signedTransactionPayloadFormat: "tron.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
                 await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
@@ -861,15 +900,22 @@ extension WalletSendLayer {
 
             do {
                 let sendResult: SolanaSendResult
-                let solanaPreference = store.solanaDerivationPreference(for: wallet)
                 if holding.symbol == "SOL" {
-                    sendResult = try await SolanaWalletEngine.sendInBackground(
+                    // Native SOL: route through Rust
+                    let lamports = UInt64(amount * 1e9)
+                    let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                        chainId: SpectraChainID.solana,
                         seedPhrase: seedPhrase,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        amount: amount,
-                        preference: solanaPreference,
-                        account: store.derivationAccount(for: wallet, chain: .solana),
+                        chain: .solana,
+                        derivationPath: store.walletDerivationPath(for: wallet, chain: .solana)
+                    ) { privKeyHex, pubKeyHex in
+                        "{\"from_pubkey_hex\":\"\(pubKeyHex)\",\"to\":\"\(destinationAddress)\",\"lamports\":\(lamports),\"private_key_hex\":\"\(privKeyHex)\"}"
+                    }
+                    sendResult = SolanaSendResult(
+                        transactionHash: WalletSendLayer.rustField("signature", from: resultJSON),
+                        estimatedNetworkFeeSOL: store.solanaSendPreview?.estimatedNetworkFeeSOL ?? 0,
+                        signedTransactionBase64: resultJSON,
+                        verificationStatus: .verified
                     )
                 } else {
                     let solanaTokenMetadataByMint = store.solanaTrackedTokens(includeDisabled: true)
@@ -878,20 +924,24 @@ extension WalletSendLayer {
                         store.sendError = "\(holding.symbol) on Solana is not configured for sending yet."
                         return
                     }
-                    let sourceTokenAccount = try await SolanaBalanceService.resolveOwnedTokenAccount(
-                        for: sourceAddress,
-                        mintAddress: mintAddress
-                    )
-                    sendResult = try await SolanaWalletEngine.sendTokenInBackground(
+                    // Scale amount by token decimals into an integer raw unit.
+                    let decimals = tokenMetadata.decimals
+                    let scale = pow(10.0, Double(decimals))
+                    let amountRawUInt = UInt64((amount * scale).rounded())
+                    let resultJSON = try await WalletServiceBridge.shared.signAndSendTokenWithDerivation(
+                        chainId: SpectraChainID.solana,
                         seedPhrase: seedPhrase,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        mintAddress: mintAddress,
-                        decimals: tokenMetadata.decimals,
-                        amount: amount,
-                        sourceTokenAccountAddress: sourceTokenAccount,
-                        preference: solanaPreference,
-                        account: store.derivationAccount(for: wallet, chain: .solana),
+                        chain: .solana,
+                        derivationPath: store.walletDerivationPath(for: wallet, chain: .solana)
+                    ) { privKeyHex, pubKeyHex in
+                        let pk = pubKeyHex ?? ""
+                        return "{\"from_pubkey_hex\":\"\(pk)\",\"to\":\"\(destinationAddress)\",\"mint\":\"\(mintAddress)\",\"amount_raw\":\"\(amountRawUInt)\",\"decimals\":\(decimals),\"private_key_hex\":\"\(privKeyHex)\"}"
+                    }
+                    sendResult = SolanaSendResult(
+                        transactionHash: WalletSendLayer.rustField("signature", from: resultJSON),
+                        estimatedNetworkFeeSOL: store.solanaSendPreview?.estimatedNetworkFeeSOL ?? 0,
+                        signedTransactionBase64: resultJSON,
+                        verificationStatus: .verified
                     )
                 }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
@@ -906,7 +956,7 @@ extension WalletSendLayer {
                     address: destinationAddress,
                     transactionHash: sendResult.transactionHash,
                     signedTransactionPayload: sendResult.signedTransactionBase64,
-                    signedTransactionPayloadFormat: "solana.base64"
+                    signedTransactionPayloadFormat: "solana.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
                 await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
@@ -949,22 +999,30 @@ extension WalletSendLayer {
             defer { store.isSendingXRP = false }
 
             do {
-                let sendResult: XRPSendResult
+                let drops = UInt64(amount * 1e6)
+                let txHash: String
+                let signedPayload: String
                 if let seedPhrase {
-                    sendResult = try await XRPWalletEngine.sendInBackground(
+                    let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                        chainId: SpectraChainID.xrp,
                         seedPhrase: seedPhrase,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        amount: amount,
-                        derivationAccount: store.derivationAccount(for: wallet, chain: .xrp),
-                    )
+                        chain: .xrp,
+                        derivationPath: store.walletDerivationPath(for: wallet, chain: .xrp)
+                    ) { privKeyHex, pubKeyHex in
+                        "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"drops\":\(drops),\"private_key_hex\":\"\(privKeyHex)\",\"public_key_hex\":\"\(pubKeyHex)\"}"
+                    }
+                    txHash = WalletSendLayer.rustField("txid", from: resultJSON)
+                    signedPayload = resultJSON
                 } else if let privateKey {
-                    sendResult = try await XRPWalletEngine.sendInBackground(
-                        privateKeyHex: privateKey,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        amount: amount,
+                    // Private-key-only path: Rust derives the secp256k1 pubkey from the privkey.
+                    let normalizedPriv = privateKey.hasPrefix("0x") ? String(privateKey.dropFirst(2)) : privateKey
+                    let paramsJson = "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"drops\":\(drops),\"private_key_hex\":\"\(normalizedPriv)\"}"
+                    let resultJSON = try await WalletServiceBridge.shared.signAndSend(
+                        chainId: SpectraChainID.xrp,
+                        paramsJson: paramsJson
                     )
+                    txHash = WalletSendLayer.rustField("txid", from: resultJSON)
+                    signedPayload = resultJSON
                 } else {
                     store.sendError = "This wallet's signing key is unavailable."
                     return
@@ -979,12 +1037,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.signedTransactionBlobHex,
-                    signedTransactionPayloadFormat: "xrp.blob_hex"
+                    transactionHash: txHash,
+                    signedTransactionPayload: signedPayload,
+                    signedTransactionPayloadFormat: "xrp.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.xrpSendPreview = nil
                 }
@@ -1024,22 +1082,30 @@ extension WalletSendLayer {
             defer { store.isSendingStellar = false }
 
             do {
-                let sendResult: StellarSendResult
+                let stroops = Int64(amount * 1e7)
+                let txHash: String
+                let signedPayload: String
                 if let seedPhrase {
-                    sendResult = try await StellarWalletEngine.sendInBackground(
+                    let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                        chainId: SpectraChainID.stellar,
                         seedPhrase: seedPhrase,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        amount: amount,
-                        derivationPath: wallet.seedDerivationPaths.stellar,
-                    )
+                        chain: .stellar,
+                        derivationPath: wallet.seedDerivationPaths.stellar
+                    ) { privKeyHex, pubKeyHex in
+                        "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"stroops\":\(stroops),\"private_key_hex\":\"\(privKeyHex)\",\"public_key_hex\":\"\(pubKeyHex)\"}"
+                    }
+                    txHash = WalletSendLayer.rustField("txid", from: resultJSON)
+                    signedPayload = resultJSON
                 } else if let privateKey {
-                    sendResult = try await StellarWalletEngine.sendInBackground(
-                        privateKeyHex: privateKey,
-                        ownerAddress: sourceAddress,
-                        destinationAddress: destinationAddress,
-                        amount: amount,
+                    // Private-key-only path: Rust derives the ed25519 pubkey from the 32-byte seed.
+                    let normalizedPriv = privateKey.hasPrefix("0x") ? String(privateKey.dropFirst(2)) : privateKey
+                    let paramsJson = "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"stroops\":\(stroops),\"private_key_hex\":\"\(normalizedPriv)\"}"
+                    let resultJSON = try await WalletServiceBridge.shared.signAndSend(
+                        chainId: SpectraChainID.stellar,
+                        paramsJson: paramsJson
                     )
+                    txHash = WalletSendLayer.rustField("txid", from: resultJSON)
+                    signedPayload = resultJSON
                 } else {
                     store.sendError = "This wallet's signing key is unavailable."
                     return
@@ -1054,12 +1120,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.signedEnvelopeXDR,
-                    signedTransactionPayloadFormat: "stellar.xdr"
+                    transactionHash: txHash,
+                    signedTransactionPayload: signedPayload,
+                    signedTransactionPayloadFormat: "stellar.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.stellarSendPreview = nil
                 }
@@ -1093,10 +1159,10 @@ extension WalletSendLayer {
             defer { store.isSendingMonero = false }
 
             do {
-                let sendResult = try await MoneroWalletEngine.sendInBackground(
-                    ownerAddress: sourceAddress,
-                    destinationAddress: destinationAddress,
-                    amount: amount,
+                let piconeros = UInt64(amount * 1e12)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSend(
+                    chainId: SpectraChainID.monero,
+                    paramsJson: "{\"to\":\"\(destinationAddress)\",\"piconeros\":\(piconeros),\"priority\":2}"
                 )
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
@@ -1108,12 +1174,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: nil,
-                    signedTransactionPayloadFormat: nil
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "monero.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.moneroSendPreview = nil
                 }
@@ -1151,13 +1217,16 @@ extension WalletSendLayer {
             defer { store.isSendingCardano = false }
 
             do {
-                let sendResult = try await CardanoWalletEngine.sendInBackground(
+                let amountLovelace = UInt64(amount * 1e6)
+                let feeLovelace = UInt64((store.cardanoSendPreview?.estimatedNetworkFeeADA ?? 0.17) * 1e6)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                    chainId: SpectraChainID.cardano,
                     seedPhrase: seedPhrase,
-                    ownerAddress: sourceAddress,
-                    destinationAddress: destinationAddress,
-                    amount: amount,
-                    derivationPath: store.walletDerivationPath(for: wallet, chain: .cardano),
-                )
+                    chain: .cardano,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .cardano)
+                ) { privKeyHex, pubKeyHex in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"amount_lovelace\":\(amountLovelace),\"fee_lovelace\":\(feeLovelace),\"private_key_hex\":\"\(privKeyHex)\",\"public_key_hex\":\"\(pubKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -1168,12 +1237,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.signedTransactionCBORHex,
-                    signedTransactionPayloadFormat: "cardano.cbor_hex"
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "cardano.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.cardanoSendPreview = nil
                 }
@@ -1211,13 +1280,17 @@ extension WalletSendLayer {
             defer { store.isSendingNear = false }
 
             do {
-                let sendResult = try await NearWalletEngine.sendInBackground(
+                // NEAR uses u128 yocto (1 NEAR = 10^24 yocto); represent as decimal string
+                let nearAmt = amount
+                let yoctoStr = WalletSendLayer.nearToYoctoString(nearAmt)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                    chainId: SpectraChainID.near,
                     seedPhrase: seedPhrase,
-                    ownerAddress: sourceAddress,
-                    destinationAddress: destinationAddress,
-                    amount: amount,
-                    derivationAccount: store.derivationAccount(for: wallet, chain: .near),
-                )
+                    chain: .near,
+                    derivationPath: store.walletDerivationPath(for: wallet, chain: .near)
+                ) { privKeyHex, pubKeyHex in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"yocto_near\":\"\(yoctoStr)\",\"private_key_hex\":\"\(privKeyHex)\",\"public_key_hex\":\"\(pubKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -1228,12 +1301,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.signedTransactionBase64,
-                    signedTransactionPayloadFormat: "near.base64"
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "near.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.nearSendPreview = nil
                 }
@@ -1271,13 +1344,16 @@ extension WalletSendLayer {
             defer { store.isSendingPolkadot = false }
 
             do {
-                let sendResult = try await PolkadotWalletEngine.sendInBackground(
+                // Polkadot uses u128 planck (1 DOT = 10^10 planck); represent as decimal string
+                let planckStr = WalletSendLayer.dotToPlanckString(amount)
+                let resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivationAndPubKey(
+                    chainId: SpectraChainID.polkadot,
                     seedPhrase: seedPhrase,
-                    ownerAddress: sourceAddress,
-                    destinationAddress: destinationAddress,
-                    amount: amount,
+                    chain: .polkadot,
                     derivationPath: wallet.seedDerivationPaths.polkadot
-                )
+                ) { privKeyHex, pubKeyHex in
+                    "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"planck\":\"\(planckStr)\",\"private_key_hex\":\"\(privKeyHex)\",\"public_key_hex\":\"\(pubKeyHex)\"}"
+                }
                 let transaction = store.decoratePendingSendTransaction(TransactionRecord(
                     walletID: wallet.id,
                     kind: .send,
@@ -1288,12 +1364,12 @@ extension WalletSendLayer {
                     chainName: holding.chainName,
                     amount: amount,
                     address: destinationAddress,
-                    transactionHash: sendResult.transactionHash,
-                    signedTransactionPayload: sendResult.signedExtrinsicHex,
-                    signedTransactionPayloadFormat: "polkadot.extrinsic_hex"
+                    transactionHash: WalletSendLayer.rustField("txid", from: resultJSON),
+                    signedTransactionPayload: resultJSON,
+                    signedTransactionPayloadFormat: "polkadot.rust_json"
                 ), holding: holding)
                 store.recordPendingSentTransaction(transaction)
-                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: sendResult.verificationStatus)
+                await store.runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
                 store.resetSendComposerState {
                     store.polkadotSendPreview = nil
                 }
@@ -1366,86 +1442,67 @@ extension WalletSendLayer {
                 let explicitNonce = store.explicitEthereumNonce()
                 let evmDerivationChain = WalletDerivationLayer.evmSeedDerivationChain(for: holding.chainName) ?? .ethereum
                 let result: EthereumSendResult
-                if holding.symbol == "ETH" || holding.symbol == "ETC" {
+                let spectraEvmChainId = SpectraChainID.id(for: holding.chainName)
+                let overridesFragment = WalletSendLayer.evmOverridesJSONFragment(
+                    nonce: explicitNonce,
+                    customFees: customFees
+                )
+                let rustSupportsChain = spectraEvmChainId != nil
+                let nativeEvmSymbols: Set<String> = ["ETH", "ETC", "BNB"]
+                if nativeEvmSymbols.contains(holding.symbol) && rustSupportsChain, let chainId = spectraEvmChainId {
+                    let valueWei = WalletSendLayer.ethToWeiString(amount)
+                    guard let sourceAddress = store.resolvedEVMAddress(for: wallet, chainName: holding.chainName) else {
+                        store.sendError = "Unable to resolve this wallet's \(holding.chainName) signing address."
+                        return
+                    }
+                    let resultJSON: String
                     if let seedPhrase {
-                        result = try await EthereumWalletEngine.sendInBackground(
+                        resultJSON = try await WalletServiceBridge.shared.signAndSendWithDerivation(
+                            chainId: chainId,
                             seedPhrase: seedPhrase,
-                            to: destinationAddress,
-                            amountETH: amount,
-                            explicitNonce: explicitNonce,
-                            customFees: customFees,
-                            rpcEndpoint: store.configuredEVMRPCEndpointURL(for: holding.chainName),
-                            chain: chain,
-                            derivationAccount: store.derivationAccount(for: wallet, chain: evmDerivationChain)
-                        )
+                            chain: evmDerivationChain,
+                            derivationPath: store.walletDerivationPath(for: wallet, chain: evmDerivationChain)
+                        ) { privKeyHex, _ in
+                            "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"value_wei\":\"\(valueWei)\",\"private_key_hex\":\"\(privKeyHex)\"\(overridesFragment)}"
+                        }
                     } else if let privateKey {
-                        result = try await EthereumWalletEngine.sendInBackground(
-                            privateKeyHex: privateKey,
-                            to: destinationAddress,
-                            amountETH: amount,
-                            explicitNonce: explicitNonce,
-                            customFees: customFees,
-                            rpcEndpoint: store.configuredEVMRPCEndpointURL(for: holding.chainName),
-                            chain: chain
-                        )
+                        let payload = "{\"from\":\"\(sourceAddress)\",\"to\":\"\(destinationAddress)\",\"value_wei\":\"\(valueWei)\",\"private_key_hex\":\"\(privateKey)\"\(overridesFragment)}"
+                        resultJSON = try await WalletServiceBridge.shared.signAndSend(chainId: chainId, paramsJson: payload)
                     } else {
                         store.sendError = "This wallet's signing key is unavailable."
                         return
                     }
-                } else if let token = store.supportedEVMToken(for: holding) {
+                    result = WalletSendLayer.decodeEvmSendResult(
+                        resultJSON,
+                        fallbackNonce: explicitNonce ?? store.ethereumSendPreview?.nonce ?? 0
+                    )
+                } else if let token = store.supportedEVMToken(for: holding), rustSupportsChain, let chainId = spectraEvmChainId {
+                    guard let sourceAddress = store.resolvedEVMAddress(for: wallet, chainName: holding.chainName) else {
+                        store.sendError = "Unable to resolve this wallet's \(holding.chainName) signing address."
+                        return
+                    }
+                    let amountRaw = WalletSendLayer.tokenAmountToRawString(amount, decimals: token.decimals)
+                    let resultJSON: String
                     if let seedPhrase {
-                        result = try await EthereumWalletEngine.sendTokenInBackground(
+                        resultJSON = try await WalletServiceBridge.shared.signAndSendTokenWithDerivation(
+                            chainId: chainId,
                             seedPhrase: seedPhrase,
-                            to: destinationAddress,
-                            token: token,
-                            amount: amount,
-                            explicitNonce: explicitNonce,
-                            customFees: customFees,
-                            rpcEndpoint: store.configuredEVMRPCEndpointURL(for: holding.chainName),
-                            chain: chain,
-                            derivationAccount: store.derivationAccount(for: wallet, chain: evmDerivationChain)
-                        )
+                            chain: evmDerivationChain,
+                            derivationPath: store.walletDerivationPath(for: wallet, chain: evmDerivationChain)
+                        ) { privKeyHex, _ in
+                            "{\"from\":\"\(sourceAddress)\",\"contract\":\"\(token.contractAddress)\",\"to\":\"\(destinationAddress)\",\"amount_raw\":\"\(amountRaw)\",\"private_key_hex\":\"\(privKeyHex)\"\(overridesFragment)}"
+                        }
                     } else if let privateKey {
-                        result = try await EthereumWalletEngine.sendTokenInBackground(
-                            privateKeyHex: privateKey,
-                            to: destinationAddress,
-                            token: token,
-                            amount: amount,
-                            explicitNonce: explicitNonce,
-                            customFees: customFees,
-                            rpcEndpoint: store.configuredEVMRPCEndpointURL(for: holding.chainName),
-                            chain: chain
-                        )
+                        let payload = "{\"from\":\"\(sourceAddress)\",\"contract\":\"\(token.contractAddress)\",\"to\":\"\(destinationAddress)\",\"amount_raw\":\"\(amountRaw)\",\"private_key_hex\":\"\(privateKey)\"\(overridesFragment)}"
+                        resultJSON = try await WalletServiceBridge.shared.signAndSendToken(chainId: chainId, paramsJson: payload)
                     } else {
                         store.sendError = "This wallet's signing key is unavailable."
                         return
                     }
-                } else if holding.symbol == "BNB" {
-                    if let seedPhrase {
-                        result = try await EthereumWalletEngine.sendInBackground(
-                            seedPhrase: seedPhrase,
-                            to: destinationAddress,
-                            amountETH: amount,
-                            explicitNonce: explicitNonce,
-                            customFees: customFees,
-                            rpcEndpoint: store.configuredEVMRPCEndpointURL(for: holding.chainName),
-                            chain: chain,
-                            derivationAccount: store.derivationAccount(for: wallet, chain: evmDerivationChain)
-                        )
-                    } else if let privateKey {
-                        result = try await EthereumWalletEngine.sendInBackground(
-                            privateKeyHex: privateKey,
-                            to: destinationAddress,
-                            amountETH: amount,
-                            explicitNonce: explicitNonce,
-                            customFees: customFees,
-                            rpcEndpoint: store.configuredEVMRPCEndpointURL(for: holding.chainName),
-                            chain: chain
-                        )
-                    } else {
-                        store.sendError = "This wallet's signing key is unavailable."
-                        return
-                    }
+                    result = WalletSendLayer.decodeEvmSendResult(
+                        resultJSON,
+                        fallbackNonce: explicitNonce ?? store.ethereumSendPreview?.nonce ?? 0
+                    )
                 } else {
                     store.sendError = "\(holding.symbol) transfers on \(holding.chainName) are not enabled yet."
                     return
@@ -1477,4 +1534,116 @@ extension WalletSendLayer {
         store.sendError = "\(holding.chainName) native sending is not enabled yet."
     }
 
+    // MARK: - Rust send result helpers
+
+    /// Extract a string or numeric field from a Rust-returned JSON result.
+    /// Returns the value as a String (numeric values are stringified).
+    static func rustField(_ key: String, from json: String) -> String {
+        guard let data = json.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let val = obj[key] else { return "" }
+        if let s = val as? String { return s }
+        return "\(val)"
+    }
+
+    /// Convert a NEAR amount (Double, in NEAR) to a yocto string (u128 decimal).
+    /// 1 NEAR = 10^24 yocto. Uses string-based scaling to avoid UInt64 overflow.
+    static func nearToYoctoString(_ near: Double) -> String {
+        // Format with 12 decimal places → remove decimal point → append 12 zeros.
+        // This gives a 24-digit yocto representation correct to 12 significant frac digits.
+        let formatted = String(format: "%.12f", near)          // e.g. "1.500000000000"
+        let noDecimal = formatted.replacingOccurrences(of: ".", with: "")  // "1500000000000"
+        let yoctoStr  = noDecimal + String(repeating: "0", count: 12)      // append 12 more zeros → 10^24 scale
+        let trimmed   = yoctoStr.drop(while: { $0 == "0" })
+        return trimmed.isEmpty ? "0" : String(trimmed)
+    }
+
+    /// Convert a DOT amount (Double) to planck string. 1 DOT = 10^10 planck.
+    static func dotToPlanckString(_ dot: Double) -> String {
+        return "\(UInt64((dot * 1e10).rounded()))"
+    }
+
+    /// Convert an ETH amount (Double) to a wei decimal string with 18 decimals
+    /// of scale. Uses string-based padding to keep full precision for values
+    /// that would overflow UInt64 (anything above ~18 ETH).
+    static func ethToWeiString(_ eth: Double) -> String {
+        return tokenAmountToRawString(eth, decimals: 18)
+    }
+
+    /// Scale a decimal amount (e.g. "1.234567") by `decimals` and return the
+    /// integer raw-unit string. Used by EVM native + ERC-20 migrations to
+    /// feed Rust's u128 `value_wei` / `amount_raw` params without losing
+    /// precision to Double rounding.
+    static func tokenAmountToRawString(_ amount: Double, decimals: Int) -> String {
+        guard amount.isFinite, amount >= 0 else { return "0" }
+        // Format with 9 fractional digits of IEEE754 precision, then
+        // pad or truncate the fractional portion to `decimals` zeros.
+        let formatted = String(format: "%.9f", amount)
+        let parts = formatted.split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+        let whole = parts.first.map(String.init) ?? "0"
+        var frac = parts.count > 1 ? String(parts[1]) : ""
+        if frac.count < decimals {
+            frac += String(repeating: "0", count: decimals - frac.count)
+        } else if frac.count > decimals {
+            frac = String(frac.prefix(decimals))
+        }
+        let combined = whole + frac
+        let trimmed = combined.drop(while: { $0 == "0" })
+        return trimmed.isEmpty ? "0" : String(trimmed)
+    }
+
+    /// Build the trailing JSON object fragment (always starts with `,`) that
+    /// contains optional EVM send overrides. Returns an empty string when no
+    /// overrides apply.
+    static func evmOverridesJSONFragment(
+        nonce: Int?,
+        customFees: EthereumCustomFeeConfiguration?
+    ) -> String {
+        var fragments: [String] = []
+        if let nonce {
+            fragments.append("\"nonce\":\(nonce)")
+        }
+        if let customFees {
+            let maxFeeWei = UInt64((customFees.maxFeePerGasGwei * 1e9).rounded())
+            let priorityWei = UInt64((customFees.maxPriorityFeePerGasGwei * 1e9).rounded())
+            fragments.append("\"max_fee_per_gas_wei\":\"\(maxFeeWei)\"")
+            fragments.append("\"max_priority_fee_per_gas_wei\":\"\(priorityWei)\"")
+        }
+        return fragments.isEmpty ? "" : "," + fragments.joined(separator: ",")
+    }
+
+    /// Decode the `EvmSendResult` JSON that Rust returns after a successful
+    /// EVM send, mapping it into the Swift `EthereumSendResult` shape the
+    /// transaction-record pipeline still expects. `fallbackNonce` is used
+    /// when Rust didn't return a nonce (e.g. `broadcast_raw` path).
+    static func decodeEvmSendResult(
+        _ json: String,
+        fallbackNonce: Int
+    ) -> EthereumSendResult {
+        let txid = rustField("txid", from: json)
+        let rawTxHex = rustField("raw_tx_hex", from: json)
+        let nonceString = rustField("nonce", from: json)
+        let nonce = Int(nonceString) ?? fallbackNonce
+        let gasLimit = Int(rustField("gas_limit", from: json)) ?? 0
+        let preview = EthereumSendPreview(
+            nonce: nonce,
+            gasLimit: gasLimit,
+            maxFeePerGasGwei: 0,
+            maxPriorityFeePerGasGwei: 0,
+            estimatedNetworkFeeETH: 0,
+            spendableBalance: nil,
+            feeRateDescription: nil,
+            estimatedTransactionBytes: nil,
+            selectedInputCount: nil,
+            usesChangeOutput: nil,
+            maxSendable: nil
+        )
+        return EthereumSendResult(
+            fromAddress: "",
+            transactionHash: txid,
+            rawTransactionHex: rawTxHex,
+            preview: preview,
+            verificationStatus: .verified
+        )
+    }
 }

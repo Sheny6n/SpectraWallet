@@ -416,6 +416,22 @@ fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
+    typealias FfiType = UInt64
+    typealias SwiftType = UInt64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterBool : FfiConverter {
     typealias FfiType = Int8
     typealias SwiftType = Bool
@@ -497,6 +513,932 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 }
 
 
+
+
+/**
+ * The primary UniFFI-exported object. Swift holds one of these for the
+ * lifetime of the app session.
+ */
+public protocol WalletServiceProtocol: AnyObject, Sendable {
+    
+    /**
+     * Rebroadcast a previously signed transaction.
+     *
+     * `chain_id` is the Spectra chain ID. `payload` is the chain-specific
+     * raw payload:
+     * - BTC/LTC/BCH/BSV/DOGE/EVM: raw transaction hex string
+     * - Solana: base64-encoded signed transaction bytes
+     * - Tron: signed transaction JSON string (full broadcasttransaction body)
+     */
+    func broadcastRaw(chainId: UInt32, payload: String) async throws  -> String
+    
+    /**
+     * Derive the account-level xpub (mainnet, canonical `xpub…` encoding)
+     * from a BIP39 mnemonic phrase.
+     *
+     * `account_path` is the **hardened account path** only, e.g.:
+     * - `"m/84'/0'/0'"` → native SegWit (BIP84)
+     * - `"m/49'/0'/0'"` → nested SegWit (BIP49)
+     * - `"m/44'/0'/0'"` → legacy P2PKH (BIP44)
+     *
+     * `passphrase` is the optional BIP39 passphrase — pass `""` for none.
+     *
+     * Returns a JSON object `{"xpub": "xpub…"}`.
+     */
+    func deriveBitcoinAccountXpub(mnemonicPhrase: String, passphrase: String, accountPath: String) throws  -> String
+    
+    /**
+     * Derive a contiguous range of child addresses from an account-level
+     * extended public key (xpub/ypub/zpub).
+     *
+     * - `change` — 0 for external/receive, 1 for internal/change.
+     * - `start_index`, `count` — [start, start+count) scan window.
+     *
+     * Returns a JSON array of `{index, change, address}` objects.
+     */
+    func deriveBitcoinHdAddresses(xpub: String, change: UInt32, startIndex: UInt32, count: UInt32) async throws  -> String
+    
+    func fetchBalance(chainId: UInt32, address: String) async throws  -> String
+    
+    /**
+     * Return the first address on the `change` leg (0 = receive, 1 = change)
+     * that has zero confirmed/unconfirmed history, scanning up to
+     * `gap_limit` candidates. Returns a JSON object or `null` if exhausted.
+     */
+    func fetchBitcoinNextUnusedAddress(xpub: String, change: UInt32, gapLimit: UInt32) async throws  -> String
+    
+    /**
+     * Scan an xpub's receive + change legs and return aggregated balance
+     * plus per-UTXO breakdown. Uses the Bitcoin Esplora endpoint bundle.
+     */
+    func fetchBitcoinXpubBalance(xpub: String, receiveCount: UInt32, changeCount: UInt32) async throws  -> String
+    
+    /**
+     * Fetch the bytecode at `address` on the given EVM chain.
+     * Returns `{"code": "0x…"}`. "0x" / "0x0" means EOA (no contract code).
+     */
+    func fetchEvmCode(chainId: UInt32, address: String) async throws  -> String
+    
+    /**
+     * Fetch one page of EVM transaction history for `address`.
+     *
+     * Runs two requests in parallel against the configured Etherscan-compatible
+     * explorer endpoint:
+     * 1. `txlist` — native ETH/EVM transfers
+     * 2. `tokentx` — ERC-20 token transfers
+     *
+     * `tokens_json` is `[{"contract":"0x…","symbol":"USDC","name":"USD Coin","decimals":6},…]`.
+     * Only token transfers whose contract matches a tracked token are included in the result.
+     * Pass `"[]"` to skip token transfers.
+     *
+     * Returns `{"native": […], "tokens": […]}`.
+     */
+    func fetchEvmHistoryPage(chainId: UInt32, address: String, tokensJson: String, page: UInt32, pageSize: UInt32) async throws  -> String
+    
+    /**
+     * Fetch balances for multiple ERC-20 tokens in a single call.
+     *
+     * `tokens_json` is a JSON array of objects:
+     * ```json
+     * [{"contract": "0x...", "symbol": "USDC", "decimals": 6}, ...]
+     * ```
+     *
+     * Returns a JSON array of results:
+     * ```json
+     * [{"contract_address": "0x...", "symbol": "USDC", "balance_display": "10.5",
+     * "balance_raw": "10500000", "decimals": 6}, ...]
+     * ```
+     *
+     * Tokens with zero balance are **included** in the response so the caller
+     * can detect the difference between "zero balance" and "missing token".
+     */
+    func fetchEvmTokenBalancesBatch(chainId: UInt32, address: String, tokensJson: String) async throws  -> String
+    
+    /**
+     * Fetch the nonce of a submitted transaction by hash on an EVM chain.
+     * Returns `{"nonce": <u64>}`. Used to pre-fill the replacement-tx nonce field.
+     */
+    func fetchEvmTxNonce(chainId: UInt32, txHash: String) async throws  -> String
+    
+    /**
+     * Fetch a fee estimate preview for the given chain.
+     *
+     * BTC and EVM return their chain-specific structs (`FeeRate`,
+     * `EvmFeeEstimate`) for backward compatibility with existing Swift
+     * decoders. All other chains return a unified JSON object:
+     *
+     * ```json
+     * {
+     * "chain_id": 17,
+     * "native_fee_raw": "1000000000000000000000",
+     * "native_fee_display": "0.001",
+     * "unit": "NEAR",
+     * "source": "rpc" | "static"
+     * }
+     * ```
+     *
+     * `source` is `"rpc"` when the value comes from a live endpoint call,
+     * and `"static"` when it is a conservative hardcoded default (used for
+     * chains where no preview RPC exists yet).
+     */
+    func fetchFeeEstimate(chainId: UInt32) async throws  -> String
+    
+    /**
+     * Fetch USD-relative fiat rates from `provider`. `currencies_json`
+     * is a JSON array of ISO codes (e.g. `["EUR","JPY"]`). The returned
+     * JSON map always includes `"USD": 1.0`.
+     */
+    func fetchFiatRates(provider: String, currenciesJson: String) async throws  -> String
+    
+    func fetchHistory(chainId: UInt32, address: String) async throws  -> String
+    
+    /**
+     * Fetch USD spot prices for the supplied coins from `provider`.
+     *
+     * `provider` is the Swift-side display name (e.g. "CoinGecko",
+     * "Binance Public API"). `coins_json` is a JSON array of
+     * `{holdingKey, symbol, coinGeckoId}` objects — Swift hands us
+     * exactly what it currently hands `LivePriceService.fetchQuotes`.
+     * `api_key` is only consulted by CoinGecko; pass "" for others.
+     *
+     * Returns a JSON map keyed by `holdingKey` with USD prices as
+     * numeric values. Missing coins are simply absent from the map.
+     */
+    func fetchPrices(provider: String, coinsJson: String, apiKey: String) async throws  -> String
+    
+    /**
+     * Fetch a single token balance for the given chain.
+     *
+     * `params_json` schema (chain-specific):
+     * - EVM chains (1,11,12,13,20,21): `{"contract": "0x…", "holder": "0x…"}`
+     * - Tron (7): `{"contract": "T…", "holder": "T…"}`
+     * - Stellar (8): `{"holder": "G…", "asset_code": "USDC", "asset_issuer": "G…"}`
+     * - NEAR (17): `{"contract": "token.near", "holder": "account.near"}`
+     * - Solana (2): `{"mint": "<base58>", "owner": "<base58>"}`
+     *
+     * Returns a JSON string Swift can decode directly.
+     */
+    func fetchTokenBalance(chainId: UInt32, paramsJson: String) async throws  -> String
+    
+    /**
+     * Compute a fee-capacity preview for a UTXO-based chain.
+     *
+     * Fetches UTXOs for `address`, estimates the fee for a max-send transaction
+     * (no change output), and returns a JSON object:
+     *
+     * ```json
+     * {
+     * "fee_rate_svb":          10,
+     * "estimated_fee_sat":     1480,
+     * "estimated_tx_bytes":    148,
+     * "selected_input_count":  1,
+     * "uses_change_output":    false,
+     * "spendable_balance_sat": 1000000,
+     * "max_sendable_sat":      998520
+     * }
+     * ```
+     *
+     * Pass `fee_rate_svb = 0` to let Rust fetch a live rate from the chain's
+     * Blockbook endpoint (falls back to 1 sat/vB). Otherwise the caller-
+     * supplied rate is used directly.
+     *
+     * Supported chain IDs: 5 (LTC), 6 (BCH), 22 (BSV).
+     */
+    func fetchUtxoFeePreview(chainId: UInt32, address: String, feeRateSvb: UInt64) async throws  -> String
+    
+    /**
+     * Load the JSON state blob stored under `key` in the SQLite database at
+     * `db_path`. Returns an empty JSON object `"{}"` when no value has been
+     * saved yet. Thread-safe: rusqlite is called in `spawn_blocking`.
+     */
+    func loadState(dbPath: String, key: String) async throws  -> String
+    
+    /**
+     * Resolve an ENS name to an Ethereum address via the ENS Ideas public API.
+     *
+     * Returns `{"address": "0x…"}` when resolved, `{"address": ""}` when the
+     * name has no registered address, or an error on network failure.
+     */
+    func resolveEnsName(name: String) async throws  -> String
+    
+    /**
+     * Persist the JSON state blob under `key` in the SQLite database at
+     * `db_path`. Creates the file (and the `state` table) on first use.
+     */
+    func saveState(dbPath: String, key: String, stateJson: String) async throws 
+    
+    /**
+     * Sign and broadcast a transaction.
+     *
+     * `params_json` is chain-specific JSON containing addresses, amounts,
+     * and private keys (read from Keychain by Swift before calling).
+     */
+    func signAndSend(chainId: UInt32, paramsJson: String) async throws  -> String
+    
+    /**
+     * Sign and broadcast a token transfer on the given chain.
+     *
+     * `params_json` schema:
+     * - EVM chains (1,11,12,13,20,21): `{"from": "0x…", "contract": "0x…",
+     * "to": "0x…", "amount_raw": "<decimal string>", "private_key_hex": "…"}`
+     * (`amount_raw` is scaled by token decimals on the Swift side)
+     * - Tron (7): same EVM shape plus optional `"fee_limit_sun"` (default
+     * 100 TRX). Addresses are base58 (`T…`).
+     * - Stellar (8): `{"from": "G…", "to": "G…", "stroops": <int>,
+     * "asset_code": "USDC", "asset_issuer": "G…",
+     * "private_key_hex": "<64-byte>", "public_key_hex": "<32-byte>"}`
+     * - NEAR (17): `{"from": "alice.near", "contract": "token.near",
+     * "to": "bob.near", "amount_raw": "<decimal>",
+     * "private_key_hex": "<64-byte>", "public_key_hex": "<32-byte>"}`
+     * - Solana (2): `{"from_pubkey_hex": "<32 hex>", "to": "<b58 wallet>",
+     * "mint": "<b58 mint>", "amount_raw": "<decimal>",
+     * "decimals": <u8>, "private_key_hex": "<64-byte>"}`
+     */
+    func signAndSendToken(chainId: UInt32, paramsJson: String) async throws  -> String
+    
+    func updateEndpoints(endpointsJson: String) async throws 
+    
+}
+/**
+ * The primary UniFFI-exported object. Swift holds one of these for the
+ * lifetime of the app session.
+ */
+open class WalletService: WalletServiceProtocol, @unchecked Sendable {
+    fileprivate let pointer: UnsafeMutableRawPointer!
+
+    /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoPointer {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        self.pointer = pointer
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noPointer: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing [Pointer] the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noPointer: NoPointer) {
+        self.pointer = nil
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiClonePointer() -> UnsafeMutableRawPointer {
+        return try! rustCall { uniffi_spectra_derivation_fn_clone_walletservice(self.pointer, $0) }
+    }
+public convenience init(endpointsJson: String)throws  {
+    let pointer =
+        try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
+    uniffi_spectra_derivation_fn_constructor_walletservice_new(
+        FfiConverterString.lower(endpointsJson),$0
+    )
+}
+    self.init(unsafeFromRawPointer: pointer)
+}
+
+    deinit {
+        guard let pointer = pointer else {
+            return
+        }
+
+        try! rustCall { uniffi_spectra_derivation_fn_free_walletservice(pointer, $0) }
+    }
+
+    
+
+    
+    /**
+     * Rebroadcast a previously signed transaction.
+     *
+     * `chain_id` is the Spectra chain ID. `payload` is the chain-specific
+     * raw payload:
+     * - BTC/LTC/BCH/BSV/DOGE/EVM: raw transaction hex string
+     * - Solana: base64-encoded signed transaction bytes
+     * - Tron: signed transaction JSON string (full broadcasttransaction body)
+     */
+open func broadcastRaw(chainId: UInt32, payload: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_broadcast_raw(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(payload)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Derive the account-level xpub (mainnet, canonical `xpub…` encoding)
+     * from a BIP39 mnemonic phrase.
+     *
+     * `account_path` is the **hardened account path** only, e.g.:
+     * - `"m/84'/0'/0'"` → native SegWit (BIP84)
+     * - `"m/49'/0'/0'"` → nested SegWit (BIP49)
+     * - `"m/44'/0'/0'"` → legacy P2PKH (BIP44)
+     *
+     * `passphrase` is the optional BIP39 passphrase — pass `""` for none.
+     *
+     * Returns a JSON object `{"xpub": "xpub…"}`.
+     */
+open func deriveBitcoinAccountXpub(mnemonicPhrase: String, passphrase: String, accountPath: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
+    uniffi_spectra_derivation_fn_method_walletservice_derive_bitcoin_account_xpub(self.uniffiClonePointer(),
+        FfiConverterString.lower(mnemonicPhrase),
+        FfiConverterString.lower(passphrase),
+        FfiConverterString.lower(accountPath),$0
+    )
+})
+}
+    
+    /**
+     * Derive a contiguous range of child addresses from an account-level
+     * extended public key (xpub/ypub/zpub).
+     *
+     * - `change` — 0 for external/receive, 1 for internal/change.
+     * - `start_index`, `count` — [start, start+count) scan window.
+     *
+     * Returns a JSON array of `{index, change, address}` objects.
+     */
+open func deriveBitcoinHdAddresses(xpub: String, change: UInt32, startIndex: UInt32, count: UInt32)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_derive_bitcoin_hd_addresses(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(xpub),FfiConverterUInt32.lower(change),FfiConverterUInt32.lower(startIndex),FfiConverterUInt32.lower(count)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+open func fetchBalance(chainId: UInt32, address: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_balance(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Return the first address on the `change` leg (0 = receive, 1 = change)
+     * that has zero confirmed/unconfirmed history, scanning up to
+     * `gap_limit` candidates. Returns a JSON object or `null` if exhausted.
+     */
+open func fetchBitcoinNextUnusedAddress(xpub: String, change: UInt32, gapLimit: UInt32)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_bitcoin_next_unused_address(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(xpub),FfiConverterUInt32.lower(change),FfiConverterUInt32.lower(gapLimit)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Scan an xpub's receive + change legs and return aggregated balance
+     * plus per-UTXO breakdown. Uses the Bitcoin Esplora endpoint bundle.
+     */
+open func fetchBitcoinXpubBalance(xpub: String, receiveCount: UInt32, changeCount: UInt32)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_bitcoin_xpub_balance(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(xpub),FfiConverterUInt32.lower(receiveCount),FfiConverterUInt32.lower(changeCount)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch the bytecode at `address` on the given EVM chain.
+     * Returns `{"code": "0x…"}`. "0x" / "0x0" means EOA (no contract code).
+     */
+open func fetchEvmCode(chainId: UInt32, address: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_evm_code(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch one page of EVM transaction history for `address`.
+     *
+     * Runs two requests in parallel against the configured Etherscan-compatible
+     * explorer endpoint:
+     * 1. `txlist` — native ETH/EVM transfers
+     * 2. `tokentx` — ERC-20 token transfers
+     *
+     * `tokens_json` is `[{"contract":"0x…","symbol":"USDC","name":"USD Coin","decimals":6},…]`.
+     * Only token transfers whose contract matches a tracked token are included in the result.
+     * Pass `"[]"` to skip token transfers.
+     *
+     * Returns `{"native": […], "tokens": […]}`.
+     */
+open func fetchEvmHistoryPage(chainId: UInt32, address: String, tokensJson: String, page: UInt32, pageSize: UInt32)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_evm_history_page(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterString.lower(tokensJson),FfiConverterUInt32.lower(page),FfiConverterUInt32.lower(pageSize)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch balances for multiple ERC-20 tokens in a single call.
+     *
+     * `tokens_json` is a JSON array of objects:
+     * ```json
+     * [{"contract": "0x...", "symbol": "USDC", "decimals": 6}, ...]
+     * ```
+     *
+     * Returns a JSON array of results:
+     * ```json
+     * [{"contract_address": "0x...", "symbol": "USDC", "balance_display": "10.5",
+     * "balance_raw": "10500000", "decimals": 6}, ...]
+     * ```
+     *
+     * Tokens with zero balance are **included** in the response so the caller
+     * can detect the difference between "zero balance" and "missing token".
+     */
+open func fetchEvmTokenBalancesBatch(chainId: UInt32, address: String, tokensJson: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_evm_token_balances_batch(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterString.lower(tokensJson)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch the nonce of a submitted transaction by hash on an EVM chain.
+     * Returns `{"nonce": <u64>}`. Used to pre-fill the replacement-tx nonce field.
+     */
+open func fetchEvmTxNonce(chainId: UInt32, txHash: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_evm_tx_nonce(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(txHash)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch a fee estimate preview for the given chain.
+     *
+     * BTC and EVM return their chain-specific structs (`FeeRate`,
+     * `EvmFeeEstimate`) for backward compatibility with existing Swift
+     * decoders. All other chains return a unified JSON object:
+     *
+     * ```json
+     * {
+     * "chain_id": 17,
+     * "native_fee_raw": "1000000000000000000000",
+     * "native_fee_display": "0.001",
+     * "unit": "NEAR",
+     * "source": "rpc" | "static"
+     * }
+     * ```
+     *
+     * `source` is `"rpc"` when the value comes from a live endpoint call,
+     * and `"static"` when it is a conservative hardcoded default (used for
+     * chains where no preview RPC exists yet).
+     */
+open func fetchFeeEstimate(chainId: UInt32)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_fee_estimate(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch USD-relative fiat rates from `provider`. `currencies_json`
+     * is a JSON array of ISO codes (e.g. `["EUR","JPY"]`). The returned
+     * JSON map always includes `"USD": 1.0`.
+     */
+open func fetchFiatRates(provider: String, currenciesJson: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_fiat_rates(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(provider),FfiConverterString.lower(currenciesJson)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+open func fetchHistory(chainId: UInt32, address: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_history(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch USD spot prices for the supplied coins from `provider`.
+     *
+     * `provider` is the Swift-side display name (e.g. "CoinGecko",
+     * "Binance Public API"). `coins_json` is a JSON array of
+     * `{holdingKey, symbol, coinGeckoId}` objects — Swift hands us
+     * exactly what it currently hands `LivePriceService.fetchQuotes`.
+     * `api_key` is only consulted by CoinGecko; pass "" for others.
+     *
+     * Returns a JSON map keyed by `holdingKey` with USD prices as
+     * numeric values. Missing coins are simply absent from the map.
+     */
+open func fetchPrices(provider: String, coinsJson: String, apiKey: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_prices(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(provider),FfiConverterString.lower(coinsJson),FfiConverterString.lower(apiKey)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch a single token balance for the given chain.
+     *
+     * `params_json` schema (chain-specific):
+     * - EVM chains (1,11,12,13,20,21): `{"contract": "0x…", "holder": "0x…"}`
+     * - Tron (7): `{"contract": "T…", "holder": "T…"}`
+     * - Stellar (8): `{"holder": "G…", "asset_code": "USDC", "asset_issuer": "G…"}`
+     * - NEAR (17): `{"contract": "token.near", "holder": "account.near"}`
+     * - Solana (2): `{"mint": "<base58>", "owner": "<base58>"}`
+     *
+     * Returns a JSON string Swift can decode directly.
+     */
+open func fetchTokenBalance(chainId: UInt32, paramsJson: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_token_balance(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(paramsJson)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Compute a fee-capacity preview for a UTXO-based chain.
+     *
+     * Fetches UTXOs for `address`, estimates the fee for a max-send transaction
+     * (no change output), and returns a JSON object:
+     *
+     * ```json
+     * {
+     * "fee_rate_svb":          10,
+     * "estimated_fee_sat":     1480,
+     * "estimated_tx_bytes":    148,
+     * "selected_input_count":  1,
+     * "uses_change_output":    false,
+     * "spendable_balance_sat": 1000000,
+     * "max_sendable_sat":      998520
+     * }
+     * ```
+     *
+     * Pass `fee_rate_svb = 0` to let Rust fetch a live rate from the chain's
+     * Blockbook endpoint (falls back to 1 sat/vB). Otherwise the caller-
+     * supplied rate is used directly.
+     *
+     * Supported chain IDs: 5 (LTC), 6 (BCH), 22 (BSV).
+     */
+open func fetchUtxoFeePreview(chainId: UInt32, address: String, feeRateSvb: UInt64)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_fetch_utxo_fee_preview(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterUInt64.lower(feeRateSvb)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Load the JSON state blob stored under `key` in the SQLite database at
+     * `db_path`. Returns an empty JSON object `"{}"` when no value has been
+     * saved yet. Thread-safe: rusqlite is called in `spawn_blocking`.
+     */
+open func loadState(dbPath: String, key: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_load_state(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(dbPath),FfiConverterString.lower(key)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Resolve an ENS name to an Ethereum address via the ENS Ideas public API.
+     *
+     * Returns `{"address": "0x…"}` when resolved, `{"address": ""}` when the
+     * name has no registered address, or an error on network failure.
+     */
+open func resolveEnsName(name: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_resolve_ens_name(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(name)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Persist the JSON state blob under `key` in the SQLite database at
+     * `db_path`. Creates the file (and the `state` table) on first use.
+     */
+open func saveState(dbPath: String, key: String, stateJson: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_save_state(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(dbPath),FfiConverterString.lower(key),FfiConverterString.lower(stateJson)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_void,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_void,
+            freeFunc: ffi_spectra_derivation_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Sign and broadcast a transaction.
+     *
+     * `params_json` is chain-specific JSON containing addresses, amounts,
+     * and private keys (read from Keychain by Swift before calling).
+     */
+open func signAndSend(chainId: UInt32, paramsJson: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_sign_and_send(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(paramsJson)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Sign and broadcast a token transfer on the given chain.
+     *
+     * `params_json` schema:
+     * - EVM chains (1,11,12,13,20,21): `{"from": "0x…", "contract": "0x…",
+     * "to": "0x…", "amount_raw": "<decimal string>", "private_key_hex": "…"}`
+     * (`amount_raw` is scaled by token decimals on the Swift side)
+     * - Tron (7): same EVM shape plus optional `"fee_limit_sun"` (default
+     * 100 TRX). Addresses are base58 (`T…`).
+     * - Stellar (8): `{"from": "G…", "to": "G…", "stroops": <int>,
+     * "asset_code": "USDC", "asset_issuer": "G…",
+     * "private_key_hex": "<64-byte>", "public_key_hex": "<32-byte>"}`
+     * - NEAR (17): `{"from": "alice.near", "contract": "token.near",
+     * "to": "bob.near", "amount_raw": "<decimal>",
+     * "private_key_hex": "<64-byte>", "public_key_hex": "<32-byte>"}`
+     * - Solana (2): `{"from_pubkey_hex": "<32 hex>", "to": "<b58 wallet>",
+     * "mint": "<b58 mint>", "amount_raw": "<decimal>",
+     * "decimals": <u8>, "private_key_hex": "<64-byte>"}`
+     */
+open func signAndSendToken(chainId: UInt32, paramsJson: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_sign_and_send_token(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(paramsJson)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_derivation_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+open func updateEndpoints(endpointsJson: String)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_derivation_fn_method_walletservice_update_endpoints(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(endpointsJson)
+                )
+            },
+            pollFunc: ffi_spectra_derivation_rust_future_poll_void,
+            completeFunc: ffi_spectra_derivation_rust_future_complete_void,
+            freeFunc: ffi_spectra_derivation_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeWalletService: FfiConverter {
+
+    typealias FfiType = UnsafeMutableRawPointer
+    typealias SwiftType = WalletService
+
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> WalletService {
+        return WalletService(unsafeFromRawPointer: pointer)
+    }
+
+    public static func lower(_ value: WalletService) -> UnsafeMutableRawPointer {
+        return value.uniffiClonePointer()
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> WalletService {
+        let v: UInt64 = try readInt(&buf)
+        // The Rust code won't compile if a pointer won't fit in a UInt64.
+        // We have to go via `UInt` because that's the thing that's the size of a pointer.
+        let ptr = UnsafeMutableRawPointer(bitPattern: UInt(truncatingIfNeeded: v))
+        if (ptr == nil) {
+            throw UniffiInternalError.unexpectedNullPointer
+        }
+        return try lift(ptr!)
+    }
+
+    public static func write(_ value: WalletService, into buf: inout [UInt8]) {
+        // This fiddling is because `Int` is the thing that's the same size as a pointer.
+        // The Rust code won't compile if a pointer won't fit in a `UInt64`.
+        writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWalletService_lift(_ pointer: UnsafeMutableRawPointer) throws -> WalletService {
+    return try FfiConverterTypeWalletService.lift(pointer)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeWalletService_lower(_ value: WalletService) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeWalletService.lower(value)
+}
+
+
+
+
 public enum SpectraBridgeError: Swift.Error {
 
     
@@ -571,6 +1513,52 @@ extension SpectraBridgeError: Foundation.LocalizedError {
 
 
 
+private let UNIFFI_RUST_FUTURE_POLL_READY: Int8 = 0
+private let UNIFFI_RUST_FUTURE_POLL_MAYBE_READY: Int8 = 1
+
+fileprivate let uniffiContinuationHandleMap = UniffiHandleMap<UnsafeContinuation<Int8, Never>>()
+
+fileprivate func uniffiRustCallAsync<F, T>(
+    rustFutureFunc: () -> UInt64,
+    pollFunc: (UInt64, UniffiRustFutureContinuationCallback, UInt64) -> (),
+    completeFunc: (UInt64, UnsafeMutablePointer<RustCallStatus>) -> F,
+    freeFunc: (UInt64) -> (),
+    liftFunc: (F) throws -> T,
+    errorHandler: ((RustBuffer) throws -> Swift.Error)?
+) async throws -> T {
+    // Make sure to call the ensure init function since future creation doesn't have a
+    // RustCallStatus param, so doesn't use makeRustCall()
+    uniffiEnsureSpectraDerivationInitialized()
+    let rustFuture = rustFutureFunc()
+    defer {
+        freeFunc(rustFuture)
+    }
+    var pollResult: Int8;
+    repeat {
+        pollResult = await withUnsafeContinuation {
+            pollFunc(
+                rustFuture,
+                uniffiFutureContinuationCallback,
+                uniffiContinuationHandleMap.insert(obj: $0)
+            )
+        }
+    } while pollResult != UNIFFI_RUST_FUTURE_POLL_READY
+
+    return try liftFunc(makeRustCall(
+        { completeFunc(rustFuture, $0) },
+        errorHandler: errorHandler
+    ))
+}
+
+// Callback handlers for an async calls.  These are invoked by Rust when the future is ready.  They
+// lift the return value or error and resume the suspended function.
+nonisolated fileprivate func uniffiFutureContinuationCallback(handle: UInt64, pollResult: Int8) {
+    if let continuation = try? uniffiContinuationHandleMap.remove(handle: handle) {
+        continuation.resume(returning: pollResult)
+    } else {
+        print("uniffiFutureContinuationCallback invalid handle")
+    }
+}
 public func appCoreAppChainDescriptorsJson()throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_derivation_fn_func_app_core_app_chain_descriptors_json($0
@@ -698,6 +1686,16 @@ public func appCoreTransactionExplorerEntryJson(chainName: String)throws  -> Str
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_derivation_fn_func_app_core_transaction_explorer_entry_json(
         FfiConverterString.lower(chainName),$0
+    )
+})
+}
+/**
+ * Return the full BIP-39 English word list as a newline-delimited string
+ * (2048 words, one per line, alphabetically sorted).
+ */
+public func bip39EnglishWordlist() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_spectra_derivation_fn_func_bip39_english_wordlist($0
     )
 })
 }
@@ -975,6 +1973,33 @@ public func derivationDeriveJson(requestJson: String)throws  -> String  {
     )
 })
 }
+/**
+ * Generate a new random BIP-39 mnemonic with the requested word count.
+ *
+ * `word_count` must be 12, 15, 18, 21, or 24. Any other value falls
+ * back silently to 12 words. Returns the space-joined mnemonic phrase.
+ */
+public func generateMnemonic(wordCount: UInt32) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_spectra_derivation_fn_func_generate_mnemonic(
+        FfiConverterUInt32.lower(wordCount),$0
+    )
+})
+}
+/**
+ * Validate a BIP-39 mnemonic phrase.
+ *
+ * Returns `true` if `phrase` is a valid English BIP-39 mnemonic (correct
+ * word count, all words in the word list, and correct checksum). Returns
+ * `false` for any other input.
+ */
+public func validateMnemonic(phrase: String) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_spectra_derivation_fn_func_validate_mnemonic(
+        FfiConverterString.lower(phrase),$0
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -1046,6 +2071,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_derivation_checksum_func_app_core_transaction_explorer_entry_json() != 24637) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_func_bip39_english_wordlist() != 14036) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_derivation_checksum_func_core_active_maintenance_plan_json() != 27087) {
@@ -1163,6 +2191,81 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_derivation_checksum_func_derivation_derive_json() != 6641) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_func_generate_mnemonic() != 39172) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_func_validate_mnemonic() != 27248) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_broadcast_raw() != 38543) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_derive_bitcoin_account_xpub() != 47514) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_derive_bitcoin_hd_addresses() != 8315) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_balance() != 63583) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_bitcoin_next_unused_address() != 59117) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_bitcoin_xpub_balance() != 14209) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_evm_code() != 60759) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_evm_history_page() != 20884) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_evm_token_balances_batch() != 60573) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_evm_tx_nonce() != 5777) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_fee_estimate() != 54809) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_fiat_rates() != 2221) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_history() != 60708) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_prices() != 63918) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_token_balance() != 63267) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_fetch_utxo_fee_preview() != 1874) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_load_state() != 16054) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_resolve_ens_name() != 38520) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_save_state() != 39685) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_sign_and_send() != 51633) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_sign_and_send_token() != 21782) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_method_walletservice_update_endpoints() != 21147) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_derivation_checksum_constructor_walletservice_new() != 33034) {
         return InitializationResult.apiChecksumMismatch
     }
 
