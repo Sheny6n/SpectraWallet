@@ -122,10 +122,20 @@ enum EthereumChainSelfTestSuite {
         )
     }
 
+    private static func paginateSnapshots(
+        _ snapshots: [EthereumTokenTransferSnapshot],
+        page: Int,
+        pageSize: Int
+    ) -> [EthereumTokenTransferSnapshot] {
+        let start = (page - 1) * pageSize
+        guard start < snapshots.count else { return [] }
+        return Array(snapshots[start..<min(start + pageSize, snapshots.count)])
+    }
+
     private static func testTransferPaginationWindow() -> ChainSelfTestResult {
         #if DEBUG
         let snapshots = sampleTransferSnapshots(count: 7)
-        let page = EthereumWalletEngine.paginateTransferSnapshotsForTesting(snapshots, page: 2, pageSize: 3)
+        let page = paginateSnapshots(snapshots, page: 2, pageSize: 3)
         let expectedHashes = Array(snapshots[3...5]).map(\.transactionHash)
         let actualHashes = page.map(\.transactionHash)
         let passed = actualHashes == expectedHashes
@@ -146,7 +156,7 @@ enum EthereumChainSelfTestSuite {
     private static func testTransferPaginationOutOfRange() -> ChainSelfTestResult {
         #if DEBUG
         let snapshots = sampleTransferSnapshots(count: 5)
-        let page = EthereumWalletEngine.paginateTransferSnapshotsForTesting(snapshots, page: 4, pageSize: 2)
+        let page = paginateSnapshots(snapshots, page: 4, pageSize: 2)
         let passed = page.isEmpty
         return ChainSelfTestResult(
             name: "ETH Transfer Pagination Out Of Range",

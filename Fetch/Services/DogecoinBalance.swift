@@ -1,5 +1,19 @@
 import Foundation
 
+enum DogecoinNetworkMode: String, CaseIterable, Codable, Identifiable {
+    case mainnet
+    case testnet
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .mainnet: return "Mainnet"
+        case .testnet: return "Testnet"
+        }
+    }
+}
+
 struct DogecoinTransactionStatus {
     let confirmed: Bool
     let blockHeight: Int?

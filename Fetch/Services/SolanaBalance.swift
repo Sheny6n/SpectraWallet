@@ -1,5 +1,11 @@
 import Foundation
-import SolanaSwift
+
+struct SolanaHistoryDiagnostics: Equatable {
+    let address: String
+    let rpcCount: Int
+    let sourceUsed: String
+    let error: String?
+}
 
 struct SolanaSPLTokenBalanceSnapshot: Equatable {
     let mintAddress: String
@@ -35,7 +41,7 @@ enum SolanaBalanceService {
         let coinGeckoID: String
     }
 
-    static let usdtMintAddress = PublicKey.usdtMint.base58EncodedString
+    static let usdtMintAddress = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
     static let usdcMintAddress = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
     static let pyusdMintAddress = "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"
     static let usdgMintAddress = "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
@@ -46,7 +52,7 @@ enum SolanaBalanceService {
     static let bonkMintAddress = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263"
 
     static let knownTokenMetadataByMint: [String: KnownTokenMetadata] = [
-        PublicKey.usdtMint.base58EncodedString: KnownTokenMetadata(
+        usdtMintAddress: KnownTokenMetadata(
             symbol: "USDT",
             name: "Tether USD",
             decimals: 6,

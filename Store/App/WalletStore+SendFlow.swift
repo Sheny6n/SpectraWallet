@@ -662,7 +662,7 @@ extension WalletStore {
         } else if chain == .avalanche {
             chainTokens = enabledAvalancheTrackedTokens()
         } else {
-            chainTokens = EthereumWalletEngine.supportedTokens(for: chain)
+            chainTokens = []
         }
 
         if let contractAddress = coin.contractAddress {
@@ -1169,25 +1169,37 @@ extension WalletStore {
         let rpcLabel = configuredEthereumRPCEndpointURL()?.absoluteString ?? "default RPC pool"
 
         do {
-            let health = try await EthereumWalletEngine.fetchRPCHealth(
-                rpcEndpoint: configuredEthereumRPCEndpointURL()
+            guard let rpcURL = configuredEthereumRPCEndpointURL() ?? URL(string: "https://ethereum.publicnode.com") else {
+                throw URLError(.badURL)
+            }
+            let chainIDRequest = try EthereumRPCProvider.makeRequest(
+                method: "eth_chainId", params: [String](), requestID: 1, endpoint: rpcURL
             )
-            let chainPass = health.chainID == 1
+            let blockRequest = try EthereumRPCProvider.makeRequest(
+                method: "eth_blockNumber", params: [String](), requestID: 2, endpoint: rpcURL
+            )
+            let (chainIDData, _) = try await URLSession.shared.data(for: chainIDRequest)
+            let (blockData, _) = try await URLSession.shared.data(for: blockRequest)
+            let chainIDResp = try JSONDecoder().decode(EthereumRPCProvider.JSONRPCResponse.self, from: chainIDData)
+            let blockResp = try JSONDecoder().decode(EthereumRPCProvider.JSONRPCResponse.self, from: blockData)
+            let chainID = Int(chainIDResp.result?.dropFirst(2) ?? "", radix: 16) ?? 0
+            let latestBlock = Int(blockResp.result?.dropFirst(2) ?? "", radix: 16) ?? 0
+            let chainPass = chainID == 1
             results.append(
                 ChainSelfTestResult(
                     name: "ETH RPC Chain ID",
                     passed: chainPass,
                     message: chainPass
                         ? "RPC reports Ethereum mainnet (chain id 1)."
-                        : "RPC returned chain id \(health.chainID). Configure an Ethereum mainnet endpoint."
+                        : "RPC returned chain id \(chainID). Configure an Ethereum mainnet endpoint."
                 )
             )
             results.append(
                 ChainSelfTestResult(
                     name: "ETH RPC Latest Block",
-                    passed: health.latestBlockNumber > 0,
-                    message: health.latestBlockNumber > 0
-                        ? "RPC latest block height: \(health.latestBlockNumber) via \(rpcLabel)."
+                    passed: latestBlock > 0,
+                    message: latestBlock > 0
+                        ? "RPC latest block height: \(latestBlock) via \(rpcLabel)."
                         : "RPC returned an invalid latest block value."
                 )
             )

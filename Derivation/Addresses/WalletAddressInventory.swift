@@ -108,25 +108,3 @@ private enum WalletAddressInventoryFactory {
     }
 }
 
-extension EthereumWalletEngine {
-    static func addressInventory(
-        for seedPhrase: String,
-        chain: EVMChainContext = .ethereum,
-        account: UInt32 = 0,
-        derivationPath: String? = nil
-    ) throws -> WalletAddressInventory {
-        let resolvedPath = derivationPath ?? chain.derivationPath(account: account)
-        let address = try derivedAddress(
-            for: seedPhrase,
-            account: account,
-            chain: chain,
-            derivationPath: resolvedPath
-        )
-        return WalletAddressInventoryFactory.singleAddressInventory(
-            address: address,
-            derivationPath: resolvedPath,
-            account: account
-        )
-    }
-}
-

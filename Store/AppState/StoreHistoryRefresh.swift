@@ -98,7 +98,7 @@ private func fetchBitcoinHDHistoryPage(xpub: String, limit: Int) async throws ->
             let json = try await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.bitcoin, address: address
             )
-            let entries = decodeRustHistoryJSON(json: json)
+            let entries = self.decodeRustHistoryJSON(json: json)
             let payloads = entries.compactMap { obj -> WalletRustBitcoinHistorySnapshotPayload? in
                 guard let txid = obj["txid"] as? String else { return nil }
                 let netSats = obj["net_sats"] as? Int ?? 0

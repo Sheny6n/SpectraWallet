@@ -2390,7 +2390,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.tron, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2402,7 +2402,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.solana, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2414,7 +2414,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.cardano, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2426,7 +2426,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.xrp, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2438,7 +2438,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.stellar, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2450,7 +2450,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.monero, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2462,7 +2462,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.sui, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2474,7 +2474,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.aptos, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2486,7 +2486,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.ton, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2498,7 +2498,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.icp, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2510,7 +2510,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.near, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 
@@ -2522,7 +2522,7 @@ extension WalletStore {
             guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(
                 chainId: SpectraChainID.polkadot, address: address
             ) else { return ([:], true) }
-            return (rustHistoryStatusMap(json: json), false)
+            return (self.rustHistoryStatusMap(json: json), false)
         }
     }
 

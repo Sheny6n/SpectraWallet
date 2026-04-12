@@ -1464,7 +1464,7 @@ extension WalletStore {
         } else if chain == .hyperliquid {
             trackedForChain = enabledHyperliquidTrackedTokens()
         } else {
-            trackedForChain = EthereumWalletEngine.supportedTokens(for: chain)
+            trackedForChain = []
         }
         if !trackedForChain.isEmpty {
             tokenBalances = (try? await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(

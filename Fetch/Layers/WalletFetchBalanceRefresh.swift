@@ -642,11 +642,38 @@ extension WalletFetchLayer {
         guard !walletsToRefresh.isEmpty else { return }
 
         var updatedWallets = walletSnapshot
+        let suiTokenTuples = trackedTokens.map { coinType, meta in
+            (contract: coinType, symbol: meta.symbol, decimals: meta.decimals)
+        }
         let resolvedPortfolios = await store.collectLimitedConcurrentIndexedResults(from: walletsToRefresh) { (index, _, address) in
             let portfolio: SuiPortfolioSnapshot?
             if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.sui, address: address),
                let mist = RustBalanceDecoder.uint64Field("mist", from: json) {
-                portfolio = SuiPortfolioSnapshot(nativeBalance: Double(mist) / 1_000_000_000, tokenBalances: [])
+                var tokenBalances: [SuiTokenBalanceSnapshot] = []
+                if !suiTokenTuples.isEmpty,
+                   let tokenJSON = try? await WalletServiceBridge.shared.fetchTokenBalancesJSON(
+                       chainId: SpectraChainID.sui, address: address, tokens: suiTokenTuples),
+                   let tokenData = tokenJSON.data(using: .utf8),
+                   let tokenArr = try? JSONSerialization.jsonObject(with: tokenData) as? [[String: Any]] {
+                    tokenBalances = tokenArr.compactMap { obj -> SuiTokenBalanceSnapshot? in
+                        guard let coinType = obj["contract"] as? String,
+                              let displayStr = obj["balance_display"] as? String,
+                              let balance = Double(displayStr),
+                              balance > 0 else { return nil }
+                        let meta = trackedTokens[coinType]
+                        return SuiTokenBalanceSnapshot(
+                            coinType: coinType,
+                            symbol: meta?.symbol ?? (obj["symbol"] as? String ?? ""),
+                            name: meta?.name ?? "",
+                            tokenStandard: meta?.tokenStandard ?? "Coin",
+                            decimals: meta?.decimals ?? (obj["decimals"] as? Int ?? 0),
+                            balance: balance,
+                            marketDataID: meta?.marketDataID ?? "",
+                            coinGeckoID: meta?.coinGeckoID ?? ""
+                        )
+                    }
+                }
+                portfolio = SuiPortfolioSnapshot(nativeBalance: Double(mist) / 1_000_000_000, tokenBalances: tokenBalances)
             } else {
                 portfolio = nil
             }
@@ -696,11 +723,38 @@ extension WalletFetchLayer {
 
         var updatedWallets = walletSnapshot
         let trackedTokens = store.enabledAptosTrackedTokens()
+        let aptosTokenTuples = trackedTokens.map { coinType, meta in
+            (contract: coinType, symbol: meta.symbol, decimals: meta.decimals)
+        }
         let resolvedBalances = await store.collectLimitedConcurrentIndexedResults(from: walletsToRefresh) { (index, _, address) in
             let portfolio: AptosPortfolioSnapshot?
             if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.aptos, address: address),
                let octas = RustBalanceDecoder.uint64Field("octas", from: json) {
-                portfolio = AptosPortfolioSnapshot(nativeBalance: Double(octas) / 100_000_000, tokenBalances: [])
+                var tokenBalances: [AptosTokenBalanceSnapshot] = []
+                if !aptosTokenTuples.isEmpty,
+                   let tokenJSON = try? await WalletServiceBridge.shared.fetchTokenBalancesJSON(
+                       chainId: SpectraChainID.aptos, address: address, tokens: aptosTokenTuples),
+                   let tokenData = tokenJSON.data(using: .utf8),
+                   let tokenArr = try? JSONSerialization.jsonObject(with: tokenData) as? [[String: Any]] {
+                    tokenBalances = tokenArr.compactMap { obj -> AptosTokenBalanceSnapshot? in
+                        guard let coinType = obj["contract"] as? String,
+                              let displayStr = obj["balance_display"] as? String,
+                              let balance = Double(displayStr),
+                              balance > 0 else { return nil }
+                        let meta = trackedTokens[coinType]
+                        return AptosTokenBalanceSnapshot(
+                            coinType: coinType,
+                            symbol: meta?.symbol ?? (obj["symbol"] as? String ?? ""),
+                            name: meta?.name ?? "",
+                            tokenStandard: meta?.tokenStandard ?? "Coin",
+                            decimals: meta?.decimals ?? (obj["decimals"] as? Int ?? 0),
+                            balance: balance,
+                            marketDataID: meta?.marketDataID ?? "",
+                            coinGeckoID: meta?.coinGeckoID ?? ""
+                        )
+                    }
+                }
+                portfolio = AptosPortfolioSnapshot(nativeBalance: Double(octas) / 100_000_000, tokenBalances: tokenBalances)
             } else {
                 portfolio = nil
             }
@@ -746,16 +800,47 @@ extension WalletFetchLayer {
         }
         guard !walletsToRefresh.isEmpty else { return }
 
+        // Build token tuples for tracked jetton tokens.
+        let tonTokenTuples: [(contract: String, symbol: String, decimals: Int)] = trackedTokens.map { (masterAddr, meta) in
+            (contract: masterAddr, symbol: meta.symbol, decimals: meta.decimals)
+        }
+
         var updatedWallets = walletSnapshot
         let resolvedBalances: [Int: TONPortfolioSnapshot] = await store.collectLimitedConcurrentIndexedResults(from: walletsToRefresh) { (index, _, address) in
-            let portfolio: TONPortfolioSnapshot?
-            if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.ton, address: address),
-               let nanotons = RustBalanceDecoder.uint64Field("nanotons", from: json) {
-                portfolio = TONPortfolioSnapshot(nativeBalance: Double(nanotons) / 1_000_000_000, tokenBalances: [])
-            } else {
-                portfolio = nil
+            guard let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.ton, address: address),
+                  let nanotons = RustBalanceDecoder.uint64Field("nanotons", from: json) else {
+                return (index, nil)
             }
-            return (index, portfolio)
+            let nativeBalance = Double(nanotons) / 1_000_000_000
+            var tokenBalances: [TONJettonBalanceSnapshot] = []
+            if !tonTokenTuples.isEmpty,
+               let tokenJSON = try? await WalletServiceBridge.shared.fetchTokenBalancesJSON(
+                   chainId: SpectraChainID.ton,
+                   address: address,
+                   tokens: tonTokenTuples
+               ),
+               let tokenData = tokenJSON.data(using: .utf8),
+               let tokenArr = try? JSONSerialization.jsonObject(with: tokenData) as? [[String: Any]] {
+                tokenBalances = tokenArr.compactMap { obj -> TONJettonBalanceSnapshot? in
+                    guard let masterAddr = obj["contract"] as? String,
+                          let displayStr = obj["balance_display"] as? String,
+                          let balance = Double(displayStr),
+                          balance > 0 else { return nil }
+                    let meta = trackedTokens[masterAddr] ?? trackedTokens[TONBalanceService.normalizeJettonMasterAddress(masterAddr)]
+                    return TONJettonBalanceSnapshot(
+                        masterAddress: masterAddr,
+                        walletAddress: "",
+                        symbol: meta?.symbol ?? (obj["symbol"] as? String ?? ""),
+                        name: meta?.name ?? "",
+                        tokenStandard: meta?.tokenStandard ?? "jetton",
+                        decimals: meta?.decimals ?? (obj["decimals"] as? Int ?? 0),
+                        balance: balance,
+                        marketDataID: meta?.marketDataID ?? "",
+                        coinGeckoID: meta?.coinGeckoID ?? ""
+                    )
+                }
+            }
+            return (index, TONPortfolioSnapshot(nativeBalance: nativeBalance, tokenBalances: tokenBalances))
         }
 
         var effectiveBalances = resolvedBalances

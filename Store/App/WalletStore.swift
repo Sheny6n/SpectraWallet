@@ -1140,6 +1140,7 @@ class WalletStore: ObservableObject {
             rebuildTransactionDerivedState()
             startMaintenanceLoopIfNeeded()
             await reloadPersistedStateFromSQLite()
+            SpectraSecretStoreAdapter.registerWithBridge()
             await refreshFiatExchangeRates()
         }
     }

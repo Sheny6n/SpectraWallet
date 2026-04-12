@@ -1,5 +1,4 @@
 import Foundation
-import SolanaSwift
 
 enum SolanaProvider {
     static let endpointReliabilityNamespace = "solana.rpc"
@@ -16,10 +15,6 @@ enum SolanaProvider {
 
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
         AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.solanaChainName)
-    }
-
-    static func rpcClient(baseURL: String) -> SolanaAPIClient {
-        JSONRPCAPIClient(endpoint: APIEndPoint(address: baseURL, network: .mainnetBeta))
     }
 
     static func orderedSendRPCBaseURLs(providerIDs: Set<String>? = nil) -> [String] {

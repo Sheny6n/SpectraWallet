@@ -1,5 +1,4 @@
 import Foundation
-import WalletCore
 
 struct TONHistoryDiagnostics: Equatable {
     let address: String
@@ -48,11 +47,6 @@ enum TONBalanceService {
     }
 
     private static func canonicalAddressIdentifier(_ address: String?) -> String {
-        let trimmed = address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !trimmed.isEmpty else { return "" }
-        if let anyAddress = AnyAddress(string: trimmed, coin: .ton) {
-            return anyAddress.description
-        }
-        return trimmed
+        address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 }

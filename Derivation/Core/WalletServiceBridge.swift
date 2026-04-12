@@ -30,8 +30,9 @@ enum SpectraChainID {
     static let hyperliquid:      UInt32 = 24
 
     // Logical offsets for secondary endpoint bundles (mirrors service.rs)
-    static let subscaOffset:  UInt32 = 100   // Polkadot Subscan
-    static let icOffset:      UInt32 = 100   // ICP Rosetta
+    static let subscaOffset:   UInt32 = 100  // Polkadot Subscan
+    static let icOffset:       UInt32 = 100  // ICP Rosetta
+    static let tonV3Offset:    UInt32 = 100  // TON TonCenter v3 API
     static let explorerOffset: UInt32 = 200  // Etherscan-compatible explorers
 
     static func id(for chainName: String) -> UInt32? {
@@ -366,19 +367,19 @@ actor WalletServiceBridge {
     /// Generate a new BIP-39 mnemonic with the given word count (12/15/18/21/24).
     /// Falls back to 12 words for any unsupported count.
     /// Pure computation — no network I/O, no async needed.
-    func rustGenerateMnemonic(wordCount: Int) -> String {
+    nonisolated func rustGenerateMnemonic(wordCount: Int) -> String {
         generateMnemonic(wordCount: UInt32(wordCount))
     }
 
     /// Validate a BIP-39 mnemonic phrase (checksum + word list).
     /// Returns `true` if the phrase is a valid English BIP-39 mnemonic.
-    func rustValidateMnemonic(_ phrase: String) -> Bool {
+    nonisolated func rustValidateMnemonic(_ phrase: String) -> Bool {
         validateMnemonic(phrase: phrase)
     }
 
     /// Return the full BIP-39 English word list as a newline-delimited string
     /// (2048 words, one per line).
-    func rustBip39Wordlist() -> [String] {
+    nonisolated func rustBip39Wordlist() -> [String] {
         bip39EnglishWordlist().split(separator: "\n").map(String.init)
     }
 
@@ -521,6 +522,43 @@ actor WalletServiceBridge {
         )
         guard let data = raw.data(using: .utf8) else { return [:] }
         return (try? JSONDecoder().decode([String: Double].self, from: data)) ?? [:]
+    }
+
+    // MARK: Phase 2.2 — Balance cache
+
+    /// Return the cached balance JSON for `(chainId, address)`, or `nil` if cold/expired.
+    func cachedBalanceJSON(chainId: UInt32, address: String) throws -> String? {
+        try service().cachedBalance(chainId: chainId, address: address)
+    }
+
+    /// Store a balance JSON snapshot in the Rust in-memory cache.
+    func storeBalanceCache(chainId: UInt32, address: String, json: String) throws {
+        try service().cacheBalance(chainId: chainId, address: address, balanceJson: json)
+    }
+
+    /// Evict the balance cache entry for `(chainId, address)` — call after a send.
+    func invalidateBalanceCache(chainId: UInt32, address: String) throws {
+        try service().invalidateCachedBalance(chainId: chainId, address: address)
+    }
+
+    /// Fetch balance from Rust, returning the cached value if still fresh.
+    func fetchBalanceCachedJSON(chainId: UInt32, address: String) async throws -> String {
+        try await service().fetchBalanceCached(chainId: chainId, address: address)
+    }
+
+    // MARK: Phase 2.7 — SecretStore (Keychain delegate)
+
+    /// Register a Swift `SecretStore` implementation as the Keychain delegate.
+    /// Must be called once at startup before any Rust code accesses secrets.
+    func registerSecretStore(_ store: SecretStore) throws {
+        try service().setSecretStore(store: store)
+    }
+
+    // MARK: Phase 2.5 — SendStateMachine factory
+
+    /// Create a new send state machine. Returns a fresh machine in `Idle` state.
+    func makeSendStateMachine() -> SendStateMachine {
+        SendStateMachine()
     }
 }
 
@@ -691,6 +729,54 @@ extension WalletServiceBridge {
         try await service().saveState(dbPath: sqliteDbPath(), key: key, stateJson: stateJSON)
     }
 
+    // MARK: Phase 2.1 — WalletStore snapshot persistence
+
+    /// Persist the full wallet-list JSON to Rust SQLite. Fire-and-forget.
+    func saveWalletSnapshot(json: String) {
+        Task {
+            try? await service().saveWalletSnapshot(dbPath: sqliteDbPath(), snapshotJson: json)
+        }
+    }
+
+    /// Load the wallet-list JSON from Rust SQLite. Returns `"[]"` on first launch.
+    func loadWalletSnapshot() async throws -> String {
+        try await service().loadWalletSnapshot(dbPath: sqliteDbPath())
+    }
+
+    /// Persist app settings JSON to Rust SQLite.
+    func saveAppSettings(json: String) {
+        Task {
+            try? await service().saveAppSettings(dbPath: sqliteDbPath(), settingsJson: json)
+        }
+    }
+
+    /// Load app settings JSON from Rust SQLite.
+    func loadAppSettings() async throws -> String {
+        try await service().loadAppSettings(dbPath: sqliteDbPath())
+    }
+
+    // MARK: Phase 2.3 — History cache
+
+    /// Return cached history JSON for `(chainId, address)`, or `nil` if cold/expired.
+    func cachedHistoryJSON(chainId: UInt32, address: String) throws -> String? {
+        try service().cachedHistory(chainId: chainId, address: address)
+    }
+
+    /// Store history JSON in the Rust in-memory cache.
+    func storeHistoryCache(chainId: UInt32, address: String, json: String) throws {
+        try service().cacheHistory(chainId: chainId, address: address, historyJson: json)
+    }
+
+    /// Evict the history cache entry — call after a send completes.
+    func invalidateHistoryCache(chainId: UInt32, address: String) throws {
+        try service().invalidateCachedHistory(chainId: chainId, address: address)
+    }
+
+    /// Fetch history, returning cached value if still fresh (5-min TTL).
+    func fetchHistoryCachedJSON(chainId: UInt32, address: String) async throws -> String {
+        try await service().fetchHistoryCached(chainId: chainId, address: address)
+    }
+
     // MARK: - Token catalog
 
     /// Return the built-in token catalog for a chain as a JSON array string.
@@ -817,6 +903,16 @@ private extension WalletServiceBridge {
             chainId: SpectraChainID.icp + SpectraChainID.icOffset,
             chainName: "Internet Computer"
         )
+
+        // TON TonCenter v3 secondary endpoints (chain_id 116).
+        let tonV3URLs = ChainBackendRegistry.TONRuntimeEndpoints.apiV3BaseURLs
+        if !tonV3URLs.isEmpty {
+            payloads.append(ChainEndpointsPayload(
+                chainId: SpectraChainID.ton + SpectraChainID.tonV3Offset,
+                endpoints: tonV3URLs,
+                apiKey: nil
+            ))
+        }
 
         // Explorer/indexer endpoints (chain_id = 200 + primary chain_id).
         let explorerChains: [(UInt32, String)] = [

@@ -557,7 +557,7 @@ extension WalletStore {
                 address = nil
             }
             receiveResolvedAddress = activateLiveReceiveAddress(
-                address ?? wallet.bitcoinReceiveAddress ?? "",
+                address ?? wallet.bitcoinAddress ?? "",
                 for: wallet,
                 chainName: receiveCoin.chainName
             )
