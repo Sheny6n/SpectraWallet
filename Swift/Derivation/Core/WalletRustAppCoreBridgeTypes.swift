@@ -1,5 +1,6 @@
 import Foundation
-struct WalletRustImportAddresses: Codable {
+
+struct WalletRustImportAddresses {
     let bitcoinAddress: String?
     let bitcoinXpub: String?
     let bitcoinCashAddress: String?
@@ -21,7 +22,8 @@ struct WalletRustImportAddresses: Codable {
     let nearAddress: String?
     let polkadotAddress: String?
 }
-struct WalletRustWatchOnlyEntries: Codable {
+
+struct WalletRustWatchOnlyEntries {
     let bitcoinAddresses: [String]
     let bitcoinXpub: String?
     let bitcoinCashAddresses: [String]
@@ -41,7 +43,8 @@ struct WalletRustWatchOnlyEntries: Codable {
     let nearAddresses: [String]
     let polkadotAddresses: [String]
 }
-struct WalletRustImportPlanRequest: Encodable {
+
+struct WalletRustImportPlanRequest {
     let walletName: String
     let defaultWalletNameStartIndex: Int
     let primarySelectedChainName: String
@@ -53,24 +56,28 @@ struct WalletRustImportPlanRequest: Encodable {
     let resolvedAddresses: WalletRustImportAddresses
     let watchOnlyEntries: WalletRustWatchOnlyEntries
 }
-struct WalletRustSecretInstruction: Decodable {
+
+struct WalletRustSecretInstruction {
     let walletID: String
     let secretKind: String
     let shouldStoreSeedPhrase: Bool
     let shouldStorePrivateKey: Bool
     let shouldStorePasswordVerifier: Bool
 }
-struct WalletRustPlannedWallet: Decodable {
+
+struct WalletRustPlannedWallet {
     let walletID: String
     let name: String
     let chainName: String
     let addresses: WalletRustImportAddresses
 }
-struct WalletRustImportPlan: Decodable {
+
+struct WalletRustImportPlan {
     let secretKind: String
     let wallets: [WalletRustPlannedWallet]
     let secretInstructions: [WalletRustSecretInstruction]
 }
+
 struct WalletRustSecretObservation: Encodable {
     let walletID: String
     let secretKind: String?
@@ -78,10 +85,12 @@ struct WalletRustSecretObservation: Encodable {
     let hasPrivateKey: Bool
     let hasPassword: Bool
 }
+
 struct WalletRustPersistedSnapshotBuildRequest: Encodable {
     let appStateJSON: String
     let secretObservations: [WalletRustSecretObservation]
 }
+
 struct WalletRustSecretMaterialDescriptor: Decodable {
     let walletID: String
     let secretKind: String
@@ -93,13 +102,15 @@ struct WalletRustSecretMaterialDescriptor: Decodable {
     let passwordStoreKey: String
     let privateKeyStoreKey: String
 }
+
 struct WalletRustWalletSecretIndex: Decodable {
     let descriptors: [WalletRustSecretMaterialDescriptor]
     let signingMaterialWalletIDs: [String]
     let privateKeyBackedWalletIDs: [String]
     let passwordProtectedWalletIDs: [String]
 }
-struct WalletRustActiveMaintenancePlanRequest: Encodable {
+
+struct WalletRustActiveMaintenancePlanRequest {
     let nowUnix: Double
     let lastPendingTransactionRefreshAtUnix: Double?
     let lastLivePriceRefreshAtUnix: Double?
@@ -108,17 +119,20 @@ struct WalletRustActiveMaintenancePlanRequest: Encodable {
     let pendingRefreshInterval: Double
     let priceRefreshInterval: Double
 }
-struct WalletRustActiveMaintenancePlan: Decodable {
+
+struct WalletRustActiveMaintenancePlan {
     let refreshPendingTransactions: Bool
     let refreshLivePrices: Bool
 }
-struct WalletRustBackgroundMaintenanceRequest: Encodable {
+
+struct WalletRustBackgroundMaintenanceRequest {
     let nowUnix: Double
     let isNetworkReachable: Bool
     let lastBackgroundMaintenanceAtUnix: Double?
     let interval: Double
 }
-struct WalletRustChainRefreshPlanRequest: Encodable {
+
+struct WalletRustChainRefreshPlanRequest {
     let chainIDs: [String]
     let nowUnix: Double
     let forceChainRefresh: Bool
@@ -130,22 +144,26 @@ struct WalletRustChainRefreshPlanRequest: Encodable {
     let lastHistoryRefreshAtByChainID: [String: Double]
     let automaticChainRefreshStalenessInterval: Double
 }
-struct WalletRustChainRefreshPlan: Decodable {
+
+struct WalletRustChainRefreshPlan {
     let chainID: String
     let chainName: String
     let refreshHistory: Bool
 }
-struct WalletRustHistoryRefreshPlanRequest: Encodable {
+
+struct WalletRustHistoryRefreshPlanRequest {
     let chainIDs: [String]
     let nowUnix: Double
     let interval: Double
     let lastHistoryRefreshAtByChainID: [String: Double]
 }
-struct WalletRustHistoryWallet: Encodable {
+
+struct WalletRustHistoryWallet {
     let walletID: String
     let selectedChain: String
 }
-struct WalletRustHistoryTransaction: Encodable {
+
+struct WalletRustHistoryTransaction {
     let id: String
     let walletID: String?
     let kind: String
@@ -159,12 +177,14 @@ struct WalletRustHistoryTransaction: Encodable {
     let transactionHistorySource: String?
     let createdAtUnix: Double
 }
-struct WalletRustNormalizeHistoryRequest: Encodable {
+
+struct WalletRustNormalizeHistoryRequest {
     let wallets: [WalletRustHistoryWallet]
     let transactions: [WalletRustHistoryTransaction]
     let unknownLabel: String
 }
-struct WalletRustBitcoinHistorySnapshotPayload: Codable {
+
+struct WalletRustBitcoinHistorySnapshotPayload {
     let txid: String
     let amountBTC: Double
     let kind: String
@@ -173,12 +193,14 @@ struct WalletRustBitcoinHistorySnapshotPayload: Codable {
     let blockHeight: Int?
     let createdAtUnix: Double
 }
-struct WalletRustMergeBitcoinHistorySnapshotsRequest: Encodable {
+
+struct WalletRustMergeBitcoinHistorySnapshotsRequest {
     let snapshots: [WalletRustBitcoinHistorySnapshotPayload]
     let ownedAddresses: [String]
     let limit: Int
 }
-struct WalletRustNormalizedHistoryEntry: Decodable {
+
+struct WalletRustNormalizedHistoryEntry {
     let id: String
     let transactionID: String
     let dedupeKey: String
@@ -195,13 +217,15 @@ struct WalletRustNormalizedHistoryEntry: Decodable {
     let providerCount: Int
     let searchIndex: String
 }
-enum WalletRustTransactionMergeStrategy: String, Encodable {
-    case standardUTXO = "standardUtxo"
-    case dogecoin = "dogecoin"
-    case accountBased = "accountBased"
-    case evm = "evm"
+
+enum WalletRustTransactionMergeStrategy {
+    case standardUTXO
+    case dogecoin
+    case accountBased
+    case evm
 }
-struct WalletRustTransactionRecord: Codable {
+
+struct WalletRustTransactionRecord {
     let id: String
     let walletID: String?
     let kind: String
@@ -238,7 +262,8 @@ struct WalletRustTransactionRecord: Codable {
     let transactionHistorySource: String?
     let createdAtUnix: Double
 }
-struct WalletRustTransactionMergeRequest: Encodable {
+
+struct WalletRustTransactionMergeRequest {
     let existingTransactions: [WalletRustTransactionRecord]
     let incomingTransactions: [WalletRustTransactionRecord]
     let strategy: WalletRustTransactionMergeStrategy
@@ -246,62 +271,74 @@ struct WalletRustTransactionMergeRequest: Encodable {
     let includeSymbolInIdentity: Bool
     let preserveCreatedAtSentinelUnix: Double?
 }
-struct WalletRustEVMRefreshWalletInput: Encodable {
+
+struct WalletRustEVMRefreshWalletInput {
     let index: Int
     let walletID: String
     let selectedChain: String
     let address: String?
 }
-struct WalletRustEVMRefreshTargetsRequest: Encodable {
+
+struct WalletRustEVMRefreshTargetsRequest {
     let chainName: String
     let wallets: [WalletRustEVMRefreshWalletInput]
     let allowedWalletIDs: [String]?
     let groupByNormalizedAddress: Bool
 }
-struct WalletRustEVMRefreshWalletTarget: Decodable {
+
+struct WalletRustEVMRefreshWalletTarget {
     let index: Int
     let walletID: String
     let address: String
     let normalizedAddress: String
 }
-struct WalletRustEVMGroupedTarget: Decodable {
+
+struct WalletRustEVMGroupedTarget {
     let walletIDs: [String]
     let address: String
     let normalizedAddress: String
 }
-struct WalletRustEVMRefreshPlan: Decodable {
+
+struct WalletRustEVMRefreshPlan {
     let walletTargets: [WalletRustEVMRefreshWalletTarget]
     let groupedTargets: [WalletRustEVMGroupedTarget]
 }
-struct WalletRustDogecoinRefreshWalletInput: Encodable {
+
+struct WalletRustDogecoinRefreshWalletInput {
     let index: Int
     let walletID: String
     let selectedChain: String
     let addresses: [String]
 }
-struct WalletRustDogecoinRefreshTargetsRequest: Encodable {
+
+struct WalletRustDogecoinRefreshTargetsRequest {
     let wallets: [WalletRustDogecoinRefreshWalletInput]
     let allowedWalletIDs: [String]?
 }
-struct WalletRustDogecoinRefreshWalletTarget: Decodable {
+
+struct WalletRustDogecoinRefreshWalletTarget {
     let index: Int
     let walletID: String
     let addresses: [String]
 }
-struct WalletRustSendAssetRoutingInput: Encodable {
+
+struct WalletRustSendAssetRoutingInput {
     let chainName: String
     let symbol: String
     let isEVMChain: Bool
     let supportsSolanaSendCoin: Bool
     var supportsNearTokenSend: Bool = false
 }
-struct WalletRustSendPreviewRoutingRequest: Encodable {
+
+struct WalletRustSendPreviewRoutingRequest {
     let asset: WalletRustSendAssetRoutingInput?
 }
-struct WalletRustSendPreviewRoutingPlan: Decodable {
+
+struct WalletRustSendPreviewRoutingPlan {
     let activePreviewKind: String?
 }
-struct WalletRustSendSubmitPreflightRequest: Encodable {
+
+struct WalletRustSendSubmitPreflightRequest {
     let walletFound: Bool
     let assetFound: Bool
     let destinationAddress: String
@@ -309,7 +346,8 @@ struct WalletRustSendSubmitPreflightRequest: Encodable {
     let availableBalance: Double
     let asset: WalletRustSendAssetRoutingInput?
 }
-struct WalletRustSendSubmitPreflightPlan: Decodable {
+
+struct WalletRustSendSubmitPreflightPlan {
     let submitKind: String
     let previewKind: String?
     let normalizedDestinationAddress: String
@@ -320,24 +358,8 @@ struct WalletRustSendSubmitPreflightPlan: Decodable {
     let isNativeEVMAsset: Bool
     let allowsZeroAmount: Bool
 }
-struct WalletRustUTXOEntry: Encodable {
-    let index: Int
-    let value: UInt64
-}
-struct WalletRustUTXOFeePolicy: Encodable {
-    let chainName: String
-    let feeModel: String
-    let dustThreshold: UInt64
-    let minimumRelayFeeRate: Double?
-    let minimumAbsoluteFee: UInt64?
-    let minimumRelayFeePerKB: Double?
-    let baseUnitsPerCoin: Double?
-    let maxStandardTransactionBytes: UInt64
-    let inputBytes: Int?
-    let outputBytes: Int?
-    let overheadBytes: Int?
-}
-struct WalletRustTransferHoldingInput: Encodable {
+
+struct WalletRustTransferHoldingInput {
     let index: Int
     let chainName: String
     let symbol: String
@@ -347,77 +369,92 @@ struct WalletRustTransferHoldingInput: Encodable {
     let supportsEVMToken: Bool
     let supportsSolanaSendCoin: Bool
 }
-struct WalletRustTransferWalletInput: Encodable {
+
+struct WalletRustTransferWalletInput {
     let walletID: String
     let hasSigningMaterial: Bool
     let holdings: [WalletRustTransferHoldingInput]
 }
-struct WalletRustTransferAvailabilityRequest: Encodable {
+
+struct WalletRustTransferAvailabilityRequest {
     let wallets: [WalletRustTransferWalletInput]
 }
-struct WalletRustWalletTransferAvailability: Decodable {
+
+struct WalletRustWalletTransferAvailability {
     let walletID: String
     let sendHoldingIndices: [Int]
     let receiveHoldingIndices: [Int]
     let receiveChains: [String]
 }
-struct WalletRustTransferAvailabilityPlan: Decodable {
+
+struct WalletRustTransferAvailabilityPlan {
     let wallets: [WalletRustWalletTransferAvailability]
     let sendEnabledWalletIDs: [String]
     let receiveEnabledWalletIDs: [String]
 }
-struct WalletRustStoreDerivedHoldingInput: Encodable {
+
+struct WalletRustStoreDerivedHoldingInput {
     let holdingIndex: Int
     let assetIdentityKey: String
     let symbolUpper: String
     let amount: String
     let isPricedAsset: Bool
 }
-struct WalletRustStoreDerivedWalletInput: Encodable {
+
+struct WalletRustStoreDerivedWalletInput {
     let walletID: String
     let includeInPortfolioTotal: Bool
     let hasSigningMaterial: Bool
     let isPrivateKeyBacked: Bool
     let holdings: [WalletRustStoreDerivedHoldingInput]
 }
-struct WalletRustStoreDerivedStateRequest: Encodable {
+
+struct WalletRustStoreDerivedStateRequest {
     let wallets: [WalletRustStoreDerivedWalletInput]
 }
-struct WalletRustWalletHoldingRef: Decodable {
+
+struct WalletRustWalletHoldingRef {
     let walletID: String
     let holdingIndex: Int
 }
-struct WalletRustGroupedPortfolioHolding: Decodable {
+
+struct WalletRustGroupedPortfolioHolding {
     let assetIdentityKey: String
     let walletID: String
     let holdingIndex: Int
     let totalAmount: String
 }
-struct WalletRustStoreDerivedStatePlan: Decodable {
+
+struct WalletRustStoreDerivedStatePlan {
     let includedPortfolioHoldingRefs: [WalletRustWalletHoldingRef]
     let uniquePriceRequestHoldingRefs: [WalletRustWalletHoldingRef]
     let groupedPortfolio: [WalletRustGroupedPortfolioHolding]
     let signingMaterialWalletIDs: [String]
     let privateKeyBackedWalletIDs: [String]
 }
-struct WalletRustOwnedAddressAggregationRequest: Encodable {
+
+struct WalletRustOwnedAddressAggregationRequest {
     let candidateAddresses: [String]
 }
-struct WalletRustReceiveSelectionHoldingInput: Encodable {
+
+struct WalletRustReceiveSelectionHoldingInput {
     let holdingIndex: Int
     let chainName: String
     let hasContractAddress: Bool
 }
-struct WalletRustReceiveSelectionRequest: Encodable {
+
+struct WalletRustReceiveSelectionRequest {
     let receiveChainName: String
     let availableReceiveChains: [String]
     let availableReceiveHoldings: [WalletRustReceiveSelectionHoldingInput]
 }
-struct WalletRustReceiveSelectionPlan: Decodable {
+
+struct WalletRustReceiveSelectionPlan {
     let resolvedChainName: String
     let selectedReceiveHoldingIndex: Int?
 }
-struct WalletRustPendingSelfSendConfirmationInput: Encodable {
+
+struct WalletRustPendingSelfSendConfirmationInput {
     let walletID: String
     let chainName: String
     let symbol: String
@@ -425,7 +462,8 @@ struct WalletRustPendingSelfSendConfirmationInput: Encodable {
     let amount: Double
     let createdAtUnix: Double
 }
-struct WalletRustSelfSendConfirmationRequest: Encodable {
+
+struct WalletRustSelfSendConfirmationRequest {
     let pendingConfirmation: WalletRustPendingSelfSendConfirmationInput?
     let walletID: String
     let chainName: String
@@ -436,11 +474,13 @@ struct WalletRustSelfSendConfirmationRequest: Encodable {
     let windowSeconds: Double
     let ownedAddresses: [String]
 }
-struct WalletRustSelfSendConfirmationPlan: Decodable {
+
+struct WalletRustSelfSendConfirmationPlan {
     let requiresConfirmation: Bool
     let consumeExistingConfirmation: Bool
     let clearPendingConfirmation: Bool
 }
+
 struct WalletRustResolvedDerivationPath {
     let chain: SeedDerivationChain
     let normalizedPath: String
