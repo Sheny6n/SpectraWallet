@@ -214,14 +214,14 @@ extension WalletStore {
         let payload = buildDiagnosticsBundlePayload()
         let data = try Self.diagnosticsBundleEncoder.encode(payload)
         let stamp = Self.exportFilenameTimestampFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
-        let fileURL = try diagnosticsBundleExportsDirectoryURL()..appendingPathComponent("spectra-diagnostics-\(stamp)").appendingPathExtension("json")
+        let fileURL = try diagnosticsBundleExportsDirectoryURL().appendingPathComponent("spectra-diagnostics-\(stamp)").appendingPathExtension("json")
         try data.write(to: fileURL, options: .atomic)
         return fileURL
     }
     func diagnosticsBundleExportsDirectoryURL() throws -> URL {
         let baseDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        let directory = baseDirectory..appendingPathComponent("Diagnostics Bundles", isDirectory: true)
+        let directory = baseDirectory.appendingPathComponent("Diagnostics Bundles", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }
@@ -231,7 +231,7 @@ extension WalletStore {
               ) else {
             return []
         }
-        return urls..filter { $0.pathExtension.lowercased() == "json" }
+        return urls.filter { $0.pathExtension.lowercased() == "json" }
             .sorted { lhs, rhs in
                 let lhsDate = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
                 let rhsDate = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast

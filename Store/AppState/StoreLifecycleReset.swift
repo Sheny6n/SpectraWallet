@@ -157,14 +157,14 @@ extension WalletStore {
         isPreparingMoneroSend = false
         pendingEthereumSendPreviewRefresh = false
         pendingDogecoinSendPreviewRefresh = false
-        pendingDogecoinSelfSendConfirmation = nil
+        pendingSelfSendConfirmation = nil
         activeEthereumSendWalletIDs = []
         lastSendDestinationProbeKey = nil
         lastSendDestinationProbeWarning = nil
         lastSendDestinationProbeInfoMessage = nil
         cachedResolvedENSAddresses = [:]
         bypassHighRiskSendConfirmation = false
-        dogecoinStatusTrackingByTransactionID = [:]
+        statusTrackingByTransactionID = [:]
         isShowingWalletImporter = false
         isShowingSendSheet = false
         isShowingReceiveSheet = false
@@ -173,7 +173,7 @@ extension WalletStore {
         cancelWalletImport()
     }
     private func resetHistoryAndCacheState() {
-        WalletServiceBridge.shared.clearAllHistoryRecords()
+        Task { await WalletServiceBridge.shared.clearAllHistoryRecords() }
         UserDefaults.standard.removeObject(forKey: Self.chainSyncStateDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.operationalLogsDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.dogecoinKeypoolDefaultsKey)

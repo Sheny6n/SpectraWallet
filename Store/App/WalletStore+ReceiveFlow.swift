@@ -208,7 +208,8 @@ extension WalletStore {
                 return
             }
             let json = try await WalletServiceBridge.shared.fetchBitcoinNextUnusedAddressJSON(xpub: xpub)
-            let address: String? if json.trimmingCharacters(in: .whitespacesAndNewlines) == "null" { address = nil } else if let data = json.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] { address = obj["address"] as? String } else { address = nil }
+            let address: String?
+            if json.trimmingCharacters(in: .whitespacesAndNewlines) == "null" { address = nil } else if let data = json.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] { address = obj["address"] as? String } else { address = nil }
             receiveResolvedAddress = activateLiveReceiveAddress(
                 address ?? wallet.bitcoinAddress ?? "", for: wallet, chainName: receiveCoin.chainName
             )
@@ -377,8 +378,27 @@ extension WalletStore {
                 return
             }}
         if editingWalletID == nil {
-            let bitcoinCashAddress: String? let bitcoinSVAddress: String? let litecoinAddress: String? let dogecoinAddress: String? let ethereumAddress: String? let ethereumClassicAddress: String? let tronAddress: String? let solanaAddress: String? let xrpAddress: String? let stellarAddress: String? let moneroAddress: String? let cardanoAddress: String? let suiAddress: String? let aptosAddress: String? let tonAddress: String? let icpAddress: String? let nearAddress: String? let polkadotAddress: String? let derivedBitcoinAddress: String? let createdWalletIDs = selectedChainNames.map { _ in UUID() }
-            let bitcoinWalletID = zip(selectedChainNames, createdWalletIDs)..first(where: { $0.0 == "Bitcoin" })? .1
+            let bitcoinCashAddress: String?
+            let bitcoinSVAddress: String?
+            let litecoinAddress: String?
+            let dogecoinAddress: String?
+            let ethereumAddress: String?
+            let ethereumClassicAddress: String?
+            let tronAddress: String?
+            let solanaAddress: String?
+            let xrpAddress: String?
+            let stellarAddress: String?
+            let moneroAddress: String?
+            let cardanoAddress: String?
+            let suiAddress: String?
+            let aptosAddress: String?
+            let tonAddress: String?
+            let icpAddress: String?
+            let nearAddress: String?
+            let polkadotAddress: String?
+            let derivedBitcoinAddress: String?
+            let createdWalletIDs = selectedChainNames.map { _ in UUID() }
+            let bitcoinWalletID = zip(selectedChainNames, createdWalletIDs).first(where: { $0.0 == "Bitcoin" })? .1
             if requiresSeedPhrase {
                 var chainPaths: [String: String] = [:]
                 if wantsBitcoinImport       { chainPaths["Bitcoin"]           = selectedDerivationPaths.bitcoin }
@@ -521,8 +541,15 @@ extension WalletStore {
             wallets.append(contentsOf: createdWallets)
             importedWalletsForRefresh = createdWallets
             for w in createdWallets {
+                let holdingsArr: [[String: Any]] = w.holdings.map { coin in
+                    var h: [String: Any] = [
+                        "name": coin.name, "symbol": coin.symbol, "marketDataId": coin.marketDataID, "coinGeckoId": coin.coinGeckoID, "chainName": coin.chainName, "tokenStandard": coin.tokenStandard, "amount": coin.amount, "priceUsd": coin.priceUSD
+                    ]
+                    if let contract = coin.contractAddress { h["contractAddress"] = contract }
+                    return h
+                }
                 let summary: [String: Any] = [
-                    "id": w.id.uuidString, "name": w.name, "isWatchOnly": false, "selectedChain": w.selectedChain, "includeInPortfolioTotal": w.includeInPortfolioTotal, "bitcoinNetworkMode": w.bitcoinNetworkMode.rawValue, "dogecoinNetworkMode": w.dogecoinNetworkMode.rawValue, "derivationPreset": w.seedDerivationPreset ?? "standard", "derivationPaths": w.seedDerivationPaths ?? [:], "holdings": [], "addresses": []
+                    "id": w.id.uuidString, "name": w.name, "isWatchOnly": false, "selectedChain": w.selectedChain, "includeInPortfolioTotal": w.includeInPortfolioTotal, "bitcoinNetworkMode": w.bitcoinNetworkMode.rawValue, "dogecoinNetworkMode": w.dogecoinNetworkMode.rawValue, "derivationPreset": w.seedDerivationPreset ?? "standard", "derivationPaths": w.seedDerivationPaths ?? [:], "holdings": holdingsArr, "addresses": []
                 ]
                 if let data = try? JSONSerialization.data(withJSONObject: summary), let json = String(data: data, encoding: .utf8) {
                     Task { try? await WalletServiceBridge.shared.upsertWalletJSON(json) }}}}
@@ -546,28 +573,25 @@ extension WalletStore {
         editingWalletID = nil
         isShowingWalletImporter = false
     }
-    enum WalletImportSyncError: Error {
-        case bitcoin
-        case bitcoinCash
-        case bitcoinSV
-        case litecoin
-        case dogecoin
-        case ethereum
-        case ethereumClassic
-        case bnb
-        case tron
-        case solana
-        case cardano
-        case xrp
-        case stellar
-        case monero
-        case sui
-        case near
-        case polkadot
-    }
     struct PrivateKeyImportAddressResolution {
-        let bitcoin: String? let bitcoinCash: String? let bitcoinSV: String? let litecoin: String? let dogecoin: String? static func only(bitcoin: String? = nil, bitcoinCash: String? = nil, bitcoinSV: String? = nil, litecoin: String? = nil, dogecoin: String? = nil, evm: String? = nil, tron: String? = nil, solana: String? = nil, xrp: String? = nil, stellar: String? = nil, cardano: String? = nil, sui: String? = nil, aptos: String? = nil, ton: String? = nil, icp: String? = nil, near: String? = nil, polkadot: String? = nil) -> Self { Self(bitcoin: bitcoin, bitcoinCash: bitcoinCash, bitcoinSV: bitcoinSV, litecoin: litecoin, dogecoin: dogecoin, evm: evm, tron: tron, solana: solana, xrp: xrp, stellar: stellar, cardano: cardano, sui: sui, aptos: aptos, ton: ton, icp: icp, near: near, polkadot: polkadot) }
-        let evm: String? let tron: String? let solana: String? let xrp: String? let stellar: String? let cardano: String? let sui: String? let aptos: String? let ton: String? let icp: String? let near: String? let polkadot: String? }
+        let bitcoin: String?
+        let bitcoinCash: String?
+        let bitcoinSV: String?
+        let litecoin: String?
+        let dogecoin: String?
+        static func only(bitcoin: String? = nil, bitcoinCash: String? = nil, bitcoinSV: String? = nil, litecoin: String? = nil, dogecoin: String? = nil, evm: String? = nil, tron: String? = nil, solana: String? = nil, xrp: String? = nil, stellar: String? = nil, cardano: String? = nil, sui: String? = nil, aptos: String? = nil, ton: String? = nil, icp: String? = nil, near: String? = nil, polkadot: String? = nil) -> Self { Self(bitcoin: bitcoin, bitcoinCash: bitcoinCash, bitcoinSV: bitcoinSV, litecoin: litecoin, dogecoin: dogecoin, evm: evm, tron: tron, solana: solana, xrp: xrp, stellar: stellar, cardano: cardano, sui: sui, aptos: aptos, ton: ton, icp: icp, near: near, polkadot: polkadot) }
+        let evm: String?
+        let tron: String?
+        let solana: String?
+        let xrp: String?
+        let stellar: String?
+        let cardano: String?
+        let sui: String?
+        let aptos: String?
+        let ton: String?
+        let icp: String?
+        let near: String?
+        let polkadot: String? }
     func derivePrivateKeyImportAddress(privateKeyHex: String, chainName: String?) -> PrivateKeyImportAddressResolution {
         guard let chainName else { return .only() }
         switch chainName {
@@ -645,186 +669,10 @@ extension WalletStore {
                 : plan.addresses.ethereumAddress, tronAddress: plan.addresses.tronAddress, solanaAddress: plan.addresses.solanaAddress, xrpAddress: plan.addresses.xrpAddress, stellarAddress: plan.addresses.stellarAddress, moneroAddress: plan.addresses.moneroAddress, cardanoAddress: plan.addresses.cardanoAddress, suiAddress: plan.addresses.suiAddress, aptosAddress: plan.addresses.aptosAddress, tonAddress: plan.addresses.tonAddress, icpAddress: plan.addresses.icpAddress, nearAddress: plan.addresses.nearAddress, polkadotAddress: plan.addresses.polkadotAddress, seedDerivationPreset: seedDerivationPreset, seedDerivationPaths: seedDerivationPaths, holdings: holdings
         )
     }
-    func hydrateImportedWalletBalances(wallet: ImportedWallet, seedPhrase: String, wantsBitcoinImport: Bool, wantsBitcoinCashImport: Bool, wantsBitcoinSVImport: Bool, wantsLitecoinImport: Bool, wantsDogecoinImport: Bool, wantsEthereumImport: Bool, wantsEthereumClassicImport: Bool, wantsBNBImport: Bool, wantsTronImport: Bool, wantsSolanaImport: Bool, wantsCardanoImport: Bool, wantsXRPImport: Bool, wantsStellarImport: Bool, wantsMoneroImport: Bool, wantsNearImport: Bool, wantsPolkadotImport: Bool) async throws -> ImportedWallet {
-        async let bitcoinBalanceTask: Double? = fetchBitcoinImportBalanceIfNeeded(
-            wantsBitcoinImport, wallet: wallet, seedPhrase: seedPhrase
-        )
-        async let bitcoinCashBalanceTask: Double? = fetchBitcoinCashImportBalanceIfNeeded(
-            wantsBitcoinCashImport, address: wallet.bitcoinCashAddress
-        )
-        async let bitcoinSVBalanceTask: Double? = fetchBitcoinSVImportBalanceIfNeeded(
-            wantsBitcoinSVImport, address: wallet.bitcoinSVAddress
-        )
-        async let litecoinBalanceTask: Double? = fetchLitecoinImportBalanceIfNeeded(
-            wantsLitecoinImport, address: wallet.litecoinAddress
-        )
-        async let dogecoinBalanceTask: Double? = fetchDogecoinImportBalanceIfNeeded(
-            wantsDogecoinImport, address: wallet.dogecoinAddress
-        )
-        async let ethereumPortfolioTask: (Double, [EthereumTokenBalanceSnapshot])? = fetchEthereumImportPortfolioIfNeeded(
-            wantsEthereumImport, address: wallet.ethereumAddress
-        )
-        async let ethereumClassicPortfolioTask: (Double, [EthereumTokenBalanceSnapshot])? = fetchETCImportBalanceIfNeeded(
-            wantsEthereumClassicImport, address: wallet.ethereumAddress
-        )
-        async let bnbPortfolioTask: (Double, [EthereumTokenBalanceSnapshot])? = fetchBNBImportBalanceIfNeeded(wantsBNBImport, address: wallet.ethereumAddress)
-        async let tronPortfolioTask: (Double, [TronTokenBalanceSnapshot])? = fetchTronImportBalanceIfNeeded(wantsTronImport, address: wallet.tronAddress)
-        async let solanaPortfolioTask: SolanaPortfolioSnapshot? = fetchSolanaImportPortfolioIfNeeded(
-            wantsSolanaImport, address: wallet.solanaAddress
-        )
-        async let cardanoBalanceTask: Double? = fetchCardanoImportBalanceIfNeeded(
-            wantsCardanoImport, address: wallet.cardanoAddress
-        )
-        async let xrpBalanceTask: Double? = fetchXRPImportBalanceIfNeeded(wantsXRPImport, address: wallet.xrpAddress)
-        async let stellarBalanceTask: Double? = fetchStellarImportBalanceIfNeeded(
-            wantsStellarImport, address: wallet.stellarAddress
-        )
-        async let moneroBalanceTask: Double? = fetchMoneroImportBalanceIfNeeded(wantsMoneroImport, address: wallet.moneroAddress)
-        async let nearBalanceTask: Double? = fetchNearImportBalanceIfNeeded(wantsNearImport, address: wallet.nearAddress)
-        async let polkadotBalanceTask: Double? = fetchPolkadotImportBalanceIfNeeded(
-            wantsPolkadotImport, address: wallet.polkadotAddress
-        )
-        func applyNative(_ chainId: UInt32, _ balance: Double?) {
-            guard let balance, let coin = initialNativeHolding(chainId: chainId, amount: balance) else { return }
-            updatedHoldings = mergeNativeHolding(coin, into: updatedHoldings)
-        }
-        var updatedHoldings = wallet.holdings
-        do { applyNative(SpectraChainID.bitcoin,    try await bitcoinBalanceTask) }     catch { throw WalletImportSyncError.bitcoin }
-        do { applyNative(SpectraChainID.bitcoinCash, try await bitcoinCashBalanceTask) } catch { throw WalletImportSyncError.bitcoinCash }
-        do { applyNative(SpectraChainID.bitcoinSv,  try await bitcoinSVBalanceTask) }   catch { throw WalletImportSyncError.bitcoinSV }
-        do { applyNative(SpectraChainID.litecoin,   try await litecoinBalanceTask) }    catch { throw WalletImportSyncError.litecoin }
-        do { applyNative(SpectraChainID.dogecoin,   try await dogecoinBalanceTask) }    catch { throw WalletImportSyncError.dogecoin }
-        do {
-            if let (nativeBalance, tokens) = try await ethereumPortfolioTask {
-                applyNative(SpectraChainID.ethereum, nativeBalance)
-                updatedHoldings = applyEVMTokenHoldings(tokens, chainName: "Ethereum", trackedTokens: enabledEthereumTrackedTokens(), to: updatedHoldings)
-            }
-        } catch { throw WalletImportSyncError.ethereum }
-        do {
-            if let (nativeBalance, _) = try await ethereumClassicPortfolioTask { applyNative(SpectraChainID.ethereumClassic, nativeBalance) }
-        } catch { throw WalletImportSyncError.ethereumClassic }
-        do {
-            if let (nativeBalance, tokens) = try await bnbPortfolioTask {
-                applyNative(SpectraChainID.bsc, nativeBalance)
-                updatedHoldings = applyEVMTokenHoldings(tokens, chainName: "BNB Chain", trackedTokens: enabledBNBTrackedTokens(), to: updatedHoldings)
-            }
-        } catch { throw WalletImportSyncError.bnb }
-        do {
-            if let (nativeBalance, tokens) = try await tronPortfolioTask { updatedHoldings = applyTronPortfolio(nativeBalance: nativeBalance, tokenBalances: tokens, to: updatedHoldings) }
-        } catch { throw WalletImportSyncError.tron }
-        do {
-            if let solanaPortfolio = try await solanaPortfolioTask { updatedHoldings = applySolanaPortfolio(nativeBalance: solanaPortfolio.nativeBalance, tokenBalances: solanaPortfolio.tokenBalances, to: updatedHoldings) }
-        } catch { throw WalletImportSyncError.solana }
-        do { applyNative(SpectraChainID.cardano,  try await cardanoBalanceTask) }  catch { throw WalletImportSyncError.cardano }
-        do { applyNative(SpectraChainID.xrp,      try await xrpBalanceTask) }      catch { throw WalletImportSyncError.xrp }
-        do { applyNative(SpectraChainID.stellar,  try await stellarBalanceTask) }  catch { throw WalletImportSyncError.stellar }
-        do { applyNative(SpectraChainID.monero,   try await moneroBalanceTask) }   catch { throw WalletImportSyncError.monero }
-        do { applyNative(SpectraChainID.near,     try await nearBalanceTask) }     catch { throw WalletImportSyncError.near }
-        do { applyNative(SpectraChainID.polkadot, try await polkadotBalanceTask) } catch { throw WalletImportSyncError.polkadot }
-        return walletByReplacingHoldings(wallet, with: updatedHoldings)
-    }
-    func fetchBitcoinImportBalanceIfNeeded(_ shouldFetch: Bool, wallet: ImportedWallet, seedPhrase: String) async throws -> Double? {
-        guard shouldFetch else { return nil }
-        let xpub: String
-        if let stored = wallet.bitcoinXPub?.trimmingCharacters(in: .whitespacesAndNewlines), !stored.isEmpty { xpub = stored } else {
-            xpub = try await WalletServiceBridge.shared.deriveBitcoinAccountXpub(
-                mnemonicPhrase: seedPhrase, passphrase: "", accountPath: "m/84'/0'/0'"
-            )
-        }
-        let balJSON = try await WalletServiceBridge.shared.fetchBitcoinXpubBalanceJSON(xpub: xpub)
-        guard let data = balJSON.data(using: .utf8), let obj  = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let confirmedSats = obj["confirmed_sats"] as? UInt64 else { return nil }
-        return Double(confirmedSats) / 100_000_000
-    }
-    private func fetchUInt64BalanceIfNeeded(_ shouldFetch: Bool, address: String?, chainId: UInt32, field: String, divisor: Double, missingError: WalletImportSyncError? = nil) async throws -> Double? {
-        guard shouldFetch else { return nil }
-        guard let address, !address.isEmpty else {
-            if let err = missingError { throw err }
-            return nil
-        }
-        let json = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address)
-        guard let raw = RustBalanceDecoder.uint64Field(field, from: json) else { return nil }
-        return Double(raw) / divisor
-    }
-    func fetchBitcoinCashImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? { try await fetchUInt64BalanceIfNeeded(shouldFetch, address: address, chainId: SpectraChainID.bitcoinCash, field: "balance_sat", divisor: 1e8, missingError: .bitcoinCash) }
-    func fetchBitcoinSVImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? { try await fetchUInt64BalanceIfNeeded(shouldFetch, address: address, chainId: SpectraChainID.bitcoinSv, field: "balance_sat", divisor: 1e8, missingError: .bitcoinSV) }
     func walletByReplacingHoldings(_ wallet: ImportedWallet, with holdings: [Coin]) -> ImportedWallet {
         ImportedWallet(
-            id: wallet.id, name: wallet.name, bitcoinNetworkMode: wallet.bitcoinNetworkMode, dogecoinNetworkMode: wallet.dogecoinNetworkMode, bitcoinAddress: wallet.bitcoinAddress, bitcoinXPub: wallet.bitcoinXPub, bitcoinCashAddress: wallet.bitcoinCashAddress, bitcoinSVAddress: wallet.bitcoinSVAddress, litecoinAddress: wallet.litecoinAddress, dogecoinAddress: wallet.dogecoinAddress, ethereumAddress: wallet.ethereumAddress, tronAddress: wallet.tronAddress, solanaAddress: wallet.solanaAddress, stellarAddress: wallet.stellarAddress, xrpAddress: wallet.xrpAddress, moneroAddress: wallet.moneroAddress, cardanoAddress: wallet.cardanoAddress, suiAddress: wallet.suiAddress, aptosAddress: wallet.aptosAddress, icpAddress: wallet.icpAddress, nearAddress: wallet.nearAddress, polkadotAddress: wallet.polkadotAddress, seedDerivationPreset: wallet.seedDerivationPreset, seedDerivationPaths: wallet.seedDerivationPaths, selectedChain: wallet.selectedChain, holdings: holdings, includeInPortfolioTotal: wallet.includeInPortfolioTotal
+            id: wallet.id, name: wallet.name, bitcoinNetworkMode: wallet.bitcoinNetworkMode, dogecoinNetworkMode: wallet.dogecoinNetworkMode, bitcoinAddress: wallet.bitcoinAddress, bitcoinXPub: wallet.bitcoinXPub, bitcoinCashAddress: wallet.bitcoinCashAddress, bitcoinSVAddress: wallet.bitcoinSVAddress, litecoinAddress: wallet.litecoinAddress, dogecoinAddress: wallet.dogecoinAddress, ethereumAddress: wallet.ethereumAddress, tronAddress: wallet.tronAddress, solanaAddress: wallet.solanaAddress, stellarAddress: wallet.stellarAddress, xrpAddress: wallet.xrpAddress, moneroAddress: wallet.moneroAddress, cardanoAddress: wallet.cardanoAddress, suiAddress: wallet.suiAddress, aptosAddress: wallet.aptosAddress, tonAddress: wallet.tonAddress, icpAddress: wallet.icpAddress, nearAddress: wallet.nearAddress, polkadotAddress: wallet.polkadotAddress, seedDerivationPreset: wallet.seedDerivationPreset, seedDerivationPaths: wallet.seedDerivationPaths, selectedChain: wallet.selectedChain, holdings: holdings, includeInPortfolioTotal: wallet.includeInPortfolioTotal
         )
-    }
-    func fetchDogecoinImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? { try await fetchUInt64BalanceIfNeeded(shouldFetch, address: address, chainId: SpectraChainID.dogecoin, field: "balance_koin", divisor: 1e8, missingError: .dogecoin) }
-    func fetchLitecoinImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? { try await fetchUInt64BalanceIfNeeded(shouldFetch, address: address, chainId: SpectraChainID.litecoin, field: "balance_sat", divisor: 1e8, missingError: .litecoin) }
-    func fetchEthereumImportPortfolioIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> (Double, [EthereumTokenBalanceSnapshot])? {
-        guard shouldFetch else { return nil }
-        guard let address, !address.isEmpty else { throw WalletImportSyncError.ethereum }
-        return try await fetchEthereumPortfolio(for: address)
-    }
-    private func fetchEVMNativeImportIfNeeded(_ shouldFetch: Bool, address: String?, error: WalletImportSyncError, chainName: String) async throws -> (Double, [EthereumTokenBalanceSnapshot])? {
-        guard shouldFetch else { return nil }
-        guard let address, !address.isEmpty else { throw error }
-        let p = try await fetchEVMNativePortfolio(for: address, chainName: chainName)
-        return (p.nativeBalance, p.tokenBalances)
-    }
-    func fetchETCImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> (Double, [EthereumTokenBalanceSnapshot])? { try await fetchEVMNativeImportIfNeeded(shouldFetch, address: address, error: .ethereumClassic, chainName: "Ethereum Classic") }
-    func fetchBNBImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> (Double, [EthereumTokenBalanceSnapshot])? { try await fetchEVMNativeImportIfNeeded(shouldFetch, address: address, error: .bnb, chainName: "BNB Chain") }
-    func fetchTronImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> (Double, [TronTokenBalanceSnapshot])? {
-        guard shouldFetch else { return nil }
-        guard let address, !address.isEmpty else { throw WalletImportSyncError.tron }
-        let nativeJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.tron, address: address)
-        let sun = RustBalanceDecoder.uint64Field("sun", from: nativeJSON) ?? 0
-        let trxBalance = Double(sun) / 1e6
-        let trackedTokens = enabledTronTrackedTokens()
-        let tuples = trackedTokens.map { t in (contract: t.contractAddress, symbol: t.symbol, decimals: t.decimals) }
-        var tokenBalances: [TronTokenBalanceSnapshot] = []
-        if !tuples.isEmpty, let tokenJSON = try? await WalletServiceBridge.shared.fetchTokenBalancesJSON(chainId: SpectraChainID.tron, address: address, tokens: tuples), let tokenData = tokenJSON.data(using: .utf8), let tokenArr = try? JSONSerialization.jsonObject(with: tokenData) as? [[String: Any]] {
-            tokenBalances = tokenArr.compactMap { obj in
-                guard let contract = obj["contract"] as? String, let symbol = obj["symbol"] as? String, let displayStr = obj["balance_display"] as? String, let balance = Double(displayStr) else { return nil }
-                return TronTokenBalanceSnapshot(symbol: symbol, contractAddress: contract, balance: balance)
-            }}
-        return (trxBalance, tokenBalances)
-    }
-    func fetchCardanoImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? { try await fetchUInt64BalanceIfNeeded(shouldFetch, address: address, chainId: SpectraChainID.cardano, field: "lovelace", divisor: 1_000_000) }
-    func fetchXRPImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? { try await fetchUInt64BalanceIfNeeded(shouldFetch, address: address, chainId: SpectraChainID.xrp, field: "drops", divisor: 1_000_000) }
-    func fetchStellarImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? {
-        guard shouldFetch else { return nil }
-        guard let address, !address.isEmpty else { throw WalletImportSyncError.stellar }
-        let json = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.stellar, address: address)
-        guard let stroops = RustBalanceDecoder.int64Field("stroops", from: json) else { return nil }
-        return Double(stroops) / 10_000_000
-    }
-    func fetchMoneroImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? { try await fetchUInt64BalanceIfNeeded(shouldFetch, address: address, chainId: SpectraChainID.monero, field: "piconeros", divisor: 1_000_000_000_000, missingError: .monero) }
-    func fetchNearImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? {
-        guard shouldFetch else { return nil }
-        guard let address, !address.isEmpty else { throw WalletImportSyncError.near }
-        let json = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.near, address: address)
-        guard let data = json.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let yoctoStr = obj["yocto_near"] as? String, let yocto = Double(yoctoStr) else { return nil }
-        return yocto / 1e24
-    }
-    func fetchPolkadotImportBalanceIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> Double? {
-        guard shouldFetch else { return nil }
-        guard let address, !address.isEmpty else { throw WalletImportSyncError.polkadot }
-        let json = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.polkadot, address: address)
-        guard let planck = RustBalanceDecoder.uint128StringField("planck", from: json) else { return nil }
-        return planck / 10_000_000_000
-    }
-    func fetchSolanaImportPortfolioIfNeeded(_ shouldFetch: Bool, address: String?) async throws -> SolanaPortfolioSnapshot? {
-        guard shouldFetch else { return nil }
-        guard let address, !address.isEmpty else { throw WalletImportSyncError.solana }
-        let nativeJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.solana, address: address)
-        guard let lamports = RustBalanceDecoder.uint64Field("lamports", from: nativeJSON) else { throw WalletImportSyncError.solana }
-        let nativeBalance = Double(lamports) / 1e9
-        let trackedTokensByMint = enabledSolanaTrackedTokens()
-        let tuples = trackedTokensByMint.map { mint, meta in (contract: mint, symbol: meta.symbol, decimals: meta.decimals) }
-        var tokenBalances: [SolanaSPLTokenBalanceSnapshot] = []
-        if !tuples.isEmpty, let tokenJSON = try? await WalletServiceBridge.shared.fetchTokenBalancesJSON(chainId: SpectraChainID.solana, address: address, tokens: tuples), let tokenData = tokenJSON.data(using: .utf8), let tokenArr = try? JSONSerialization.jsonObject(with: tokenData) as? [[String: Any]] {
-            tokenBalances = tokenArr.compactMap { obj -> SolanaSPLTokenBalanceSnapshot? in
-                guard let mint = obj["contract"] as? String, let displayStr = obj["balance_display"] as? String, let balance = Double(displayStr), balance > 0 else { return nil }
-                let meta = trackedTokensByMint[mint]
-                return SolanaSPLTokenBalanceSnapshot(
-                    mintAddress: mint, sourceTokenAccountAddress: "", symbol: meta?.symbol ?? (obj["symbol"] as? String ?? ""), name: meta?.name ?? "", tokenStandard: "SPL", decimals: meta?.decimals ?? (obj["decimals"] as? Int ?? 0), balance: balance, marketDataID: meta?.marketDataID ?? "", coinGeckoID: meta?.coinGeckoID ?? ""
-                )
-            }}
-        return SolanaPortfolioSnapshot(nativeBalance: nativeBalance, tokenBalances: tokenBalances)
     }
     var portfolio: [Coin] { cachedPortfolio }
     var priceRequestCoins: [Coin] {

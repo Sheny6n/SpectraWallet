@@ -2,7 +2,7 @@ import Foundation
 private let _rustGenerateMnemonic: (UInt32) -> String = generateMnemonic(wordCount:)
 enum SeedPhraseSafety {
     private static let validWordCounts: Set<Int> = [12, 15, 18, 21, 24]
-    static func normalizedWords(from seedPhrase: String) -> [String] { seedPhrase..lowercased().split(whereSeparator: \.isWhitespace).map(String.init) }
+    static func normalizedWords(from seedPhrase: String) -> [String] { seedPhrase.lowercased().split(whereSeparator: \.isWhitespace).map(String.init) }
     static func normalizedPhrase(from seedPhrase: String) -> String { normalizedWords(from: seedPhrase).joined(separator: " ") }
     static func invalidEnglishWords(in seedPhrase: String) -> [String] {
         var seen: Set<String> = []

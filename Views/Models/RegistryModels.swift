@@ -100,7 +100,8 @@ struct ChainRegistryEntry: Identifiable {
     let primaryUse: String
     let slip44CoinType: String
     let derivationPath: String
-    let alternateDerivationPath: String? let totalCirculationModel: String
+    let alternateDerivationPath: String?
+    let totalCirculationModel: String
     let notableDetails: [String]
     var assetIdentifier: String { Coin.iconIdentifier(symbol: symbol, chainName: name) }
     var nativeIconDescriptor: NativeChainIconDescriptor {
@@ -170,7 +171,8 @@ struct TokenPreferenceEntry: Identifiable, Codable, Equatable {
     let marketDataID: String
     let coinGeckoID: String
     var decimals: Int
-    var displayDecimals: Int? let category: TokenPreferenceCategory
+    var displayDecimals: Int?
+    let category: TokenPreferenceCategory
     let isBuiltIn: Bool
     var isEnabled: Bool
     init(
@@ -200,7 +202,8 @@ struct ChainTokenRegistryEntry: Identifiable, Equatable {
     let marketDataID: String
     let coinGeckoID: String
     let decimals: Int
-    let displayDecimals: Int? let category: TokenPreferenceCategory
+    let displayDecimals: Int?
+    let category: TokenPreferenceCategory
     let isBuiltIn: Bool
     let isEnabledByDefault: Bool
     var id: String {
@@ -309,8 +312,8 @@ extension Coin {
         default: return trimmedIdentifier
         }}
     private static func canonicalChainComponent(chainName: String, symbol: String) -> String {
-        let normalizedChainName = chainName..trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedSymbol = symbol..trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        let normalizedChainName = chainName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedSymbol = symbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let knownAliases: [String: String] = [
             "bitcoin": "bitcoin", "bitcoin cash": "bitcoin-cash", "bitcoin sv": "bitcoin-sv", "litecoin": "litecoin", "dogecoin": "dogecoin", "ethereum": "ethereum", "ethereum classic": "ethereum-classic", "arbitrum": "arbitrum", "optimism": "optimism", "bnb chain": "bnb", "avalanche": "avalanche", "hyperliquid": "hyperliquid", "tron": "tron", "solana": "solana", "stellar": "stellar", "cardano": "cardano", "xrp ledger": "xrp", "monero": "monero", "sui": "sui", "aptos": "aptos", "ton": "ton", "internet computer": "internet-computer", "near": "near", "polkadot": "polkadot"
         ]

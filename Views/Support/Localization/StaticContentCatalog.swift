@@ -42,14 +42,14 @@ enum StaticContentCatalog {
             guard let resourceURL = bundle.resourceURL else { continue }
             for localeIdentifier in localeIdentifiers {
                 if localeIdentifier == "Base" {
-                    append(resourceURL .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("Localization", isDirectory: true)..appendingPathComponent("Base", isDirectory: true)..appendingPathComponent("\(baseName).json", isDirectory: false))
-                    append(resourceURL .appendingPathComponent("Localization", isDirectory: true).appendingPathComponent("Base", isDirectory: true)..appendingPathComponent("\(baseName).json", isDirectory: false))
+                    append(resourceURL .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("Localization", isDirectory: true).appendingPathComponent("Base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
+                    append(resourceURL .appendingPathComponent("Localization", isDirectory: true).appendingPathComponent("Base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
                 } else {
-                    append(resourceURL .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("Localization", isDirectory: true)..appendingPathComponent(localeIdentifier, isDirectory: true)..appendingPathComponent("\(baseName).\(localeIdentifier).json", isDirectory: false))
-                    append(resourceURL .appendingPathComponent("Localization", isDirectory: true).appendingPathComponent(localeIdentifier, isDirectory: true)..appendingPathComponent("\(baseName).\(localeIdentifier).json", isDirectory: false))
+                    append(resourceURL .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("Localization", isDirectory: true).appendingPathComponent(localeIdentifier, isDirectory: true).appendingPathComponent("\(baseName).\(localeIdentifier).json", isDirectory: false))
+                    append(resourceURL .appendingPathComponent("Localization", isDirectory: true).appendingPathComponent(localeIdentifier, isDirectory: true).appendingPathComponent("\(baseName).\(localeIdentifier).json", isDirectory: false))
                 }}
-            append(resourceURL .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("Localization", isDirectory: true)..appendingPathComponent("Base", isDirectory: true)..appendingPathComponent("\(baseName).json", isDirectory: false))
-            append(resourceURL .appendingPathComponent("Localization", isDirectory: true).appendingPathComponent("Base", isDirectory: true)..appendingPathComponent("\(baseName).json", isDirectory: false))
+            append(resourceURL .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("Localization", isDirectory: true).appendingPathComponent("Base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
+            append(resourceURL .appendingPathComponent("Localization", isDirectory: true).appendingPathComponent("Base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
             append(resourceURL.appendingPathComponent("\(baseName).json", isDirectory: false))
         }
         return candidates
@@ -348,7 +348,7 @@ enum BIP39EnglishWordList {
     static let words: Set<String> = {
         let text = StaticContentCatalog.loadRequiredTextResource("BIP39EnglishWordList")
         return Set(
-            text..split(whereSeparator: \.isWhitespace)..map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            text.split(whereSeparator: \.isWhitespace).map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
                 .filter { !$0.isEmpty }
         )
     }()

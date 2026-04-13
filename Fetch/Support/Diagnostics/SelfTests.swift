@@ -158,7 +158,8 @@ private enum ChainTestSpecTable {
         let validAddress: String
         let invalidAddress: String
         let validator: (String) -> Bool
-        let derive: (() throws -> String)? func runAll() -> [ChainSelfTestResult] {
+        let derive: (() throws -> String)?
+        func runAll() -> [ChainSelfTestResult] {
             var results = [
                 GenericChainSelfTestHelpers.addressAccepts(chainLabel: chainLabel, address: validAddress, validator: validator), GenericChainSelfTestHelpers.addressRejects(chainLabel: chainLabel, invalidAddress: invalidAddress, validator: validator)
             ]

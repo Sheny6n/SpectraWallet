@@ -148,11 +148,11 @@ extension WalletStore {
     func rebuildNormalizedHistoryIndex() {
         let walletByID = cachedWalletByID.isEmpty ? Dictionary(uniqueKeysWithValues: wallets.map { ($0.id, $0) }) : cachedWalletByID
         let inputSignature = normalizedHistoryInputSignature(walletByID: walletByID)
-        guard transactionState.lastNormalizedHistorySignature != inputSignature else { return }
+        guard lastNormalizedHistorySignature != inputSignature else { return }
         let startedAt = CFAbsoluteTimeGetCurrent()
         let normalizedEntries = rebuildNormalizedHistoryIndexUsingRust(walletByID: walletByID)
         normalizedHistoryIndex = normalizedEntries
-        transactionState.lastNormalizedHistorySignature = inputSignature
+        lastNormalizedHistorySignature = inputSignature
         recordPerformanceSample(
             "rebuild_normalized_history_index", startedAt: startedAt, metadata: "transactions=\(transactions.count) normalized=\(normalizedHistoryIndex.count)"
         )

@@ -10,7 +10,8 @@ struct PersistedCoin: Codable {
     let coinGeckoID: String
     let chainName: String
     let tokenStandard: String
-    let contractAddress: String? let amount: Double
+    let contractAddress: String?
+    let amount: Double
     let priceUSD: Double
 }
 struct PersistedWallet: Codable {
@@ -18,7 +19,26 @@ struct PersistedWallet: Codable {
     let name: String
     let bitcoinNetworkMode: BitcoinNetworkMode
     let dogecoinNetworkMode: DogecoinNetworkMode
-    let bitcoinAddress: String? let bitcoinXPub: String? let bitcoinCashAddress: String? let bitcoinSVAddress: String? let litecoinAddress: String? let dogecoinAddress: String? let ethereumAddress: String? let tronAddress: String? let solanaAddress: String? let stellarAddress: String? let xrpAddress: String? let moneroAddress: String? let cardanoAddress: String? let suiAddress: String? let aptosAddress: String? let tonAddress: String? let icpAddress: String? let nearAddress: String? let polkadotAddress: String? let seedDerivationPreset: SeedDerivationPreset
+    let bitcoinAddress: String?
+    let bitcoinXPub: String?
+    let bitcoinCashAddress: String?
+    let bitcoinSVAddress: String?
+    let litecoinAddress: String?
+    let dogecoinAddress: String?
+    let ethereumAddress: String?
+    let tronAddress: String?
+    let solanaAddress: String?
+    let stellarAddress: String?
+    let xrpAddress: String?
+    let moneroAddress: String?
+    let cardanoAddress: String?
+    let suiAddress: String?
+    let aptosAddress: String?
+    let tonAddress: String?
+    let icpAddress: String?
+    let nearAddress: String?
+    let polkadotAddress: String?
+    let seedDerivationPreset: SeedDerivationPreset
     let seedDerivationPaths: SeedDerivationPaths
     let selectedChain: String
     let holdings: [PersistedCoin]
@@ -152,7 +172,8 @@ struct PersistedAddressBookStore: Codable {
 }
 struct PersistedTransactionRecord: Codable, Equatable {
     let id: UUID
-    let walletID: UUID? let kind: TransactionKind
+    let walletID: UUID?
+    let kind: TransactionKind
     let status: TransactionStatus
     let walletName: String
     let assetName: String
@@ -160,7 +181,31 @@ struct PersistedTransactionRecord: Codable, Equatable {
     let chainName: String
     let amount: Double
     let address: String
-    let transactionHash: String? let ethereumNonce: Int? let receiptBlockNumber: Int? let receiptGasUsed: String? let receiptEffectiveGasPriceGwei: Double? let receiptNetworkFeeETH: Double? let feePriorityRaw: String? let feeRateDescription: String? let confirmationCount: Int? let dogecoinConfirmedNetworkFeeDOGE: Double? let dogecoinConfirmations: Int? let dogecoinFeePriorityRaw: String? let dogecoinEstimatedFeeRateDOGEPerKB: Double? let usedChangeOutput: Bool? let dogecoinUsedChangeOutput: Bool? let sourceDerivationPath: String? let changeDerivationPath: String? let sourceAddress: String? let changeAddress: String? let dogecoinRawTransactionHex: String? let signedTransactionPayload: String? let signedTransactionPayloadFormat: String? let failureReason: String? let transactionHistorySource: String? let createdAt: Date
+    let transactionHash: String?
+    let ethereumNonce: Int?
+    let receiptBlockNumber: Int?
+    let receiptGasUsed: String?
+    let receiptEffectiveGasPriceGwei: Double?
+    let receiptNetworkFeeETH: Double?
+    let feePriorityRaw: String?
+    let feeRateDescription: String?
+    let confirmationCount: Int?
+    let dogecoinConfirmedNetworkFeeDOGE: Double?
+    let dogecoinConfirmations: Int?
+    let dogecoinFeePriorityRaw: String?
+    let dogecoinEstimatedFeeRateDOGEPerKB: Double?
+    let usedChangeOutput: Bool?
+    let dogecoinUsedChangeOutput: Bool?
+    let sourceDerivationPath: String?
+    let changeDerivationPath: String?
+    let sourceAddress: String?
+    let changeAddress: String?
+    let dogecoinRawTransactionHex: String?
+    let signedTransactionPayload: String?
+    let signedTransactionPayloadFormat: String?
+    let failureReason: String?
+    let transactionHistorySource: String?
+    let createdAt: Date
     enum CodingKeys: String, CodingKey {
         case id
         case walletID

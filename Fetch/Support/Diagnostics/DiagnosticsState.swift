@@ -8,7 +8,9 @@ final class WalletDiagnosticsState: ObservableObject {
     private static let operationalLogTimestampFormatter = ISO8601DateFormatter()
     private static let chainSyncPersistenceDelay: TimeInterval = 0.15
     private static let operationalLogsPersistenceDelay: TimeInterval = 0.35
-    private var pendingChainSyncPersistence: DispatchWorkItem? private var pendingOperationalLogsPersistence: DispatchWorkItem? @Published private var chainDegradedMessagesByID: [WalletChainID: String] = [:] {
+    private var pendingChainSyncPersistence: DispatchWorkItem?
+    private var pendingOperationalLogsPersistence: DispatchWorkItem?
+    @Published private var chainDegradedMessagesByID: [WalletChainID: String] = [:] {
         didSet {
             scheduleChainSyncPersistence()
         }}
@@ -59,7 +61,7 @@ final class WalletDiagnosticsState: ObservableObject {
         get { lastGoodChainSyncByID }
         set { lastGoodChainSyncByID = newValue }}
     var chainDegradedBanners: [WalletStore.ChainDegradedBanner] {
-        chainDegradedMessagesByID..keys..sorted()..map { chainID in
+        chainDegradedMessagesByID.keys.sorted().map { chainID in
                 WalletStore.ChainDegradedBanner(
                     chainName: chainID.displayName, message: localizedDegradedMessage(
                         chainDegradedMessagesByID[chainID] ?? "", chainID: chainID
@@ -122,7 +124,7 @@ final class WalletDiagnosticsState: ObservableObject {
         let detail = localizedDegradedDetail(
             normalizedDegradedDetail(message), chainName: chainID.displayName
         )
-        return [detail, degradedSyncSuffix(for: chainID)]..filter { !$0.isEmpty }.joined(separator: " ")
+        return [detail, degradedSyncSuffix(for: chainID)].filter { !$0.isEmpty }.joined(separator: " ")
     }
     private func localizedDegradedDetail(_ detail: String, chainName: String) -> String {
         let templates: [(suffix: String, key: String)] = [

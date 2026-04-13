@@ -8,10 +8,13 @@ private func localizedHistoryFormat(_ key: String, _ arguments: CVarArg...) -> S
 }
 private struct HistoryRowPresentation: Identifiable {
     let transaction: TransactionRecord
-    let amountText: String? let amountColor: Color? let subtitleText: String
+    let amountText: String?
+    let amountColor: Color?
+    let subtitleText: String
     let statusText: String
     let fullTimestampText: String
-    let metadataText: String? var id: UUID { transaction.id }
+    let metadataText: String?
+    var id: UUID { transaction.id }
 }
 private struct HistoryPresentationSection: Identifiable {
     let title: String
@@ -19,12 +22,11 @@ private struct HistoryPresentationSection: Identifiable {
     var id: String { title }
 }
 struct HistoryView: View {
-    let store: WalletStore
-    @ObservedObject private var portfolioState: WalletPortfolioState
-    @ObservedObject private var transactionState: WalletTransactionState
+    @ObservedObject var store: WalletStore
     @State private var selectedFilter: HistoryFilter = .all
     @State private var selectedSortOrder: HistorySortOrder = .newest
-    @State private var selectedWalletID: UUID? @State private var searchText: String = ""
+    @State private var selectedWalletID: UUID?
+    @State private var searchText: String = ""
     @State private var currentPageIndex: Int = 0
     @State private var pendingScrollToTopToken = UUID()
     @State private var visibleTransactions: [TransactionRecord] = []
@@ -33,8 +35,6 @@ struct HistoryView: View {
     private let entriesPerPage = 10
     init(store: WalletStore) {
         self.store = store
-        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
-        _transactionState = ObservedObject(wrappedValue: store.transactionState)
     }
     var body: some View {
         NavigationStack {
@@ -43,71 +43,71 @@ struct HistoryView: View {
                     SpectraBackdrop()
                     ScrollView(showsIndicators: false) {
                         LazyVStack(alignment: .leading, spacing: 18) {
-                            Color.clear..frame(height: 1).id("history-top")
+                            Color.clear.frame(height: 1).id("history-top")
                             controlsCard
                             if visibleTransactions.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Text(emptyStateTitle)..font(.headline).foregroundStyle(Color.primary)
-                                    Text(emptyStateMessage)..font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
-                                }..padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+                                    Text(emptyStateTitle).font(.headline).foregroundStyle(Color.primary)
+                                    Text(emptyStateMessage).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
+                                }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
                             } else {
                                 ForEach(groupedSections) { section in
                                     VStack(alignment: .leading, spacing: 12) {
-                                        Text(localizedFormat("history.section.titleCount", section.title, section.rows.count))..font(.headline).foregroundStyle(Color.primary.opacity(0.88))
+                                        Text(localizedFormat("history.section.titleCount", section.title, section.rows.count)).font(.headline).foregroundStyle(Color.primary.opacity(0.88))
                                         ForEach(section.rows) { row in
                                             VStack(alignment: .leading, spacing: 10) {
                                                 NavigationLink {
                                                     HistoryDetailView(store: store, transaction: row.transaction)
-                                                } label: { transactionRow(row) }..buttonStyle(.plain)..swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                                } label: { transactionRow(row) }.buttonStyle(.plain).swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                                     if row.transaction.kind == .send, row.transaction.status == .pending || row.transaction.status == .failed {
                                                         if ["Bitcoin", "Bitcoin Cash", "Bitcoin SV", "Litecoin", "Dogecoin"].contains(row.transaction.chainName) {
                                                             Button {
                                                                 Task {
                                                                     _ = await store.retryUTXOTransactionStatus(for: row.transaction.id)
-                                                                }} label: { Label("Recheck", systemImage: "arrow.clockwise") }..tint(.blue)
+                                                                }} label: { Label("Recheck", systemImage: "arrow.clockwise") }.tint(.blue)
                                                         }
                                                         if row.transaction.supportsSignedRebroadcast {
                                                             Button {
                                                                 Task {
                                                                     _ = await store.rebroadcastSignedTransaction(for: row.transaction.id)
-                                                                }} label: { Label("Rebroadcast", systemImage: "dot.radiowaves.up.forward") }..tint(.mint)
-                                                        }}}}}}..padding(18).frame(maxWidth: .infinity, alignment: .leading)..glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+                                                                }} label: { Label("Rebroadcast", systemImage: "dot.radiowaves.up.forward") }.tint(.mint)
+                                                        }}}}}}.padding(18).frame(maxWidth: .infinity, alignment: .leading).glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
                                 }}
-                            if shouldShowPagingControls { historyPagingControls }}..padding(20)
-                    }..refreshable {
+                            if shouldShowPagingControls { historyPagingControls }}.padding(20)
+                    }.refreshable {
                         await store.performUserInitiatedRefresh()
                     }.scrollBounceBehavior(.always)
-                }..onChange(of: pendingScrollToTopToken) { _, _ in
+                }.onChange(of: pendingScrollToTopToken) { _, _ in
                     withAnimation(.easeInOut(duration: 0.2)) {
                         proxy.scrollTo("history-top", anchor: .top)
-                    }}}..navigationTitle(localizedHistoryString("History")).navigationBarTitleDisplayMode(.inline)..onAppear {
+                    }}}.navigationTitle(localizedHistoryString("History")).navigationBarTitleDisplayMode(.inline).onAppear {
                 rebuildVisibleTransactions(resetPaging: true)
-            }..onChange(of: transactionState.transactionRevision) { _, _ in
+            }.onChange(of: store.transactionRevision) { _, _ in
                 rebuildVisibleTransactions()
-            }..onChange(of: transactionState.normalizedHistoryRevision) { _, _ in
+            }.onChange(of: store.normalizedHistoryRevision) { _, _ in
                 rebuildVisibleTransactions()
-            }..onChange(of: portfolioState.walletsRevision) { _, _ in
+            }.onChange(of: store.walletsRevision) { _, _ in
                 rebuildVisibleTransactions()
-            }..onChange(of: selectedFilter) { _, _ in
+            }.onChange(of: selectedFilter) { _, _ in
                 rebuildVisibleTransactions(resetPaging: true)
-            }..onChange(of: selectedSortOrder) { _, _ in
+            }.onChange(of: selectedSortOrder) { _, _ in
                 rebuildVisibleTransactions(resetPaging: true)
-            }..onChange(of: selectedWalletID) { _, _ in
+            }.onChange(of: selectedWalletID) { _, _ in
                 rebuildVisibleTransactions(resetPaging: true)
-            }..onChange(of: searchText) { _, _ in
+            }.onChange(of: searchText) { _, _ in
                 rebuildVisibleTransactions(resetPaging: true)
-            }..onChange(of: currentPageIndex) { _, _ in
+            }.onChange(of: currentPageIndex) { _, _ in
                 rebuildGroupedSections()
                 prefetchHistoryIfNeeded()
             }}}
     private var controlsCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            TextField(localizedHistoryString("Search wallet, asset, symbol, or address"), text: $searchText)..textInputAutocapitalization(.never).autocorrectionDisabled().padding(.horizontal, 14).padding(.vertical, 12)..spectraInputFieldStyle(cornerRadius: 16).foregroundStyle(Color.primary)
+            TextField(localizedHistoryString("Search wallet, asset, symbol, or address"), text: $searchText).textInputAutocapitalization(.never).autocorrectionDisabled().padding(.horizontal, 14).padding(.vertical, 12).spectraInputFieldStyle(cornerRadius: 16).foregroundStyle(Color.primary)
             HStack(spacing: 10) {
                 Menu {
                     Picker(localizedHistoryString("Wallet"), selection: $selectedWalletID) {
                         Text(localizedHistoryString("All Wallets")).tag(Optional<UUID>.none)
-                        ForEach(portfolioState.wallets) { wallet in Text(wallet.name).tag(Optional(wallet.id)) }}} label: {
+                        ForEach(store.wallets) { wallet in Text(wallet.name).tag(Optional(wallet.id)) }}} label: {
                     filterCapsuleLabel(
                         title: localizedHistoryString("Wallet"), value: selectedWalletName, systemImage: "wallet.pass"
                     )
@@ -125,18 +125,18 @@ struct HistoryView: View {
                     filterCapsuleLabel(
                         title: localizedHistoryString("Sort"), value: selectedSortOrder.localizedTitle, systemImage: "arrow.up.arrow.down.circle"
                     )
-                }}..frame(maxWidth: .infinity, alignment: .leading)
+                }}.frame(maxWidth: .infinity, alignment: .leading)
             if selectedWalletID != nil || selectedFilter != .all || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 HStack(spacing: 8) {
-                    Text(localizedFormat("%lld results", visibleTransactions.count))..font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.8))
+                    Text(localizedFormat("%lld results", visibleTransactions.count)).font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.8))
                     Spacer()
                     Button(localizedHistoryString("Clear Filters")) {
                         selectedWalletID = nil
                         selectedFilter = .all
                         selectedSortOrder = .newest
                         searchText = ""
-                    }..font(.caption.weight(.semibold)).foregroundStyle(.mint).buttonStyle(.plain)
-                }}}..padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+                    }.font(.caption.weight(.semibold)).foregroundStyle(.mint).buttonStyle(.plain)
+                }}}.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }
     private var clampedPageIndex: Int {
         guard totalLoadedPages > 0 else { return 0 }
@@ -175,9 +175,9 @@ struct HistoryView: View {
     private func rebuildVisibleTransactions(resetPaging: Bool = false) {
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let rebuiltTransactions: [TransactionRecord]
-        if portfolioState.wallets.isEmpty { rebuiltTransactions = [] } else {
+        if store.wallets.isEmpty { rebuiltTransactions = [] } else {
             let transactionByID = store.cachedTransactionByID
-            let filteredTransactions: [TransactionRecord] = transactionState.normalizedHistoryIndex.compactMap { entry in
+            let filteredTransactions: [TransactionRecord] = store.normalizedHistoryIndex.compactMap { entry in
                 guard let transaction = transactionByID[entry.transactionID] else { return nil }
                 if let selectedWalletID, transaction.walletID != selectedWalletID { return nil }
                 switch selectedFilter {
@@ -226,9 +226,9 @@ struct HistoryView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "chevron.left")
                     Text("Last")
-                }..font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
-            }..buttonStyle(.plain).disabled(clampedPageIndex == 0 || store.isLoadingMoreOnChainHistory)..opacity((clampedPageIndex == 0 || store.isLoadingMoreOnChainHistory) ? 0.4 : 1)
-            Text(localizedFormat("Page %lld", clampedPageIndex + 1))..font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.78))..padding(.horizontal, 14).padding(.vertical, 8)..background(Color.white.opacity(0.06), in: Capsule())
+                }.font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+            }.buttonStyle(.plain).disabled(clampedPageIndex == 0 || store.isLoadingMoreOnChainHistory).opacity((clampedPageIndex == 0 || store.isLoadingMoreOnChainHistory) ? 0.4 : 1)
+            Text(localizedFormat("Page %lld", clampedPageIndex + 1)).font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.78)).padding(.horizontal, 14).padding(.vertical, 8).background(Color.white.opacity(0.06), in: Capsule())
             Button {
                 Task {
                     if hasNextLoadedPage {
@@ -246,18 +246,18 @@ struct HistoryView: View {
                     }}} label: {
                 HStack(spacing: 6) {
                     Text(store.isLoadingMoreOnChainHistory ? "Loading" : "Next")
-                    if store.isLoadingMoreOnChainHistory { ProgressView()..controlSize(.small).tint(.white) } else { Image(systemName: "chevron.right") }}..font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
-            }..buttonStyle(.plain).disabled((!hasNextLoadedPage && !canLoadMoreVisibleHistory) || store.isLoadingMoreOnChainHistory)..opacity(((!hasNextLoadedPage && !canLoadMoreVisibleHistory) || store.isLoadingMoreOnChainHistory) ? 0.4 : 1)
-        }..padding(.horizontal, 16).padding(.vertical, 12)..frame(maxWidth: .infinity).glassEffect(.regular.tint(.white.opacity(0.028)), in: .capsule)
+                    if store.isLoadingMoreOnChainHistory { ProgressView().controlSize(.small).tint(.white) } else { Image(systemName: "chevron.right") }}.font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+            }.buttonStyle(.plain).disabled((!hasNextLoadedPage && !canLoadMoreVisibleHistory) || store.isLoadingMoreOnChainHistory).opacity(((!hasNextLoadedPage && !canLoadMoreVisibleHistory) || store.isLoadingMoreOnChainHistory) ? 0.4 : 1)
+        }.padding(.horizontal, 16).padding(.vertical, 12).frame(maxWidth: .infinity).glassEffect(.regular.tint(.white.opacity(0.028)), in: .capsule)
     }
     private var emptyStateTitle: String {
-        transactionState.normalizedHistoryIndex.isEmpty
+        store.normalizedHistoryIndex.isEmpty
             ? localizedHistoryString("No activity yet")
             : localizedHistoryString("No matches found")
     }
     private var emptyStateMessage: String {
-        if portfolioState.wallets.isEmpty { return localizedHistoryString("No wallets are currently loaded. Import a wallet to view activity.") }
-        if transactionState.normalizedHistoryIndex.isEmpty { return localizedHistoryString("Send funds or receive funds to build a persistent transaction log.") }
+        if store.wallets.isEmpty { return localizedHistoryString("No wallets are currently loaded. Import a wallet to view activity.") }
+        if store.normalizedHistoryIndex.isEmpty { return localizedHistoryString("Send funds or receive funds to build a persistent transaction log.") }
         return localizedHistoryString("Try a different filter or search term.")
     }
     private var selectedWalletName: String {
@@ -270,28 +270,28 @@ struct HistoryView: View {
             HStack(spacing: 12) {
                 CoinBadge(assetIdentifier: row.transaction.assetIdentifier, fallbackText: row.transaction.symbol, color: row.transaction.badgeColor, size: 40)
                 VStack(alignment: .leading, spacing: 3) {
-                    if let amountText = row.amountText { Text(amountText)..font(.headline.weight(.semibold)).foregroundStyle(row.amountColor ?? Color.primary).spectraNumericTextLayout() }
-                    Text(row.subtitleText)..font(.caption).foregroundStyle(Color.primary.opacity(0.72))
+                    if let amountText = row.amountText { Text(amountText).font(.headline.weight(.semibold)).foregroundStyle(row.amountColor ?? Color.primary).spectraNumericTextLayout() }
+                    Text(row.subtitleText).font(.caption).foregroundStyle(Color.primary.opacity(0.72))
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 6) {
-                    Text(row.statusText)..font(.caption2.bold()).foregroundStyle(Color.primary).padding(.horizontal, 8).padding(.vertical, 5)..background(row.transaction.statusColor.opacity(0.85), in: Capsule())
-                    Text(row.fullTimestampText)..font(.caption2).foregroundStyle(Color.primary.opacity(0.6)).multilineTextAlignment(.trailing)
+                    Text(row.statusText).font(.caption2.bold()).foregroundStyle(Color.primary).padding(.horizontal, 8).padding(.vertical, 5).background(row.transaction.statusColor.opacity(0.85), in: Capsule())
+                    Text(row.fullTimestampText).font(.caption2).foregroundStyle(Color.primary.opacity(0.6)).multilineTextAlignment(.trailing)
                 }
-                Image(systemName: "chevron.right")..font(.caption.weight(.bold)).foregroundStyle(Color.primary.opacity(0.35))
+                Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Color.primary.opacity(0.35))
             }
-            if let metadataText = row.metadataText { Text(metadataText)..font(.caption2).foregroundStyle(Color.primary.opacity(0.62)).lineLimit(1) }}..padding(16).frame(maxWidth: .infinity, alignment: .leading)..glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 22))
+            if let metadataText = row.metadataText { Text(metadataText).font(.caption2).foregroundStyle(Color.primary.opacity(0.62)).lineLimit(1) }}.padding(16).frame(maxWidth: .infinity, alignment: .leading).glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 22))
     }
     @ViewBuilder
     private func filterCapsuleLabel(title: String, value: String, systemImage: String) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: systemImage)..font(.caption.weight(.semibold))
+            Image(systemName: systemImage).font(.caption.weight(.semibold))
             VStack(alignment: .leading, spacing: 1) {
-                Text(title)..font(.caption2).foregroundStyle(Color.primary.opacity(0.62))
-                Text(value)..font(.caption.weight(.semibold)).foregroundStyle(Color.primary).lineLimit(1)
+                Text(title).font(.caption2).foregroundStyle(Color.primary.opacity(0.62))
+                Text(value).font(.caption.weight(.semibold)).foregroundStyle(Color.primary).lineLimit(1)
             }
-            Image(systemName: "chevron.down")..font(.caption2.weight(.bold)).foregroundStyle(Color.primary.opacity(0.62))
-        }..padding(.horizontal, 12).padding(.vertical, 10).spectraInputFieldStyle(cornerRadius: 16)
+            Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(Color.primary.opacity(0.62))
+        }.padding(.horizontal, 12).padding(.vertical, 10).spectraInputFieldStyle(cornerRadius: 16)
     }
     private func historyRowPresentation(for transaction: TransactionRecord) -> HistoryRowPresentation {
         HistoryRowPresentation(

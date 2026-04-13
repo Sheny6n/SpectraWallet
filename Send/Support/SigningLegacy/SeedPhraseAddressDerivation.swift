@@ -30,9 +30,7 @@ enum SeedPhraseAddressDerivation {
         let material = try SeedPhraseSigningMaterial.material(
             seedPhrase: SeedPhraseSafety.normalizedPhrase(from: seedPhrase), coin: .dogecoin, derivationPath: derivationPath, passphrase: nil
         )
-        let address = try UTXOAddressCodec.legacyP2PKHAddress(
-            privateKeyData: material.privateKeyData, version: networkMode == .mainnet ? 0x1e : 0x71
-        )
+        let address = material.address
         guard AddressValidation.isValidDogecoinAddress(address, networkMode: networkMode) else { throw WalletCoreDerivationError.invalidMnemonic }
         return address
     }

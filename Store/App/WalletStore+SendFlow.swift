@@ -25,7 +25,7 @@ extension WalletStore {
         isPreparingMoneroSend = false; isPreparingCardanoSend = false; isPreparingSuiSend = false
         isPreparingAptosSend = false; isPreparingTONSend = false; isPreparingICPSend = false
         isPreparingNearSend = false; isPreparingPolkadotSend = false
-        pendingDogecoinSelfSendConfirmation = nil
+        pendingSelfSendConfirmation = nil
         clearHighRiskSendConfirmation()
     }
     func beginSend() {
@@ -73,8 +73,9 @@ extension WalletStore {
         availableSendCoins(for: sendWalletID).first(where: { $0.holdingKey == sendHoldingKey })
     }
     func sendPreviewDetails(for coin: Coin) -> SendPreviewDetails? {
-        typealias T = (Double?, String, Int?, Int?, Bool?, Double?, Double?)
-        let d: T? switch coin.chainName {
+        typealias T = (Double?, String?, Int?, Int?, Bool?, Double?, Double?)
+        var d: T? = nil
+        switch coin.chainName {
         case "Bitcoin": guard let p = bitcoinSendPreview else { return nil }; d = (p.spendableBalance, p.feeRateDescription, p.estimatedTransactionBytes, p.selectedInputCount, p.usesChangeOutput, p.maxSendable, p.estimatedNetworkFeeBTC)
         case "Bitcoin Cash": guard let p = bitcoinCashSendPreview else { return nil }; d = (p.spendableBalance, p.feeRateDescription, p.estimatedTransactionBytes, p.selectedInputCount, p.usesChangeOutput, p.maxSendable, p.estimatedNetworkFeeBTC)
         case "Bitcoin SV": guard let p = bitcoinSVSendPreview else { return nil }; d = (p.spendableBalance, p.feeRateDescription, p.estimatedTransactionBytes, p.selectedInputCount, p.usesChangeOutput, p.maxSendable, p.estimatedNetworkFeeBTC)
@@ -315,7 +316,7 @@ extension WalletStore {
         guard let chainId = SpectraChainID.id(for: holding.chainName) else { return reasons }
         do {
             let codeJSON = try await WalletServiceBridge.shared.fetchEVMCodeJSON(chainId: chainId, address: destinationAddress)
-            let code = WalletSendLayer.rustField("code", from: codeJSON)
+            let code = rustField("code", from: codeJSON)
             if evmHasContractCode(code) { reasons.append(localizedStoreFormat("Recipient is a smart contract on %@. Confirm it can receive %@ safely.", holding.chainName, holding.symbol)) }
         } catch {
             reasons.append(localizedStoreFormat("Could not verify recipient contract state on %@. Review destination carefully.", holding.chainName))
@@ -325,7 +326,7 @@ extension WalletStore {
                 let codeJSON = try await WalletServiceBridge.shared.fetchEVMCodeJSON(
                     chainId: chainId, address: token.contractAddress
                 )
-                let code = WalletSendLayer.rustField("code", from: codeJSON)
+                let code = rustField("code", from: codeJSON)
                 if !evmHasContractCode(code) { reasons.append(localizedStoreFormat("Token contract %@ appears missing on %@. This may be a wrong-network token selection.", token.symbol, holding.chainName)) }
             } catch {
                 reasons.append(localizedStoreFormat("Could not verify %@ contract bytecode on %@.", token.symbol, holding.chainName))
@@ -464,7 +465,7 @@ extension WalletStore {
     func removeAddressBookEntry(id: UUID) {
         addressBook.removeAll { $0.id == id }}
     private func runSyncSelfTests(
-        running: WritableKeyPath<WalletStore, Bool>, results: WritableKeyPath<WalletStore, [ChainSelfTestResult]>, lastRun: WritableKeyPath<WalletStore, Date?>, suite: () -> [ChainSelfTestResult], chainName: String, abbrev: String
+        running: ReferenceWritableKeyPath<WalletStore, Bool>, results: ReferenceWritableKeyPath<WalletStore, [ChainSelfTestResult]>, lastRun: ReferenceWritableKeyPath<WalletStore, Date?>, suite: () -> [ChainSelfTestResult], chainName: String, abbrev: String
     ) {
         guard !self[keyPath: running] else { return }
         self[keyPath: running] = true
@@ -599,7 +600,7 @@ extension WalletStore {
         appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE rescan completed.")
     }
     private func runUTXORescan(
-        running: WritableKeyPath<WalletStore, Bool>, lastRun: WritableKeyPath<WalletStore, Date?>, chainName: String, abbrev: String, refreshHistory: () async -> Void, refreshPending: () async -> Void
+        running: ReferenceWritableKeyPath<WalletStore, Bool>, lastRun: ReferenceWritableKeyPath<WalletStore, Date?>, chainName: String, abbrev: String, refreshHistory: () async -> Void, refreshPending: () async -> Void
     ) async {
         guard !self[keyPath: running] else { return }
         self[keyPath: running] = true
@@ -713,7 +714,8 @@ extension WalletStore {
     func authenticateForSensitiveAction(reason: String, allowWhenAuthenticationUnavailable: Bool = false) async -> Bool {
         guard useFaceID, requireBiometricForSendActions else { return true }
         let context = LAContext()
-        var authError: NSError? guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &authError) else {
+        var authError: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &authError) else {
             if allowWhenAuthenticationUnavailable { return true }
             let message = "Device authentication unavailable: \(authError?.localizedDescription ?? "unknown error")"
             sendError = message
@@ -732,7 +734,8 @@ extension WalletStore {
                 }}}}
     func authenticateForSeedPhraseReveal(reason: String) async -> Bool {
         let context = LAContext()
-        var authError: NSError? guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &authError) else { return false }
+        var authError: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &authError) else { return false }
         return await withCheckedContinuation { continuation in
             context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, _ in
                 continuation.resume(returning: success)
@@ -743,10 +746,10 @@ extension WalletStore {
         guard supportedChains.contains(transaction.chainName), transaction.kind == .send else { return "Status recheck is only supported for UTXO send transactions." }
         guard transaction.transactionHash != nil else { return "This transaction has no hash to recheck." }
         if transaction.chainName == "Dogecoin" {
-            var tracker = dogecoinStatusTrackingByTransactionID[transactionID] ?? DogecoinStatusTrackingState.initial(now: Date())
+            var tracker = statusTrackingByTransactionID[transactionID] ?? DogecoinStatusTrackingState.initial(now: Date())
             tracker.nextCheckAt = Date.distantPast
             tracker.reachedFinality = false
-            dogecoinStatusTrackingByTransactionID[transactionID] = tracker
+            statusTrackingByTransactionID[transactionID] = tracker
         } else {
             var tracker = statusTrackingByTransactionID[transactionID] ?? TransactionStatusTrackingState.initial(now: Date())
             tracker.nextCheckAt = Date.distantPast
@@ -774,7 +777,7 @@ extension WalletStore {
         appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE rebroadcast requested.", transactionHash: transaction.transactionHash)
         do {
             let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.dogecoin, payload: rawTransactionHex)
-            let txidFromJSON = WalletSendLayer.rustField("txid", from: resultJSON)
+            let txidFromJSON = rustField("txid", from: resultJSON)
             let txHash = txidFromJSON.isEmpty ? (transaction.transactionHash ?? "") : txidFromJSON
             let result = (transactionHash: txHash, verificationStatus: SendBroadcastVerificationStatus.deferred)
             if let index = transactions.firstIndex(where: { $0.id == transactionID }) {
@@ -826,16 +829,16 @@ extension WalletStore {
         if format == "evm.raw_hex" || format == "evm.rust_json" {
             guard let chainId = SpectraChainID.id(for: transaction.chainName) else { throw NSError(domain: "Spectra", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unsupported EVM chain for rebroadcast."]) }
             let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: chainId, payload: payload)
-            let txid = WalletSendLayer.rustField("txid", from: resultJSON)
+            let txid = rustField("txid", from: resultJSON)
             return (txid.isEmpty ? existing : txid, .deferred)
         }
         if format == "sui.signed_json" {
             let suiPayload: String
-            if let suiData = payload.data(using: .utf8), let suiObj = try? JSONSerialization.jsonObject(with: suiData) as? [String: String], let txB64 = suiObj["txBytesBase64"], let sigB64 = suiObj["signatureBase64"], let remapped = (try? JSONSerialization.data(withJSONObject: ["tx_bytes_b64": txB64, "sig_b64": sigB64]))..flatMap({ String(data: $0, encoding: .utf8) }) {
+            if let suiData = payload.data(using: .utf8), let suiObj = try? JSONSerialization.jsonObject(with: suiData) as? [String: String], let txB64 = suiObj["txBytesBase64"], let sigB64 = suiObj["signatureBase64"], let remapped = (try? JSONSerialization.data(withJSONObject: ["tx_bytes_b64": txB64, "sig_b64": sigB64])).flatMap({ String(data: $0, encoding: .utf8) }) {
                 suiPayload = remapped
             } else { suiPayload = payload }
             let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.sui, payload: suiPayload)
-            let digest = WalletSendLayer.rustField("digest", from: resultJSON)
+            let digest = rustField("digest", from: resultJSON)
             return (digest.isEmpty ? existing : digest, .deferred)
         }
         struct BroadcastEntry {
@@ -848,11 +851,11 @@ extension WalletStore {
             "bitcoin.raw_hex":        .init(chainId: SpectraChainID.bitcoin,     resultField: "txid",         wrapKey: nil,                extractField: nil), "bitcoin_cash.raw_hex":   .init(chainId: SpectraChainID.bitcoinCash, resultField: "txid",         wrapKey: nil,                extractField: nil), "bitcoin_sv.raw_hex":     .init(chainId: SpectraChainID.bitcoinSv,   resultField: "txid",         wrapKey: nil,                extractField: nil), "litecoin.raw_hex":       .init(chainId: SpectraChainID.litecoin,    resultField: "txid",         wrapKey: nil,                extractField: nil), "dogecoin.raw_hex":       .init(chainId: SpectraChainID.dogecoin,    resultField: "txid",         wrapKey: nil,                extractField: nil), "tron.signed_json":       .init(chainId: SpectraChainID.tron,        resultField: "txid",         wrapKey: nil,                extractField: nil), "solana.base64":          .init(chainId: SpectraChainID.solana,      resultField: "signature",    wrapKey: nil,                extractField: nil), "xrp.blob_hex":           .init(chainId: SpectraChainID.xrp,         resultField: "txid",         wrapKey: "tx_blob_hex",      extractField: nil), "stellar.xdr":            .init(chainId: SpectraChainID.stellar,     resultField: "txid",         wrapKey: "signed_xdr_b64",   extractField: nil), "cardano.cbor_hex":       .init(chainId: SpectraChainID.cardano,     resultField: "txid",         wrapKey: "cbor_hex",         extractField: nil), "near.base64":            .init(chainId: SpectraChainID.near,        resultField: "txid",         wrapKey: "signed_tx_b64",    extractField: nil), "polkadot.extrinsic_hex": .init(chainId: SpectraChainID.polkadot,   resultField: "txid",         wrapKey: "extrinsic_hex",    extractField: nil), "aptos.signed_json":      .init(chainId: SpectraChainID.aptos,       resultField: "txid",         wrapKey: "signed_body_json", extractField: nil), "ton.boc":                .init(chainId: SpectraChainID.ton,         resultField: "message_hash", wrapKey: "boc_b64",          extractField: nil), "bitcoin.rust_json":      .init(chainId: SpectraChainID.bitcoin,     resultField: "txid",         wrapKey: nil,                extractField: "raw_tx_hex"), "bitcoin_cash.rust_json": .init(chainId: SpectraChainID.bitcoinCash, resultField: "txid",         wrapKey: nil,                extractField: "raw_tx_hex"), "bitcoin_sv.rust_json":   .init(chainId: SpectraChainID.bitcoinSv,   resultField: "txid",         wrapKey: nil,                extractField: "raw_tx_hex"), "litecoin.rust_json":     .init(chainId: SpectraChainID.litecoin,    resultField: "txid",         wrapKey: nil,                extractField: "raw_tx_hex"), "dogecoin.rust_json":     .init(chainId: SpectraChainID.dogecoin,    resultField: "txid",         wrapKey: nil,                extractField: "raw_tx_hex"), "solana.rust_json":       .init(chainId: SpectraChainID.solana,      resultField: "signature",    wrapKey: nil,                extractField: "signed_tx_base64"), "tron.rust_json":         .init(chainId: SpectraChainID.tron,        resultField: "txid",         wrapKey: nil,                extractField: "signed_tx_json"), "xrp.rust_json":          .init(chainId: SpectraChainID.xrp,         resultField: "txid",         wrapKey: nil,                extractField: nil), "stellar.rust_json":      .init(chainId: SpectraChainID.stellar,     resultField: "txid",         wrapKey: nil,                extractField: nil), "cardano.rust_json":      .init(chainId: SpectraChainID.cardano,     resultField: "txid",         wrapKey: nil,                extractField: nil), "polkadot.rust_json":     .init(chainId: SpectraChainID.polkadot,    resultField: "txid",         wrapKey: nil,                extractField: nil), "sui.rust_json":          .init(chainId: SpectraChainID.sui,         resultField: "digest",       wrapKey: nil,                extractField: nil), "aptos.rust_json":        .init(chainId: SpectraChainID.aptos,       resultField: "txid",         wrapKey: nil,                extractField: nil), "ton.rust_json":          .init(chainId: SpectraChainID.ton,         resultField: "message_hash", wrapKey: nil,                extractField: nil), "near.rust_json":         .init(chainId: SpectraChainID.near,        resultField: "txid",         wrapKey: nil,                extractField: nil), ]
         guard let entry = table[format] else { throw NSError(domain: "Spectra", code: -1, userInfo: [NSLocalizedDescriptionKey: "Rebroadcast is not supported for this transaction format yet."]) }
         let broadcastPayload: String
-        if let extractField = entry.extractField { broadcastPayload = WalletSendLayer.rustField(extractField, from: payload) } else if let wrapKey = entry.wrapKey {
-            broadcastPayload = (try? JSONSerialization.data(withJSONObject: [wrapKey: payload]))..flatMap { String(data: $0, encoding: .utf8) } ?? payload
+        if let extractField = entry.extractField { broadcastPayload = rustField(extractField, from: payload) } else if let wrapKey = entry.wrapKey {
+            broadcastPayload = (try? JSONSerialization.data(withJSONObject: [wrapKey: payload])).flatMap { String(data: $0, encoding: .utf8) } ?? payload
         } else { broadcastPayload = payload }
         let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: entry.chainId, payload: broadcastPayload)
-        let resultValue = WalletSendLayer.rustField(entry.resultField, from: resultJSON)
+        let resultValue = rustField(entry.resultField, from: resultJSON)
         return (resultValue.isEmpty ? existing : resultValue, .deferred)
     }
     func walletDerivationPath(for wallet: ImportedWallet, chain: SeedDerivationChain) -> String { derivationResolution(for: wallet, chain: chain).normalizedPath }
@@ -1026,7 +1029,7 @@ extension WalletStore {
         var seen = Set(ordered.map { $0.lowercased() })
         guard supportsDeepUTXODiscovery(chainName: chainName), storedSeedPhrase(for: wallet.id) != nil else { return ordered }
         let state = keypoolState(for: wallet, chainName: chainName)
-        let highestOwnedExternal = (chainOwnedAddressMapByChain[chainName] ?? [:]).values..filter { $0.walletID == wallet.id && $0.branch == "external" }.map(\.index)..compactMap { $0 }.max() ?? 0
+        let highestOwnedExternal = (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "external" }.map(\.index).compactMap { $0 }.max() ?? 0
         let reserved = state.reservedReceiveIndex ?? 0
         let scanUpperBound = min(
             Self.utxoDiscoveryMaxIndex, max(state.nextExternalIndex, max(highestOwnedExternal + 1, reserved + 1)) + Self.utxoDiscoveryGapLimit
@@ -1152,14 +1155,14 @@ extension WalletStore {
         }
         if supportsDeepUTXODiscovery(chainName: chainName) {
             let chainTransactions = transactions.filter { $0.walletID == wallet.id && $0.chainName == chainName }
-            let maxExternalIndex = chainTransactions..compactMap {
+            let maxExternalIndex = chainTransactions.compactMap {
                     parseUTXODiscoveryIndex(path: $0.sourceDerivationPath, chainName: chainName, branch: .external)
                 }.max() ?? -1
-            let maxChangeIndex = chainTransactions..compactMap {
+            let maxChangeIndex = chainTransactions.compactMap {
                     parseUTXODiscoveryIndex(path: $0.changeDerivationPath, chainName: chainName, branch: .change)
                 }.max() ?? -1
-            let maxOwnedExternalIndex = (chainOwnedAddressMapByChain[chainName] ?? [:]).values..filter { $0.walletID == wallet.id && $0.branch == "external" }.compactMap(\.index)..max() ?? 0
-            let maxOwnedChangeIndex = (chainOwnedAddressMapByChain[chainName] ?? [:]).values..filter { $0.walletID == wallet.id && $0.branch == "change" }.compactMap(\.index)..max() ?? -1
+            let maxOwnedExternalIndex = (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "external" }.compactMap(\.index).max() ?? 0
+            let maxOwnedChangeIndex = (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "change" }.compactMap(\.index).max() ?? -1
             return ChainKeypoolState(
                 nextExternalIndex: max(max(maxExternalIndex, maxOwnedExternalIndex) + 1, 1), nextChangeIndex: max(max(maxChangeIndex, maxOwnedChangeIndex) + 1, 0), reservedReceiveIndex: nil
             )
@@ -1282,18 +1285,18 @@ extension WalletStore {
             $0.chainName == "Dogecoin"
                 && $0.walletID == wallet.id
         }
-        let maxExternalIndex = dogecoinTransactions..compactMap {
+        let maxExternalIndex = dogecoinTransactions.compactMap {
                 parseDogecoinDerivationIndex(
                     path: $0.sourceDerivationPath, expectedPrefix: WalletDerivationPath.dogecoinExternalPrefix(account: 0)
                 )
             }.max() ?? 0
-        let maxChangeIndex = dogecoinTransactions..compactMap {
+        let maxChangeIndex = dogecoinTransactions.compactMap {
                 parseDogecoinDerivationIndex(
                     path: $0.changeDerivationPath, expectedPrefix: WalletDerivationPath.dogecoinChangePrefix(account: 0)
                 )
             }.max() ?? -1
-        let maxOwnedExternalIndex = dogecoinOwnedAddressMap.values..filter { $0.walletID == wallet.id && $0.branch == "external" }.map(\.index)..max() ?? 0
-        let maxOwnedChangeIndex = dogecoinOwnedAddressMap.values..filter { $0.walletID == wallet.id && $0.branch == "change" }.map(\.index)..max() ?? -1
+        let maxOwnedExternalIndex = dogecoinOwnedAddressMap.values.filter { $0.walletID == wallet.id && $0.branch == "external" }.map(\.index).max() ?? 0
+        let maxOwnedChangeIndex = dogecoinOwnedAddressMap.values.filter { $0.walletID == wallet.id && $0.branch == "change" }.map(\.index).max() ?? -1
         return DogecoinKeypoolState(
             nextExternalIndex: max(max(maxExternalIndex, maxOwnedExternalIndex) + 1, 1), nextChangeIndex: max(max(maxChangeIndex, maxOwnedChangeIndex) + 1, 0), reservedReceiveIndex: nil
         )
@@ -1413,7 +1416,7 @@ extension WalletStore {
         }
         if let seedPhrase = storedSeedPhrase(for: wallet.id) {
             let state = keypoolState(for: wallet)
-            let highestOwnedExternal = dogecoinOwnedAddressMap.values..filter { $0.walletID == wallet.id && $0.branch == "external" }.map(\.index)..max() ?? 0
+            let highestOwnedExternal = dogecoinOwnedAddressMap.values.filter { $0.walletID == wallet.id && $0.branch == "external" }.map(\.index).max() ?? 0
             let reserved = state.reservedReceiveIndex ?? 0
             let scanUpperBound = min(
                 Self.dogecoinDiscoveryMaxIndex, max(state.nextExternalIndex, max(highestOwnedExternal + 1, reserved + 1)) + Self.dogecoinDiscoveryGapLimit
@@ -1455,25 +1458,6 @@ extension WalletStore {
         }
         discoveredDogecoinAddressesByWallet = discovered
     }
-    func refreshEthereumSendPreview() async { await WalletSendLayer.refreshEthereumSendPreview(using: self) }
-    func refreshDogecoinSendPreview() async { await WalletSendLayer.refreshDogecoinSendPreview(using: self) }
-    func refreshBitcoinSendPreview() async { await WalletSendLayer.refreshBitcoinSendPreview(using: self) }
-    func refreshBitcoinCashSendPreview() async { await WalletSendLayer.refreshBitcoinCashSendPreview(using: self) }
-    func refreshBitcoinSVSendPreview() async { await WalletSendLayer.refreshBitcoinSVSendPreview(using: self) }
-    func refreshLitecoinSendPreview() async { await WalletSendLayer.refreshLitecoinSendPreview(using: self) }
-    func refreshTronSendPreview() async { await WalletSendLayer.refreshTronSendPreview(using: self) }
-    func refreshSolanaSendPreview() async { await WalletSendLayer.refreshSolanaSendPreview(using: self) }
-    func refreshXRPSendPreview() async { await WalletSendLayer.refreshXRPSendPreview(using: self) }
-    func refreshStellarSendPreview() async { await WalletSendLayer.refreshStellarSendPreview(using: self) }
-    func refreshMoneroSendPreview() async { await WalletSendLayer.refreshMoneroSendPreview(using: self) }
-    func refreshCardanoSendPreview() async { await WalletSendLayer.refreshCardanoSendPreview(using: self) }
-    func refreshSuiSendPreview() async { await WalletSendLayer.refreshSuiSendPreview(using: self) }
-    func refreshAptosSendPreview() async { await WalletSendLayer.refreshAptosSendPreview(using: self) }
-    func refreshTONSendPreview() async { await WalletSendLayer.refreshTONSendPreview(using: self) }
-    func refreshICPSendPreview() async { await WalletSendLayer.refreshICPSendPreview(using: self) }
-    func refreshNearSendPreview() async { await WalletSendLayer.refreshNearSendPreview(using: self) }
-    func refreshPolkadotSendPreview() async { await WalletSendLayer.refreshPolkadotSendPreview(using: self) }
-    func refreshSendPreview() async { await WalletSendLayer.refreshSendPreview(using: self) }
     func refreshSendDestinationRiskWarning(for coin: Coin) async {
         let probeID = "\(sendWalletID)|\(sendHoldingKey)|\(sendAddress)"
         let trimmedDestination = sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1484,7 +1468,8 @@ extension WalletStore {
             return
         }
         var destinationForProbe = trimmedDestination
-        var ensResolutionInfo: String? if !isValidAddress(trimmedDestination, for: coin.chainName) {
+        var ensResolutionInfo: String?
+        if !isValidAddress(trimmedDestination, for: coin.chainName) {
             if (coin.chainName == "Ethereum" || coin.chainName == "Arbitrum" || coin.chainName == "Optimism" || coin.chainName == "BNB Chain" || coin.chainName == "Avalanche" || coin.chainName == "Hyperliquid"), isENSNameCandidate(trimmedDestination) {
                 do {
                     let resolved = try await resolveEVMRecipientAddress(input: trimmedDestination, for: coin.chainName)
@@ -1515,7 +1500,9 @@ extension WalletStore {
         isCheckingSendDestinationBalance = true
         defer { isCheckingSendDestinationBalance = false }
         do {
-            let warning: String? let infoMessage: String? switch coin.chainName {
+            let warning: String?
+            let infoMessage: String?
+            switch coin.chainName {
             case "Bitcoin": let btcJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.bitcoin, address: destinationForProbe)
                 let btcObj = btcJSON.data(using: .utf8).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
                 let btcBalance = (btcObj["confirmed_sats"] as? Int) ?? 0
@@ -1636,7 +1623,6 @@ extension WalletStore {
         tronLastSendErrorDetails = trimmed
         tronLastSendErrorAt = Date()
     }
-    func submitSend() async { await WalletSendLayer.submitSend(using: self) }
     private func fetchChainRiskWarning(chainId: UInt32, address: String, balanceField: String, divisor: Double, chainName: String, balanceLabel: String) async -> (warning: String?, info: String?) {
         guard let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address) else { return (nil, nil) }
         let raw = RustBalanceDecoder.uint64Field(balanceField, from: json) ?? 0

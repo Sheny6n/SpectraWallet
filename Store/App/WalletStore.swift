@@ -91,7 +91,24 @@ class WalletStore: ObservableObject {
             }}}
     let logger = Logger(subsystem: "com.spectra.wallet", category: "dogecoin")
     let balanceTelemetryLogger = Logger(subsystem: "com.spectra.wallet", category: "balance.telemetry")
-    let transactionState = WalletTransactionState()
+    @Published var transactions: [TransactionRecord] = [] {
+        didSet {
+            transactionRevision &+= 1
+            let old = lastObservedTransactions
+            lastObservedTransactions = transactions
+            if !suppressSideEffects {
+                persistTransactionsDelta(from: old, to: transactions)
+                rebuildTransactionDerivedState()
+            }}}
+    @Published var normalizedHistoryIndex: [NormalizedHistoryEntry] = [] {
+        didSet { normalizedHistoryRevision &+= 1 }}
+    @Published private(set) var transactionRevision: UInt64 = 0
+    @Published private(set) var normalizedHistoryRevision: UInt64 = 0
+    var cachedTransactionByID: [UUID: TransactionRecord] = [:]
+    var cachedFirstActivityDateByWalletID: [UUID: Date] = [:]
+    var lastNormalizedHistorySignature: Int?
+    var suppressSideEffects = false
+    var lastObservedTransactions: [TransactionRecord] = []
     struct ChainOperationalEvent: Codable, Identifiable {
         enum Level: String, Codable {
             case info
@@ -116,7 +133,11 @@ class WalletStore: ObservableObject {
         let level: Level
         let category: String
         let message: String
-        let chainName: String? let walletID: UUID? let transactionHash: String? let source: String? let metadata: String? }
+        let chainName: String?
+        let walletID: UUID?
+        let transactionHash: String?
+        let source: String?
+        let metadata: String? }
     struct PendingSelfSendConfirmation {
         let walletID: UUID
         let chainName: String
@@ -151,24 +172,31 @@ class WalletStore: ObservableObject {
         static let currentVersion = 1
     }
     struct DogecoinOwnedAddressRecord: Codable {
-        let address: String? let walletID: UUID
+        let address: String?
+        let walletID: UUID
         let derivationPath: String
         let index: Int
         let branch: String
     }
     struct ChainOwnedAddressRecord: Codable {
         let chainName: String
-        let address: String? let walletID: UUID
-        let derivationPath: String? let index: Int? let branch: String? }
+        let address: String?
+        let walletID: UUID
+        let derivationPath: String?
+        let index: Int?
+        let branch: String? }
     struct TransactionStatusTrackingState {
-        var lastCheckedAt: Date? var nextCheckAt: Date
+        var lastCheckedAt: Date?
+        var nextCheckAt: Date
         var consecutiveFailures: Int
         var reachedFinality: Bool
         static func initial(now: Date = Date()) -> TransactionStatusTrackingState { TransactionStatusTrackingState(lastCheckedAt: nil, nextCheckAt: now, consecutiveFailures: 0, reachedFinality: false) }}
     typealias DogecoinStatusTrackingState = TransactionStatusTrackingState
     struct PendingTransactionStatusResolution {
         let status: TransactionStatus
-        let receiptBlockNumber: Int? let confirmations: Int? let dogecoinNetworkFeeDOGE: Double? }
+        let receiptBlockNumber: Int?
+        let confirmations: Int?
+        let dogecoinNetworkFeeDOGE: Double? }
     struct PersistedDogecoinOwnedAddressStore: Codable {
         let version: Int
         let addressMap: [String: DogecoinOwnedAddressRecord]
@@ -182,7 +210,8 @@ class WalletStore: ObservableObject {
     struct ChainDegradedBanner: Identifiable {
         let chainName: String
         let message: String
-        let lastGoodSyncAt: Date? var id: String { chainName }}
+        let lastGoodSyncAt: Date?
+        var id: String { chainName }}
     struct PersistedChainSyncState: Codable {
         let version: Int
         let degradedMessages: [String: String]
@@ -192,26 +221,150 @@ class WalletStore: ObservableObject {
     struct DogecoinKeypoolDiagnostic: Identifiable, Equatable {
         let walletID: UUID
         let walletName: String
-        let reservedReceiveIndex: Int? let reservedReceivePath: String? let reservedReceiveAddress: String? let nextExternalIndex: Int
+        let reservedReceiveIndex: Int?
+        let reservedReceivePath: String?
+        let reservedReceiveAddress: String?
+        let nextExternalIndex: Int
         let nextChangeIndex: Int
         var id: UUID { walletID }}
     struct ChainKeypoolDiagnostic: Identifiable, Equatable {
         let walletID: UUID
         let walletName: String
         let chainName: String
-        let reservedReceiveIndex: Int? let reservedReceivePath: String? let reservedReceiveAddress: String? let nextExternalIndex: Int
+        let reservedReceiveIndex: Int?
+        let reservedReceivePath: String?
+        let reservedReceiveAddress: String?
+        let nextExternalIndex: Int
         let nextChangeIndex: Int
         var id: String { "\(chainName):\(walletID.uuidString)" }}
-    let portfolioState = WalletPortfolioState()
+    @Published var wallets: [ImportedWallet] = [] {
+        didSet { walletsRevision &+= 1 }}
+    @Published private(set) var walletsRevision: UInt64 = 0
+    var cachedWalletByID: [UUID: ImportedWallet] = [:]
+    var cachedWalletByIDString: [String: ImportedWallet] = [:]
+    var cachedIncludedPortfolioWallets: [ImportedWallet] = []
+    var cachedIncludedPortfolioHoldings: [Coin] = []
+    var cachedIncludedPortfolioHoldingsBySymbol: [String: [Coin]] = [:]
+    var cachedUniqueWalletPriceRequestCoins: [Coin] = []
+    var cachedPortfolio: [Coin] = []
+    var cachedAvailableSendCoinsByWalletID: [String: [Coin]] = [:]
+    var cachedAvailableReceiveCoinsByWalletID: [String: [Coin]] = [:]
+    var cachedAvailableReceiveChainsByWalletID: [String: [String]] = [:]
+    var cachedSendEnabledWallets: [ImportedWallet] = []
+    var cachedReceiveEnabledWallets: [ImportedWallet] = []
+    var cachedRefreshableChainNames: Set<String> = []
+    var cachedSigningMaterialWalletIDs: Set<UUID> = []
+    var cachedPrivateKeyBackedWalletIDs: Set<UUID> = []
+    var cachedPasswordProtectedWalletIDs: Set<UUID> = []
+    var cachedSecretDescriptorsByWalletID: [UUID: WalletRustSecretMaterialDescriptor] = [:]
     let importDraft = WalletImportDraft()
-    let flowState = WalletFlowState()
-    let runtimeState = WalletRuntimeState()
-    let sendState = WalletSendState()
+    @Published var importError: String?
+    @Published var isImportingWallet: Bool = false
+    @Published var isShowingWalletImporter: Bool = false
+    @Published var isShowingSendSheet: Bool = false
+    @Published var isShowingReceiveSheet: Bool = false
+    @Published var walletPendingDeletion: ImportedWallet?
+    @Published var editingWalletID: UUID?
+    @Published var sendWalletID: String = ""
+    @Published var sendHoldingKey: String = ""
+    @Published var sendAmount: String = ""
+    @Published var sendAddress: String = ""
+    @Published var sendError: String?
+    @Published var sendDestinationRiskWarning: String?
+    @Published var sendDestinationInfoMessage: String?
+    @Published var isCheckingSendDestinationBalance: Bool = false
+    @Published var pendingHighRiskSendReasons: [String] = []
+    @Published var isShowingHighRiskSendConfirmation: Bool = false
+    @Published var sendVerificationNotice: String?
+    @Published var sendVerificationNoticeIsWarning: Bool = false
+    @Published var receiveWalletID: String = ""
+    @Published var receiveChainName: String = ""
+    @Published var receiveHoldingKey: String = ""
+    @Published var receiveResolvedAddress: String = ""
+    @Published var isResolvingReceiveAddress: Bool = false
+    @Published var selectedMainTab: MainAppTab = .home
+    @Published var isAppLocked: Bool = false
+    @Published var appLockError: String?
+    @Published var isPreparingEthereumReplacementContext: Bool = false
+    @Published var isPreparingEthereumSend: Bool = false
+    @Published var isPreparingDogecoinSend: Bool = false
+    @Published var isPreparingTronSend: Bool = false
+    @Published var isPreparingSolanaSend: Bool = false
+    @Published var isPreparingXRPSend: Bool = false
+    @Published var isPreparingStellarSend: Bool = false
+    @Published var isPreparingMoneroSend: Bool = false
+    @Published var isPreparingCardanoSend: Bool = false
+    @Published var isPreparingSuiSend: Bool = false
+    @Published var isPreparingAptosSend: Bool = false
+    @Published var isPreparingTONSend: Bool = false
+    @Published var isPreparingICPSend: Bool = false
+    @Published var isPreparingNearSend: Bool = false
+    @Published var isPreparingPolkadotSend: Bool = false
+    var statusTrackingByTransactionID: [UUID: WalletStore.TransactionStatusTrackingState] = [:]
+    var pendingSelfSendConfirmation: WalletStore.PendingSelfSendConfirmation?
+    var activeEthereumSendWalletIDs: Set<UUID> = []
+    var lastSendDestinationProbeKey: String?
+    var lastSendDestinationProbeWarning: String?
+    var lastSendDestinationProbeInfoMessage: String?
+    var cachedResolvedENSAddresses: [String: String] = [:]
+    var bypassHighRiskSendConfirmation = false
+    var isRefreshingLivePrices = false
+    var isRefreshingChainBalances = false
+    var allowsBalanceNetworkRefresh = false
+    var isRefreshingPendingTransactions = false
+    var lastLivePriceRefreshAt: Date?
+    var lastFiatRatesRefreshAt: Date?
+    var lastFullRefreshAt: Date?
+    var lastChainBalanceRefreshAt: Date?
+    var lastBackgroundMaintenanceAt: Date?
+    var isNetworkReachable: Bool = true
+    var isConstrainedNetwork: Bool = false
+    var isExpensiveNetwork: Bool = false
+    @Published var lastSentTransaction: TransactionRecord?
+    @Published var lastPendingTransactionRefreshAt: Date?
+    @Published var ethereumSendPreview: EthereumSendPreview?
+    @Published var bitcoinSendPreview: BitcoinSendPreview?
+    @Published var bitcoinCashSendPreview: BitcoinSendPreview?
+    @Published var bitcoinSVSendPreview: BitcoinSendPreview?
+    @Published var litecoinSendPreview: BitcoinSendPreview?
+    @Published var dogecoinSendPreview: DogecoinSendPreview?
+    @Published var tronSendPreview: TronSendPreview?
+    @Published var solanaSendPreview: SolanaSendPreview?
+    @Published var xrpSendPreview: XRPSendPreview?
+    @Published var stellarSendPreview: StellarSendPreview?
+    @Published var moneroSendPreview: MoneroSendPreview?
+    @Published var cardanoSendPreview: CardanoSendPreview?
+    @Published var suiSendPreview: SuiSendPreview?
+    @Published var aptosSendPreview: AptosSendPreview?
+    @Published var tonSendPreview: TONSendPreview?
+    @Published var icpSendPreview: ICPSendPreview?
+    @Published var nearSendPreview: NearSendPreview?
+    @Published var polkadotSendPreview: PolkadotSendPreview?
+    @Published var isSendingBitcoin: Bool = false
+    @Published var isSendingBitcoinCash: Bool = false
+    @Published var isSendingBitcoinSV: Bool = false
+    @Published var isSendingLitecoin: Bool = false
+    @Published var isSendingDogecoin: Bool = false
+    @Published var isSendingEthereum: Bool = false
+    @Published var isSendingTron: Bool = false
+    @Published var isSendingSolana: Bool = false
+    @Published var isSendingXRP: Bool = false
+    @Published var isSendingStellar: Bool = false
+    @Published var isSendingMonero: Bool = false
+    @Published var isSendingCardano: Bool = false
+    @Published var isSendingSui: Bool = false
+    @Published var isSendingAptos: Bool = false
+    @Published var isSendingTON: Bool = false
+    @Published var isSendingICP: Bool = false
+    @Published var isSendingNear: Bool = false
+    @Published var isSendingPolkadot: Bool = false
+    @Published var tronLastSendErrorDetails: String?
+    @Published var tronLastSendErrorAt: Date?
     let chainDiagnosticsState = WalletChainDiagnosticsState()
     private(set) var recentPerformanceSamples: [PerformanceSample] = []
     var isOnboarded: Bool { !wallets.isEmpty }
     var dogecoinKeypoolDiagnostics: [DogecoinKeypoolDiagnostic] {
-        wallets..filter { $0.selectedChain == "Dogecoin" }
+        wallets.filter { $0.selectedChain == "Dogecoin" }
             .map { wallet in
                 let state = dogecoinKeypoolByWalletID[wallet.id] ?? baselineDogecoinKeypoolState(for: wallet)
                 let reservedIndex = state.reservedReceiveIndex
@@ -227,7 +380,7 @@ class WalletStore: ObservableObject {
             }
             .sorted { $0.walletName.localizedCaseInsensitiveCompare($1.walletName) == .orderedAscending }}
     func chainKeypoolDiagnostics(for chainName: String) -> [ChainKeypoolDiagnostic] {
-        wallets..filter { wallet in wallet.selectedChain == chainName || walletHasAddress(for: wallet, chainName: chainName) }
+        wallets.filter { wallet in wallet.selectedChain == chainName || walletHasAddress(for: wallet, chainName: chainName) }
             .compactMap { wallet in
                 let state = keypoolState(for: wallet, chainName: chainName)
                 let reservedIndex = state.reservedReceiveIndex
@@ -298,7 +451,14 @@ class WalletStore: ObservableObject {
             persistLivePrices()
             if shouldRebuildDashboardForLivePriceChange(from: oldValue, to: livePrices) { rebuildDashboardDerivedState() }}}
     @Published var fiatRatesFromUSD: [String: Double] = [FiatCurrency.usd.rawValue: 1.0]
-    @Published var fiatRatesRefreshError: String? @Published var quoteRefreshError: String? let dashboardState = WalletDashboardState()
+    @Published var fiatRatesRefreshError: String?
+    @Published var quoteRefreshError: String?
+    @Published var cachedPinnedDashboardAssetSymbols: [String] = []
+    @Published var cachedDashboardPinOptionBySymbol: [String: DashboardPinOption] = [:]
+    @Published var cachedAvailableDashboardPinOptions: [DashboardPinOption] = []
+    @Published var cachedDashboardAssetGroups: [DashboardAssetGroup] = []
+    @Published var cachedDashboardRelevantPriceKeys: Set<String> = []
+    @Published var cachedDashboardSupportedTokenEntriesBySymbol: [String: [TokenPreferenceEntry]] = [:]
     var cachedResolvedTokenPreferences: [TokenPreferenceEntry] = ChainTokenRegistryEntry.builtIn.map(\.tokenPreferenceEntry)
     var cachedTokenPreferencesByChain: [TokenTrackingChain: [TokenPreferenceEntry]] = [:]
     var cachedResolvedTokenPreferencesBySymbol: [String: [TokenPreferenceEntry]] = [:]
@@ -320,10 +480,18 @@ class WalletStore: ObservableObject {
         didSet {
             persistAppSettings()
             try? WalletServiceBridge.shared.resetHistoryForChain(chainId: 0)
+            WalletServiceBridge.shared.deleteKeypoolForChain(chainName: "Bitcoin")
+            WalletServiceBridge.shared.deleteOwnedAddressesForChain(chainName: "Bitcoin")
+            chainKeypoolByChain.removeValue(forKey: "Bitcoin")
+            chainOwnedAddressMapByChain.removeValue(forKey: "Bitcoin")
         }}
     @Published var dogecoinNetworkMode: DogecoinNetworkMode = .mainnet {
         didSet {
             persistAppSettings()
+            WalletServiceBridge.shared.deleteKeypoolForChain(chainName: "Dogecoin")
+            WalletServiceBridge.shared.deleteOwnedAddressesForChain(chainName: "Dogecoin")
+            dogecoinKeypoolByWalletID = [:]
+            dogecoinOwnedAddressMap = [:]
         }}
     @Published var bitcoinEsploraEndpoints: String = "" {
         didSet {
@@ -454,14 +622,27 @@ class WalletStore: ObservableObject {
             persistSelectedFeePriorityOptions()
         }}
     @Published var isRunningBitcoinRescan: Bool = false
-    @Published var bitcoinRescanLastRunAt: Date? @Published var isRunningBitcoinCashRescan: Bool = false
-    @Published var bitcoinCashRescanLastRunAt: Date? @Published var isRunningBitcoinSVRescan: Bool = false
-    @Published var bitcoinSVRescanLastRunAt: Date? @Published var isRunningLitecoinRescan: Bool = false
-    @Published var litecoinRescanLastRunAt: Date? @Published var isRunningDogecoinRescan: Bool = false
-    @Published var dogecoinRescanLastRunAt: Date? var suppressWalletSideEffects = false
-    var userInitiatedRefreshTask: Task<Void, Never>? var importRefreshTask: Task<Void, Never>? var walletSideEffectsTask: Task<Void, Never>? var portfolioStateObservation: AnyCancellable? var walletCollectionObservation: AnyCancellable? var flowStateObservation: AnyCancellable? var runtimeStateObservation: AnyCancellable? var diagnosticsObservation: AnyCancellable? var chainDiagnosticsStateObservation: AnyCancellable? var sendStateObservation: AnyCancellable? var transactionStateObservation: AnyCancellable? var transactionMutationObservation: AnyCancellable? var lastHistoryRefreshAtByChain: [String: Date] = [:]
+    @Published var bitcoinRescanLastRunAt: Date?
+    @Published var isRunningBitcoinCashRescan: Bool = false
+    @Published var bitcoinCashRescanLastRunAt: Date?
+    @Published var isRunningBitcoinSVRescan: Bool = false
+    @Published var bitcoinSVRescanLastRunAt: Date?
+    @Published var isRunningLitecoinRescan: Bool = false
+    @Published var litecoinRescanLastRunAt: Date?
+    @Published var isRunningDogecoinRescan: Bool = false
+    @Published var dogecoinRescanLastRunAt: Date?
+    var suppressWalletSideEffects = false
+    var userInitiatedRefreshTask: Task<Void, Never>?
+    var importRefreshTask: Task<Void, Never>?
+    var walletSideEffectsTask: Task<Void, Never>?
+    var walletCollectionObservation: AnyCancellable?
+    var diagnosticsObservation: AnyCancellable?
+    var chainDiagnosticsStateObservation: AnyCancellable?
+    var lastHistoryRefreshAtByChain: [String: Date] = [:]
     var appIsActive = true
-    var maintenanceTask: Task<Void, Never>? var lastObservedPortfolioTotalUSD: Double? var lastObservedPortfolioCompositionSignature: String?
+    var maintenanceTask: Task<Void, Never>?
+    var lastObservedPortfolioTotalUSD: Double?
+    var lastObservedPortfolioCompositionSignature: String?
 #if canImport(Network)
     let networkPathMonitor = NWPathMonitor()
     let networkPathMonitorQueue = DispatchQueue(label: "spectra.network.monitor")
@@ -591,7 +772,7 @@ class WalletStore: ObservableObject {
         cachedSecretDescriptorsByWalletID[walletID] = nil
     }
     func parsedBitcoinEsploraEndpoints() -> [String] {
-        bitcoinEsploraEndpoints..split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" })..map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        bitcoinEsploraEndpoints.split(whereSeparator: { $0 == "," || $0 == "\n" || $0 == ";" }).map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }}
     func effectiveBitcoinEsploraEndpoints() -> [String] {
         let configured = parsedBitcoinEsploraEndpoints()
@@ -707,32 +888,15 @@ class WalletStore: ObservableObject {
     }
     init() {
         clearPersistedSecureDataOnFreshInstallIfNeeded()
-        portfolioStateObservation = portfolioState.objectWillChange.sink { _ in
-        }
-        walletCollectionObservation = portfolioState.$wallets.dropFirst().sink { [weak self] _ in
+        walletCollectionObservation = $wallets.dropFirst().sink { [weak self] _ in
             guard let self else { return }
             guard !self.suppressWalletSideEffects else { return }
             self.applyWalletCollectionSideEffects()
         }
-        runtimeStateObservation = runtimeState.objectWillChange.sink { _ in
-        }
-        transactionStateObservation = transactionState.objectWillChange.sink { _ in
-        }
-        transactionMutationObservation = transactionState.$transactions.dropFirst().sink { [weak self] newTransactions in
-            guard let self else { return }
-            let oldTransactions = self.transactionState.lastObservedTransactions
-            self.transactionState.lastObservedTransactions = newTransactions
-            guard !self.transactionState.suppressSideEffects else { return }
-            self.persistTransactionsDelta(from: oldTransactions, to: newTransactions)
-            self.rebuildTransactionDerivedState()
-        }
-        flowStateObservation = flowState.objectWillChange.sink { _ in
-        }
+
         diagnosticsObservation = diagnostics.objectWillChange.sink { _ in
         }
         chainDiagnosticsStateObservation = chainDiagnosticsState.objectWillChange.sink { _ in
-        }
-        sendStateObservation = sendState.objectWillChange.sink { _ in
         }
         restorePersistedRuntimeConfigurationAndState()
         Task { @MainActor in
@@ -753,11 +917,11 @@ class WalletStore: ObservableObject {
 #endif
     }
     func withSuspendedTransactionSideEffects(_ body: () -> Void) {
-        let previous = transactionState.suppressSideEffects
-        transactionState.suppressSideEffects = true
+        let previous = suppressSideEffects
+        suppressSideEffects = true
         body()
-        transactionState.lastObservedTransactions = transactions
-        transactionState.suppressSideEffects = previous
+        lastObservedTransactions = transactions
+        suppressSideEffects = previous
     }
     var canImportWallet: Bool {
     importDraft.canImportWallet
@@ -988,6 +1152,13 @@ class WalletStore: ObservableObject {
         let trackedTokens = solanaTrackedTokens(includeDisabled: true)
         guard let mintAddress = coin.contractAddress ?? SolanaBalanceService.mintAddress(for: coin.symbol) else { return false }
         return trackedTokens[mintAddress] != nil
+    }
+    func isSupportedNearTokenSend(_ coin: Coin) -> Bool {
+        guard coin.chainName == "NEAR", coin.symbol != "NEAR" else { return false }
+        guard coin.tokenStandard == TokenTrackingChain.near.tokenStandard else { return false }
+        guard let contract = coin.contractAddress else { return false }
+        let prefs = cachedTokenPreferencesByChain[.near] ?? []
+        return prefs.contains { $0.contractAddress.lowercased() == contract.lowercased() }
     }
     var ethereumRPCEndpointValidationError: String? {
         let trimmedEndpoint = ethereumRPCEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)

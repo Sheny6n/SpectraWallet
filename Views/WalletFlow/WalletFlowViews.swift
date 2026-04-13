@@ -24,7 +24,7 @@ struct TransactionStatusBadge: View {
         case .failed: return 0.97
         }}
     var body: some View {
-        Text(statusText.uppercased()).font(.caption2.bold()).tracking(0.6).frame(minWidth: 86).padding(.horizontal, 10).padding(.vertical, 6)..background(statusColor.opacity(0.16), in: Capsule()).foregroundStyle(statusColor)..scaleEffect(badgeScale).animation(.spring(response: 0.35, dampingFraction: 0.74), value: status)
+        Text(statusText.uppercased()).font(.caption2.bold()).tracking(0.6).frame(minWidth: 86).padding(.horizontal, 10).padding(.vertical, 6).background(statusColor.opacity(0.16), in: Capsule()).foregroundStyle(statusColor).scaleEffect(badgeScale).animation(.spring(response: 0.35, dampingFraction: 0.74), value: status)
     }
 }
 struct SendQRScannerSheet: View {
@@ -35,7 +35,7 @@ struct SendQRScannerSheet: View {
             QRCodeScannerView { payload in
                 onScan(payload)
                 dismiss()
-            }..ignoresSafeArea(edges: .bottom).navigationTitle("Scan QR Code").navigationBarTitleDisplayMode(.inline)..toolbar {
+            }.ignoresSafeArea(edges: .bottom).navigationTitle("Scan QR Code").navigationBarTitleDisplayMode(.inline).toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") {
                         dismiss()
@@ -74,7 +74,7 @@ struct QRCodeScannerView: UIViewControllerRepresentable {
         }}
 }
 struct WalletCardView: View {
-    let store: WalletStore
+    @ObservedObject var store: WalletStore
     struct Presentation {
         let wallet: ImportedWallet
         let totalValueText: String
@@ -84,7 +84,7 @@ struct WalletCardView: View {
     }
     let presentation: Presentation
     private var watchOnlyBadge: some View {
-        Image(systemName: "eye")..font(.caption.weight(.semibold)).foregroundStyle(.orange).padding(.horizontal, 7).padding(.vertical, 5)..background(Color.orange.opacity(0.15), in: Capsule())
+        Image(systemName: "eye").font(.caption.weight(.semibold)).foregroundStyle(.orange).padding(.horizontal, 7).padding(.vertical, 5).background(Color.orange.opacity(0.15), in: Capsule())
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -93,17 +93,17 @@ struct WalletCardView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         if presentation.isWatchOnly { watchOnlyBadge }
-                        Text(presentation.wallet.name)..font(.headline).foregroundStyle(Color.primary)
+                        Text(presentation.wallet.name).font(.headline).foregroundStyle(Color.primary)
                     }
                     Text(store.displayChainTitle(for: presentation.wallet)).font(.caption2).foregroundStyle(Color.primary.opacity(0.6)).lineLimit(2)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(presentation.totalValueText)..font(.headline).foregroundStyle(Color.primary).spectraNumericTextLayout()
-                    Text(presentation.assetCountText)..font(.caption2).foregroundStyle(Color.primary.opacity(0.68))
+                    Text(presentation.totalValueText).font(.headline).foregroundStyle(Color.primary).spectraNumericTextLayout()
+                    Text(presentation.assetCountText).font(.caption2).foregroundStyle(Color.primary.opacity(0.68))
                 }
-                Image(systemName: "chevron.right")..font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.42))
-            }}..padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.42))
+            }}.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
     }
 }
 struct QRCodeRenderer {
@@ -144,30 +144,28 @@ struct DonationQRCodeView: View {
                     CoinBadge(
                         assetIdentifier: donation.assetIdentifier, fallbackText: donation.mark, color: donation.color, size: 54
                     )
-                    Text(localizedWalletFlowString("Scan to Donate"))..font(.title2.bold()).foregroundStyle(Color.primary)
-                    Text(donation.title)..font(.headline).foregroundStyle(Color.primary.opacity(0.76))
-                    QRCodeImage(address: donation.address)..frame(width: 220, height: 220).padding(18)..background(Color.white, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    Text(donation.address)..font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.8))..multilineTextAlignment(.center).textSelection(.enabled)..padding(.horizontal, 24)
+                    Text(localizedWalletFlowString("Scan to Donate")).font(.title2.bold()).foregroundStyle(Color.primary)
+                    Text(donation.title).font(.headline).foregroundStyle(Color.primary.opacity(0.76))
+                    QRCodeImage(address: donation.address).frame(width: 220, height: 220).padding(18).background(Color.white, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    Text(donation.address).font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.8)).multilineTextAlignment(.center).textSelection(.enabled).padding(.horizontal, 24)
                     Spacer()
-                }..padding(20)
-            }..navigationTitle(localizedWalletFlowString("QR Code")).navigationBarTitleDisplayMode(.inline)..toolbar {
+                }.padding(20)
+            }.navigationTitle(localizedWalletFlowString("QR Code")).navigationBarTitleDisplayMode(.inline).toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(localizedWalletFlowString("Done")) {
                         dismiss()
-                    }..buttonStyle(.glass)
+                    }.buttonStyle(.glass)
                 }}}}
 }
 struct QRCodeImage: View {
     let address: String
     var body: some View {
         Group {
-            if let image = qrUIImage { Image(uiImage: image)..interpolation(.none).resizable().scaledToFit() } else { Image(systemName: "qrcode")..resizable().scaledToFit().padding(28).foregroundStyle(.black) }}}
+            if let image = qrUIImage { Image(uiImage: image).interpolation(.none).resizable().scaledToFit() } else { Image(systemName: "qrcode").resizable().scaledToFit().padding(28).foregroundStyle(.black) }}}
     private var qrUIImage: UIImage? { QRCodeRenderer.makeImage(from: address) }
 }
 struct WalletDetailView: View {
     let store: WalletStore
-    @ObservedObject private var portfolioState: WalletPortfolioState
-    @ObservedObject private var flowState: WalletFlowState
     let wallet: ImportedWallet
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -175,15 +173,14 @@ struct WalletDetailView: View {
     @State private var isShowingSeedPhraseSheet: Bool = false
     @State private var seedPhrasePasswordInput: String = ""
     @State private var revealedSeedPhrase: String = ""
-    @State private var seedPhraseErrorMessage: String? @State private var isRevealingSeedPhrase: Bool = false
+    @State private var seedPhraseErrorMessage: String?
+    @State private var isRevealingSeedPhrase: Bool = false
     @State private var didCopyWalletAddress: Bool = false
     @State private var isShowingDeleteWalletAlert: Bool = false
     @State private var isShowingAdvancedPage: Bool = false
     init(store: WalletStore, wallet: ImportedWallet) {
         self.store = store
         self.wallet = wallet
-        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
-        _flowState = ObservedObject(wrappedValue: store.flowState)
     }
     private struct HoldingPresentation: Identifiable {
         let coin: Coin
@@ -193,7 +190,9 @@ struct WalletDetailView: View {
     private struct DetailPresentation {
         let wallet: ImportedWallet
         let nonZeroAssetCount: Int
-        let walletAddress: String? let derivationPathsText: String? let walletBadge: (assetIdentifier: String?, mark: String, color: Color)
+        let walletAddress: String?
+        let derivationPathsText: String?
+        let walletBadge: (assetIdentifier: String?, mark: String, color: Color)
         let visibleHoldingPresentations: [HoldingPresentation]
         let walletTotalValueText: String
     }
@@ -207,7 +206,7 @@ struct WalletDetailView: View {
     private var isPrivateKeyWallet: Bool { store.isPrivateKeyWallet(displayedWallet) }
     private var requiresSeedPhrasePassword: Bool { store.walletRequiresSeedPhrasePassword(displayedWallet.id) }
     private var displayedWallet: ImportedWallet {
-        portfolioState.wallets.first(where: { $0.id == wallet.id }) ?? wallet
+        store.wallets.first(where: { $0.id == wallet.id }) ?? wallet
     }
     private var firstActivityDateText: String {
         guard let firstDate = store.firstActivityDate(for: wallet.id) else { return localizedWalletFlowString("No activity yet") }
@@ -215,7 +214,7 @@ struct WalletDetailView: View {
     }
     private var detailPresentation: DetailPresentation {
         let wallet = displayedWallet
-        let visibleHoldings = wallet.holdings..filter { $0.amount > 0 }
+        let visibleHoldings = wallet.holdings.filter { $0.amount > 0 }
             .map { holding in (coin: holding, quotedValue: store.currentValueIfAvailable(for: holding) ?? -1) }
             .sorted {
                 if abs($0.quotedValue - $1.quotedValue) > 0.000001 { return $0.quotedValue > $1.quotedValue }
@@ -241,7 +240,7 @@ struct WalletDetailView: View {
         return walletFlowLocalizedFormat("wallet.detail.chainPath", wallet.selectedChain, wallet.seedDerivationPaths.path(for: derivationChain))
     }
     private var watchOnlyBadge: some View {
-        Label(localizedWalletFlowString("Watching"), systemImage: "eye")..font(.caption.weight(.semibold)).foregroundStyle(.orange).padding(.horizontal, 10).padding(.vertical, 6)..background(Color.orange.opacity(0.15), in: Capsule())
+        Label(localizedWalletFlowString("Watching"), systemImage: "eye").font(.caption.weight(.semibold)).foregroundStyle(.orange).padding(.horizontal, 10).padding(.vertical, 6).background(Color.orange.opacity(0.15), in: Capsule())
     }
     private var deleteWalletMessage: String {
         if isWatchOnly { return localizedWalletFlowString("You can't recover this wallet after deletion until you still have this address.") }
@@ -274,61 +273,61 @@ struct WalletDetailView: View {
                     )
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(detailPresentation.wallet.name)..font(.title2.weight(.bold)).foregroundStyle(Color.primary)
+                            Text(detailPresentation.wallet.name).font(.title2.weight(.bold)).foregroundStyle(Color.primary)
                             Spacer(minLength: 0)
                             if isWatchOnly { watchOnlyBadge }}
                         Text(store.displayChainTitle(for: detailPresentation.wallet)).font(.subheadline).foregroundStyle(Color.primary.opacity(0.75))
-                    }}..frame(maxWidth: .infinity, alignment: .leading).padding(16)..spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                    }}.frame(maxWidth: .infinity, alignment: .leading).padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 VStack(alignment: .leading, spacing: 12) {
                     detailRow(label: "Mode", value: isWatchOnly ? "Watch Addresses" : (isPrivateKeyWallet ? "Private Key" : "Seed-Based"))
                     detailRow(label: "Current Value", value: detailPresentation.walletTotalValueText)
                     detailRow(label: "Asset Count", value: "\(detailPresentation.nonZeroAssetCount)")
                     detailRow(label: "First Activity", value: firstActivityDateText)
-                }..padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("Holdings")..font(.headline).foregroundStyle(Color.primary)
+                        Text("Holdings").font(.headline).foregroundStyle(Color.primary)
                         Spacer()
-                        Text("\(detailPresentation.visibleHoldingPresentations.count)")..font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.68))
+                        Text("\(detailPresentation.visibleHoldingPresentations.count)").font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.68))
                     }
-                    if detailPresentation.visibleHoldingPresentations.isEmpty { Text("No assets loaded for this wallet yet.")..font(.subheadline).foregroundStyle(Color.primary.opacity(0.72)) } else {
+                    if detailPresentation.visibleHoldingPresentations.isEmpty { Text("No assets loaded for this wallet yet.").font(.subheadline).foregroundStyle(Color.primary.opacity(0.72)) } else {
                         ForEach(detailPresentation.visibleHoldingPresentations) { holding in
                             HStack(spacing: 12) {
                                 CoinBadge(
                                     assetIdentifier: holding.coin.iconIdentifier, fallbackText: holding.coin.mark, color: holding.coin.color, size: 34
                                 )
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(holding.coin.name)..font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
-                                    Text("\(holding.coin.symbol) • \(holding.coin.tokenStandard)")..font(.caption).foregroundStyle(Color.primary.opacity(0.62))
+                                    Text(holding.coin.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+                                    Text("\(holding.coin.symbol) • \(holding.coin.tokenStandard)").font(.caption).foregroundStyle(Color.primary.opacity(0.62))
                                 }
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 3) {
-                                    Text(holding.amountText)..font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary).spectraNumericTextLayout()
-                                    Text(holding.valueText)..font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
-                                }}..padding(.vertical, 4)
-                        }}}..padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                                    Text(holding.amountText).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary).spectraNumericTextLayout()
+                                    Text(holding.valueText).font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
+                                }}.padding(.vertical, 4)
+                        }}}.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 if let walletAddress = detailPresentation.walletAddress {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("Wallet Address")..font(.headline).foregroundStyle(Color.primary)
+                            Text("Wallet Address").font(.headline).foregroundStyle(Color.primary)
                             Spacer()
                             Button {
                                 UIPasteboard.general.string = walletAddress
                                 didCopyWalletAddress = true
                             } label: {
-                                Label(didCopyWalletAddress ? "Copied" : "Copy", systemImage: didCopyWalletAddress ? "checkmark" : "doc.on.doc")..font(.caption.weight(.semibold))
-                            }..buttonStyle(.borderless).foregroundStyle(Color.primary)
+                                Label(didCopyWalletAddress ? "Copied" : "Copy", systemImage: didCopyWalletAddress ? "checkmark" : "doc.on.doc").font(.caption.weight(.semibold))
+                            }.buttonStyle(.borderless).foregroundStyle(Color.primary)
                         }
-                        Text(walletAddress)..font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.8)).textSelection(.enabled)
-                    }..padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                        Text(walletAddress).font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.8)).textSelection(.enabled)
+                    }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 }
                 VStack(spacing: 10) {
                     Button {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             store.beginEditingWallet(wallet)
                         }} label: {
-                        Label("Edit Name", systemImage: "pencil")..font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
-                    }..buttonStyle(.glass)
+                        Label("Edit Name", systemImage: "pencil").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                    }.buttonStyle(.glass)
                     if !isWatchOnly && !isPrivateKeyWallet {
                         Button {
                             if requiresSeedPhrasePassword {
@@ -342,18 +341,18 @@ struct WalletDetailView: View {
                                 isRevealingSeedPhrase
                                     ? "Checking Face ID..."
                                     : (requiresSeedPhrasePassword ? "Show Seed Phrase (Password)" : "Show Seed Phrase"), systemImage: requiresSeedPhrasePassword ? "lock.shield" : "faceid"
-                            )..font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
-                        }..buttonStyle(.glass).disabled(isRevealingSeedPhrase || !store.canRevealSeedPhrase(for: wallet.id))
+                            ).font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                        }.buttonStyle(.glass).disabled(isRevealingSeedPhrase || !store.canRevealSeedPhrase(for: wallet.id))
                     }
                     Button(role: .destructive) {
                         isShowingDeleteWalletAlert = true
                     } label: {
-                        Label("Delete Wallet", systemImage: "trash")..font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
-                    }..buttonStyle(.glass)
-                }}..padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
-        }..background(SpectraBackdrop())..refreshable {
+                        Label("Delete Wallet", systemImage: "trash").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                    }.buttonStyle(.glass)
+                }}.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
+        }.background(SpectraBackdrop()).refreshable {
             await store.refreshWalletBalance(wallet.id)
-        }..navigationTitle("Wallet Details").navigationBarTitleDisplayMode(.inline)..toolbar {
+        }.navigationTitle("Wallet Details").navigationBarTitleDisplayMode(.inline).toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Advanced") {
                     isShowingAdvancedPage = true
@@ -362,11 +361,11 @@ struct WalletDetailView: View {
                 walletID: detailPresentation.wallet.id.uuidString, derivationPathsText: detailPresentation.derivationPathsText
             )
         }.navigationDestination(isPresented: Binding(
-            get: { flowState.isShowingWalletImporter && flowState.editingWalletID == wallet.id }, set: { isPresented in
-                if !isPresented { flowState.isShowingWalletImporter = false }}
+            get: { store.isShowingWalletImporter && store.editingWalletID == wallet.id }, set: { isPresented in
+                if !isPresented { store.isShowingWalletImporter = false }}
         )) {
             SetupView(store: store, draft: store.importDraft)
-        }..alert("Delete Wallet?", isPresented: $isShowingDeleteWalletAlert) {
+        }.alert("Delete Wallet?", isPresented: $isShowingDeleteWalletAlert) {
             Button("Delete", role: .destructive) {
                 Task {
                     store.confirmDeleteWallet(wallet)
@@ -376,41 +375,41 @@ struct WalletDetailView: View {
                 isShowingDeleteWalletAlert = false
             }} message: {
             Text(deleteWalletMessage)
-        }..alert("Cannot Reveal Seed Phrase", isPresented: Binding(
+        }.alert("Cannot Reveal Seed Phrase", isPresented: Binding(
             get: { seedPhraseErrorMessage != nil }, set: { isPresented in
                 if !isPresented { seedPhraseErrorMessage = nil }}
         )) {
             Button("OK", role: .cancel) {}} message: {
             Text(seedPhraseErrorMessage ?? "Unknown error")
-        }..onChange(of: wallet.id) { _, _ in
+        }.onChange(of: wallet.id) { _, _ in
             didCopyWalletAddress = false
-        }..onChange(of: portfolioState.wallets.contains(where: { $0.id == wallet.id })) { _, walletStillExists in
+        }.onChange(of: store.wallets.contains(where: { $0.id == wallet.id })) { _, walletStillExists in
             handleWalletPresenceChange(walletStillExists: walletStillExists)
-        }..onChange(of: scenePhase) { _, newPhase in
+        }.onChange(of: scenePhase) { _, newPhase in
             handleScenePhaseChange(newPhase)
-        }..sheet(isPresented: $isShowingSeedPhrasePasswordPrompt, onDismiss: {
+        }.sheet(isPresented: $isShowingSeedPhrasePasswordPrompt, onDismiss: {
             seedPhrasePasswordInput = ""
         }) {
             NavigationStack {
                 ZStack {
                     SpectraBackdrop()
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("This wallet has an optional seed phrase password. Enter it after Face ID to reveal the recovery phrase.")..font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
-                        SecureField("Wallet Password", text: $seedPhrasePasswordInput)..textInputAutocapitalization(.never).autocorrectionDisabled().privacySensitive().padding(14)..spectraInputFieldStyle().foregroundStyle(Color.primary)
+                        Text("This wallet has an optional seed phrase password. Enter it after Face ID to reveal the recovery phrase.").font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
+                        SecureField("Wallet Password", text: $seedPhrasePasswordInput).textInputAutocapitalization(.never).autocorrectionDisabled().privacySensitive().padding(14).spectraInputFieldStyle().foregroundStyle(Color.primary)
                         Button {
                             isShowingSeedPhrasePasswordPrompt = false
                             Task {
                                 await revealSeedPhrase(password: seedPhrasePasswordInput)
                             }} label: {
-                            Text("Reveal Seed Phrase")..font(.headline).frame(maxWidth: .infinity)
-                        }..buttonStyle(.glassProminent).disabled(seedPhrasePasswordInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            Text("Reveal Seed Phrase").font(.headline).frame(maxWidth: .infinity)
+                        }.buttonStyle(.glassProminent).disabled(seedPhrasePasswordInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         Spacer()
-                    }..padding(20)
-                }..navigationTitle("Wallet Password").navigationBarTitleDisplayMode(.inline)..toolbar {
+                    }.padding(20)
+                }.navigationTitle("Wallet Password").navigationBarTitleDisplayMode(.inline).toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Cancel") {
                             isShowingSeedPhrasePasswordPrompt = false
-                        }}}}}..sheet(isPresented: $isShowingSeedPhraseSheet, onDismiss: {
+                        }}}}}.sheet(isPresented: $isShowingSeedPhraseSheet, onDismiss: {
             revealedSeedPhrase = ""
         }) {
             NavigationStack {
@@ -418,10 +417,10 @@ struct WalletDetailView: View {
                     SpectraBackdrop()
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 16) {
-                            Text("Write this down and keep it offline. Anyone with this phrase can control your funds.")..font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
-                            Text(revealedSeedPhrase)..font(.body.monospaced()).foregroundStyle(Color.primary).privacySensitive().padding(12)..frame(maxWidth: .infinity, alignment: .leading).spectraInputFieldStyle(cornerRadius: 16)
-                        }..padding(16).spectraBubbleFill()..glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 24)).padding(20)
-                    }}..navigationTitle("Seed Phrase").navigationBarTitleDisplayMode(.inline)..toolbar {
+                            Text("Write this down and keep it offline. Anyone with this phrase can control your funds.").font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
+                            Text(revealedSeedPhrase).font(.body.monospaced()).foregroundStyle(Color.primary).privacySensitive().padding(12).frame(maxWidth: .infinity, alignment: .leading).spectraInputFieldStyle(cornerRadius: 16)
+                        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 24)).padding(20)
+                    }}.navigationTitle("Seed Phrase").navigationBarTitleDisplayMode(.inline).toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") {
                             isShowingSeedPhraseSheet = false
@@ -429,9 +428,9 @@ struct WalletDetailView: View {
     @ViewBuilder
     private func detailRow(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(localizedWalletFlowString(label))..font(.caption).foregroundStyle(Color.primary.opacity(0.65))
-            Text(value)..font(.subheadline).foregroundStyle(Color.primary).textSelection(.enabled)
-        }..frame(maxWidth: .infinity, alignment: .leading)
+            Text(localizedWalletFlowString(label)).font(.caption).foregroundStyle(Color.primary.opacity(0.65))
+            Text(value).font(.subheadline).foregroundStyle(Color.primary).textSelection(.enabled)
+        }.frame(maxWidth: .infinity, alignment: .leading)
     }
     private func revealSeedPhrase(password: String? = nil) async {
         guard !isRevealingSeedPhrase else { return }
@@ -448,23 +447,24 @@ struct WalletDetailView: View {
 }
 private struct WalletAdvancedDetailsView: View {
     let walletID: String
-    let derivationPathsText: String? var body: some View {
+    let derivationPathsText: String?
+    var body: some View {
         ZStack {
             SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 12) {
                         walletDetailRow(label: "Wallet ID", value: walletID)
-                        if let derivationPathsText { walletDetailRow(label: "Derivation Paths", value: derivationPathsText) }}..padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
-                }..padding(20)
-            }}..navigationTitle("Advanced").navigationBarTitleDisplayMode(.inline)
+                        if let derivationPathsText { walletDetailRow(label: "Derivation Paths", value: derivationPathsText) }}.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.padding(20)
+            }}.navigationTitle("Advanced").navigationBarTitleDisplayMode(.inline)
     }
 }
 private func walletDetailRow(label: String, value: String) -> some View {
     VStack(alignment: .leading, spacing: 4) {
-        Text(localizedWalletFlowString(label))..font(.caption).foregroundStyle(Color.primary.opacity(0.65))
-        Text(value)..font(.subheadline).foregroundStyle(Color.primary).textSelection(.enabled)
-    }..frame(maxWidth: .infinity, alignment: .leading)
+        Text(localizedWalletFlowString(label)).font(.caption).foregroundStyle(Color.primary.opacity(0.65))
+        Text(value).font(.subheadline).foregroundStyle(Color.primary).textSelection(.enabled)
+    }.frame(maxWidth: .infinity, alignment: .leading)
 }
 func walletFlowLocalizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
     let format = AppLocalization.string(key)
@@ -479,44 +479,44 @@ struct SeedPathSlotEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(localizedWalletFlowString(title))..font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+                Text(localizedWalletFlowString(title)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
                 Spacer()
                 Button("Reset") {
                     path = defaultPath
-                }..font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.72))
+                }.font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.72))
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    Text("m")..font(.caption.monospaced().weight(.semibold)).foregroundStyle(Color.primary.opacity(0.72))
+                    Text("m").font(.caption.monospaced().weight(.semibold)).foregroundStyle(Color.primary.opacity(0.72))
                     ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
                         HStack(spacing: 4) {
-                            Text(verbatim: "/")..font(.caption.monospaced()).foregroundStyle(Color.primary.opacity(0.52))
+                            Text(verbatim: "/").font(.caption.monospaced()).foregroundStyle(Color.primary.opacity(0.52))
                             TextField(
                                 "0", text: Binding(
                                     get: { String(segment.value) }, set: { updateSegment(at: index, value: $0) }
                                 )
-                            )..keyboardType(.numberPad).font(.caption.monospaced()).foregroundStyle(Color.primary).padding(.horizontal, 10)..padding(.vertical, 8).spectraInputFieldStyle(cornerRadius: 12)
-                            if segment.isHardened { Text(verbatim: "'")..font(.caption.monospaced().weight(.bold)).foregroundStyle(Color.primary.opacity(0.72)) }}}}}
+                            ).keyboardType(.numberPad).font(.caption.monospaced()).foregroundStyle(Color.primary).padding(.horizontal, 10).padding(.vertical, 8).spectraInputFieldStyle(cornerRadius: 12)
+                            if segment.isHardened { Text(verbatim: "'").font(.caption.monospaced().weight(.bold)).foregroundStyle(Color.primary.opacity(0.72)) }}}}}
             if !presetOptions.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(localizedWalletFlowString("Derivation Paths"))..font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.72))
+                    Text(localizedWalletFlowString("Derivation Paths")).font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.72))
                     VStack(spacing: 8) {
                         ForEach(presetOptions) { preset in
                             Button {
                                 path = preset.path
                             } label: {
                                 HStack(alignment: .firstTextBaseline, spacing: 12) {
-                                    Text(preset.title)..font(.caption.weight(.semibold)).foregroundStyle(Color.primary).lineLimit(1)
+                                    Text(preset.title).font(.caption.weight(.semibold)).foregroundStyle(Color.primary).lineLimit(1)
                                     Spacer(minLength: 0)
-                                    Text(preset.detail)..font(.caption2.monospaced()).foregroundStyle(Color.primary.opacity(0.68)).lineLimit(1).truncationMode(.middle)
-                                }..padding(.horizontal, 12).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)..background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)..fill(preset.path == path ? Color.orange.opacity(0.16) : Color.white.opacity(0.04))
-                                )..overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)..stroke(
+                                    Text(preset.detail).font(.caption2.monospaced()).foregroundStyle(Color.primary.opacity(0.68)).lineLimit(1).truncationMode(.middle)
+                                }.padding(.horizontal, 12).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading).background(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(preset.path == path ? Color.orange.opacity(0.16) : Color.white.opacity(0.04))
+                                ).overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(
                                             preset.path == path ? Color.orange.opacity(0.65) : Color.white.opacity(0.08), lineWidth: 1
                                         )
                                 )
-                            }..buttonStyle(.plain)
+                            }.buttonStyle(.plain)
                         }}}}}}
     private func updateSegment(at index: Int, value: String) {
         guard var resolvedSegments = DerivationPathParser.parse(path) ?? DerivationPathParser.parse(defaultPath), resolvedSegments.indices.contains(index), let numericValue = UInt32(value.filter(\.isNumber)) else { return }
@@ -539,15 +539,15 @@ struct AssetRowView: View {
                 assetIdentifier: presentation.coin.iconIdentifier, fallbackText: presentation.coin.mark, color: presentation.coin.color, size: 46
             )
             VStack(alignment: .leading, spacing: 4) {
-                Text(presentation.coin.name)..font(.headline).foregroundStyle(Color.primary)
-                Text(presentation.amountText)..font(.caption).foregroundStyle(Color.primary.opacity(0.7)).spectraNumericTextLayout()
+                Text(presentation.coin.name).font(.headline).foregroundStyle(Color.primary)
+                Text(presentation.amountText).font(.caption).foregroundStyle(Color.primary.opacity(0.7)).spectraNumericTextLayout()
                 Text(walletFlowLocalizedFormat("wallet.detail.onChainLowercase", store.displayChainTitle(for: presentation.coin.chainName))).font(.caption2).foregroundStyle(Color.primary.opacity(0.6))
-                Text(presentation.coin.tokenStandard)..font(.caption2).foregroundStyle(Color.primary.opacity(0.55))
-                if let contractAddress = presentation.coin.contractAddress { Text(contractAddress)..font(.caption2.monospaced()).foregroundStyle(Color.primary.opacity(0.5)).lineLimit(1) }}
+                Text(presentation.coin.tokenStandard).font(.caption2).foregroundStyle(Color.primary.opacity(0.55))
+                if let contractAddress = presentation.coin.contractAddress { Text(contractAddress).font(.caption2.monospaced()).foregroundStyle(Color.primary.opacity(0.5)).lineLimit(1) }}
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
-                Text(presentation.valueText)..font(.headline).foregroundStyle(Color.primary).spectraNumericTextLayout()
-                Text(presentation.priceText)..font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
-            }}..padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                Text(presentation.valueText).font(.headline).foregroundStyle(Color.primary).spectraNumericTextLayout()
+                Text(presentation.priceText).font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
+            }}.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
     }
 }

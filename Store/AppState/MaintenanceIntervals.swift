@@ -63,5 +63,5 @@ extension WalletStore {
         lastObservedPortfolioTotalUSD = totalBalance
         lastObservedPortfolioCompositionSignature = portfolioCompositionSignature()
     }
-    func portfolioCompositionSignature() -> String { portfolio..map(\.holdingKey).sorted().joined(separator: "|") }
+    func portfolioCompositionSignature() -> String { portfolio.map(\.holdingKey).sorted().joined(separator: "|") }
 }

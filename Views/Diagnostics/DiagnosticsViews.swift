@@ -36,7 +36,7 @@ struct DiagnosticsHubView: View {
     var body: some View {
         Form {
             destinationSection(copy.chainsSectionTitle, destinations: chainDestinations)
-        }..navigationTitle(copy.navigationTitle).navigationBarTitleDisplayMode(.inline)..searchable(text: $searchText, prompt: copy.searchPrompt)
+        }.navigationTitle(copy.navigationTitle).navigationBarTitleDisplayMode(.inline).searchable(text: $searchText, prompt: copy.searchPrompt)
     }
 }
 enum StandardDiagnosticsChain: Hashable, CaseIterable {
@@ -125,7 +125,8 @@ enum StandardDiagnosticsChain: Hashable, CaseIterable {
 private struct StandardEndpointRow: Identifiable {
     let id = UUID()
     let endpoint: String
-    let reachable: Bool? let detail: String
+    let reachable: Bool?
+    let detail: String
 }
 private struct StandardHistorySourceRow: Identifiable {
     let source: String
@@ -138,7 +139,8 @@ struct StandardChainDiagnosticsView: View {
     @StateObject private var refreshSignal: ViewRefreshSignal
     let chain: StandardDiagnosticsChain
     private let copy = DiagnosticsContentCopy.current
-    @State private var copiedDiagnosticsNotice: String? @State private var selectedMoneroBackendID: String = MoneroBalanceService.defaultBackendID
+    @State private var copiedDiagnosticsNotice: String?
+    @State private var selectedMoneroBackendID: String = MoneroBalanceService.defaultBackendID
     @State private var cachedEndpointRows: [StandardEndpointRow] = []
     @State private var cachedHistorySourceRows: [StandardHistorySourceRow] = []
     private let moneroCustomBackendID = "custom"
@@ -171,7 +173,7 @@ struct StandardChainDiagnosticsView: View {
                     ) {
                         Task {
                             await store.runEthereumSelfTests()
-                        }}..disabled(store.isRunningEthereumSelfTests)
+                        }}.disabled(store.isRunningEthereumSelfTests)
                 }
                 Button(
                     isRunningHistory
@@ -180,7 +182,7 @@ struct StandardChainDiagnosticsView: View {
                 ) {
                     Task {
                         await runHistoryDiagnostics()
-                    }}..disabled(isRunningHistory)
+                    }}.disabled(isRunningHistory)
                 Button(localizedFormat("Copy %@ Diagnostics JSON", diagnosticsLabel)) {
                     if let payload = diagnosticsJSON {
                         UIPasteboard.general.string = payload
@@ -193,49 +195,49 @@ struct StandardChainDiagnosticsView: View {
                 ) {
                     Task {
                         await runEndpointDiagnostics()
-                    }}..disabled(isCheckingEndpoints)
-                if let copiedDiagnosticsNotice { Text(copiedDiagnosticsNotice)..font(.caption).foregroundStyle(.secondary) }}
+                    }}.disabled(isCheckingEndpoints)
+                if let copiedDiagnosticsNotice { Text(copiedDiagnosticsNotice).font(.caption).foregroundStyle(.secondary) }}
             Section(copy.statusSectionTitle) {
-                if let updatedAt = historyLastUpdatedAt { Text(String(format: copy.lastHistoryRunFormat, updatedAt.formatted(date: .abbreviated, time: .shortened))).font(.caption).foregroundStyle(.secondary) } else { Text(copy.historyNotRunYet)..font(.caption).foregroundStyle(.secondary) }
-                Text(String(format: copy.walletDiagnosticsCoveredFormat, String(historyWalletCount)))..font(.caption).foregroundStyle(.secondary)
-                if let primarySource = historySourceRows.first { Text(String(format: copy.mostUsedHistorySourceFormat, primarySource.source, String(primarySource.count)))..font(.caption).foregroundStyle(.secondary) }
+                if let updatedAt = historyLastUpdatedAt { Text(String(format: copy.lastHistoryRunFormat, updatedAt.formatted(date: .abbreviated, time: .shortened))).font(.caption).foregroundStyle(.secondary) } else { Text(copy.historyNotRunYet).font(.caption).foregroundStyle(.secondary) }
+                Text(String(format: copy.walletDiagnosticsCoveredFormat, String(historyWalletCount))).font(.caption).foregroundStyle(.secondary)
+                if let primarySource = historySourceRows.first { Text(String(format: copy.mostUsedHistorySourceFormat, primarySource.source, String(primarySource.count))).font(.caption).foregroundStyle(.secondary) }
                 if let updatedAt = endpointLastUpdatedAt {
                     let formattedUpdatedAt = updatedAt.formatted(date: .abbreviated, time: .shortened)
-                    Text(String(format: copy.lastEndpointCheckFormat, formattedUpdatedAt))..font(.caption).foregroundStyle(.secondary)
+                    Text(String(format: copy.lastEndpointCheckFormat, formattedUpdatedAt)).font(.caption).foregroundStyle(.secondary)
                 }
                 if !endpointRows.isEmpty {
                     let reachableCount = endpointRows.filter { $0.reachable == true }.count
-                    Text(String(format: copy.endpointHealthFormat, String(reachableCount), String(endpointRows.count)))..font(.caption).foregroundStyle(.secondary)
+                    Text(String(format: copy.endpointHealthFormat, String(reachableCount), String(endpointRows.count))).font(.caption).foregroundStyle(.secondary)
                 }}
             Section(String(format: copy.historySourcesSectionTitleFormat, diagnosticsLabel)) {
-                if historySourceRows.isEmpty { Text(copy.noHistoryTelemetryYet)..font(.caption).foregroundStyle(.secondary) } else {
+                if historySourceRows.isEmpty { Text(copy.noHistoryTelemetryYet).font(.caption).foregroundStyle(.secondary) } else {
                     ForEach(historySourceRows) { item in
                         HStack {
-                            Text(item.source)..font(.subheadline.weight(.semibold))
+                            Text(item.source).font(.subheadline.weight(.semibold))
                             Spacer()
-                            Text(localizedFormat("diagnostics.countOnly", item.count))..font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            Text(localizedFormat("diagnostics.countOnly", item.count)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                         }}}}
             Section(String(format: copy.endpointReachabilitySectionTitleFormat, diagnosticsLabel)) {
-                if endpointRows.isEmpty { Text(copy.noEndpointChecksYet)..font(.caption).foregroundStyle(.secondary) } else {
+                if endpointRows.isEmpty { Text(copy.noEndpointChecksYet).font(.caption).foregroundStyle(.secondary) } else {
                     ForEach(endpointRows) { result in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                Image(systemName: endpointStatusIconName(for: result))..foregroundStyle(endpointStatusColor(for: result))
-                                Text(result.endpoint)..font(.subheadline.weight(.semibold))
+                                Image(systemName: endpointStatusIconName(for: result)).foregroundStyle(endpointStatusColor(for: result))
+                                Text(result.endpoint).font(.subheadline.weight(.semibold))
                             }
-                            Text(result.detail)..font(.caption).foregroundStyle(.secondary)
-                        }..padding(.vertical, 2)
+                            Text(result.detail).font(.caption).foregroundStyle(.secondary)
+                        }.padding(.vertical, 2)
                     }}}
             chainSpecificSections
-        }..navigationTitle(displayChainTitle + " Diagnostics")..onAppear {
+        }.navigationTitle(displayChainTitle + " Diagnostics").onAppear {
             if chain == .monero { syncSelectedMoneroBackendIDFromStore() }
             rebuildCachedRows()
-        }..onChange(of: copiedDiagnosticsNotice) { _, newValue in
+        }.onChange(of: copiedDiagnosticsNotice) { _, newValue in
             guard newValue != nil else { return }
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 copiedDiagnosticsNotice = nil
-            }}..onChange(of: selectedMoneroBackendID) { _, newValue in
+            }}.onChange(of: selectedMoneroBackendID) { _, newValue in
             guard chain == .monero else { return }
             if newValue == moneroCustomBackendID { return }
             if newValue == MoneroBalanceService.defaultBackendID {
@@ -244,14 +246,14 @@ struct StandardChainDiagnosticsView: View {
             }
             if let trusted = MoneroBalanceService.trustedBackends.first(where: { $0.id == newValue }) {
                 store.moneroBackendBaseURL = trusted.baseURL
-            }}..onChange(of: store.moneroBackendBaseURL) { _, _ in
+            }}.onChange(of: store.moneroBackendBaseURL) { _, _ in
             guard chain == .monero else { return }
             syncSelectedMoneroBackendIDFromStore()
-        }..onChange(of: historyLastUpdatedAt) { _, _ in
+        }.onChange(of: historyLastUpdatedAt) { _, _ in
             rebuildHistorySourceRows()
-        }..onChange(of: historyWalletCount) { _, _ in
+        }.onChange(of: historyWalletCount) { _, _ in
             rebuildHistorySourceRows()
-        }..onChange(of: endpointLastUpdatedAt) { _, _ in
+        }.onChange(of: endpointLastUpdatedAt) { _, _ in
             rebuildEndpointRows()
         }}
     private var isRunningHistory: Bool {
@@ -467,7 +469,7 @@ struct StandardChainDiagnosticsView: View {
         }}
     private func configuredEndpointsForCurrentChain() -> [String] {
         switch chain {
-        case .bitcoin: let parsedCustom = store.bitcoinEsploraEndpoints..components(separatedBy: CharacterSet(charactersIn: ",;\n"))..map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        case .bitcoin: let parsedCustom = store.bitcoinEsploraEndpoints.components(separatedBy: CharacterSet(charactersIn: ",;\n")).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
             return EsploraProvider.runtimeBaseURLs(for: store.bitcoinNetworkMode, custom: parsedCustom)
         case .bitcoinCash: return BitcoinCashBalanceService.endpointCatalog()
@@ -537,7 +539,7 @@ struct StandardChainDiagnosticsView: View {
             guard !normalized.isEmpty else { continue }
             counts[normalized, default: 0] += 1
         }
-        cachedHistorySourceRows = counts..map { StandardHistorySourceRow(source: $0.key, count: $0.value) }
+        cachedHistorySourceRows = counts.map { StandardHistorySourceRow(source: $0.key, count: $0.value) }
             .sorted { lhs, rhs in
                 if lhs.count != rhs.count { return lhs.count > rhs.count }
                 return lhs.source < rhs.source
@@ -601,23 +603,23 @@ struct StandardChainDiagnosticsView: View {
         if chain == .bitcoin {
             Section(AppLocalization.string("Bitcoin Settings")) {
                 Picker(AppLocalization.string("Send Fee Priority"), selection: Binding(get: { store.bitcoinFeePriority }, set: { store.bitcoinFeePriority = $0 })) {
-                    ForEach(BitcoinFeePriority.allCases) { priority in Text(priority.displayName).tag(priority) }}..pickerStyle(.segmented)
+                    ForEach(BitcoinFeePriority.allCases) { priority in Text(priority.displayName).tag(priority) }}.pickerStyle(.segmented)
                 TextField(
                     AppLocalization.string("Custom Esplora endpoints (comma-separated, optional)"), text: Binding(get: { store.bitcoinEsploraEndpoints }, set: { store.bitcoinEsploraEndpoints = $0 })
-                )..textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                if let bitcoinEsploraEndpointsValidationError = store.bitcoinEsploraEndpointsValidationError { Text(bitcoinEsploraEndpointsValidationError)..font(.caption).foregroundStyle(.red) } else { Text(copy.bitcoinEsploraHint)..font(.caption).foregroundStyle(.secondary) }}}
+                ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                if let bitcoinEsploraEndpointsValidationError = store.bitcoinEsploraEndpointsValidationError { Text(bitcoinEsploraEndpointsValidationError).font(.caption).foregroundStyle(.red) } else { Text(copy.bitcoinEsploraHint).font(.caption).foregroundStyle(.secondary) }}}
         if chain == .ethereum {
             Section(AppLocalization.string("Ethereum RPC")) {
                 TextField(
                     AppLocalization.string("Ethereum RPC URL (Optional)"), text: Binding(get: { store.ethereumRPCEndpoint }, set: { store.ethereumRPCEndpoint = $0 })
-                )..textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                Text(copy.ethereumRPCNote)..font(.caption).foregroundStyle(.secondary)
-                if let ethereumRPCEndpointValidationError = store.ethereumRPCEndpointValidationError { Text(ethereumRPCEndpointValidationError)..font(.caption).foregroundStyle(.red) }}
+                ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                Text(copy.ethereumRPCNote).font(.caption).foregroundStyle(.secondary)
+                if let ethereumRPCEndpointValidationError = store.ethereumRPCEndpointValidationError { Text(ethereumRPCEndpointValidationError).font(.caption).foregroundStyle(.red) }}
             Section(AppLocalization.string("Etherscan (Optional)")) {
                 TextField(
                     AppLocalization.string("Etherscan API Key"), text: Binding(get: { store.etherscanAPIKey }, set: { store.etherscanAPIKey = $0 })
-                )..textInputAutocapitalization(.never).autocorrectionDisabled()
-                Text(copy.etherscanNote)..font(.caption).foregroundStyle(.secondary)
+                ).textInputAutocapitalization(.never).autocorrectionDisabled()
+                Text(copy.etherscanNote).font(.caption).foregroundStyle(.secondary)
             }}
         if chain == .monero {
             Section(AppLocalization.string("Monero Backend")) {
@@ -626,44 +628,44 @@ struct StandardChainDiagnosticsView: View {
                 if selectedMoneroBackendID == moneroCustomBackendID {
                     TextField(
                         AppLocalization.string("Monero Backend URL (Optional)"), text: Binding(get: { store.moneroBackendBaseURL }, set: { store.moneroBackendBaseURL = $0 })
-                    )..textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                } else { Text(selectedTrustedMoneroBackend?.baseURL ?? MoneroBalanceService.defaultPublicBackend.baseURL)..font(.caption.monospaced()).textSelection(.enabled) }
-                if let moneroBackendBaseURLValidationError = store.moneroBackendBaseURLValidationError { Text(moneroBackendBaseURLValidationError)..font(.caption).foregroundStyle(.red) } else { Text(copy.moneroBackendNote)..font(.caption).foregroundStyle(.secondary) }
+                    ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                } else { Text(selectedTrustedMoneroBackend?.baseURL ?? MoneroBalanceService.defaultPublicBackend.baseURL).font(.caption.monospaced()).textSelection(.enabled) }
+                if let moneroBackendBaseURLValidationError = store.moneroBackendBaseURLValidationError { Text(moneroBackendBaseURLValidationError).font(.caption).foregroundStyle(.red) } else { Text(copy.moneroBackendNote).font(.caption).foregroundStyle(.secondary) }
                 TextField(
                     AppLocalization.string("Monero Backend API Key (Optional)"), text: Binding(get: { store.moneroBackendAPIKey }, set: { store.moneroBackendAPIKey = $0 })
-                )..textInputAutocapitalization(.never).autocorrectionDisabled()
-                Text(copy.moneroAPIKeyNote)..font(.caption).foregroundStyle(.secondary)
+                ).textInputAutocapitalization(.never).autocorrectionDisabled()
+                Text(copy.moneroAPIKeyNote).font(.caption).foregroundStyle(.secondary)
             }}
         if supportsUTXOChainActions {
             Section(AppLocalization.string("Chain Actions")) {
                 Button(isRunningChainSelfTests ? AppLocalization.string("Running Self-Tests...") : chainSelfTestButtonTitle) {
                     runChainSelfTests()
-                }..disabled(isRunningChainSelfTests)
+                }.disabled(isRunningChainSelfTests)
                 Button(isRunningChainRescan ? chainRescanInFlightTitle : chainRescanButtonTitle) {
                     Task {
                         await runChainRescan()
-                    }}..disabled(isRunningChainRescan)
+                    }}.disabled(isRunningChainRescan)
             }}
         Section(AppLocalization.string("Operational Events")) {
             let events = store.operationalEvents(for: chain.title)
             if events.isEmpty { Text(AppLocalization.string("No operational events recorded yet.")).font(.caption).foregroundStyle(.secondary) } else {
                 ForEach(events.prefix(20)) { event in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(event.message)..font(.subheadline)
-                        Text(event.level.rawValue.capitalized)..font(.caption.weight(.semibold))..foregroundStyle(event.level == .error ? .red : (event.level == .warning ? .orange : .secondary))
-                        if let transactionHash = event.transactionHash, !transactionHash.isEmpty { Text(transactionHash)..font(.caption.monospaced()).foregroundStyle(.secondary) }}..padding(.vertical, 2)
+                        Text(event.message).font(.subheadline)
+                        Text(event.level.rawValue.capitalized).font(.caption.weight(.semibold)).foregroundStyle(event.level == .error ? .red : (event.level == .warning ? .orange : .secondary))
+                        if let transactionHash = event.transactionHash, !transactionHash.isEmpty { Text(transactionHash).font(.caption.monospaced()).foregroundStyle(.secondary) }}.padding(.vertical, 2)
                 }}}
         Section(AppLocalization.string("Owned Address Management")) {
             let diagnostics = store.chainKeypoolDiagnostics(for: chain.title)
             if diagnostics.isEmpty { Text(AppLocalization.string("No owned-address management state recorded yet.")).font(.caption).foregroundStyle(.secondary) } else {
                 ForEach(diagnostics) { item in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(item.walletName)..font(.subheadline.weight(.semibold))
-                        Text("Next receive index: \(item.nextExternalIndex)")..font(.caption).foregroundStyle(.secondary)
-                        Text("Next change index: \(item.nextChangeIndex)")..font(.caption).foregroundStyle(.secondary)
-                        if let reservedReceiveIndex = item.reservedReceiveIndex { Text("Reserved receive index: \(reservedReceiveIndex)")..font(.caption).foregroundStyle(.secondary) }
-                        if let reservedReceivePath = item.reservedReceivePath, !reservedReceivePath.isEmpty { Text(reservedReceivePath)..font(.caption.monospaced()).foregroundStyle(.secondary) }
-                        if let reservedReceiveAddress = item.reservedReceiveAddress, !reservedReceiveAddress.isEmpty { Text(reservedReceiveAddress)..font(.caption.monospaced()).foregroundStyle(.secondary) }}..padding(.vertical, 2)
+                        Text(item.walletName).font(.subheadline.weight(.semibold))
+                        Text("Next receive index: \(item.nextExternalIndex)").font(.caption).foregroundStyle(.secondary)
+                        Text("Next change index: \(item.nextChangeIndex)").font(.caption).foregroundStyle(.secondary)
+                        if let reservedReceiveIndex = item.reservedReceiveIndex { Text("Reserved receive index: \(reservedReceiveIndex)").font(.caption).foregroundStyle(.secondary) }
+                        if let reservedReceivePath = item.reservedReceivePath, !reservedReceivePath.isEmpty { Text(reservedReceivePath).font(.caption.monospaced()).foregroundStyle(.secondary) }
+                        if let reservedReceiveAddress = item.reservedReceiveAddress, !reservedReceiveAddress.isEmpty { Text(reservedReceiveAddress).font(.caption.monospaced()).foregroundStyle(.secondary) }}.padding(.vertical, 2)
                 }}}}
     private func syncSelectedMoneroBackendIDFromStore() {
         let trimmed = store.moneroBackendBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)

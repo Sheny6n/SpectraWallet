@@ -10,10 +10,12 @@ enum BitcoinSVProvider {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.bitcoinSVChainName) }
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.bitcoinSVChainName) }
     struct WhatsOnChainBalanceResponse: Decodable {
-        let confirmed: Int64? let unconfirmed: Int64? }
+        let confirmed: Int64?
+        let unconfirmed: Int64? }
     struct WhatsOnChainHistoryEntry: Decodable {
         let txHash: String
-        let height: Int? enum CodingKeys: String, CodingKey {
+        let height: Int?
+        enum CodingKeys: String, CodingKey {
             case txHash = "tx_hash"
             case height
         }}
@@ -29,14 +31,27 @@ enum BitcoinSVProvider {
     struct WhatsOnChainTransaction: Decodable {
         struct Input: Decodable {
             struct ScriptSignature: Decodable {
-                let asm: String? let hex: String? }
-            let txid: String? let vout: Int? let scriptSig: ScriptSignature? let sequence: UInt64? let address: String? let value: Double? }
+                let asm: String?
+                let hex: String? }
+            let txid: String?
+            let vout: Int?
+            let scriptSig: ScriptSignature?
+            let sequence: UInt64?
+            let address: String?
+            let value: Double? }
         struct Output: Decodable {
             struct ScriptPubKey: Decodable {
-                let addresses: [String]? let address: String? }
-            let value: Double? let n: Int? let scriptPubKey: ScriptPubKey? }
+                let addresses: [String]?
+                let address: String? }
+            let value: Double?
+            let n: Int?
+            let scriptPubKey: ScriptPubKey? }
         let txid: String
-        let confirmations: Int? let blockheight: Int? let time: TimeInterval? let blocktime: TimeInterval? let vin: [Input]
+        let confirmations: Int?
+        let blockheight: Int?
+        let time: TimeInterval?
+        let blocktime: TimeInterval?
+        let vin: [Input]
         let vout: [Output]
     }
     struct BlockchairAddressResponse: Decodable {
@@ -44,7 +59,9 @@ enum BitcoinSVProvider {
     }
     struct AddressDashboard: Decodable {
         struct AddressDetails: Decodable {
-            let balance: Int64? let transactionCount: Int? enum CodingKeys: String, CodingKey {
+            let balance: Int64?
+            let transactionCount: Int?
+            enum CodingKeys: String, CodingKey {
                 case balance
                 case transactionCount = "transaction_count"
             }}
@@ -65,16 +82,20 @@ enum BitcoinSVProvider {
     }
     struct TransactionDashboard: Decodable {
         struct TransactionDetails: Decodable {
-            let blockID: Int? let hash: String
-            let time: String? enum CodingKeys: String, CodingKey {
+            let blockID: Int?
+            let hash: String
+            let time: String?
+            enum CodingKeys: String, CodingKey {
                 case blockID = "block_id"
                 case hash
                 case time
             }}
         struct Input: Decodable {
-            let recipient: String? let value: Int64? }
+            let recipient: String?
+            let value: Int64? }
         struct Output: Decodable {
-            let recipient: String? let value: Int64? }
+            let recipient: String?
+            let value: Int64? }
         let transaction: TransactionDetails
         let inputs: [Input]
         let outputs: [Output]
@@ -95,7 +116,9 @@ enum BitcoinSVProvider {
     static func runWithFallback<T>(
         candidates: [ProviderID], operation: @escaping (ProviderID) async throws -> T
     ) async throws -> T {
-        var firstError: Error? var lastError: Error? for provider in candidates {
+        var firstError: Error?
+        var lastError: Error?
+        for provider in candidates {
             do {
                 return try await operation(provider)
             } catch {

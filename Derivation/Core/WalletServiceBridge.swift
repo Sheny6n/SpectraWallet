@@ -36,7 +36,8 @@ enum SpectraChainID {
 private struct ChainEndpointsPayload: Encodable {
     let chainId: UInt32
     let endpoints: [String]
-    let apiKey: String? enum CodingKeys: String, CodingKey {
+    let apiKey: String?
+    enum CodingKeys: String, CodingKey {
         case chainId   = "chain_id"
         case endpoints
         case apiKey    = "api_key"
@@ -44,7 +45,10 @@ private struct ChainEndpointsPayload: Encodable {
 }
 actor WalletServiceBridge {
     static let shared = WalletServiceBridge()
-    private var _service: WalletService? nonisolated(unsafe) private static var _syncService: WalletService? private var _balanceRefreshEngine: BalanceRefreshEngine? private func service() throws -> WalletService {
+    private var _service: WalletService?
+    nonisolated(unsafe) private static var _syncService: WalletService?
+    private var _balanceRefreshEngine: BalanceRefreshEngine?
+    private func service() throws -> WalletService {
         if let existing = _service { return existing }
         let endpointsJSON = Self.buildEndpointsJSON()
         let svc = try WalletService(endpointsJson: endpointsJSON)
@@ -247,6 +251,22 @@ extension WalletServiceBridge {
     func removeWalletJSON(walletId: String) async throws -> String { try await service().removeWalletJson(walletId: walletId) }
     func updateNativeBalance(walletId: String, chainId: UInt32, balanceJson: String) async throws -> String? { try await service().updateNativeBalance(walletId: walletId, chainId: chainId, balanceJson: balanceJson) }
     func setNativeBalance(walletId: String, chainId: UInt32, amount: Double) async throws -> String? { try await service().setNativeBalance(walletId: walletId, chainId: chainId, amount: amount) }
+    /// Upsert a batch of asset holdings into a wallet in Rust state.
+    /// `holdingsJson` is a JSON array matching the AssetHolding schema
+    /// (camelCase: name, symbol, marketDataId, coinGeckoId, chainName,
+    /// tokenStandard, contractAddress?, amount, priceUsd).
+    /// Returns the updated WalletSummary JSON, or nil if wallet not found.
+    @discardableResult
+    func upsertAssetHoldings(walletId: String, holdingsJson: String) async throws -> String? {
+        try await service().upsertAssetHoldings(walletId: walletId, holdingsJson: holdingsJson)
+    }
+    /// Fetches history for `address` on `chainId`, normalizes the raw chain-specific
+    /// JSON into a standard `ChainHistoryEntry` array, and returns JSON.
+    /// Covers: BTC, LTC, BCH, BSV, DOGE, XRP, XLM, ADA, DOT, SOL, TRX,
+    /// SUI, APT, TON, NEAR, ICP, XMR. EVM uses fetchEVMHistoryPageJSON instead.
+    func fetchNormalizedHistoryJSON(chainId: UInt32, address: String) async throws -> String {
+        try await service().fetchNormalizedHistoryJson(chainId: chainId, address: address)
+    }
     func saveWalletSnapshot(json: String) {
         Task {
             try? await service().saveWalletSnapshot(dbPath: sqliteDbPath(), snapshotJson: json)
@@ -330,7 +350,7 @@ extension WalletServiceBridge {
     func listBuiltinTokensJSON(chainId: UInt32) async throws -> String { try await service().listBuiltinTokens(chainId: chainId) }
     func fetchUTXOTxStatusJSON(chainId: UInt32, txid: String) async throws -> String { try await service().fetchUtxoTxStatus(chainId: chainId, txid: txid) }
     private func sqliteDbPath() -> String {
-        let docs = FileManager.default..urls(for: .documentDirectory, in: .userDomainMask)..first?.path ?? NSTemporaryDirectory()
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.path ?? NSTemporaryDirectory()
         return "\(docs)/spectra_state.db"
     }
 }

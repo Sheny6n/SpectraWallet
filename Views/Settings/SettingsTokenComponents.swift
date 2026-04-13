@@ -59,11 +59,11 @@ struct TokenRegistryGroupRowView: View {
                 assetIdentifier: settingsTokenAssetIdentifier(for: group.representativeEntry), fallbackText: settingsTokenFallbackMark(for: group.representativeEntry), color: settingsTokenTint(for: group.representativeEntry.chain), size: 30
             )
             VStack(alignment: .leading, spacing: 4) {
-                Text(group.name)..font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                Text(group.symbol)..font(.caption).foregroundStyle(.secondary)
+                Text(group.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                Text(group.symbol).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-        }..padding(.vertical, 2)
+        }.padding(.vertical, 2)
     }
 }
 struct TokenRegistryEntryCardView: View {
@@ -75,19 +75,19 @@ struct TokenRegistryEntryCardView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(entry.chain.rawValue)..font(.subheadline.weight(.semibold))
-                    Text(entry.tokenStandard)..font(.caption).foregroundStyle(.secondary)
+                    Text(entry.chain.rawValue).font(.subheadline.weight(.semibold))
+                    Text(entry.tokenStandard).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Toggle(
                     settingsLocalizedString("Shown"), isOn: Binding(get: { entry.isEnabled }, set: setEnabled)
-                )..labelsHidden()
+                ).labelsHidden()
             }
             settingsTokenDetailRow(title: settingsLocalizedString("Source"), value: entry.isBuiltIn ? settingsLocalizedString("Built-In") : settingsLocalizedString("Custom"))
             settingsTokenDetailRow(title: settingsLocalizedString("Supported Decimals"), value: "\(entry.decimals)")
             VStack(alignment: .leading, spacing: 6) {
-                Text(settingsLocalizedString("Contract / Mint"))..font(.caption).foregroundStyle(.secondary)
-                Text(entry.contractAddress)..font(.caption.monospaced()).textSelection(.enabled)
+                Text(settingsLocalizedString("Contract / Mint")).font(.caption).foregroundStyle(.secondary)
+                Text(entry.contractAddress).font(.caption.monospaced()).textSelection(.enabled)
             }
             if !entry.coinGeckoID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { settingsTokenDetailRow(title: settingsLocalizedString("CoinGecko ID"), value: entry.coinGeckoID) }
             if !entry.marketDataID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, entry.marketDataID != "0" { settingsTokenDetailRow(title: settingsLocalizedString("Market Data ID"), value: entry.marketDataID) }
@@ -97,7 +97,7 @@ struct TokenRegistryEntryCardView: View {
                 )
                 Button(role: .destructive, action: removeToken) {
                     Label(settingsLocalizedString("Remove Token"), systemImage: "trash")
-                }}}..padding(.vertical, 4)
+                }}}.padding(.vertical, 4)
     }
 }
 struct TokenIconSetting: Identifiable {
@@ -112,19 +112,21 @@ struct TokenIconCustomizationRow: View {
     let setting: TokenIconSetting
     @AppStorage(TokenIconPreferenceStore.defaultsKey) private var tokenIconPreferencesStorage = ""
     @AppStorage(TokenIconPreferenceStore.customImageRevisionDefaultsKey) private var tokenIconCustomImageRevision = 0
-    @State private var selectedPhotoItem: PhotosPickerItem? @State private var isImportingPhoto = false
-    @State private var photoImportError: String? var body: some View {
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var isImportingPhoto = false
+    @State private var photoImportError: String?
+    var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 CoinBadge(assetIdentifier: setting.assetIdentifier, fallbackText: setting.mark, color: setting.color, size: 34)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(setting.title)
-                    Text(setting.symbol)..font(.caption).foregroundStyle(.secondary)
+                    Text(setting.symbol).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
             }
             Picker(setting.title, selection: styleBinding) {
-                ForEach(TokenIconStyle.allCases) { style in Text(style.title).tag(style) }}..pickerStyle(.segmented).labelsHidden()
+                ForEach(TokenIconStyle.allCases) { style in Text(style.title).tag(style) }}.pickerStyle(.segmented).labelsHidden()
             if selectedStyle == .customPhoto || hasCustomPhoto {
                 HStack(spacing: 12) {
                     PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
@@ -137,10 +139,10 @@ struct TokenIconCustomizationRow: View {
                             if selectedStyle == .customPhoto { selectedStyle = .artwork }}}
                     if isImportingPhoto {
                         Spacer()
-                        ProgressView()..scaleEffect(0.8)
-                    }}..font(.caption.weight(.semibold))
-                if !hasCustomPhoto { Text(settingsLocalizedString("Select a photo from your library to use as this token icon."))..font(.caption).foregroundStyle(.secondary) }}
-            if let photoImportError { Text(photoImportError)..font(.caption).foregroundStyle(.red) }}..padding(.vertical, 4)..task(id: selectedPhotoItem) {
+                        ProgressView().scaleEffect(0.8)
+                    }}.font(.caption.weight(.semibold))
+                if !hasCustomPhoto { Text(settingsLocalizedString("Select a photo from your library to use as this token icon.")).font(.caption).foregroundStyle(.secondary) }}
+            if let photoImportError { Text(photoImportError).font(.caption).foregroundStyle(.red) }}.padding(.vertical, 4).task(id: selectedPhotoItem) {
             await importSelectedPhotoIfNeeded()
         }}
     private var styleBinding: Binding<TokenIconStyle> {
@@ -180,9 +182,9 @@ struct TokenIconCustomizationRow: View {
 }
 private func settingsTokenDetailRow(title: String, value: String) -> some View {
     HStack {
-        Text(title)..foregroundStyle(.secondary)
+        Text(title).foregroundStyle(.secondary)
         Spacer()
-        Text(value)..multilineTextAlignment(.trailing)
+        Text(value).multilineTextAlignment(.trailing)
     }
 }
 private func settingsLocalizedString(_ key: String) -> String {

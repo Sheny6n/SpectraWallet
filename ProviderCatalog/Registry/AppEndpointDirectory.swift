@@ -18,8 +18,10 @@ struct AppEndpointRecord: Hashable, Decodable {
     let providerID: String
     let endpoint: String
     let roles: Set<AppEndpointRole>
-    let probeURL: String? let settingsVisible: Bool
-    let explorerLabel: String? init(
+    let probeURL: String?
+    let settingsVisible: Bool
+    let explorerLabel: String?
+    init(
         id: String, chainName: String, groupTitle: String? = nil, providerID: String, endpoint: String, roles: Set<AppEndpointRole>, probeURL: String? = nil, settingsVisible: Bool = true, explorerLabel: String? = nil
     ) {
         self.id = id

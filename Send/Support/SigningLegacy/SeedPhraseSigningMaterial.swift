@@ -55,7 +55,8 @@ enum SeedPhraseSigningMaterial {
             for path in accountScopedPaths where path != preferredDerivationPath { ordered.append(path) }
             return ordered
         }()
-        var firstValid: SolanaKeyMaterial? for path in derivationPathsToTry {
+        var firstValid: SolanaKeyMaterial?
+        for path in derivationPathsToTry {
             let result = try WalletDerivationEngine.derive(
                 seedPhrase: normalizedMnemonic, request: WalletDerivationRequest(
                     chain: .solana, network: .mainnet, derivationPath: path, curve: .ed25519, requestedOutputs: [.address, .privateKey]

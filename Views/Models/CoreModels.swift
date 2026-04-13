@@ -16,7 +16,13 @@ enum ChainFeePriorityOption: String, CaseIterable, Codable, Identifiable {
         }}
 }
 struct SendPreviewDetails: Equatable {
-    let spendableBalance: Double? let feeRateDescription: String? let estimatedTransactionBytes: Int? let selectedInputCount: Int? let usesChangeOutput: Bool? let maxSendable: Double? var hasVisibleContent: Bool {
+    let spendableBalance: Double?
+    let feeRateDescription: String?
+    let estimatedTransactionBytes: Int?
+    let selectedInputCount: Int?
+    let usesChangeOutput: Bool?
+    let maxSendable: Double?
+    var hasVisibleContent: Bool {
         spendableBalance != nil
             || feeRateDescription != nil
             || estimatedTransactionBytes != nil
@@ -33,7 +39,11 @@ enum WalletAddressInventoryRole: String, Codable {
 }
 struct WalletAddressInventoryEntry: Equatable, Codable, Identifiable {
     let address: String
-    let derivationPath: String? let account: UInt32? let branchIndex: UInt32? let addressIndex: UInt32? let role: WalletAddressInventoryRole
+    let derivationPath: String?
+    let account: UInt32?
+    let branchIndex: UInt32?
+    let addressIndex: UInt32?
+    let role: WalletAddressInventoryRole
     var id: String {
         if let derivationPath { return "\(role.rawValue)|\(derivationPath.lowercased())|\(address.lowercased())" }
         return "\(role.rawValue)|\(address.lowercased())"
@@ -43,7 +53,8 @@ struct WalletAddressInventory: Equatable, Codable {
     let entries: [WalletAddressInventoryEntry]
     let supportsDiscoveryScan: Bool
     let supportsChangeBranch: Bool
-    let scanLimit: UInt32? var primaryEntry: WalletAddressInventoryEntry? {
+    let scanLimit: UInt32?
+    var primaryEntry: WalletAddressInventoryEntry? {
         entries.first(where: { $0.role == .primary || $0.role == .external })
     }
 }
@@ -55,7 +66,8 @@ struct Coin: Identifiable {
     let coinGeckoID: String
     let chainName: String
     let tokenStandard: String
-    let contractAddress: String? let amount: Double
+    let contractAddress: String?
+    let amount: Double
     let priceUSD: Double
     let mark: String
     var color: Color
@@ -89,7 +101,26 @@ struct ImportedWallet: Identifiable {
     let name: String
     let bitcoinNetworkMode: BitcoinNetworkMode
     let dogecoinNetworkMode: DogecoinNetworkMode
-    let bitcoinAddress: String? let bitcoinXPub: String? let bitcoinCashAddress: String? let bitcoinSVAddress: String? let litecoinAddress: String? let dogecoinAddress: String? let ethereumAddress: String? let tronAddress: String? let solanaAddress: String? let stellarAddress: String? let xrpAddress: String? let moneroAddress: String? let cardanoAddress: String? let suiAddress: String? let aptosAddress: String? let tonAddress: String? let icpAddress: String? let nearAddress: String? let polkadotAddress: String? let seedDerivationPreset: SeedDerivationPreset
+    let bitcoinAddress: String?
+    let bitcoinXPub: String?
+    let bitcoinCashAddress: String?
+    let bitcoinSVAddress: String?
+    let litecoinAddress: String?
+    let dogecoinAddress: String?
+    let ethereumAddress: String?
+    let tronAddress: String?
+    let solanaAddress: String?
+    let stellarAddress: String?
+    let xrpAddress: String?
+    let moneroAddress: String?
+    let cardanoAddress: String?
+    let suiAddress: String?
+    let aptosAddress: String?
+    let tonAddress: String?
+    let icpAddress: String?
+    let nearAddress: String?
+    let polkadotAddress: String?
+    let seedDerivationPreset: SeedDerivationPreset
     let seedDerivationPaths: SeedDerivationPaths
     let selectedChain: String
     let holdings: [Coin]
@@ -310,7 +341,8 @@ struct NormalizedHistoryEntry: Identifiable {
     let symbol: String
     let chainName: String
     let address: String
-    let transactionHash: String? let sourceTag: String
+    let transactionHash: String?
+    let sourceTag: String
     let providerCount: Int
     let searchIndex: String
 }
@@ -355,7 +387,8 @@ struct DonationDestination: Identifiable {
     let title: String
     let address: String
     let mark: String
-    let assetIdentifier: String? let color: Color
+    let assetIdentifier: String?
+    let color: Color
 }
 struct AddressBookEntry: Identifiable {
     let id: UUID
@@ -379,7 +412,8 @@ struct AddressBookEntry: Identifiable {
 }
 struct TransactionRecord: Identifiable {
     let id: UUID
-    let walletID: UUID? let kind: TransactionKind
+    let walletID: UUID?
+    let kind: TransactionKind
     let status: TransactionStatus
     let walletName: String
     let assetName: String
@@ -387,7 +421,31 @@ struct TransactionRecord: Identifiable {
     let chainName: String
     let amount: Double
     let address: String
-    let transactionHash: String? let ethereumNonce: Int? let receiptBlockNumber: Int? let receiptGasUsed: String? let receiptEffectiveGasPriceGwei: Double? let receiptNetworkFeeETH: Double? let feePriorityRaw: String? let feeRateDescription: String? let confirmationCount: Int? let dogecoinConfirmedNetworkFeeDOGE: Double? let dogecoinConfirmations: Int? let dogecoinFeePriorityRaw: String? let dogecoinEstimatedFeeRateDOGEPerKB: Double? let usedChangeOutput: Bool? let dogecoinUsedChangeOutput: Bool? let sourceDerivationPath: String? let changeDerivationPath: String? let sourceAddress: String? let changeAddress: String? let dogecoinRawTransactionHex: String? let signedTransactionPayload: String? let signedTransactionPayloadFormat: String? let failureReason: String? let transactionHistorySource: String? let createdAt: Date
+    let transactionHash: String?
+    let ethereumNonce: Int?
+    let receiptBlockNumber: Int?
+    let receiptGasUsed: String?
+    let receiptEffectiveGasPriceGwei: Double?
+    let receiptNetworkFeeETH: Double?
+    let feePriorityRaw: String?
+    let feeRateDescription: String?
+    let confirmationCount: Int?
+    let dogecoinConfirmedNetworkFeeDOGE: Double?
+    let dogecoinConfirmations: Int?
+    let dogecoinFeePriorityRaw: String?
+    let dogecoinEstimatedFeeRateDOGEPerKB: Double?
+    let usedChangeOutput: Bool?
+    let dogecoinUsedChangeOutput: Bool?
+    let sourceDerivationPath: String?
+    let changeDerivationPath: String?
+    let sourceAddress: String?
+    let changeAddress: String?
+    let dogecoinRawTransactionHex: String?
+    let signedTransactionPayload: String?
+    let signedTransactionPayloadFormat: String?
+    let failureReason: String?
+    let transactionHistorySource: String?
+    let createdAt: Date
     init(
         id: UUID = UUID(), walletID: UUID? = nil, kind: TransactionKind, status: TransactionStatus, walletName: String, assetName: String, symbol: String, chainName: String, amount: Double, address: String, transactionHash: String? = nil, ethereumNonce: Int? = nil, receiptBlockNumber: Int? = nil, receiptGasUsed: String? = nil, receiptEffectiveGasPriceGwei: Double? = nil, receiptNetworkFeeETH: Double? = nil, feePriorityRaw: String? = nil, feeRateDescription: String? = nil, confirmationCount: Int? = nil, dogecoinConfirmedNetworkFeeDOGE: Double? = nil, dogecoinConfirmations: Int? = nil, dogecoinFeePriorityRaw: String? = nil, dogecoinEstimatedFeeRateDOGEPerKB: Double? = nil, usedChangeOutput: Bool? = nil, dogecoinUsedChangeOutput: Bool? = nil, sourceDerivationPath: String? = nil, changeDerivationPath: String? = nil, sourceAddress: String? = nil, changeAddress: String? = nil, dogecoinRawTransactionHex: String? = nil, signedTransactionPayload: String? = nil, signedTransactionPayloadFormat: String? = nil, failureReason: String? = nil, transactionHistorySource: String? = nil, createdAt: Date = Date()
     ) {
@@ -456,7 +514,7 @@ enum SendBroadcastFailureDisposition: Equatable {
     case terminal
 }
 func classifySendBroadcastFailure(_ rawMessage: String) -> SendBroadcastFailureDisposition {
-    let normalized = rawMessage..trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    let normalized = rawMessage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     guard !normalized.isEmpty else { return .terminal }
     let alreadyBroadcastPatterns = [
         "already known", "already exists", "already imported", "already in mempool", "txn-already-known", "known transaction", "duplicate transaction", "duplicate tx", "tx already exists", "transaction already exists", "transaction already imported", "already have transaction", "already submitted", "already processed", "already confirmed", "tefalready"

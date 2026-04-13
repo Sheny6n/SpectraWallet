@@ -4,7 +4,8 @@ import SwiftUI
 import UIKit
 #endif
 struct CoinBadge: View {
-    let assetIdentifier: String? let fallbackText: String
+    let assetIdentifier: String?
+    let fallbackText: String
     let color: Color
     var size: CGFloat = 40
     @AppStorage(TokenIconPreferenceStore.defaultsKey) private var tokenIconPreferencesStorage = ""
@@ -20,16 +21,16 @@ struct CoinBadge: View {
     private var preferredIconStyle: TokenIconStyle { TokenIconPreferenceStore.preference(for: resolvedAssetIdentifier, storage: tokenIconPreferencesStorage) }
     var body: some View {
         ZStack {
-            if preferredIconStyle == .customPhoto, let customImage = customTokenImage { Image(uiImage: customImage)..resizable().interpolation(.high).scaledToFit().frame(width: size, height: size) } else if preferredIconStyle == .artwork, let assetName = tokenIconAssetName, let bundleImage = BundleImageLoader.image(named: assetName) { Image(uiImage: bundleImage)..resizable().interpolation(.high).scaledToFit().frame(width: size, height: size) } else {
-                RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)..fill(
+            if preferredIconStyle == .customPhoto, let customImage = customTokenImage { Image(uiImage: customImage).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size) } else if preferredIconStyle == .artwork, let assetName = tokenIconAssetName, let bundleImage = BundleImageLoader.image(named: assetName) { Image(uiImage: bundleImage).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size) } else {
+                RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(
                         LinearGradient(
                             colors: [color, color.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing
                         )
-                    )..frame(width: size, height: size)
-                RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)..strokeBorder(Color.white.opacity(0.22), lineWidth: 1).frame(width: size, height: size)
-                Circle()..fill(Color.white.opacity(0.18)).frame(width: size * 0.38, height: size * 0.38).offset(x: -size * 0.16, y: -size * 0.16)
-                Text(fallbackText)..font(.system(size: size * 0.3, weight: .black, design: .rounded)).foregroundColor(.white)
-            }}..shadow(color: color.opacity(0.18), radius: 6, y: 3)
+                    ).frame(width: size, height: size)
+                RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).strokeBorder(Color.white.opacity(0.22), lineWidth: 1).frame(width: size, height: size)
+                Circle().fill(Color.white.opacity(0.18)).frame(width: size * 0.38, height: size * 0.38).offset(x: -size * 0.16, y: -size * 0.16)
+                Text(fallbackText).font(.system(size: size * 0.3, weight: .black, design: .rounded)).foregroundColor(.white)
+            }}.shadow(color: color.opacity(0.18), radius: 6, y: 3)
     }
     private var customTokenImage: UIImage? {
 #if canImport(UIKit)
@@ -134,10 +135,10 @@ enum TokenIconImageStore {
         let applicationSupportDirectory = try FileManager.default.url(
             for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true
         )
-        return applicationSupportDirectory..appendingPathComponent("Spectra", isDirectory: true).appendingPathComponent("TokenIcons", isDirectory: true)
+        return applicationSupportDirectory.appendingPathComponent("Spectra", isDirectory: true).appendingPathComponent("TokenIcons", isDirectory: true)
     }
     private static func fileName(for identifier: String) -> String {
-        let sanitizedMark = identifier.unicodeScalars..map { CharacterSet.alphanumerics.contains($0) ? String($0) : "_" }.joined()
+        let sanitizedMark = identifier.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? String($0) : "_" }.joined()
         return "\(sanitizedMark).png"
     }
 }
@@ -152,7 +153,7 @@ struct ChainToggleLabel: View {
             CoinBadge(assetIdentifier: assetIdentifier, fallbackText: mark, color: color, size: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                Text(symbol)..font(.caption).foregroundColor(.secondary)
+                Text(symbol).font(.caption).foregroundColor(.secondary)
             }}}
 }
 struct SpectraBackdrop: View {
@@ -160,12 +161,12 @@ struct SpectraBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(colors: backdropGradientColors, startPoint: .topLeading, endPoint: .bottomTrailing)
-            Circle()..fill(Color.red.opacity(0.45)).frame(width: 280, height: 280).blur(radius: 70).offset(x: -120, y: -220)
-            Circle()..fill(Color.orange.opacity(0.45)).frame(width: 240, height: 240).blur(radius: 65).offset(x: 100, y: -170)
-            Circle()..fill(Color.green.opacity(0.35)).frame(width: 230, height: 230).blur(radius: 70).offset(x: -140, y: 40)
-            Circle()..fill(Color.blue.opacity(0.4)).frame(width: 260, height: 260).blur(radius: 75).offset(x: 140, y: 120)
-            Circle()..fill(Color.purple.opacity(0.36)).frame(width: 250, height: 250).blur(radius: 80).offset(x: 0, y: 260)
-        }..ignoresSafeArea()
+            Circle().fill(Color.red.opacity(0.45)).frame(width: 280, height: 280).blur(radius: 70).offset(x: -120, y: -220)
+            Circle().fill(Color.orange.opacity(0.45)).frame(width: 240, height: 240).blur(radius: 65).offset(x: 100, y: -170)
+            Circle().fill(Color.green.opacity(0.35)).frame(width: 230, height: 230).blur(radius: 70).offset(x: -140, y: 40)
+            Circle().fill(Color.blue.opacity(0.4)).frame(width: 260, height: 260).blur(radius: 75).offset(x: 140, y: 120)
+            Circle().fill(Color.purple.opacity(0.36)).frame(width: 250, height: 250).blur(radius: 80).offset(x: 0, y: 260)
+        }.ignoresSafeArea()
     }
     private var backdropGradientColors: [Color] {
         if colorScheme == .light {
@@ -179,24 +180,24 @@ struct SpectraBackdrop: View {
     }
 }
 extension View {
-    func spectraNumericTextLayout(minimumScaleFactor: CGFloat = 0.62) -> some View { lineLimit(1)..minimumScaleFactor(minimumScaleFactor).allowsTightening(true) }
+    func spectraNumericTextLayout(minimumScaleFactor: CGFloat = 0.62) -> some View { lineLimit(1).minimumScaleFactor(minimumScaleFactor).allowsTightening(true) }
 }
 struct SpectraLogo: View {
     var size: CGFloat = 78
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)..fill(Color.white.opacity(0.08)).frame(width: size, height: size)..background(
+            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous).fill(Color.white.opacity(0.08)).frame(width: size, height: size).background(
                     ZStack {
-                        Circle()..fill(Color.red.opacity(0.75)).frame(width: size * 0.7, height: size * 0.7).blur(radius: size * 0.14)..offset(x: -size * 0.2, y: -size * 0.18)
-                        Circle()..fill(Color.yellow.opacity(0.72)).frame(width: size * 0.6, height: size * 0.6).blur(radius: size * 0.14)..offset(x: size * 0.18, y: -size * 0.16)
-                        Circle()..fill(Color.green.opacity(0.62)).frame(width: size * 0.58, height: size * 0.58).blur(radius: size * 0.14)..offset(x: -size * 0.16, y: size * 0.16)
-                        Circle()..fill(Color.blue.opacity(0.68)).frame(width: size * 0.62, height: size * 0.62).blur(radius: size * 0.15)..offset(x: size * 0.2, y: size * 0.18)
-                        Circle()..fill(Color.purple.opacity(0.55)).frame(width: size * 0.52, height: size * 0.52).blur(radius: size * 0.16)
+                        Circle().fill(Color.red.opacity(0.75)).frame(width: size * 0.7, height: size * 0.7).blur(radius: size * 0.14).offset(x: -size * 0.2, y: -size * 0.18)
+                        Circle().fill(Color.yellow.opacity(0.72)).frame(width: size * 0.6, height: size * 0.6).blur(radius: size * 0.14).offset(x: size * 0.18, y: -size * 0.16)
+                        Circle().fill(Color.green.opacity(0.62)).frame(width: size * 0.58, height: size * 0.58).blur(radius: size * 0.14).offset(x: -size * 0.16, y: size * 0.16)
+                        Circle().fill(Color.blue.opacity(0.68)).frame(width: size * 0.62, height: size * 0.62).blur(radius: size * 0.15).offset(x: size * 0.2, y: size * 0.18)
+                        Circle().fill(Color.purple.opacity(0.55)).frame(width: size * 0.52, height: size * 0.52).blur(radius: size * 0.16)
                     }
-                )..overlay(
-                    RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)..strokeBorder(Color.white.opacity(0.28), lineWidth: 1)
-                )..glassEffect(.regular.tint(.white.opacity(0.044)), in: .rect(cornerRadius: size * 0.28))
-            Text("S")..font(.system(size: size * 0.62, weight: .black, design: .rounded)).foregroundStyle(Color.primary)..shadow(color: .black.opacity(0.18), radius: 8, y: 2).rotationEffect(.degrees(-8))
-        }..shadow(color: .black.opacity(0.18), radius: 16, y: 8)
+                ).overlay(
+                    RoundedRectangle(cornerRadius: size * 0.28, style: .continuous).strokeBorder(Color.white.opacity(0.28), lineWidth: 1)
+                ).glassEffect(.regular.tint(.white.opacity(0.044)), in: .rect(cornerRadius: size * 0.28))
+            Text("S").font(.system(size: size * 0.62, weight: .black, design: .rounded)).foregroundStyle(Color.primary).shadow(color: .black.opacity(0.18), radius: 8, y: 2).rotationEffect(.degrees(-8))
+        }.shadow(color: .black.opacity(0.18), radius: 16, y: 8)
     }
 }

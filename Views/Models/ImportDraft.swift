@@ -139,7 +139,7 @@ final class WalletImportDraft: ObservableObject {
     private var isSeedPhraseEntryComplete: Bool {
         guard selectedSeedPhraseWordCount > 0 else { return false }
         guard seedPhraseEntries.count >= selectedSeedPhraseWordCount else { return false }
-        return seedPhraseEntries..prefix(selectedSeedPhraseWordCount)..allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }}
+        return seedPhraseEntries.prefix(selectedSeedPhraseWordCount).allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }}
     init() {
         refreshSelectionState()
     }
@@ -151,7 +151,7 @@ final class WalletImportDraft: ObservableObject {
         seedDerivationPaths = .applyingPreset(preset, keepCustomEnabled: keepCustomEnabled ?? seedDerivationPaths.isCustomEnabled)
     }
     func watchOnlyEntries(from rawValue: String) -> [String] {
-        rawValue..split(whereSeparator: \.isNewline)..map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        rawValue.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }}
     var canImportWallet: Bool {
         let hasChains = !selectedChainNames.isEmpty
@@ -442,7 +442,7 @@ final class WalletImportDraft: ObservableObject {
             syncSeedPhraseFromEntries()
             return
         }
-        let normalizedValue = newValue..lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedValue = newValue.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard seedPhraseEntries[index] != normalizedValue else { return }
         seedPhraseEntries[index] = normalizedValue
         syncSeedPhraseFromEntries()
@@ -469,7 +469,7 @@ final class WalletImportDraft: ObservableObject {
     }
     func updateBackupVerificationEntry(at index: Int, with value: String) {
         guard backupVerificationEntries.indices.contains(index) else { return }
-        backupVerificationEntries[index] = value..trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        backupVerificationEntries[index] = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
     func applyCustomSeedPhraseWordCount(_ rawValue: String) {
         let digits = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -497,7 +497,7 @@ final class WalletImportDraft: ObservableObject {
             seedPhraseEntries = normalizedEntries
             return
         }
-        let combinedSeedPhrase = normalizedEntries..filter { !$0.isEmpty }.joined(separator: " ")
+        let combinedSeedPhrase = normalizedEntries.filter { !$0.isEmpty }.joined(separator: " ")
         if seedPhrase != combinedSeedPhrase { seedPhrase = combinedSeedPhrase }
         if !backupVerificationWordIndices.isEmpty, !isBackupVerificationComplete { backupVerificationEntries = Array(repeating: "", count: backupVerificationWordIndices.count) }}
     private func isLikelyValidBitcoinAddress(_ address: String) -> Bool {

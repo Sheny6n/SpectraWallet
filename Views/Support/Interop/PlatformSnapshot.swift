@@ -49,7 +49,8 @@ struct PlatformAssetSnapshot: Codable, Identifiable {
     let chainID: String
     let chainName: String
     let tokenStandard: String
-    let contractAddress: String? let marketDataID: String
+    let contractAddress: String?
+    let marketDataID: String
     let coinGeckoID: String
     let amount: Double
     let priceUSD: Double
@@ -57,7 +58,8 @@ struct PlatformAssetSnapshot: Codable, Identifiable {
 }
 struct PlatformTransactionSnapshot: Codable, Identifiable {
     let id: UUID
-    let walletID: UUID? let kind: String
+    let walletID: UUID?
+    let kind: String
     let status: String
     let walletName: String
     let assetName: String
@@ -66,7 +68,10 @@ struct PlatformTransactionSnapshot: Codable, Identifiable {
     let chainName: String
     let amount: Double
     let address: String
-    let transactionHash: String? let failureReason: String? let transactionHistorySource: String? let createdAt: Date
+    let transactionHash: String?
+    let failureReason: String?
+    let transactionHistorySource: String?
+    let createdAt: Date
 }
 struct PlatformAddressBookEntrySnapshot: Codable, Identifiable {
     let id: UUID

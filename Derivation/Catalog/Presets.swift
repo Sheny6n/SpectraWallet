@@ -54,7 +54,8 @@ struct WalletDerivationRequestCompilationPreset: Codable, Equatable {
     let addressAlgorithm: WalletDerivationRequestAddressAlgorithmPreset
     let publicKeyFormat: WalletDerivationRequestPublicKeyFormatPreset
     let scriptPolicy: WalletDerivationRequestScriptPolicyPreset
-    let fixedScriptType: WalletDerivationRequestScriptTypePreset? let bitcoinPurposeScriptMap: [String: WalletDerivationRequestScriptTypePreset]?
+    let fixedScriptType: WalletDerivationRequestScriptTypePreset?
+    let bitcoinPurposeScriptMap: [String: WalletDerivationRequestScriptTypePreset]?
 }
 extension WalletDerivationRequestedOutputs {
     init(jsonValues: [String]) {

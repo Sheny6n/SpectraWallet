@@ -8,11 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		9059229D2F5D2C49003ACDA5 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 9059229C2F5D2C49003ACDA5 /* KeychainAccess */; };
-		905923012F5D3777003ACDA5 /* WalletCoreSwiftProtobuf in Frameworks */ = {isa = PBXBuildFile; productRef = 905923002F5D3777003ACDA5 /* WalletCoreSwiftProtobuf */; };
-		9067974A2F580FA9005E53E0 /* BitcoinDevKit in Frameworks */ = {isa = PBXBuildFile; productRef = 906797492F580FA9005E53E0 /* BitcoinDevKit */; };
-		909554712F5A474F00A8F55B /* WalletCore in Frameworks */ = {isa = PBXBuildFile; productRef = 909554702F5A474F00A8F55B /* WalletCore */; };
-		90B9D46A2F5D09C700657C50 /* BigInt in Frameworks */ = {isa = PBXBuildFile; productRef = 90B9D4692F5D09C700657C50 /* BigInt */; };
-		90B9D46D2F5D0ABB00657C50 /* SolanaSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 90B9D46C2F5D0ABB00657C50 /* SolanaSwift */; };
 		91C100012F70000100AAA001 /* SpectraLiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 91C100032F70000100AAA001 /* SpectraLiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -176,12 +171,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				90B9D46D2F5D0ABB00657C50 /* SolanaSwift in Frameworks */,
 				9059229D2F5D2C49003ACDA5 /* KeychainAccess in Frameworks */,
-				909554712F5A474F00A8F55B /* WalletCore in Frameworks */,
-				9067974A2F580FA9005E53E0 /* BitcoinDevKit in Frameworks */,
-				905923012F5D3777003ACDA5 /* WalletCoreSwiftProtobuf in Frameworks */,
-				90B9D46A2F5D09C700657C50 /* BigInt in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -292,12 +282,7 @@
 			);
 			name = Spectra;
 			packageProductDependencies = (
-				906797492F580FA9005E53E0 /* BitcoinDevKit */,
-				909554702F5A474F00A8F55B /* WalletCore */,
-				90B9D4692F5D09C700657C50 /* BigInt */,
-				90B9D46C2F5D0ABB00657C50 /* SolanaSwift */,
 				9059229C2F5D2C49003ACDA5 /* KeychainAccess */,
-				905923002F5D3777003ACDA5 /* WalletCoreSwiftProtobuf */,
 			);
 			productName = Spectra;
 			productReference = 907491632F56D1E500D098D2 /* Spectra.app */;
@@ -380,10 +365,6 @@
 			mainGroup = 9074915A2F56D1E500D098D2;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				906797482F580FA9005E53E0 /* XCRemoteSwiftPackageReference "bdk-swift" */,
-				9095546F2F5A474F00A8F55B /* XCRemoteSwiftPackageReference "wallet-core" */,
-				90B9D4682F5D09C700657C50 /* XCRemoteSwiftPackageReference "BigInt" */,
-				90B9D46B2F5D0ABB00657C50 /* XCRemoteSwiftPackageReference "solana-swift" */,
 				9059229B2F5D2C49003ACDA5 /* XCRemoteSwiftPackageReference "KeychainAccess" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -740,7 +721,6 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.sheny.Spectra;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Derivation/Core/Generated";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -749,6 +729,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/Derivation/Core/Generated";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -913,38 +894,6 @@
 				minimumVersion = 4.2.2;
 			};
 		};
-		906797482F580FA9005E53E0 /* XCRemoteSwiftPackageReference "bdk-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/bitcoindevkit/bdk-swift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.3.1;
-			};
-		};
-		9095546F2F5A474F00A8F55B /* XCRemoteSwiftPackageReference "wallet-core" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/trustwallet/wallet-core";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 4.6.0;
-			};
-		};
-		90B9D4682F5D09C700657C50 /* XCRemoteSwiftPackageReference "BigInt" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/attaswift/BigInt";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.1.0;
-			};
-		};
-		90B9D46B2F5D0ABB00657C50 /* XCRemoteSwiftPackageReference "solana-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/p2p-org/solana-swift";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.0.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -952,31 +901,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 9059229B2F5D2C49003ACDA5 /* XCRemoteSwiftPackageReference "KeychainAccess" */;
 			productName = KeychainAccess;
-		};
-		905923002F5D3777003ACDA5 /* WalletCoreSwiftProtobuf */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9095546F2F5A474F00A8F55B /* XCRemoteSwiftPackageReference "wallet-core" */;
-			productName = WalletCoreSwiftProtobuf;
-		};
-		906797492F580FA9005E53E0 /* BitcoinDevKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 906797482F580FA9005E53E0 /* XCRemoteSwiftPackageReference "bdk-swift" */;
-			productName = BitcoinDevKit;
-		};
-		909554702F5A474F00A8F55B /* WalletCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 9095546F2F5A474F00A8F55B /* XCRemoteSwiftPackageReference "wallet-core" */;
-			productName = WalletCore;
-		};
-		90B9D4692F5D09C700657C50 /* BigInt */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 90B9D4682F5D09C700657C50 /* XCRemoteSwiftPackageReference "BigInt" */;
-			productName = BigInt;
-		};
-		90B9D46C2F5D0ABB00657C50 /* SolanaSwift */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 90B9D46B2F5D0ABB00657C50 /* XCRemoteSwiftPackageReference "solana-swift" */;
-			productName = SolanaSwift;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -67,7 +67,7 @@ extension WalletStore {
         if changedRelevantKey { return true }
         if selectedMainTab == .home {
             let pinnedPrototypeKeys = Set(
-                dashboardPinnedAssetPricingPrototypes..filter(isPricedAsset).map(assetIdentityKey)
+                dashboardPinnedAssetPricingPrototypes.filter(isPricedAsset).map(assetIdentityKey)
             )
             return pinnedPrototypeKeys.contains { key in oldPrices[key] != newPrices[key] }}
         return false

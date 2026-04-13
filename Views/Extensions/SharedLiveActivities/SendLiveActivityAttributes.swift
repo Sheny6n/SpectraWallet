@@ -15,6 +15,7 @@ struct SendTransactionLiveActivityAttributes: ActivityAttributes {
         var statusText: String
         var detailText: String
         var destinationPreview: String
-        var transactionHashPreview: String? var startedAt: Date
+        var transactionHashPreview: String?
+        var startedAt: Date
     }
 }

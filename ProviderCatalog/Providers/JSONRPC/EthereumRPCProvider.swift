@@ -7,26 +7,37 @@ enum EthereumRPCProvider {
         let params: Params
     }
     struct JSONRPCResponse: Decodable {
-        let result: String? let error: JSONRPCError? }
+        let result: String?
+        let error: JSONRPCError? }
     struct JSONRPCDecodedResponse<Result: Decodable>: Decodable {
-        let result: Result? let error: JSONRPCError? }
+        let result: Result?
+        let error: JSONRPCError? }
     struct TransactionReceiptJSONRPCResponse: Decodable {
-        let result: TransactionReceiptPayload? let error: JSONRPCError? }
+        let result: TransactionReceiptPayload?
+        let error: JSONRPCError? }
     struct TransactionReceiptPayload: Decodable {
         let transactionHash: String
-        let blockNumber: String? let status: String? let gasUsed: String? let effectiveGasPrice: String? }
+        let blockNumber: String?
+        let status: String?
+        let gasUsed: String?
+        let effectiveGasPrice: String? }
     struct TransactionPayload: Decodable {
         let nonce: String? }
     struct TransactionByHashPayload: Decodable {
-        let hash: String? let blockNumber: String? let from: String
-        let to: String? let value: String
+        let hash: String?
+        let blockNumber: String?
+        let from: String
+        let to: String?
+        let value: String
     }
     struct BlockPayload: Decodable {
         let timestamp: String
     }
     struct TransactionReceiptWithLogsPayload: Decodable {
         let transactionHash: String
-        let blockNumber: String? let status: String? let logs: [LogPayload]
+        let blockNumber: String?
+        let status: String?
+        let logs: [LogPayload]
     }
     struct LogPayload: Decodable {
         let address: String

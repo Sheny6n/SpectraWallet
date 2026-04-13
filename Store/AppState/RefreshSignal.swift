@@ -6,7 +6,7 @@ final class ViewRefreshSignal: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     init(_ publishers: [AnyPublisher<Void, Never>]) {
         for publisher in publishers {
-            publisher..receive(on: RunLoop.main)..sink { [weak self] in
+            publisher.receive(on: RunLoop.main).sink { [weak self] in
                     self?.revision &+= 1
                 }.store(in: &cancellables)
         }}

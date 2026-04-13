@@ -14,7 +14,7 @@ struct EndpointCatalogSettingsView: View {
     }
     private var endpointSections: [AppChainDescriptor] { ChainBackendRegistry.endpointCatalogChains }
     private var parsedBitcoinCustomEndpoints: [String] {
-        store.bitcoinEsploraEndpoints..components(separatedBy: CharacterSet(charactersIn: ",;\n"))..map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        store.bitcoinEsploraEndpoints.components(separatedBy: CharacterSet(charactersIn: ",;\n")).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }}
     private var bitcoinEndpoints: [String] { EsploraProvider.runtimeBaseURLs(for: store.bitcoinNetworkMode, custom: parsedBitcoinCustomEndpoints) }
     private var bitcoinEndpointsByNetwork: [(title: String, endpoints: [String])] {
@@ -81,20 +81,20 @@ struct EndpointCatalogSettingsView: View {
     }
     @ViewBuilder
     private func endpointRows(_ endpoints: [String]) -> some View {
-        ForEach(endpoints, id: \.self) { endpoint in Text(endpoint)..font(.caption.monospaced()).textSelection(.enabled).lineLimit(3) }}
+        ForEach(endpoints, id: \.self) { endpoint in Text(endpoint).font(.caption.monospaced()).textSelection(.enabled).lineLimit(3) }}
     @ViewBuilder
     private func namedEndpointGroup(title: String, endpoints: [String]) -> some View {
         if !endpoints.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text(title)..font(.subheadline.weight(.semibold))
-                ForEach(endpoints, id: \.self) { endpoint in Text(endpoint)..font(.caption.monospaced()).textSelection(.enabled).lineLimit(3) }}..padding(.vertical, 2)
+                Text(title).font(.subheadline.weight(.semibold))
+                ForEach(endpoints, id: \.self) { endpoint in Text(endpoint).font(.caption.monospaced()).textSelection(.enabled).lineLimit(3) }}.padding(.vertical, 2)
         }}
     @ViewBuilder
     private func endpointSection(_ descriptor: AppChainDescriptor) -> some View {
         Section(descriptor.chainName) {
             switch descriptor.id {
             case .bitcoin: ForEach(bitcoinEndpointsByNetwork, id: \.title) { group in namedEndpointGroup(title: group.title, endpoints: group.endpoints) }
-                TextField(copy.addEsploraEndpointPlaceholder, text: $newBitcoinEndpoint)..textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                TextField(copy.addEsploraEndpointPlaceholder, text: $newBitcoinEndpoint).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
                 Button(copy.addEndpointButtonTitle) {
                     addBitcoinEndpoint()
                 }
@@ -102,15 +102,15 @@ struct EndpointCatalogSettingsView: View {
                     Button(copy.clearCustomBitcoinEndpointsTitle, role: .destructive) {
                         store.bitcoinEsploraEndpoints = ""
                     }}
-                if let error = store.bitcoinEsploraEndpointsValidationError { Text(error)..font(.caption).foregroundStyle(.red) }
+                if let error = store.bitcoinEsploraEndpointsValidationError { Text(error).font(.caption).foregroundStyle(.red) }
             case .bitcoinCash: endpointRows(BitcoinCashBalanceService.endpointCatalog())
             case .litecoin: endpointRows(LitecoinBalanceService.endpointCatalog())
             case .dogecoin: ForEach(dogecoinEndpointsByNetwork, id: \.title) { group in namedEndpointGroup(title: group.title, endpoints: group.endpoints) }
             case .ethereum: ForEach(ethereumEndpointsByNetwork, id: \.title) { group in namedEndpointGroup(title: group.title, endpoints: group.endpoints) }
                 TextField(
                     copy.customEthereumRPCURLPlaceholder, text: Binding(get: { store.ethereumRPCEndpoint }, set: { store.ethereumRPCEndpoint = $0 })
-                )..textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                if let error = store.ethereumRPCEndpointValidationError { Text(error)..font(.caption).foregroundStyle(.red) }
+                ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                if let error = store.ethereumRPCEndpointValidationError { Text(error).font(.caption).foregroundStyle(.red) }
             case .ethereumClassic: endpointRows(ethereumClassicEndpoints)
                 readOnlyFootnote
             case .arbitrum: endpointRows(arbitrumEndpoints)
@@ -131,8 +131,8 @@ struct EndpointCatalogSettingsView: View {
             case .monero: endpointRows(moneroEndpoints)
                 TextField(
                     copy.customMoneroBackendURLPlaceholder, text: Binding(get: { store.moneroBackendBaseURL }, set: { store.moneroBackendBaseURL = $0 })
-                )..textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                if let error = store.moneroBackendBaseURLValidationError { Text(error)..font(.caption).foregroundStyle(.red) }
+                ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                if let error = store.moneroBackendBaseURLValidationError { Text(error).font(.caption).foregroundStyle(.red) }
             case .sui: endpointRows(SuiBalanceService.endpointCatalog())
             case .aptos: endpointRows(AptosBalanceService.endpointCatalog())
             case .ton: endpointRows(TONBalanceService.endpointCatalog())
@@ -142,13 +142,13 @@ struct EndpointCatalogSettingsView: View {
             case .bitcoinSV: endpointRows(BitcoinSVBalanceService.endpointCatalog())
             }}}
     private var readOnlyFootnote: some View {
-        Text(copy.readOnlyFootnote)..font(.caption).foregroundStyle(.secondary)
+        Text(copy.readOnlyFootnote).font(.caption).foregroundStyle(.secondary)
     }
     var body: some View {
         Form {
             Section {
-                Text(copy.intro)..font(.caption).foregroundStyle(.secondary)
+                Text(copy.intro).font(.caption).foregroundStyle(.secondary)
             }
-            ForEach(endpointSections) { descriptor in endpointSection(descriptor) }}..navigationTitle(copy.navigationTitle)
+            ForEach(endpointSections) { descriptor in endpointSection(descriptor) }}.navigationTitle(copy.navigationTitle)
     }
 }

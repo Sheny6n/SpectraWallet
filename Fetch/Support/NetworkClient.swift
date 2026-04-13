@@ -28,7 +28,8 @@ enum NetworkResilience {
     ) async throws -> (Data, URLResponse) {
         let policy = profile.policy
         var delay = policy.initialDelay
-        var lastError: Error? for attempt in 1 ... max(1, policy.maxAttempts) {
+        var lastError: Error?
+        for attempt in 1 ... max(1, policy.maxAttempts) {
             do {
                 let (data, response) = try await ProviderHTTP.sessionData(for: request, session: session)
                 if let http = response as? HTTPURLResponse, retryStatusCodes.contains(http.statusCode), attempt < policy.maxAttempts {

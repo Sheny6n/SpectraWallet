@@ -19,8 +19,12 @@ enum WalletDerivationNetwork: String, Codable {
 private struct WalletDerivationQuery {
     let chain: SeedDerivationChain
     let network: WalletDerivationNetwork
-    let derivationPath: String? let curve: WalletDerivationCurve
-    let passphrase: String? let iterationCount: Int? let hmacKeyString: String? let requestedOutputs: WalletDerivationRequestedOutputs
+    let derivationPath: String?
+    let curve: WalletDerivationCurve
+    let passphrase: String?
+    let iterationCount: Int?
+    let hmacKeyString: String?
+    let requestedOutputs: WalletDerivationRequestedOutputs
     init(
         chain: SeedDerivationChain, network: WalletDerivationNetwork, derivationPath: String?, curve: WalletDerivationCurve, passphrase: String? = nil, iterationCount: Int? = nil, hmacKeyString: String? = nil, requestedOutputs: WalletDerivationRequestedOutputs = .all
     ) {
@@ -40,13 +44,19 @@ private struct WalletDerivationQuery {
     }
 }
 struct WalletDerivationResult {
-    let address: String? let publicKeyHex: String? let privateKeyHex: String?
+    let address: String?
+    let publicKeyHex: String?
+    let privateKeyHex: String?
 }
 struct WalletDerivationRequest {
     let chain: SeedDerivationChain
     let network: WalletDerivationNetwork
-    let derivationPath: String? let curve: WalletDerivationCurve
-    let passphrase: String? let iterationCount: Int? let hmacKeyString: String? let requestedOutputs: WalletDerivationRequestedOutputs
+    let derivationPath: String?
+    let curve: WalletDerivationCurve
+    let passphrase: String?
+    let iterationCount: Int?
+    let hmacKeyString: String?
+    let requestedOutputs: WalletDerivationRequestedOutputs
     init(
         chain: SeedDerivationChain, network: WalletDerivationNetwork, derivationPath: String?, curve: WalletDerivationCurve, passphrase: String? = nil, iterationCount: Int? = nil, hmacKeyString: String? = nil, requestedOutputs: WalletDerivationRequestedOutputs = .all
     ) {
@@ -64,8 +74,12 @@ private struct WalletDerivationJSONRequestPayload: Codable {
     let chain: SeedDerivationChain
     let network: WalletDerivationNetwork
     let seedPhrase: String
-    let derivationPath: String? let curve: WalletDerivationCurve
-    let passphrase: String? let iterationCount: Int? let hmacKeyString: String? let requestedOutputs: [String]
+    let derivationPath: String?
+    let curve: WalletDerivationCurve
+    let passphrase: String?
+    let iterationCount: Int?
+    let hmacKeyString: String?
+    let requestedOutputs: [String]
     var query: WalletDerivationQuery {
         WalletDerivationQuery(
             chain: chain, network: network, derivationPath: derivationPath, curve: curve, passphrase: passphrase, iterationCount: iterationCount, hmacKeyString: hmacKeyString, requestedOutputs: WalletDerivationRequestedOutputs(jsonValues: requestedOutputs)
@@ -73,7 +87,9 @@ private struct WalletDerivationJSONRequestPayload: Codable {
     }
 }
 private struct WalletDerivationJSONResponsePayload: Codable {
-    let address: String? let publicKeyHex: String? let privateKeyHex: String?
+    let address: String?
+    let publicKeyHex: String?
+    let privateKeyHex: String?
 }
 enum WalletDerivationEngineError: LocalizedError {
     case emptyRequestedOutputs

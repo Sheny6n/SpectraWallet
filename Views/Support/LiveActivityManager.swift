@@ -3,7 +3,8 @@ import Foundation
 @MainActor
 final class SendTransactionLiveActivityManager {
     static let shared = SendTransactionLiveActivityManager()
-    private var currentActivity: Activity<SendTransactionLiveActivityAttributes>? private init() {}
+    private var currentActivity: Activity<SendTransactionLiveActivityAttributes>?
+    private init() {}
     func startSending(walletName: String, chainName: String, symbol: String, amountText: String, destinationAddress: String) async {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         if let currentActivity {

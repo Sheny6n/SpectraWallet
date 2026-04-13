@@ -19,7 +19,9 @@ enum AppLocalization {
             return seen.insert(bundleURL).inserted
         }}()
     private static var localizedStringCache: [String: String] = [:]
-    private static var cachedState: LocalizationState? private static var runtimeCatalog: RuntimeStringCatalog? private static var runtimeCatalogLoadAttempted = false
+    private static var cachedState: LocalizationState?
+    private static var runtimeCatalog: RuntimeStringCatalog?
+    private static var runtimeCatalogLoadAttempted = false
     static var locale: Locale { localizationState().locale }
     static func string(_ key: String, table: String? = nil) -> String {
         let state = localizationState()
@@ -123,7 +125,7 @@ enum AppLocalization {
         for bundle in candidateBundles {
             guard let resourceURL = bundle.resourceURL else { continue }
             let candidateURLs = [
-                resourceURL..appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("Localization", isDirectory: true)..appendingPathComponent("RuntimeStrings.json", isDirectory: false), resourceURL..appendingPathComponent("Localization", isDirectory: true)..appendingPathComponent("RuntimeStrings.json", isDirectory: false), resourceURL.appendingPathComponent("RuntimeStrings.json", isDirectory: false), ]
+                resourceURL.appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("Localization", isDirectory: true).appendingPathComponent("RuntimeStrings.json", isDirectory: false), resourceURL.appendingPathComponent("Localization", isDirectory: true).appendingPathComponent("RuntimeStrings.json", isDirectory: false), resourceURL.appendingPathComponent("RuntimeStrings.json", isDirectory: false), ]
             for url in candidateURLs {
                 guard let data = try? Data(contentsOf: url), let catalog = try? decoder.decode(RuntimeStringCatalog.self, from: data) else { continue }
                 runtimeCatalog = catalog

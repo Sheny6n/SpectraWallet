@@ -28,7 +28,8 @@ enum MoneroProvider {
         let txid: String
         let direction: String
         let amountXMR: Double
-        let counterpartyAddress: String? let timestamp: TimeInterval
+        let counterpartyAddress: String?
+        let timestamp: TimeInterval
         let status: String? }
     struct PreviewRequest: Encodable {
         let fromAddress: String

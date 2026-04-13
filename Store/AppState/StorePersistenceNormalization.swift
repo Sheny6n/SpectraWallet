@@ -296,7 +296,7 @@ extension WalletStore {
     }
     func persistTransactionsFullSync() {
         let snapshots = transactions.map(\.persistedSnapshot)
-        if let json = encodeHistoryRecords(snapshots) { WalletServiceBridge.shared.replaceAllHistoryRecords(recordsJSON: json) }
+        if let json = encodeHistoryRecords(snapshots) { Task { await WalletServiceBridge.shared.replaceAllHistoryRecords(recordsJSON: json) } }
     }
     func persistTransactionsDelta(from oldRecords: [TransactionRecord], to newRecords: [TransactionRecord]) {
         let oldIDs = Set(oldRecords.map(\.id))
@@ -304,9 +304,9 @@ extension WalletStore {
         let deletedIDs = oldIDs.subtracting(newIDs).map { $0.uuidString.lowercased() }
         let upsertSnapshots = newRecords.map(\.persistedSnapshot)
         if !deletedIDs.isEmpty, let idsData = try? JSONEncoder().encode(deletedIDs), let idsJSON = String(data: idsData, encoding: .utf8) {
-            WalletServiceBridge.shared.deleteHistoryRecords(idsJSON: idsJSON)
+            Task { await WalletServiceBridge.shared.deleteHistoryRecords(idsJSON: idsJSON) }
         }
-        if !upsertSnapshots.isEmpty, let json = encodeHistoryRecords(upsertSnapshots) { WalletServiceBridge.shared.upsertHistoryRecords(recordsJSON: json) }
+        if !upsertSnapshots.isEmpty, let json = encodeHistoryRecords(upsertSnapshots) { Task { await WalletServiceBridge.shared.upsertHistoryRecords(recordsJSON: json) } }
     }
     func persistDogecoinKeypoolState() {
         persistKeypoolToRust(chainName: "Dogecoin", walletMap: dogecoinKeypoolByWalletID.mapValues { ChainKeypoolState(nextExternalIndex: $0.nextExternalIndex, nextChangeIndex: $0.nextChangeIndex, reservedReceiveIndex: $0.reservedReceiveIndex) })
@@ -359,7 +359,7 @@ extension WalletStore {
             let json = """
             {"nextExternalIndex":\(state.nextExternalIndex),"nextChangeIndex":\(state.nextChangeIndex),"reservedReceiveIndex":\(state.reservedReceiveIndex.map(String.init) ?? "null")}
             """
-            WalletServiceBridge.shared.saveKeypoolState(walletId: walletID.uuidString, chainName: chainName, stateJSON: json)
+            Task { await WalletServiceBridge.shared.saveKeypoolState(walletId: walletID.uuidString, chainName: chainName, stateJSON: json) }
         }}
     private func persistOwnedAddressToRust(
         walletId: String, chainName: String, address: String, derivationPath: String?, branch: String?, branchIndex: Int? ) {
@@ -370,7 +370,7 @@ extension WalletStore {
         let json = """
         {"walletId":"\(walletId)","chainName":"\(chainName)","address":"\(address)","derivationPath":\(pathJSON),"branch":\(branchJSON),"branchIndex":\(indexJSON)}
         """
-        WalletServiceBridge.shared.saveOwnedAddress(recordJSON: json)
+        Task { await WalletServiceBridge.shared.saveOwnedAddress(recordJSON: json) }
     }
 }
 private extension TransactionRecord {

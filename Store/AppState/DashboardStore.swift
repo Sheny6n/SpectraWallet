@@ -2,24 +2,6 @@ import Foundation
 import SwiftUI
 import Combine
 extension WalletStore {
-    var cachedPinnedDashboardAssetSymbols: [String] {
-        get { dashboardState.pinnedAssetSymbols }
-        set { dashboardState.pinnedAssetSymbols = newValue }}
-    var cachedDashboardPinOptionBySymbol: [String: DashboardPinOption] {
-        get { dashboardState.pinOptionBySymbol }
-        set { dashboardState.pinOptionBySymbol = newValue }}
-    var cachedAvailableDashboardPinOptions: [DashboardPinOption] {
-        get { dashboardState.availablePinOptions }
-        set { dashboardState.availablePinOptions = newValue }}
-    var cachedDashboardAssetGroups: [DashboardAssetGroup] {
-        get { dashboardState.assetGroups }
-        set { dashboardState.assetGroups = newValue }}
-    var cachedDashboardRelevantPriceKeys: Set<String> {
-        get { dashboardState.relevantPriceKeys }
-        set { dashboardState.relevantPriceKeys = newValue }}
-    var cachedDashboardSupportedTokenEntriesBySymbol: [String: [TokenPreferenceEntry]] {
-        get { dashboardState.supportedTokenEntriesBySymbol }
-        set { dashboardState.supportedTokenEntriesBySymbol = newValue }}
     static let pinnedDashboardAssetSymbolsDefaultsKey = "dashboardPinnedAssetSymbols"
     private var defaultPinnedDashboardAssetSymbols: [String] { ["BTC", "ETH", "USDT", "USDC"] }
     private var dashboardPinPrototypes: [Coin] {
@@ -105,7 +87,7 @@ extension WalletStore {
         cachedDashboardPinOptionBySymbol = optionBySymbol
         cachedAvailableDashboardPinOptions = availableSymbols.compactMap { optionBySymbol[$0] }
         cachedDashboardRelevantPriceKeys = Set(
-            includedHoldings..filter(isPricedAsset).map(assetIdentityKey)
+            includedHoldings.filter(isPricedAsset).map(assetIdentityKey)
         )
         cachedDashboardSupportedTokenEntriesBySymbol = Dictionary(
             uniqueKeysWithValues: trackedEntriesBySymbol.map { symbol, entries in
@@ -113,7 +95,7 @@ extension WalletStore {
                 return (symbol, supportedEntries)
             }
         )
-        let positiveCoins = includedHoldings..filter { $0.amount > 0 }
+        let positiveCoins = includedHoldings.filter { $0.amount > 0 }
         var grouped: [String: [Coin]] = [:]
         var order: [String] = []
         for coin in positiveCoins {
@@ -134,7 +116,7 @@ extension WalletStore {
                         name: existing.name, symbol: existing.symbol, marketDataID: existing.marketDataID, coinGeckoID: existing.coinGeckoID, chainName: existing.chainName, tokenStandard: existing.tokenStandard, contractAddress: existing.contractAddress, amount: existing.amount + coin.amount, priceUSD: coin.priceUSD, mark: existing.mark, color: existing.color
                     )
                 } else { chainGrouped[chainKey] = coin }}
-            let chainEntries = chainGrouped.values..map { DashboardAssetChainEntry(coin: $0, valueUSD: currentValueIfAvailable(for: $0)) }
+            let chainEntries = chainGrouped.values.map { DashboardAssetChainEntry(coin: $0, valueUSD: currentValueIfAvailable(for: $0)) }
                 .sorted {
                     let lhsValue = $0.valueUSD ?? -1
                     let rhsValue = $1.valueUSD ?? -1
@@ -200,7 +182,7 @@ extension WalletStore {
     }
     private func uniqueDashboardSupportedTokenEntries(from entries: [TokenPreferenceEntry]) -> [TokenPreferenceEntry] {
         var seenKeys = Set<String>()
-        return entries..filter { !$0.contractAddress.isEmpty }
+        return entries.filter { !$0.contractAddress.isEmpty }
             .sorted { $0.chain.rawValue.localizedCaseInsensitiveCompare($1.chain.rawValue) == .orderedAscending }
             .filter { entry in
                 let key = "\(entry.chain.rawValue.lowercased())|\(entry.contractAddress.lowercased())"

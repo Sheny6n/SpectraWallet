@@ -2,17 +2,15 @@ import Foundation
 import SwiftUI
 import UIKit
 struct HistoryDetailView: View {
-    let store: WalletStore
-    @ObservedObject private var portfolioState: WalletPortfolioState
-    @ObservedObject private var transactionState: WalletTransactionState
+    @ObservedObject var store: WalletStore
     let transaction: TransactionRecord
     @State private var didCopyAddress = false
-    @State private var ethereumReplacementMessage: String? @State private var liveTransaction: TransactionRecord? @State private var liveOwnedAddresses: Set<String> = []
+    @State private var ethereumReplacementMessage: String?
+    @State private var liveTransaction: TransactionRecord?
+    @State private var liveOwnedAddresses: Set<String> = []
     init(store: WalletStore, transaction: TransactionRecord) {
         self.store = store
         self.transaction = transaction
-        _portfolioState = ObservedObject(wrappedValue: store.portfolioState)
-        _transactionState = ObservedObject(wrappedValue: store.transactionState)
     }
     private var displayedTransaction: TransactionRecord { liveTransaction ?? transaction }
     private var ownedAddresses: Set<String> { liveOwnedAddresses }
@@ -53,17 +51,17 @@ struct HistoryDetailView: View {
                         HStack(spacing: 12) {
                             CoinBadge(assetIdentifier: displayedTransaction.assetIdentifier, fallbackText: displayedTransaction.symbol, color: displayedTransaction.badgeColor, size: 42)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(displayedTransaction.titleText)..font(.title3.bold()).foregroundStyle(Color.primary)
+                                Text(displayedTransaction.titleText).font(.title3.bold()).foregroundStyle(Color.primary)
                                 Text(
                                     String(
                                         format: CommonLocalizationContent.current.transactionSubtitleFormat, displayedTransaction.assetName, store.displayChainTitle(for: displayedTransaction), displayedTransaction.walletName
                                     )
-                                )..font(.subheadline).foregroundStyle(Color.primary.opacity(0.74))
+                                ).font(.subheadline).foregroundStyle(Color.primary.opacity(0.74))
                             }
                             Spacer()
                             statusChip
                         }
-                        if let amountText = store.formattedTransactionDetailAmount(displayedTransaction) { Text(amountText)..font(.system(size: 30, weight: .black, design: .rounded)).foregroundStyle(Color.primary)..spectraNumericTextLayout(minimumScaleFactor: 0.5) }}..padding(20).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 28))
+                        if let amountText = store.formattedTransactionDetailAmount(displayedTransaction) { Text(amountText).font(.system(size: 30, weight: .black, design: .rounded)).foregroundStyle(Color.primary).spectraNumericTextLayout(minimumScaleFactor: 0.5) }}.padding(20).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 28))
                     detailCard(title: "Overview") {
                         detailRow(label: "Type", value: displayedTransaction.kind == .send ? "Send" : "Receive")
                         detailRow(label: "Status", value: displayedTransaction.statusText)
@@ -93,7 +91,7 @@ struct HistoryDetailView: View {
                             if store.isPreparingEthereumReplacementContext {
                                 HStack(spacing: 10) {
                                     ProgressView()
-                                    Text("Preparing replacement/cancel context...")..font(.caption).foregroundStyle(Color.primary.opacity(0.78))
+                                    Text("Preparing replacement/cancel context...").font(.caption).foregroundStyle(Color.primary.opacity(0.78))
                                 }
                             } else {
                                 Button {
@@ -102,71 +100,71 @@ struct HistoryDetailView: View {
                                             for: displayedTransaction.id, cancel: false
                                         )
                                     }} label: {
-                                    Text("Speed Up This Transaction")..font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
-                                }..buttonStyle(.glassProminent)
+                                    Text("Speed Up This Transaction").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
+                                }.buttonStyle(.glassProminent)
                                 Button {
                                     Task {
                                         ethereumReplacementMessage = await store.openEthereumReplacementComposer(
                                             for: displayedTransaction.id, cancel: true
                                         )
                                     }} label: {
-                                    Text("Cancel This Transaction")..font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
-                                }..buttonStyle(.glass)
-                                Text("This opens the Send composer with the same nonce and higher fee defaults so you can safely speed up or cancel the pending transaction.")..font(.caption).foregroundStyle(Color.primary.opacity(0.72))
+                                    Text("Cancel This Transaction").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
+                                }.buttonStyle(.glass)
+                                Text("This opens the Send composer with the same nonce and higher fee defaults so you can safely speed up or cancel the pending transaction.").font(.caption).foregroundStyle(Color.primary.opacity(0.72))
                             }
-                            if let ethereumReplacementMessage { Text(ethereumReplacementMessage)..font(.caption).foregroundStyle(Color.primary.opacity(0.72)) }}}
+                            if let ethereumReplacementMessage { Text(ethereumReplacementMessage).font(.caption).foregroundStyle(Color.primary.opacity(0.72)) }}}
                     detailCard(title: "Addresses") {
                         if let fromAddressText { addressBlock(label: "From", value: fromAddressText, isMine: isOwnedAddress(fromAddressText)) }
                         if let toAddressText { addressBlock(label: "To", value: toAddressText, isMine: isOwnedAddress(toAddressText)) }}
                     if let transactionHash = displayedTransaction.transactionHash {
                         detailCard(title: "Transaction Hash") {
-                            Text(transactionHash)..font(.body.monospaced()).foregroundStyle(Color.primary.opacity(0.82)).textSelection(.enabled).padding(14)..frame(maxWidth: .infinity, alignment: .leading)..background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            Text(transactionHash).font(.body.monospaced()).foregroundStyle(Color.primary.opacity(0.82)).textSelection(.enabled).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                             if let transactionExplorerURL = displayedTransaction.transactionExplorerURL, let transactionExplorerLabel = displayedTransaction.transactionExplorerLabel {
                                 Link(destination: transactionExplorerURL) {
-                                    Label(transactionExplorerLabel, systemImage: "safari")..font(.subheadline.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 8)
-                                }..buttonStyle(.glassProminent).frame(maxWidth: .infinity, alignment: .leading)
+                                    Label(transactionExplorerLabel, systemImage: "safari").font(.subheadline.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 8)
+                                }.buttonStyle(.glassProminent).frame(maxWidth: .infinity, alignment: .leading)
                             }}}
                     if let rawTransactionHexText = displayedTransaction.rawTransactionHexText {
                         detailCard(title: "Raw Transaction Hex") {
-                            Text(rawTransactionHexText)..font(.body.monospaced()).foregroundStyle(Color.primary.opacity(0.82)).textSelection(.enabled).padding(14)..frame(maxWidth: .infinity, alignment: .leading)..background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        }}}..padding(20)
-            }}..navigationTitle("Transaction").navigationBarTitleDisplayMode(.inline)..onAppear {
+                            Text(rawTransactionHexText).font(.body.monospaced()).foregroundStyle(Color.primary.opacity(0.82)).textSelection(.enabled).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        }}}.padding(20)
+            }}.navigationTitle("Transaction").navigationBarTitleDisplayMode(.inline).onAppear {
             rebuildDisplayedTransactionState()
-        }..onChange(of: transactionState.transactionRevision) { _, _ in
+        }.onChange(of: store.transactionRevision) { _, _ in
             rebuildDisplayedTransactionState()
-        }..onChange(of: portfolioState.walletsRevision) { _, _ in
+        }.onChange(of: store.walletsRevision) { _, _ in
             rebuildDisplayedTransactionState()
         }}
     private var statusChip: some View {
-        Text(displayedTransaction.statusText)..font(.caption.bold()).foregroundStyle(Color.primary).padding(.horizontal, 10).padding(.vertical, 6)..background(displayedTransaction.statusColor.opacity(0.32), in: Capsule())..overlay(
-                Capsule()..stroke(displayedTransaction.statusColor.opacity(0.45), lineWidth: 1)
+        Text(displayedTransaction.statusText).font(.caption.bold()).foregroundStyle(Color.primary).padding(.horizontal, 10).padding(.vertical, 6).background(displayedTransaction.statusColor.opacity(0.32), in: Capsule()).overlay(
+                Capsule().stroke(displayedTransaction.statusColor.opacity(0.45), lineWidth: 1)
             )
     }
     @ViewBuilder
     private func detailCard(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(localized(title))..font(.headline.weight(.semibold)).foregroundStyle(Color.primary)
+            Text(localized(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary)
             content()
-        }..padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+        }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }
     @ViewBuilder
     private func detailRow(label: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 16) {
-            Text(localized(label))..font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.58)).frame(width: 122, alignment: .leading)
-            Text(value)..font(.body).foregroundStyle(Color.primary.opacity(0.84)).frame(maxWidth: .infinity, alignment: .leading)
-        }..padding(.vertical, 2)
+            Text(localized(label)).font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.58)).frame(width: 122, alignment: .leading)
+            Text(value).font(.body).foregroundStyle(Color.primary.opacity(0.84)).frame(maxWidth: .infinity, alignment: .leading)
+        }.padding(.vertical, 2)
     }
     @ViewBuilder
     private func addressBlock(label: String, value: String, isMine: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text(localized(label))..font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+                Text(localized(label)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
                 if isMine {
-                    Text(localized("Mine"))..font(.caption.bold()).foregroundStyle(Color.primary).padding(.horizontal, 8).padding(.vertical, 4)..background(Color.mint.opacity(0.22), in: Capsule())..overlay(
-                            Capsule()..stroke(Color.mint.opacity(0.35), lineWidth: 1)
+                    Text(localized("Mine")).font(.caption.bold()).foregroundStyle(Color.primary).padding(.horizontal, 8).padding(.vertical, 4).background(Color.mint.opacity(0.22), in: Capsule()).overlay(
+                            Capsule().stroke(Color.mint.opacity(0.35), lineWidth: 1)
                         )
                 }}
-            Text(value)..font(.body.monospaced()).foregroundStyle(Color.primary.opacity(0.82)).textSelection(.enabled).padding(14)..frame(maxWidth: .infinity, alignment: .leading)..background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            Text(value).font(.body.monospaced()).foregroundStyle(Color.primary.opacity(0.82)).textSelection(.enabled).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             Button {
                 UIPasteboard.general.string = value
                 didCopyAddress = true
@@ -175,8 +173,8 @@ struct HistoryDetailView: View {
                     didCopyAddress
                         ? localized("Copied")
                         : localized("Copy Address"), systemImage: didCopyAddress ? "checkmark" : "doc.on.doc"
-                )..font(.subheadline.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 8)
-            }..buttonStyle(.glass).frame(maxWidth: .infinity, alignment: .leading)
+                ).font(.subheadline.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 8)
+            }.buttonStyle(.glass).frame(maxWidth: .infinity, alignment: .leading)
         }}
     private func nonEmptyAddress(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
@@ -193,7 +191,7 @@ struct HistoryDetailView: View {
         return ownedAddresses.contains(normalized)
     }
     private func rebuildDisplayedTransactionState() {
-        let resolvedTransaction = transactionState.transactions.first(where: { $0.id == transaction.id }) ?? transaction
+        let resolvedTransaction = store.transactions.first(where: { $0.id == transaction.id }) ?? transaction
         liveTransaction = resolvedTransaction
         guard let walletID = resolvedTransaction.walletID else {
             liveOwnedAddresses = []

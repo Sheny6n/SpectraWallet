@@ -336,7 +336,7 @@ extension WalletStore {
         )
     }
     private func runEVMHistoryDiagnosticsForAllWallets(
-        chainName: String, runningPath: WritableKeyPath<WalletStore, Bool>, resolveAddress: (ImportedWallet) -> String?, diagsPath: WritableKeyPath<WalletStore, [UUID: EthereumTokenTransferHistoryDiagnostics]>, tsPath: WritableKeyPath<WalletStore, Date?>
+        chainName: String, runningPath: ReferenceWritableKeyPath<WalletStore, Bool>, resolveAddress: (ImportedWallet) -> String?, diagsPath: ReferenceWritableKeyPath<WalletStore, [UUID: EthereumTokenTransferHistoryDiagnostics]>, tsPath: ReferenceWritableKeyPath<WalletStore, Date?>
     ) async {
         guard !self[keyPath: runningPath] else { return }
         self[keyPath: runningPath] = true
@@ -357,7 +357,7 @@ extension WalletStore {
         self[keyPath: tsPath] = Date()
     }
     private func runEVMHistoryDiagnosticsForWallet(
-        walletID: UUID, chainName: String, runningPath: WritableKeyPath<WalletStore, Bool>, resolveAddress: (ImportedWallet) -> String?, diagsPath: WritableKeyPath<WalletStore, [UUID: EthereumTokenTransferHistoryDiagnostics]>, tsPath: WritableKeyPath<WalletStore, Date?>
+        walletID: UUID, chainName: String, runningPath: ReferenceWritableKeyPath<WalletStore, Bool>, resolveAddress: (ImportedWallet) -> String?, diagsPath: ReferenceWritableKeyPath<WalletStore, [UUID: EthereumTokenTransferHistoryDiagnostics]>, tsPath: ReferenceWritableKeyPath<WalletStore, Date?>
     ) async {
         guard !self[keyPath: runningPath] else { return }
         guard let wallet = wallets.first(where: { $0.id == walletID }), wallet.selectedChain == chainName, let address = resolveAddress(wallet) else { return }
@@ -458,14 +458,14 @@ extension WalletStore {
         markUpdated()
     }
     private func runSimpleEndpointDiagnostics(
-        isCheckingKP: WritableKeyPath<WalletStore, Bool>, checks: [(endpoint: String, probeURL: String)], resultsKP: WritableKeyPath<WalletStore, [BitcoinEndpointHealthResult]>, tsKP: WritableKeyPath<WalletStore, Date?>
+        isCheckingKP: ReferenceWritableKeyPath<WalletStore, Bool>, checks: [(endpoint: String, probeURL: String)], resultsKP: ReferenceWritableKeyPath<WalletStore, [BitcoinEndpointHealthResult]>, tsKP: ReferenceWritableKeyPath<WalletStore, Date?>
     ) async {
         guard !self[keyPath: isCheckingKP] else { return }
         self[keyPath: isCheckingKP] = true
         defer { self[keyPath: isCheckingKP] = false }
         await runSimpleEndpointReachabilityDiagnostics(checks: checks, profile: .litecoinDiagnostics, setResults: { self[keyPath: resultsKP] = $0 }, markUpdated: { self[keyPath: tsKP] = Date() })
     }
-    private func runPureEVMEndpointDiagnostics(isCheckingKP: WritableKeyPath<WalletStore, Bool>, chainName: String, context: EVMChainContext, resultsKP: WritableKeyPath<WalletStore, [EthereumEndpointHealthResult]>, tsKP: WritableKeyPath<WalletStore, Date?>) async {
+    private func runPureEVMEndpointDiagnostics(isCheckingKP: ReferenceWritableKeyPath<WalletStore, Bool>, chainName: String, context: EVMChainContext, resultsKP: ReferenceWritableKeyPath<WalletStore, [EthereumEndpointHealthResult]>, tsKP: ReferenceWritableKeyPath<WalletStore, Date?>) async {
         guard !self[keyPath: isCheckingKP] else { return }
         self[keyPath: isCheckingKP] = true
         defer { self[keyPath: isCheckingKP] = false }
@@ -558,11 +558,11 @@ extension WalletStore {
                 && transaction.transactionHash != nil
         }
         guard !trackedTransactions.isEmpty else {
-            dogecoinStatusTrackingByTransactionID = [:]
+            statusTrackingByTransactionID = [:]
             return
         }
         let trackedIDs = Set(trackedTransactions.map(\.id))
-        dogecoinStatusTrackingByTransactionID = dogecoinStatusTrackingByTransactionID.filter { trackedIDs.contains($0.key) }
+        statusTrackingByTransactionID = statusTrackingByTransactionID.filter { trackedIDs.contains($0.key) }
         var resolvedStatuses: [UUID: DogecoinTransactionStatus] = [:]
         for transaction in trackedTransactions {
             guard let transactionHash = transaction.transactionHash else { continue }
@@ -584,7 +584,7 @@ extension WalletStore {
             guard transaction.status == .pending else { return false }
             let age = now.timeIntervalSince(transaction.createdAt)
             guard age >= Self.pendingFailureTimeoutSeconds else { return false }
-            let tracker = dogecoinStatusTrackingByTransactionID[transaction.id]
+            let tracker = statusTrackingByTransactionID[transaction.id]
             return (tracker?.consecutiveFailures ?? 0) >= Self.pendingFailureMinFailures
         }
         let staleFailureIDs = Set(staleFailureCandidates.map { $0.id })
@@ -596,10 +596,10 @@ extension WalletStore {
                 let resolvedConfirmations = status.confirmations ?? transaction.dogecoinConfirmations
                 let reachedFinality = (resolvedConfirmations ?? 0) >= Self.standardFinalityConfirmations
                 if reachedFinality {
-                    var tracker = dogecoinStatusTrackingByTransactionID[transaction.id] ?? DogecoinStatusTrackingState.initial(now: now)
+                    var tracker = statusTrackingByTransactionID[transaction.id] ?? DogecoinStatusTrackingState.initial(now: now)
                     tracker.reachedFinality = true
                     tracker.nextCheckAt = now.addingTimeInterval(Self.statusPollBackoffMaxSeconds)
-                    dogecoinStatusTrackingByTransactionID[transaction.id] = tracker
+                    statusTrackingByTransactionID[transaction.id] = tracker
                 }
                 return TransactionRecord(
                     id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: resolvedStatus, walletName: transaction.walletName, assetName: transaction.assetName, symbol: transaction.symbol, chainName: transaction.chainName, amount: transaction.amount, address: transaction.address, transactionHash: transaction.transactionHash, receiptBlockNumber: status.blockHeight, receiptGasUsed: transaction.receiptGasUsed, receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei, receiptNetworkFeeETH: transaction.receiptNetworkFeeETH, feePriorityRaw: transaction.feePriorityRaw, feeRateDescription: transaction.feeRateDescription, confirmationCount: resolvedConfirmations, dogecoinConfirmedNetworkFeeDOGE: status.networkFeeDOGE ?? transaction.dogecoinConfirmedNetworkFeeDOGE, dogecoinConfirmations: resolvedConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw, dogecoinEstimatedFeeRateDOGEPerKB: transaction.dogecoinEstimatedFeeRateDOGEPerKB, usedChangeOutput: transaction.usedChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput, dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex, failureReason: nil, transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt
@@ -652,19 +652,19 @@ extension WalletStore {
             return (self.rustHistoryStatusMap(json: json), false)
         }}
     private func runRustHistoryDiagnosticsForAllWallets<D>(
-        chainId: UInt32, isRunningKP: WritableKeyPath<WalletStore, Bool>, chainName: String, resolveAddress: @escaping (ImportedWallet) -> String?, make: @escaping (String, String, Int, String?) -> D, diagsKP: WritableKeyPath<WalletStore, [UUID: D]>, tsKP: WritableKeyPath<WalletStore, Date?>
+        chainId: UInt32, isRunningKP: ReferenceWritableKeyPath<WalletStore, Bool>, chainName: String, resolveAddress: @escaping (ImportedWallet) -> String?, make: @escaping (String, String, Int, String?) -> D, diagsKP: ReferenceWritableKeyPath<WalletStore, [UUID: D]>, tsKP: ReferenceWritableKeyPath<WalletStore, Date?>
     ) async {
         await runAddressHistoryDiagnosticsForAllWallets(
             isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 }, chainName: chainName, resolveAddress: resolveAddress, fetchDiagnostics: { await self.rustHistoryFetch(chainId: chainId, address: $0, make: make) }, storeDiagnostics: { self[keyPath: diagsKP][$0] = $1 }, markUpdated: { self[keyPath: tsKP] = Date() })
     }
     private func runRustHistoryDiagnosticsForWallet<D>(
-        walletID: UUID, chainId: UInt32, isRunningKP: WritableKeyPath<WalletStore, Bool>, chainName: String, resolveAddress: @escaping (ImportedWallet) -> String?, make: @escaping (String, String, Int, String?) -> D, diagsKP: WritableKeyPath<WalletStore, [UUID: D]>, tsKP: WritableKeyPath<WalletStore, Date?>
+        walletID: UUID, chainId: UInt32, isRunningKP: ReferenceWritableKeyPath<WalletStore, Bool>, chainName: String, resolveAddress: @escaping (ImportedWallet) -> String?, make: @escaping (String, String, Int, String?) -> D, diagsKP: ReferenceWritableKeyPath<WalletStore, [UUID: D]>, tsKP: ReferenceWritableKeyPath<WalletStore, Date?>
     ) async {
         await runAddressHistoryDiagnosticsForWallet(
             walletID: walletID, isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 }, chainName: chainName, resolveAddress: resolveAddress, fetchDiagnostics: { await self.rustHistoryFetch(chainId: chainId, address: $0, make: make) }, storeDiagnostics: { self[keyPath: diagsKP][$0] = $1 }, markUpdated: { self[keyPath: tsKP] = Date() })
     }
     private func runUTXOStyleHistoryDiagnostics(
-        chainId: UInt32, isRunningKP: WritableKeyPath<WalletStore, Bool>, chainName: String, resolveAddress: @escaping (ImportedWallet) -> String?, diagsKP: WritableKeyPath<WalletStore, [UUID: BitcoinHistoryDiagnostics]>, tsKP: WritableKeyPath<WalletStore, Date?>
+        chainId: UInt32, isRunningKP: ReferenceWritableKeyPath<WalletStore, Bool>, chainName: String, resolveAddress: @escaping (ImportedWallet) -> String?, diagsKP: ReferenceWritableKeyPath<WalletStore, [UUID: BitcoinHistoryDiagnostics]>, tsKP: ReferenceWritableKeyPath<WalletStore, Date?>
     ) async {
         await runAddressHistoryDiagnosticsForAllWallets(
             isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 }, chainName: chainName, resolveAddress: resolveAddress, fetchDiagnostics: { address in
@@ -673,7 +673,7 @@ extension WalletStore {
             }, storeDiagnostics: { walletID, d in self[keyPath: diagsKP][walletID] = BitcoinHistoryDiagnostics(walletID: walletID, identifier: d.identifier, sourceUsed: d.sourceUsed, transactionCount: d.transactionCount, nextCursor: d.nextCursor, error: d.error) }, markUpdated: { self[keyPath: tsKP] = Date() })
     }
     private func runUTXOStyleHistoryDiagnosticsForWallet(
-        walletID: UUID, chainId: UInt32, isRunningKP: WritableKeyPath<WalletStore, Bool>, chainName: String, resolveAddress: @escaping (ImportedWallet) -> String?, diagsKP: WritableKeyPath<WalletStore, [UUID: BitcoinHistoryDiagnostics]>, tsKP: WritableKeyPath<WalletStore, Date?>
+        walletID: UUID, chainId: UInt32, isRunningKP: ReferenceWritableKeyPath<WalletStore, Bool>, chainName: String, resolveAddress: @escaping (ImportedWallet) -> String?, diagsKP: ReferenceWritableKeyPath<WalletStore, [UUID: BitcoinHistoryDiagnostics]>, tsKP: ReferenceWritableKeyPath<WalletStore, Date?>
     ) async {
         await runAddressHistoryDiagnosticsForWallet(
             walletID: walletID, isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 }, chainName: chainName, resolveAddress: resolveAddress, fetchDiagnostics: { address in

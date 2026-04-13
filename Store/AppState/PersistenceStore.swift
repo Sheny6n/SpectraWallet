@@ -16,7 +16,9 @@ private struct RustOwnedAddressRecord: Decodable {
     let walletId: String
     let chainName: String
     let address: String
-    let derivationPath: String? let branch: String? let branchIndex: Int?
+    let derivationPath: String?
+    let branch: String?
+    let branchIndex: Int?
 }
 extension WalletStore {
     func loadCodableFromUserDefaults<T: Decodable>(_ type: T.Type, key: String) -> T? {
@@ -68,11 +70,11 @@ extension WalletStore {
                 guard let walletUUID = UUID(uuidString: rec.walletId), !rec.address.isEmpty else { continue }
                 if rec.chainName == "Dogecoin" {
                     dogeMap[rec.address] = DogecoinOwnedAddressRecord(
-                        address: rec.address, walletID: walletUUID, derivationPath: rec.derivationPath ?? "", index: rec.branchIndex.map(Int.init) ?? 0, branch: rec.branch ?? ""
+                        address: rec.address, walletID: walletUUID, derivationPath: rec.derivationPath ?? "", index: rec.branchIndex.map { Int($0) } ?? 0, branch: rec.branch ?? ""
                     )
                 } else {
                     let chainRecord = ChainOwnedAddressRecord(
-                        chainName: rec.chainName, address: rec.address, walletID: walletUUID, derivationPath: rec.derivationPath, index: rec.branchIndex.map(Int.init), branch: rec.branch
+                        chainName: rec.chainName, address: rec.address, walletID: walletUUID, derivationPath: rec.derivationPath, index: rec.branchIndex.map { Int($0) }, branch: rec.branch
                     )
                     chainMap[rec.chainName, default: [:]][rec.address] = chainRecord
                 }}
@@ -171,7 +173,7 @@ extension WalletStore {
             return
         }
         let currentWalletIDs = Set(wallets.map(\.id))
-        storedWalletIDs()..filter { !currentWalletIDs.contains($0) }
+        storedWalletIDs().filter { !currentWalletIDs.contains($0) }
             .forEach { walletID in deleteWalletSecrets(for: walletID) }
         dogecoinOwnedAddressMap = dogecoinOwnedAddressMap.filter { _, value in
             currentWalletIDs.contains(value.walletID)
@@ -187,7 +189,7 @@ extension WalletStore {
             }
             if !filtered.isEmpty { partialResult[entry.key] = filtered }}
         syncChainOwnedAddressManagementState()
-        let snapshots = wallets..map(sanitizedWallet).map(\.persistedSnapshot)
+        let snapshots = wallets.map(sanitizedWallet).map(\.persistedSnapshot)
         let payload = PersistedWalletStore(version: PersistedWalletStore.currentVersion, wallets: snapshots)
         guard let data = try? Self.persistenceEncoder.encode(payload) else { return }
         SecureStore.saveData(data, for: Self.walletsAccount)
@@ -309,7 +311,7 @@ extension WalletStore {
             pinnedDashboardAssetSymbols: cachedPinnedDashboardAssetSymbols
         )
         guard let data = try? JSONEncoder().encode(settings), let json = String(data: data, encoding: .utf8) else { return }
-        WalletServiceBridge.shared.saveAppSettings(json: json)
+        Task { await WalletServiceBridge.shared.saveAppSettings(json: json) }
     }
     func loadPersistedTokenPreferences() -> [TokenPreferenceEntry] {
         guard let decoded = loadCodableFromUserDefaults(
@@ -346,7 +348,8 @@ extension WalletStore {
             let hasSeedPhrase = ((try? SecureSeedStore.loadValue(for: seedAccount)) ?? "").isEmpty == false
             let hasPrivateKey = SecurePrivateKeyStore.loadValue(for: privateKeyAccount).isEmpty == false
             let hasPassword = SecureSeedPasswordStore.hasPassword(for: passwordAccount)
-            let secretKind: String? if hasPrivateKey { secretKind = "privateKey" } else if hasSeedPhrase { secretKind = "seedPhrase" } else { secretKind = "watchOnly" }
+            let secretKind: String?
+            if hasPrivateKey { secretKind = "privateKey" } else if hasSeedPhrase { secretKind = "seedPhrase" } else { secretKind = "watchOnly" }
             return WalletRustSecretObservation(
                 walletID: walletID.uuidString, secretKind: secretKind, hasSeedPhrase: hasSeedPhrase, hasPrivateKey: hasPrivateKey, hasPassword: hasPassword
             )

@@ -24,28 +24,33 @@ enum EsploraProvider {
         }}
     struct TransactionStatus: Decodable {
         let confirmed: Bool
-        let blockHeight: Int? enum CodingKeys: String, CodingKey {
+        let blockHeight: Int?
+        enum CodingKeys: String, CodingKey {
             case confirmed
             case blockHeight = "block_height"
         }}
     struct AddressTransaction: Decodable {
         struct VIN: Decodable {
             struct Prevout: Decodable {
-                let scriptpubkeyAddress: String? let value: Int64
+                let scriptpubkeyAddress: String?
+                let value: Int64
                 enum CodingKeys: String, CodingKey {
                     case scriptpubkeyAddress = "scriptpubkey_address"
                     case value
                 }}
             let prevout: Prevout? }
         struct VOUT: Decodable {
-            let scriptpubkeyAddress: String? let value: Int64
+            let scriptpubkeyAddress: String?
+            let value: Int64
             enum CodingKeys: String, CodingKey {
                 case scriptpubkeyAddress = "scriptpubkey_address"
                 case value
             }}
         struct Status: Decodable {
             let confirmed: Bool
-            let blockHeight: Int? let blockTime: TimeInterval? enum CodingKeys: String, CodingKey {
+            let blockHeight: Int?
+            let blockTime: TimeInterval?
+            enum CodingKeys: String, CodingKey {
                 case confirmed
                 case blockHeight = "block_height"
                 case blockTime = "block_time"
@@ -57,7 +62,7 @@ enum EsploraProvider {
     }
     static func defaultBaseURLs(for networkMode: BitcoinNetworkMode) -> [String] { ChainBackendRegistry.BitcoinRuntimeEndpoints.esploraBaseURLs(for: networkMode) }
     static func runtimeBaseURLs(for networkMode: BitcoinNetworkMode, custom: [String] = []) -> [String] {
-        let trimmed = custom..map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let trimmed = custom.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         if !trimmed.isEmpty { return trimmed }
         return defaultBaseURLs(for: networkMode)
@@ -78,7 +83,9 @@ enum EsploraProvider {
     static func runWithFallback<T>(
         baseURLs: [String], operation: @escaping (String) async throws -> T
     ) async throws -> T {
-        var firstError: Error? var lastError: Error? for baseURL in baseURLs {
+        var firstError: Error?
+        var lastError: Error?
+        for baseURL in baseURLs {
             do {
                 return try await operation(baseURL)
             } catch {

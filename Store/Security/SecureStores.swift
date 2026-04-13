@@ -9,7 +9,7 @@ private struct KeychainBackedSecureStore {
         case invalidEncoding
     }
     init(service: String) {
-        keychain = Keychain(service: service)..accessibility(.whenPasscodeSetThisDeviceOnly)
+        keychain = Keychain(service: service).accessibility(.whenPasscodeSetThisDeviceOnly)
     }
     func save(_ value: String, for account: String) throws { try saveData(Data(value.utf8), for: account) }
     func saveData(_ data: Data, for account: String) throws { try keychain.set(data, key: account) }

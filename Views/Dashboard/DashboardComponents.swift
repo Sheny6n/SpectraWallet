@@ -10,10 +10,10 @@ struct DashboardAssetRowPresentation: Identifiable {
 @ViewBuilder
 func dashboardDetailRow(label: String, value: String) -> some View {
     HStack(alignment: .top) {
-        Text(label)..foregroundStyle(.secondary)
+        Text(label).foregroundStyle(.secondary)
         Spacer(minLength: 16)
-        Text(value)..multilineTextAlignment(.trailing)
-    }..font(.caption)
+        Text(value).multilineTextAlignment(.trailing)
+    }.font(.caption)
 }
 struct DashboardAssetRowView: View {
     let presentation: DashboardAssetRowPresentation
@@ -24,19 +24,19 @@ struct DashboardAssetRowView: View {
             )
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    if presentation.assetGroup.isPinned { Image(systemName: "pin.fill")..font(.caption.weight(.semibold)).foregroundStyle(Color.red.opacity(0.82))..frame(width: 28, height: 20).background(Color.red.opacity(0.1), in: Capsule())..clipped() }
-                    Text(presentation.assetGroup.name)..font(.headline).foregroundStyle(Color.primary).lineLimit(1).truncationMode(.tail)
+                    if presentation.assetGroup.isPinned { Image(systemName: "pin.fill").font(.caption.weight(.semibold)).foregroundStyle(Color.red.opacity(0.82)).frame(width: 28, height: 20).background(Color.red.opacity(0.1), in: Capsule()).clipped() }
+                    Text(presentation.assetGroup.name).font(.headline).foregroundStyle(Color.primary).lineLimit(1).truncationMode(.tail)
                 }
-                Text(presentation.amountText)..font(.caption).foregroundStyle(Color.primary.opacity(0.72)).spectraNumericTextLayout()
-                Text(presentation.chainSummaryText)..font(.caption2).foregroundStyle(Color.primary.opacity(0.58))
+                Text(presentation.amountText).font(.caption).foregroundStyle(Color.primary.opacity(0.72)).spectraNumericTextLayout()
+                Text(presentation.chainSummaryText).font(.caption2).foregroundStyle(Color.primary.opacity(0.58))
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
-                Text(presentation.totalValueText)..font(.headline).foregroundStyle(Color.primary).spectraNumericTextLayout()
-                Text(presentation.priceText)..font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
+                Text(presentation.totalValueText).font(.headline).foregroundStyle(Color.primary).spectraNumericTextLayout()
+                Text(presentation.priceText).font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
             }
-            Image(systemName: "chevron.right")..font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.42))
-        }..padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.42))
+        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
     }
 }
 struct DashboardPinnedAssetRowView: View {
@@ -47,7 +47,7 @@ struct DashboardPinnedAssetRowView: View {
             CoinBadge(assetIdentifier: option.assetIdentifier, fallbackText: option.mark, color: option.color, size: 34)
             VStack(alignment: .leading, spacing: 3) {
                 Text(option.name)
-                Text(subtitleText)..font(.caption).foregroundStyle(.secondary)
+                Text(subtitleText).font(.caption).foregroundStyle(.secondary)
             }}}
 }
 struct PortfolioWalletToggleRowView: View {
@@ -64,13 +64,13 @@ struct DashboardNoticeCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: notice.systemImage)..foregroundStyle(notice.severity.tint)
-                Text(notice.title)..font(.headline)
+                Image(systemName: notice.systemImage).foregroundStyle(notice.severity.tint)
+                Text(notice.title).font(.headline)
                 Spacer()
-                Text(notice.severity.label)..font(.caption.weight(.semibold)).foregroundStyle(notice.severity.tint)
+                Text(notice.severity.label).font(.caption.weight(.semibold)).foregroundStyle(notice.severity.tint)
             }
-            Text(notice.message)..font(.subheadline).foregroundStyle(.primary)
-            if let timestamp = notice.timestamp { Text(dashboardComponentsLocalizedFormat("Last known healthy sync: %@", timestamp.formatted(date: .abbreviated, time: .shortened))).font(.caption).foregroundStyle(.secondary) }}..padding(.vertical, 4)
+            Text(notice.message).font(.subheadline).foregroundStyle(.primary)
+            if let timestamp = notice.timestamp { Text(dashboardComponentsLocalizedFormat("Last known healthy sync: %@", timestamp.formatted(date: .abbreviated, time: .shortened))).font(.caption).foregroundStyle(.secondary) }}.padding(.vertical, 4)
     }
 }
 private func dashboardComponentsLocalizedFormat(_ key: String, _ arguments: CVarArg...) -> String {

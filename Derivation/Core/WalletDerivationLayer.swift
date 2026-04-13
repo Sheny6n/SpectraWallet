@@ -3,11 +3,17 @@ private struct WalletDerivationLayerJSONRequest: Codable {
     let chain: SeedDerivationChain
     let network: WalletDerivationNetwork
     let seedPhrase: String
-    let derivationPath: String? let curve: WalletDerivationCurve
-    let passphrase: String? let iterationCount: Int? let hmacKeyString: String? let requestedOutputs: [String]
+    let derivationPath: String?
+    let curve: WalletDerivationCurve
+    let passphrase: String?
+    let iterationCount: Int?
+    let hmacKeyString: String?
+    let requestedOutputs: [String]
 }
 private struct WalletDerivationLayerJSONResponse: Codable {
-    let address: String? let publicKeyHex: String? let privateKeyHex: String?
+    let address: String?
+    let publicKeyHex: String?
+    let privateKeyHex: String?
 }
 enum WalletDerivationLayer {
     static func derive(seedPhrase: String, request: WalletDerivationRequest) throws -> WalletDerivationResult { try WalletDerivationEngine.derive(seedPhrase: seedPhrase, request: request) }

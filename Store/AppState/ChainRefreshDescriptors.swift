@@ -3,7 +3,8 @@ struct WalletChainRefreshDescriptor {
     let chainID: WalletChainID
     let executeRefresh: (WalletStore, Bool) async -> Void
     let executeBalancesOnly: (WalletStore) async -> Void
-    let executeHistoryOnly: ((WalletStore) async -> Void)? var chainName: String { chainID.displayName }
+    let executeHistoryOnly: ((WalletStore) async -> Void)?
+    var chainName: String { chainID.displayName }
     init(
         chainID: WalletChainID, executeRefresh: @escaping (WalletStore, Bool) async -> Void, executeBalancesOnly: @escaping (WalletStore) async -> Void = { await $0.refreshBalances() }, executeHistoryOnly: ((WalletStore) async -> Void)? = nil
     ) {

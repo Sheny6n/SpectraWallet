@@ -52,6 +52,7 @@ func resetImportForm() {
         let deletedWalletIDString = deletedWalletID.uuidString
         let deletedChainName = normalizedWalletChainName(walletPendingDeletion.selectedChain)
         deleteWalletSecrets(for: deletedWalletID)
+        WalletServiceBridge.shared.deleteWalletRelationalData(walletId: deletedWalletIDString)
         wallets.removeAll { $0.id == walletPendingDeletion.id }
         let hasRemainingWalletsOnDeletedChain = wallets.contains { normalizedWalletChainName($0.selectedChain) == deletedChainName }
         resetLargeMovementAlertBaseline()
@@ -170,7 +171,8 @@ func resetImportForm() {
         }
         let resolvedChainName = resolvedReceiveChainName(for: walletID)
         guard !resolvedChainName.isEmpty else { return nil }
-        var firstMatchingCoin: Coin? for coin in receiveCoins where coin.chainName == resolvedChainName {
+        var firstMatchingCoin: Coin?
+        for coin in receiveCoins where coin.chainName == resolvedChainName {
             if firstMatchingCoin == nil { firstMatchingCoin = coin }
             if coin.contractAddress == nil { return coin }}
         return firstMatchingCoin

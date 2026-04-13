@@ -52,7 +52,7 @@ struct WalletRefreshPlanner {
                 return WalletRefreshChainPlan(chainID: chainID, refreshHistory: plan.refreshHistory)
             }
         } catch {
-            return chainIDs..sorted()..compactMap { chainID in
+            return chainIDs.sorted().compactMap { chainID in
                     guard shouldRefreshChainData(
                         chainID, now: now, force: forceChainRefresh, pendingTransactionMaintenanceChains: pendingTransactionMaintenanceChains, degradedChains: degradedChains, lastGoodChainSyncByID: lastGoodChainSyncByID, automaticChainRefreshStalenessInterval: automaticChainRefreshStalenessInterval
                     ) else {
@@ -72,7 +72,7 @@ struct WalletRefreshPlanner {
             )
             return chainIDs.compactMap(WalletChainID.init)
         } catch {
-            return chainIDs..sorted()..filter {
+            return chainIDs.sorted().filter {
                     shouldRefreshOnChainHistory(
                         for: $0, now: now, interval: interval, lastHistoryRefreshAtByChainID: lastHistoryRefreshAtByChainID
                     )
