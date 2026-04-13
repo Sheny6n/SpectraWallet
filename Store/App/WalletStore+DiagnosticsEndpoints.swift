@@ -109,7 +109,9 @@ extension WalletStore {
         guard !isCheckingMoneroEndpointHealth else { return }
         isCheckingMoneroEndpointHealth = true
         defer { isCheckingMoneroEndpointHealth = false }
-        guard let baseURL = MoneroBalanceService.configuredBackendBaseURL() else {
+        let trimmedBackendURL = moneroBackendBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedBackendURL = trimmedBackendURL.isEmpty ? MoneroBalanceService.defaultPublicBackend.baseURL : trimmedBackendURL
+        guard let baseURL = URL(string: resolvedBackendURL) else {
             moneroEndpointHealthResults = [
                 BitcoinEndpointHealthResult(
                     endpoint: "monero.backend.baseURL", reachable: false, statusCode: nil, detail: "Monero backend is not configured."

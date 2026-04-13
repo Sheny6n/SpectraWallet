@@ -18,9 +18,6 @@ private extension Data {
         return json
     }
 }
-private struct WalletRustStaticResourceRequest: Encodable {
-    let resourceName: String
-}
 struct WalletRustImportAddresses: Codable {
     let bitcoinAddress: String? let bitcoinXpub: String? let bitcoinCashAddress: String? let bitcoinSVAddress: String? let litecoinAddress: String? let dogecoinAddress: String? let ethereumAddress: String? let ethereumClassicAddress: String? let tronAddress: String? let solanaAddress: String? let xrpAddress: String? let stellarAddress: String? let moneroAddress: String? let cardanoAddress: String? let suiAddress: String? let aptosAddress: String? let tonAddress: String? let icpAddress: String? let nearAddress: String? let polkadotAddress: String?
 }
@@ -255,35 +252,11 @@ struct WalletRustDogecoinRefreshWalletTarget: Decodable {
     let walletID: String
     let addresses: [String]
 }
-struct WalletRustWalletBalanceRefreshRequest: Encodable {
-    let selectedChain: String
-    let hasSeedPhrase: Bool
-    let hasExtendedPublicKey: Bool
-    let availableAddressKinds: [String]
-}
-struct WalletRustWalletBalanceRefreshPlan: Decodable {
-    let serviceKind: String? let usesBulkRefresh: Bool
-    let needsTrackedTokens: Bool
-}
-struct WalletRustBalanceRefreshHealthRequest: Encodable {
-    let chainName: String
-    let attemptedWalletCount: Int
-    let resolvedWalletCount: Int
-}
-struct WalletRustBalanceRefreshHealthPlan: Decodable {
-    let shouldMarkHealthy: Bool
-    let shouldNoteSuccessfulSync: Bool
-    let degradedDetail: String?
-}
 struct WalletRustSendAssetRoutingInput: Encodable {
     let chainName: String
     let symbol: String
     let isEVMChain: Bool
     let supportsSolanaSendCoin: Bool
-}
-struct WalletRustSendAssetRoutingPlan: Decodable {
-    let previewKind: String? let submitKind: String? let nativeEVMSymbol: String? let isNativeEVMAsset: Bool
-    let allowsZeroAmount: Bool
 }
 struct WalletRustSendPreviewRoutingRequest: Encodable {
     let asset: WalletRustSendAssetRoutingInput?
@@ -318,32 +291,6 @@ struct WalletRustUTXOFeePolicy: Encodable {
     let dustThreshold: UInt64
     let minimumRelayFeeRate: Double? let minimumAbsoluteFee: UInt64? let minimumRelayFeePerKB: Double? let baseUnitsPerCoin: Double? let maxStandardTransactionBytes: UInt64
     let inputBytes: Int? let outputBytes: Int? let overheadBytes: Int?
-}
-struct WalletRustUTXOPreviewRequest: Encodable {
-    let inputs: [WalletRustUTXOEntry]
-    let feeRate: Double
-    let feePolicy: WalletRustUTXOFeePolicy
-}
-struct WalletRustUTXOPreviewPlan: Decodable {
-    let estimatedTransactionBytes: Int
-    let estimatedFee: UInt64
-    let spendableValue: UInt64
-    let inputCount: Int
-}
-struct WalletRustUTXOSpendPlanRequest: Encodable {
-    let inputs: [WalletRustUTXOEntry]
-    let targetValue: UInt64
-    let feeRate: Double
-    let feePolicy: WalletRustUTXOFeePolicy
-    let maxInputCount: Int?
-}
-struct WalletRustUTXOSpendPlan: Decodable {
-    let selectedIndices: [Int]
-    let totalInputValue: UInt64
-    let fee: UInt64
-    let change: UInt64
-    let usesChangeOutput: Bool
-    let estimatedTransactionBytes: Int
 }
 struct WalletRustTransferHoldingInput: Encodable {
     let index: Int
@@ -448,34 +395,6 @@ struct WalletRustSelfSendConfirmationPlan: Decodable {
     let consumeExistingConfirmation: Bool
     let clearPendingConfirmation: Bool
 }
-struct WalletRustCoreBootstrap: Decodable {
-    struct Capabilities: Decodable {
-        let schemaVersion: UInt32
-        let supportsDerivation: Bool
-        let supportsFetchContracts: Bool
-        let supportsSendContracts: Bool
-        let supportsStoreContracts: Bool
-        let supportsLocalizationCatalogs: Bool
-        let supportsStateReducer: Bool
-        let supportedLocales: [String]
-        let localizationTables: [String]
-    }
-    struct ChainSummary: Decodable {
-        let chainName: String
-        let curve: String
-        let defaultNetwork: String? let defaultDerivationPath: String? let endpointCount: Int
-        let settingsVisibleEndpointCount: Int
-        let explorerEndpointCount: Int
-    }
-    struct LocalizationSummary: Decodable {
-        let supportedLocales: [String]
-        let tables: [String]
-    }
-    let capabilities: Capabilities
-    let chains: [ChainSummary]
-    let localization: LocalizationSummary
-    let liveChainNames: [String]
-}
 private struct WalletRustDerivationPathResolutionPayload: Decodable {
     let chain: SeedDerivationChain
     let normalizedPath: String
@@ -519,23 +438,6 @@ struct WalletRustResolvedDerivationPath {
     let flavor: SeedDerivationFlavor
 }
 enum WalletRustAppCoreBridge {
-    static func coreBootstrap() throws -> WalletRustCoreBootstrap { try decodePayload(WalletRustCoreBootstrap.self, json: try coreBootstrapJson()) }
-    static func localizedDocumentData(named resourceName: String, preferredLocales: [String]) throws -> Data {
-        let localesData = try JSONEncoder().encode(preferredLocales)
-        guard let localesJSON = String(data: localesData, encoding: .utf8) else { throw WalletRustAppCoreBridgeError.invalidPayload("Preferred locale payload was not valid UTF-8 JSON.") }
-        return try decodeRawPayload(try coreLocalizationDocumentJson(resourceName: resourceName, preferredLocalesJson: localesJSON))
-    }
-    static func staticDocumentData(named resourceName: String) throws -> Data { try decodeRawPayload(try coreStaticResourceJson(resourceName: resourceName)) }
-    static func staticText(named resourceName: String) throws -> String { try coreStaticTextResourceUtf8(resourceName: resourceName) }
-    static func reduceState<State: Encodable, Command: Encodable, Transition: Decodable>(
-        state: State, command: Command, as type: Transition.Type
-    ) throws -> Transition {
-        try decodePayload(
-            type, json: try coreReduceStateJson(
-                stateJson: encodeJSONString(state), commandJson: encodeJSONString(command)
-            )
-        )
-    }
     static func migrateLegacyWalletStoreData(_ data: Data) throws -> Data { try decodeJSONStringToData(try coreMigrateLegacyWalletStoreJson(requestJson: data.asJSONString())) }
     static func exportLegacyWalletStoreData(fromCoreStateData data: Data) throws -> Data { try decodeJSONStringToData(try coreExportLegacyWalletStoreJson(requestJson: data.asJSONString())) }
     static func buildPersistedSnapshotData(appStateData: Data, secretObservations: [WalletRustSecretObservation]) throws -> Data {
@@ -557,18 +459,13 @@ enum WalletRustAppCoreBridge {
     }
     static func planEVMRefreshTargets(_ request: WalletRustEVMRefreshTargetsRequest) throws -> WalletRustEVMRefreshPlan { try sendCoreJSONRequest(request, decode: WalletRustEVMRefreshPlan.self, invoke: corePlanEvmRefreshTargetsJson) }
     static func planDogecoinRefreshTargets(_ request: WalletRustDogecoinRefreshTargetsRequest) throws -> [WalletRustDogecoinRefreshWalletTarget] { try sendCoreJSONRequest(request, decode: [WalletRustDogecoinRefreshWalletTarget].self, invoke: corePlanDogecoinRefreshTargetsJson) }
-    static func planWalletBalanceRefresh(_ request: WalletRustWalletBalanceRefreshRequest) throws -> WalletRustWalletBalanceRefreshPlan { try sendCoreJSONRequest(request, decode: WalletRustWalletBalanceRefreshPlan.self, invoke: corePlanWalletBalanceRefreshJson) }
-    static func planBalanceRefreshHealth(_ request: WalletRustBalanceRefreshHealthRequest) throws -> WalletRustBalanceRefreshHealthPlan { try sendCoreJSONRequest(request, decode: WalletRustBalanceRefreshHealthPlan.self, invoke: corePlanBalanceRefreshHealthJson) }
     static func planTransferAvailability(_ request: WalletRustTransferAvailabilityRequest) throws -> WalletRustTransferAvailabilityPlan { try sendCoreJSONRequest(request, decode: WalletRustTransferAvailabilityPlan.self, invoke: corePlanTransferAvailabilityJson) }
     static func planStoreDerivedState(_ request: WalletRustStoreDerivedStateRequest) throws -> WalletRustStoreDerivedStatePlan { try sendCoreJSONRequest(request, decode: WalletRustStoreDerivedStatePlan.self, invoke: corePlanStoreDerivedStateJson) }
     static func aggregateOwnedAddresses(_ request: WalletRustOwnedAddressAggregationRequest) throws -> [String] { try sendCoreJSONRequest(request, decode: [String].self, invoke: coreAggregateOwnedAddressesJson) }
     static func planReceiveSelection(_ request: WalletRustReceiveSelectionRequest) throws -> WalletRustReceiveSelectionPlan { try sendCoreJSONRequest(request, decode: WalletRustReceiveSelectionPlan.self, invoke: corePlanReceiveSelectionJson) }
     static func planSelfSendConfirmation(_ request: WalletRustSelfSendConfirmationRequest) throws -> WalletRustSelfSendConfirmationPlan { try sendCoreJSONRequest(request, decode: WalletRustSelfSendConfirmationPlan.self, invoke: corePlanSelfSendConfirmationJson) }
-    static func routeSendAsset(_ request: WalletRustSendAssetRoutingInput) throws -> WalletRustSendAssetRoutingPlan { try sendCoreJSONRequest(request, decode: WalletRustSendAssetRoutingPlan.self, invoke: coreRouteSendAssetJson) }
     static func planSendPreviewRouting(_ request: WalletRustSendPreviewRoutingRequest) throws -> WalletRustSendPreviewRoutingPlan { try sendCoreJSONRequest(request, decode: WalletRustSendPreviewRoutingPlan.self, invoke: corePlanSendPreviewRoutingJson) }
     static func planSendSubmitPreflight(_ request: WalletRustSendSubmitPreflightRequest) throws -> WalletRustSendSubmitPreflightPlan { try sendCoreJSONRequest(request, decode: WalletRustSendSubmitPreflightPlan.self, invoke: corePlanSendSubmitPreflightJson) }
-    static func planUTXOPreview(_ request: WalletRustUTXOPreviewRequest) throws -> WalletRustUTXOPreviewPlan { try sendCoreJSONRequest(request, decode: WalletRustUTXOPreviewPlan.self, invoke: corePlanUtxoPreviewJson) }
-    static func planUTXOSpend(_ request: WalletRustUTXOSpendPlanRequest) throws -> WalletRustUTXOSpendPlan { try sendCoreJSONRequest(request, decode: WalletRustUTXOSpendPlan.self, invoke: corePlanUtxoSpendJson) }
     static func mergeTransactions(_ request: WalletRustTransactionMergeRequest) throws -> [WalletRustTransactionRecord] { try sendCoreJSONRequest(request, decode: [WalletRustTransactionRecord].self, invoke: coreMergeTransactionsJson) }
     static func chainPresets() throws -> [WalletDerivationChainPreset] { try decodePayload([WalletDerivationChainPreset].self, json: try appCoreChainPresetsJson()) }
     static func requestCompilationPresets() throws -> [WalletDerivationRequestCompilationPreset] { try decodePayload([WalletDerivationRequestCompilationPreset].self, json: try appCoreRequestCompilationPresetsJson()) }
@@ -593,10 +490,6 @@ enum WalletRustAppCoreBridge {
         } catch {
             throw WalletRustAppCoreBridgeError.invalidPayload(error.localizedDescription)
         }}
-    private static func decodeRawPayload(_ payload: Data) throws -> Data {
-        guard !payload.isEmpty else { throw WalletRustAppCoreBridgeError.invalidPayload("Rust app core returned an empty payload.") }
-        return payload
-    }
     private static func sendCoreJSONRequest<Request: Encodable, Response: Decodable>(
         _ request: Request, decode responseType: Response.Type, invoke: @escaping (String) throws -> String
     ) throws -> Response {

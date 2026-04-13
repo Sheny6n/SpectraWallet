@@ -1,4 +1,12 @@
 import Foundation
+private struct RustHistoryRecord: Decodable {
+    let id: String
+    let walletId: String?
+    let chainName: String
+    let txHash: String?
+    let createdAt: Double
+    let payload: String  // base64
+}
 private struct RustKeypoolState: Decodable {
     let nextExternalIndex: Int
     let nextChangeIndex: Int
@@ -11,10 +19,6 @@ private struct RustOwnedAddressRecord: Decodable {
     let derivationPath: String? let branch: String? let branchIndex: Int?
 }
 extension WalletStore {
-    func persistCodableToUserDefaults<T: Encodable>(_ value: T, key: String) {
-        guard let data = try? JSONEncoder().encode(value) else { return }
-        UserDefaults.standard.set(data, forKey: key)
-    }
     func loadCodableFromUserDefaults<T: Decodable>(_ type: T.Type, key: String) -> T? {
         guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode(type, from: data)
@@ -74,6 +78,13 @@ extension WalletStore {
                 }}
             if !dogeMap.isEmpty { dogecoinOwnedAddressMap = dogeMap }
             if !chainMap.isEmpty { chainOwnedAddressMapByChain = chainMap }}
+        if let rates = await loadCodableFromSQLite([String: Double].self, key: Self.fiatRatesFromUSDDefaultsKey), !rates.isEmpty {
+            fiatRatesFromUSD = rates
+            fiatRatesFromUSD[FiatCurrency.usd.rawValue] = 1.0
+        }
+        if let decimals = await loadCodableFromSQLite([String: Int].self, key: Self.assetDisplayDecimalsByChainDefaultsKey), !decimals.isEmpty { assetDisplayDecimalsByChain = decimals }
+        if let events = await loadCodableFromSQLite([String: [ChainOperationalEvent]].self, key: Self.chainOperationalEventsDefaultsKey), !events.isEmpty { chainOperationalEventsByChain = events }
+        if let feePrios = await loadCodableFromSQLite([String: String].self, key: Self.selectedFeePriorityOptionsByChainDefaultsKey), !feePrios.isEmpty { selectedFeePriorityOptionRawByChain = feePrios }
         if !wallets.isEmpty {
             let summaries: [[String: Any]] = wallets.map { w in
                 var d: [String: Any] = [
@@ -88,9 +99,62 @@ extension WalletStore {
                 if let xpub = w.bitcoinXPub { d["bitcoinXpub"] = xpub }
                 return d
             }
-            if let data = try? JSONSerialization.data(withJSONObject: summaries), let json = String(data: data, encoding: .utf8) { try? await WalletServiceBridge.shared.initWalletState(walletsJson: json) }}}
+            if let data = try? JSONSerialization.data(withJSONObject: summaries), let json = String(data: data, encoding: .utf8) { try? await WalletServiceBridge.shared.initWalletState(walletsJson: json) }}
+        // ── Load app settings from Rust SQLite ────────────────────────────────
+        if let settingsJSON = try? await WalletServiceBridge.shared.loadAppSettings(),
+           settingsJSON != "{}",
+           let settingsData = settingsJSON.data(using: .utf8),
+           let settings = try? JSONDecoder().decode(PersistedAppSettings.self, from: settingsData) {
+            if let v = PricingProvider(rawValue: settings.pricingProvider) { pricingProvider = v }
+            if let v = FiatCurrency(rawValue: settings.selectedFiatCurrency) { selectedFiatCurrency = v }
+            if let v = FiatRateProvider(rawValue: settings.fiatRateProvider) { fiatRateProvider = v }
+            if let v = EthereumNetworkMode(rawValue: settings.ethereumNetworkMode) { ethereumNetworkMode = v }
+            if let v = BitcoinNetworkMode(rawValue: settings.bitcoinNetworkMode) { bitcoinNetworkMode = v }
+            if let v = DogecoinNetworkMode(rawValue: settings.dogecoinNetworkMode) { dogecoinNetworkMode = v }
+            if let v = BitcoinFeePriority(rawValue: settings.bitcoinFeePriority) { bitcoinFeePriority = v }
+            if let v = DogecoinFeePriority(rawValue: settings.dogecoinFeePriority) { dogecoinFeePriority = v }
+            if let v = BackgroundSyncProfile(rawValue: settings.backgroundSyncProfile) { backgroundSyncProfile = v }
+            ethereumRPCEndpoint = settings.ethereumRPCEndpoint
+            etherscanAPIKey = settings.etherscanAPIKey
+            moneroBackendBaseURL = settings.moneroBackendBaseURL
+            moneroBackendAPIKey = settings.moneroBackendAPIKey
+            bitcoinEsploraEndpoints = settings.bitcoinEsploraEndpoints
+            bitcoinStopGap = settings.bitcoinStopGap
+            hideBalances = settings.hideBalances
+            useFaceID = settings.useFaceID
+            useAutoLock = settings.useAutoLock
+            useStrictRPCOnly = settings.useStrictRPCOnly
+            requireBiometricForSendActions = settings.requireBiometricForSendActions
+            usePriceAlerts = settings.usePriceAlerts
+            useTransactionStatusNotifications = settings.useTransactionStatusNotifications
+            useLargeMovementNotifications = settings.useLargeMovementNotifications
+            automaticRefreshFrequencyMinutes = settings.automaticRefreshFrequencyMinutes
+            largeMovementAlertPercentThreshold = settings.largeMovementAlertPercentThreshold
+            largeMovementAlertUSDThreshold = settings.largeMovementAlertUSDThreshold
+            if !settings.pinnedDashboardAssetSymbols.isEmpty { cachedPinnedDashboardAssetSymbols = settings.pinnedDashboardAssetSymbols }
+        } else {
+            // No SQLite settings yet — persist current (UserDefaults-loaded) values to SQLite for future launches
+            persistAppSettings()
+        }
+        // ── Load transaction history from Rust SQLite ─────────────────────────
+        if let historyJSON = try? await WalletServiceBridge.shared.fetchAllHistoryRecords(),
+           historyJSON != "[]",
+           let historyData = historyJSON.data(using: .utf8),
+           let rustRecords = try? JSONDecoder().decode([RustHistoryRecord].self, from: historyData),
+           !rustRecords.isEmpty {
+            let rustTransactions = rustRecords.compactMap { rec -> TransactionRecord? in
+                guard let payloadData = Data(base64Encoded: rec.payload),
+                      let persisted = try? JSONDecoder().decode(PersistedTransactionRecord.self, from: payloadData)
+                else { return nil }
+                return TransactionRecord(snapshot: persisted)
+            }
+            if !rustTransactions.isEmpty {
+                withSuspendedTransactionSideEffects { transactions = rustTransactions }
+                pruneTransactionsForActiveWallets()
+                rebuildTransactionDerivedState()
+            }
+        }}
     func persistLivePrices() {
-        persistCodableToUserDefaults(livePrices, key: Self.livePricesDefaultsKey)
         persistCodableToSQLite(livePrices, key: Self.livePricesDefaultsKey)
     }
     func loadAssetDisplayDecimalsByChain() -> [String: Int]? { loadCodableFromUserDefaults([String: Int].self, key: Self.assetDisplayDecimalsByChainDefaultsKey) }
@@ -161,7 +225,6 @@ extension WalletStore {
         let payload = PersistedPriceAlertStore(
             version: PersistedPriceAlertStore.currentVersion, alerts: priceAlerts.map(\.persistedSnapshot)
         )
-        persistCodableToUserDefaults(payload, key: Self.priceAlertsDefaultsKey)
         persistCodableToSQLite(payload, key: Self.priceAlertsDefaultsKey)
     }
     func persistAddressBook() {
@@ -172,7 +235,6 @@ extension WalletStore {
                 )
             }
         )
-        persistCodableToUserDefaults(payload, key: Self.addressBookDefaultsKey)
         persistCodableToSQLite(payload, key: Self.addressBookDefaultsKey)
     }
     func loadPersistedAddressBook() -> [AddressBookEntry] {
@@ -184,8 +246,70 @@ extension WalletStore {
             )
         }}
     func persistTokenPreferences() {
-        persistCodableToUserDefaults(tokenPreferences, key: Self.tokenPreferencesDefaultsKey)
         persistCodableToSQLite(tokenPreferences, key: Self.tokenPreferencesDefaultsKey)
+    }
+    // ── App settings persistence (Rust SQLite) ─────────────────────────────────
+    private struct PersistedAppSettings: Codable {
+        var pricingProvider: String
+        var selectedFiatCurrency: String
+        var fiatRateProvider: String
+        var ethereumRPCEndpoint: String
+        var ethereumNetworkMode: String
+        var etherscanAPIKey: String
+        var moneroBackendBaseURL: String
+        var moneroBackendAPIKey: String
+        var bitcoinNetworkMode: String
+        var dogecoinNetworkMode: String
+        var bitcoinEsploraEndpoints: String
+        var bitcoinStopGap: Int
+        var bitcoinFeePriority: String
+        var dogecoinFeePriority: String
+        var hideBalances: Bool
+        var useFaceID: Bool
+        var useAutoLock: Bool
+        var useStrictRPCOnly: Bool
+        var requireBiometricForSendActions: Bool
+        var usePriceAlerts: Bool
+        var useTransactionStatusNotifications: Bool
+        var useLargeMovementNotifications: Bool
+        var automaticRefreshFrequencyMinutes: Int
+        var backgroundSyncProfile: String
+        var largeMovementAlertPercentThreshold: Double
+        var largeMovementAlertUSDThreshold: Double
+        var pinnedDashboardAssetSymbols: [String]
+    }
+    func persistAppSettings() {
+        let settings = PersistedAppSettings(
+            pricingProvider: pricingProvider.rawValue,
+            selectedFiatCurrency: selectedFiatCurrency.rawValue,
+            fiatRateProvider: fiatRateProvider.rawValue,
+            ethereumRPCEndpoint: ethereumRPCEndpoint,
+            ethereumNetworkMode: ethereumNetworkMode.rawValue,
+            etherscanAPIKey: etherscanAPIKey,
+            moneroBackendBaseURL: moneroBackendBaseURL,
+            moneroBackendAPIKey: moneroBackendAPIKey,
+            bitcoinNetworkMode: bitcoinNetworkMode.rawValue,
+            dogecoinNetworkMode: dogecoinNetworkMode.rawValue,
+            bitcoinEsploraEndpoints: bitcoinEsploraEndpoints,
+            bitcoinStopGap: bitcoinStopGap,
+            bitcoinFeePriority: bitcoinFeePriority.rawValue,
+            dogecoinFeePriority: dogecoinFeePriority.rawValue,
+            hideBalances: hideBalances,
+            useFaceID: useFaceID,
+            useAutoLock: useAutoLock,
+            useStrictRPCOnly: useStrictRPCOnly,
+            requireBiometricForSendActions: requireBiometricForSendActions,
+            usePriceAlerts: usePriceAlerts,
+            useTransactionStatusNotifications: useTransactionStatusNotifications,
+            useLargeMovementNotifications: useLargeMovementNotifications,
+            automaticRefreshFrequencyMinutes: automaticRefreshFrequencyMinutes,
+            backgroundSyncProfile: backgroundSyncProfile.rawValue,
+            largeMovementAlertPercentThreshold: largeMovementAlertPercentThreshold,
+            largeMovementAlertUSDThreshold: largeMovementAlertUSDThreshold,
+            pinnedDashboardAssetSymbols: cachedPinnedDashboardAssetSymbols
+        )
+        guard let data = try? JSONEncoder().encode(settings), let json = String(data: data, encoding: .utf8) else { return }
+        WalletServiceBridge.shared.saveAppSettings(json: json)
     }
     func loadPersistedTokenPreferences() -> [TokenPreferenceEntry] {
         guard let decoded = loadCodableFromUserDefaults(

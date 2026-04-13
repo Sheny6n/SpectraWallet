@@ -20,7 +20,7 @@ extension WalletStore {
     var cachedDashboardSupportedTokenEntriesBySymbol: [String: [TokenPreferenceEntry]] {
         get { dashboardState.supportedTokenEntriesBySymbol }
         set { dashboardState.supportedTokenEntriesBySymbol = newValue }}
-    fileprivate static let pinnedDashboardAssetSymbolsDefaultsKey = "dashboardPinnedAssetSymbols"
+    static let pinnedDashboardAssetSymbolsDefaultsKey = "dashboardPinnedAssetSymbols"
     private var defaultPinnedDashboardAssetSymbols: [String] { ["BTC", "ETH", "USDT", "USDC"] }
     private var dashboardPinPrototypes: [Coin] {
         [
@@ -51,11 +51,13 @@ extension WalletStore {
             if !symbols.contains(normalized) { symbols.append(normalized) }
         } else {
             symbols.removeAll { $0 == normalized }}
-        UserDefaults.standard.set(symbols, forKey: Self.pinnedDashboardAssetSymbolsDefaultsKey)
+        cachedPinnedDashboardAssetSymbols = symbols
+        persistAppSettings()
         rebuildDashboardDerivedState()
     }
     func resetPinnedDashboardAssets() {
-        UserDefaults.standard.removeObject(forKey: Self.pinnedDashboardAssetSymbolsDefaultsKey)
+        cachedPinnedDashboardAssetSymbols = []
+        persistAppSettings()
         rebuildDashboardDerivedState()
     }
     private func dashboardAssetGroupingKey(for coin: Coin) -> String {
@@ -85,10 +87,7 @@ extension WalletStore {
         let holdingsBySymbol = cachedIncludedPortfolioHoldingsBySymbol
         let trackedEntriesBySymbol = cachedResolvedTokenPreferencesBySymbol
         let prototypeBySymbol = Dictionary(uniqueKeysWithValues: dashboardPinPrototypes.map { ($0.symbol.uppercased(), $0) })
-        let storedPinnedSymbols: [String]
-        storedPinnedSymbols = (UserDefaults.standard.stringArray(forKey: Self.pinnedDashboardAssetSymbolsDefaultsKey) ?? defaultPinnedDashboardAssetSymbols)..map { $0.uppercased() }
-            .filter { !$0.isEmpty }
-        cachedPinnedDashboardAssetSymbols = storedPinnedSymbols
+        let storedPinnedSymbols = pinnedDashboardAssetSymbols
         let availableSymbols = Array(
             Set(
                 defaultPinnedDashboardAssetSymbols

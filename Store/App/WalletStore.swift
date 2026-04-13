@@ -1,8 +1,6 @@
 import Foundation
 import SwiftUI
 import Combine
-import UserNotifications
-import LocalAuthentication
 import os
 import UIKit
 #if canImport(Network)
@@ -240,17 +238,17 @@ class WalletStore: ObservableObject {
             .sorted { $0.walletName.localizedCaseInsensitiveCompare($1.walletName) == .orderedAscending }}
     @Published var pricingProvider: PricingProvider = .coinGecko {
         didSet {
-            UserDefaults.standard.set(pricingProvider.rawValue, forKey: Self.pricingProviderDefaultsKey)
+            persistAppSettings()
         }}
     @Published var selectedFiatCurrency: FiatCurrency = .usd {
         didSet {
-            UserDefaults.standard.set(selectedFiatCurrency.rawValue, forKey: Self.selectedFiatCurrencyDefaultsKey)
+            persistAppSettings()
             Task { @MainActor in
                 await refreshFiatExchangeRatesIfNeeded(force: true)
             }}}
     @Published var fiatRateProvider: FiatRateProvider = .openER {
         didSet {
-            UserDefaults.standard.set(fiatRateProvider.rawValue, forKey: Self.fiatRateProviderDefaultsKey)
+            persistAppSettings()
             Task { @MainActor in
                 await refreshFiatExchangeRatesIfNeeded(force: true)
             }}}
@@ -260,24 +258,24 @@ class WalletStore: ObservableObject {
         }}
     @Published var ethereumRPCEndpoint: String = "" {
         didSet {
-            UserDefaults.standard.set(ethereumRPCEndpoint, forKey: Self.ethereumRPCEndpointDefaultsKey)
+            persistAppSettings()
         }}
     @Published var ethereumNetworkMode: EthereumNetworkMode = .mainnet {
         didSet {
-            UserDefaults.standard.set(ethereumNetworkMode.rawValue, forKey: Self.ethereumNetworkModeDefaultsKey)
+            persistAppSettings()
             try? WalletServiceBridge.shared.resetHistoryForChain(chainId: 1)
         }}
     @Published var etherscanAPIKey: String = "" {
         didSet {
-            UserDefaults.standard.set(etherscanAPIKey, forKey: Self.etherscanAPIKeyDefaultsKey)
+            persistAppSettings()
         }}
     @Published var moneroBackendBaseURL: String = "" {
         didSet {
-            UserDefaults.standard.set(moneroBackendBaseURL, forKey: MoneroBalanceService.backendBaseURLDefaultsKey)
+            persistAppSettings()
         }}
     @Published var moneroBackendAPIKey: String = "" {
         didSet {
-            UserDefaults.standard.set(moneroBackendAPIKey, forKey: MoneroBalanceService.backendAPIKeyDefaultsKey)
+            persistAppSettings()
         }}
     @Published var isUserInitiatedRefreshInProgress: Bool = false
     @Published var priceAlerts: [PriceAlertRule] = [] {
@@ -320,16 +318,16 @@ class WalletStore: ObservableObject {
     @Published var ethereumManualNonce: String = ""
     @Published var bitcoinNetworkMode: BitcoinNetworkMode = .mainnet {
         didSet {
-            UserDefaults.standard.set(bitcoinNetworkMode.rawValue, forKey: Self.bitcoinNetworkModeDefaultsKey)
+            persistAppSettings()
             try? WalletServiceBridge.shared.resetHistoryForChain(chainId: 0)
         }}
     @Published var dogecoinNetworkMode: DogecoinNetworkMode = .mainnet {
         didSet {
-            UserDefaults.standard.set(dogecoinNetworkMode.rawValue, forKey: Self.dogecoinNetworkModeDefaultsKey)
+            persistAppSettings()
         }}
     @Published var bitcoinEsploraEndpoints: String = "" {
         didSet {
-            UserDefaults.standard.set(bitcoinEsploraEndpoints, forKey: Self.bitcoinEsploraEndpointsDefaultsKey)
+            persistAppSettings()
             try? WalletServiceBridge.shared.resetHistoryForChain(chainId: 0)
         }}
     @Published var bitcoinStopGap: Int = 10 {
@@ -339,19 +337,19 @@ class WalletStore: ObservableObject {
                 bitcoinStopGap = clamped
                 return
             }
-            UserDefaults.standard.set(bitcoinStopGap, forKey: Self.bitcoinStopGapDefaultsKey)
+            persistAppSettings()
         }}
     @Published var bitcoinFeePriority: BitcoinFeePriority = .normal {
         didSet {
-            UserDefaults.standard.set(bitcoinFeePriority.rawValue, forKey: Self.bitcoinFeePriorityDefaultsKey)
+            persistAppSettings()
         }}
     @Published var dogecoinFeePriority: DogecoinFeePriority = .normal {
         didSet {
-            UserDefaults.standard.set(dogecoinFeePriority.rawValue, forKey: Self.dogecoinFeePriorityDefaultsKey)
+            persistAppSettings()
         }}
     @Published var hideBalances: Bool = false {
         didSet {
-            UserDefaults.standard.set(hideBalances, forKey: Self.hideBalancesDefaultsKey)
+            persistAppSettings()
         }}
     @Published var assetDisplayDecimalsByChain: [String: Int] = [:] {
         didSet {
@@ -365,34 +363,34 @@ class WalletStore: ObservableObject {
         }}
     @Published var useFaceID: Bool = true {
         didSet {
-            UserDefaults.standard.set(useFaceID, forKey: Self.useFaceIDDefaultsKey)
+            persistAppSettings()
             if !useFaceID {
                 isAppLocked = false
                 appLockError = nil
             }}}
     @Published var useAutoLock: Bool = false {
         didSet {
-            UserDefaults.standard.set(useAutoLock, forKey: Self.useAutoLockDefaultsKey)
+            persistAppSettings()
         }}
     @Published var useStrictRPCOnly: Bool = false {
         didSet {
-            UserDefaults.standard.set(useStrictRPCOnly, forKey: Self.useStrictRPCOnlyDefaultsKey)
+            persistAppSettings()
         }}
     @Published var requireBiometricForSendActions: Bool = true {
         didSet {
-            UserDefaults.standard.set(requireBiometricForSendActions, forKey: Self.requireBiometricForSendActionsDefaultsKey)
+            persistAppSettings()
         }}
     @Published var usePriceAlerts: Bool = true {
         didSet {
-            UserDefaults.standard.set(usePriceAlerts, forKey: Self.usePriceAlertsDefaultsKey)
+            persistAppSettings()
         }}
     @Published var useTransactionStatusNotifications: Bool = true {
         didSet {
-            UserDefaults.standard.set(useTransactionStatusNotifications, forKey: Self.useTransactionStatusNotificationsDefaultsKey)
+            persistAppSettings()
             if useTransactionStatusNotifications { requestNotificationPermissionIfNeeded() }}}
     @Published var useLargeMovementNotifications: Bool = true {
         didSet {
-            UserDefaults.standard.set(useLargeMovementNotifications, forKey: Self.useLargeMovementNotificationsDefaultsKey)
+            persistAppSettings()
             if useLargeMovementNotifications { requestNotificationPermissionIfNeeded() }}}
     @Published var automaticRefreshFrequencyMinutes: Int = 5 {
         didSet {
@@ -401,11 +399,11 @@ class WalletStore: ObservableObject {
                 automaticRefreshFrequencyMinutes = clamped
                 return
             }
-            UserDefaults.standard.set(automaticRefreshFrequencyMinutes, forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey)
+            persistAppSettings()
         }}
     @Published var backgroundSyncProfile: BackgroundSyncProfile = .balanced {
         didSet {
-            UserDefaults.standard.set(backgroundSyncProfile.rawValue, forKey: Self.backgroundSyncProfileDefaultsKey)
+            persistAppSettings()
         }}
     @Published var largeMovementAlertPercentThreshold: Double = 10 {
         didSet {
@@ -414,7 +412,7 @@ class WalletStore: ObservableObject {
                 largeMovementAlertPercentThreshold = clamped
                 return
             }
-            UserDefaults.standard.set(largeMovementAlertPercentThreshold, forKey: Self.largeMovementAlertPercentThresholdDefaultsKey)
+            persistAppSettings()
         }}
     @Published var largeMovementAlertUSDThreshold: Double = 50 {
         didSet {
@@ -423,7 +421,7 @@ class WalletStore: ObservableObject {
                 largeMovementAlertUSDThreshold = clamped
                 return
             }
-            UserDefaults.standard.set(largeMovementAlertUSDThreshold, forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
+            persistAppSettings()
         }}
     @Published var dogecoinKeypoolByWalletID: [UUID: DogecoinKeypoolState] = [:] {
         didSet {

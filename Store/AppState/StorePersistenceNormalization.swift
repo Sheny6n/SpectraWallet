@@ -1,4 +1,29 @@
 import Foundation
+private struct RustHistoryRecordOut: Encodable {
+    let id: String
+    let walletId: String?
+    let chainName: String
+    let txHash: String?
+    let createdAt: Double
+    let payload: String  // base64-encoded PersistedTransactionRecord JSON
+}
+private func encodeHistoryRecords(_ snapshots: [PersistedTransactionRecord]) -> String? {
+    let encoder = JSONEncoder()
+    let records = snapshots.compactMap { snap -> RustHistoryRecordOut? in
+        guard let payloadData = try? encoder.encode(snap) else { return nil }
+        let payload = payloadData.base64EncodedString()
+        return RustHistoryRecordOut(
+            id: snap.id.uuidString.lowercased(),
+            walletId: snap.walletID?.uuidString.lowercased(),
+            chainName: snap.chainName,
+            txHash: snap.transactionHash?.lowercased(),
+            createdAt: snap.createdAt.timeIntervalSince1970,
+            payload: payload
+        )
+    }
+    guard let data = try? JSONEncoder().encode(records) else { return nil }
+    return String(data: data, encoding: .utf8)
+}
 extension WalletStore {
     func rebuildTokenPreferenceDerivedState() {
         let resolvedPreferences = tokenPreferences.isEmpty ? ChainTokenRegistryEntry.builtIn.map(\.tokenPreferenceEntry) : tokenPreferences
@@ -270,37 +295,21 @@ extension WalletStore {
         return resolvedTransactions
     }
     func persistTransactionsFullSync() {
-        do {
-            let snapshots = transactions.map(\.persistedSnapshot)
-            try HistoryDatabaseStore.shared.replaceAll(with: snapshots)
-        } catch {
-        }}
+        let snapshots = transactions.map(\.persistedSnapshot)
+        if let json = encodeHistoryRecords(snapshots) { WalletServiceBridge.shared.replaceAllHistoryRecords(recordsJSON: json) }
+    }
     func persistTransactionsDelta(from oldRecords: [TransactionRecord], to newRecords: [TransactionRecord]) {
         let oldIDs = Set(oldRecords.map(\.id))
         let newIDs = Set(newRecords.map(\.id))
-        let deletedIDs = Array(oldIDs.subtracting(newIDs))
+        let deletedIDs = oldIDs.subtracting(newIDs).map { $0.uuidString.lowercased() }
         let upsertSnapshots = newRecords.map(\.persistedSnapshot)
-        if deletedIDs.isEmpty && upsertSnapshots.isEmpty { return }
-        do {
-            try HistoryDatabaseStore.shared.delete(ids: deletedIDs)
-            try HistoryDatabaseStore.shared.upsert(records: upsertSnapshots)
-        } catch {
-            persistTransactionsFullSync()
-        }}
-    func loadPersistedTransactions() -> [TransactionRecord] {
-        do {
-            let persistedFromDatabase = try HistoryDatabaseStore.shared.fetchAll()
-            return persistedFromDatabase.map(TransactionRecord.init(snapshot:))
-        } catch {
-            return []
-        }}
+        if !deletedIDs.isEmpty, let idsData = try? JSONEncoder().encode(deletedIDs), let idsJSON = String(data: idsData, encoding: .utf8) {
+            WalletServiceBridge.shared.deleteHistoryRecords(idsJSON: idsJSON)
+        }
+        if !upsertSnapshots.isEmpty, let json = encodeHistoryRecords(upsertSnapshots) { WalletServiceBridge.shared.upsertHistoryRecords(recordsJSON: json) }
+    }
     func persistDogecoinKeypoolState() {
-        let payload = PersistedDogecoinKeypoolStore(
-            version: PersistedDogecoinKeypoolStore.currentVersion, keypoolByWalletID: dogecoinKeypoolByWalletID
-        )
-        persistCodableToUserDefaults(payload, key: Self.dogecoinKeypoolDefaultsKey)
-        persistKeypoolToRust(chainName: "Dogecoin", walletMap: dogecoinKeypoolByWalletID.mapValues { ChainKeypoolState(nextExternalIndex: $0.nextExternalIndex, nextChangeIndex: $0.nextChangeIndex, reservedReceiveIndex: $0.reservedReceiveIndex)
-        })
+        persistKeypoolToRust(chainName: "Dogecoin", walletMap: dogecoinKeypoolByWalletID.mapValues { ChainKeypoolState(nextExternalIndex: $0.nextExternalIndex, nextChangeIndex: $0.nextChangeIndex, reservedReceiveIndex: $0.reservedReceiveIndex) })
     }
     func loadDogecoinKeypoolState() -> [UUID: DogecoinKeypoolState] {
         guard let payload = loadCodableFromUserDefaults(PersistedDogecoinKeypoolStore.self, key: Self.dogecoinKeypoolDefaultsKey) else { return [:] }
@@ -308,10 +317,6 @@ extension WalletStore {
         return payload.keypoolByWalletID
     }
     func persistChainKeypoolState() {
-        let payload = PersistedChainKeypoolStore(
-            version: PersistedChainKeypoolStore.currentVersion, keypoolByChain: chainKeypoolByChain
-        )
-        persistCodableToUserDefaults(payload, key: Self.chainKeypoolDefaultsKey)
         for (chainName, walletMap) in chainKeypoolByChain { persistKeypoolToRust(chainName: chainName, walletMap: walletMap) }}
     func loadChainKeypoolState() -> [String: [UUID: ChainKeypoolState]] {
         guard let payload = loadCodableFromUserDefaults(PersistedChainKeypoolStore.self, key: Self.chainKeypoolDefaultsKey) else { return [:] }
@@ -319,10 +324,6 @@ extension WalletStore {
         return payload.keypoolByChain
     }
     func persistDogecoinOwnedAddressMap() {
-        let payload = PersistedDogecoinOwnedAddressStore(
-            version: PersistedDogecoinOwnedAddressStore.currentVersion, addressMap: dogecoinOwnedAddressMap
-        )
-        persistCodableToUserDefaults(payload, key: Self.dogecoinOwnedAddressMapDefaultsKey)
         for (_, record) in dogecoinOwnedAddressMap {
             persistOwnedAddressToRust(
                 walletId: record.walletID.uuidString, chainName: "Dogecoin", address: record.address ?? "", derivationPath: record.derivationPath, branch: record.branch, branchIndex: record.index
@@ -338,10 +339,6 @@ extension WalletStore {
         return payload.addressMap
     }
     func persistChainOwnedAddressMap() {
-        let payload = PersistedChainOwnedAddressStore(
-            version: PersistedChainOwnedAddressStore.currentVersion, addressMapByChain: chainOwnedAddressMapByChain
-        )
-        persistCodableToUserDefaults(payload, key: Self.chainOwnedAddressMapDefaultsKey)
         for (chainName, addressMap) in chainOwnedAddressMapByChain {
             for (_, record) in addressMap {
                 persistOwnedAddressToRust(

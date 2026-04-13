@@ -282,336 +282,137 @@ extension WalletSendLayer {
             store.tronSendPreview = nil
             store.sendError = "Unable to estimate Tron fee right now. Check provider health and retry."
         }}
-    private static func rustFeeAndBalance(chainId: UInt32, address: String) async throws -> (feeJSON: String, balanceJSON: String) {
-        async let fee = WalletServiceBridge.shared.fetchFeeEstimateJSON(chainId: chainId)
-        async let balance = WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address)
-        return try await (fee, balance)
+    // Decode fields from a normalized simple-chain preview JSON returned by
+    // WalletServiceBridge.fetchSimpleChainSendPreviewJSON.
+    private struct SimplePreviewFields {
+        let feeDisplay: Double
+        let feeRaw: String
+        let feeRateDescription: String
+        let balanceDisplay: Double
+        let maxSendable: Double
     }
-    private static func rustFeeDisplay(from feeJSON: String) -> Double { Double(WalletSendLayer.rustField("native_fee_display", from: feeJSON)) ?? 0 }
-    private static func rustFeeRaw(from feeJSON: String) -> String { WalletSendLayer.rustField("native_fee_raw", from: feeJSON) }
+    private static func decodeSimplePreviewFields(from json: String) -> SimplePreviewFields {
+        guard let data = json.data(using: .utf8),
+              let obj  = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return SimplePreviewFields(feeDisplay: 0, feeRaw: "", feeRateDescription: "", balanceDisplay: 0, maxSendable: 0)
+        }
+        let feeDisplay   = obj["fee_display"]          as? Double ?? Double(obj["fee_display"]          as? String ?? "") ?? 0
+        let feeRaw       = obj["fee_raw"]              as? String ?? String(describing: obj["fee_raw"] ?? "")
+        let feeRateDesc  = obj["fee_rate_description"] as? String ?? ""
+        let balance      = obj["balance_display"]      as? Double ?? Double(obj["balance_display"]      as? String ?? "") ?? 0
+        let maxSendable  = obj["max_sendable"]         as? Double ?? max(0, balance - feeDisplay)
+        return SimplePreviewFields(feeDisplay: feeDisplay, feeRaw: feeRaw, feeRateDescription: feeRateDesc, balanceDisplay: balance, maxSendable: maxSendable)
+    }
+    private static func refreshSimpleChainSendPreview<Preview>(
+        using store: WalletStore,
+        coinCheck: (Coin) -> Bool,
+        chainId: UInt32,
+        resolveAddress: (WalletStore, ImportedWallet) -> String?,
+        preparingKP: WritableKeyPath<WalletStore, Bool>,
+        previewKP: WritableKeyPath<WalletStore, Preview?>,
+        build: (SimplePreviewFields) -> Preview,
+        onError: ((WalletStore, Error) -> Void)? = nil
+    ) async {
+        guard let wallet = store.wallet(for: store.sendWalletID),
+              let selectedSendCoin = store.selectedSendCoin,
+              coinCheck(selectedSendCoin),
+              let amount = Double(store.sendAmount), amount > 0
+        else { store[keyPath: previewKP] = nil; store[keyPath: preparingKP] = false; return }
+        guard let src = resolveAddress(store, wallet) else { store[keyPath: previewKP] = nil; store[keyPath: preparingKP] = false; return }
+        guard !store[keyPath: preparingKP] else { return }
+        store[keyPath: preparingKP] = true; defer { store[keyPath: preparingKP] = false }
+        do {
+            let p = decodeSimplePreviewFields(from: try await WalletServiceBridge.shared.fetchSimpleChainSendPreviewJSON(chainId: chainId, address: src))
+            store[keyPath: previewKP] = build(p); store.sendError = nil
+        } catch {
+            if store.isCancelledRequest(error) { return }
+            if let onError { onError(store, error) } else { store[keyPath: previewKP] = nil; store.sendError = error.localizedDescription }
+        }
+    }
     static func refreshSolanaSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, store.isSupportedSolanaSendCoin(selectedSendCoin), let amount = Double(store.sendAmount), amount > 0 else {
-            store.solanaSendPreview = nil
-            store.isPreparingSolanaSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedSolanaAddress(for: wallet) else {
-            store.solanaSendPreview = nil
-            store.isPreparingSolanaSend = false
-            return
-        }
-        guard !store.isPreparingSolanaSend else { return }
-        store.isPreparingSolanaSend = true
-        defer { store.isPreparingSolanaSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.solana, address: sourceAddress)
-            let feeSOL = rustFeeDisplay(from: feeJSON)
-            let lamports = UInt64(WalletSendLayer.rustField("lamports", from: balanceJSON)) ?? 0
-            let balance = Double(lamports) / 1e9
-            store.solanaSendPreview = SolanaSendPreview(
-                estimatedNetworkFeeSOL: feeSOL, spendableBalance: balance, feeRateDescription: WalletSendLayer.rustField("source", from: feeJSON), estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeSOL)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.solanaSendPreview = nil
-            store.sendError = "Unable to estimate Solana fee right now. Check provider health and retry."
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { store.isSupportedSolanaSendCoin($0) }, chainId: SpectraChainID.solana,
+            resolveAddress: { s, w in s.resolvedSolanaAddress(for: w) },
+            preparingKP: \.isPreparingSolanaSend, previewKP: \.solanaSendPreview,
+            build: { SolanaSendPreview(estimatedNetworkFeeSOL: $0.feeDisplay, spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRateDescription, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) },
+            onError: { s, _ in s.solanaSendPreview = nil; s.sendError = "Unable to estimate Solana fee right now. Check provider health and retry." })
+    }
     static func refreshXRPSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "XRP Ledger", selectedSendCoin.symbol == "XRP", let amount = Double(store.sendAmount), amount > 0 else {
-            store.xrpSendPreview = nil
-            store.isPreparingXRPSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedXRPAddress(for: wallet) else {
-            store.xrpSendPreview = nil
-            store.isPreparingXRPSend = false
-            return
-        }
-        guard !store.isPreparingXRPSend else { return }
-        store.isPreparingXRPSend = true
-        defer { store.isPreparingXRPSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.xrp, address: sourceAddress)
-            let feeXRP = rustFeeDisplay(from: feeJSON)
-            let feeDrops = Int64(rustFeeRaw(from: feeJSON)) ?? 12
-            let drops = UInt64(WalletSendLayer.rustField("drops", from: balanceJSON)) ?? 0
-            let balance = Double(drops) / 1e6
-            store.xrpSendPreview = XRPSendPreview(
-                estimatedNetworkFeeXRP: feeXRP, feeDrops: feeDrops, sequence: 0, lastLedgerSequence: 0, spendableBalance: balance, feeRateDescription: WalletSendLayer.rustField("source", from: feeJSON), estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeXRP)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.xrpSendPreview = nil
-            store.sendError = "Unable to estimate XRP fee right now. Check provider health and retry."
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "XRP Ledger" && $0.symbol == "XRP" }, chainId: SpectraChainID.xrp,
+            resolveAddress: { s, w in s.resolvedXRPAddress(for: w) },
+            preparingKP: \.isPreparingXRPSend, previewKP: \.xrpSendPreview,
+            build: { XRPSendPreview(estimatedNetworkFeeXRP: $0.feeDisplay, feeDrops: Int64($0.feeRaw) ?? 12, sequence: 0, lastLedgerSequence: 0, spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRateDescription, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) },
+            onError: { s, _ in s.xrpSendPreview = nil; s.sendError = "Unable to estimate XRP fee right now. Check provider health and retry." })
+    }
     static func refreshStellarSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "Stellar", selectedSendCoin.symbol == "XLM", let amount = Double(store.sendAmount), amount > 0 else {
-            store.stellarSendPreview = nil
-            store.isPreparingStellarSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedStellarAddress(for: wallet) else {
-            store.stellarSendPreview = nil
-            store.isPreparingStellarSend = false
-            return
-        }
-        guard !store.isPreparingStellarSend else { return }
-        store.isPreparingStellarSend = true
-        defer { store.isPreparingStellarSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.stellar, address: sourceAddress)
-            let feeXLM = rustFeeDisplay(from: feeJSON)
-            let feeStroops = Int64(rustFeeRaw(from: feeJSON)) ?? 100
-            let stroops = Int64(WalletSendLayer.rustField("stroops", from: balanceJSON)) ?? 0
-            let balance = Double(stroops) / 1e7
-            store.stellarSendPreview = StellarSendPreview(
-                estimatedNetworkFeeXLM: feeXLM, feeStroops: feeStroops, sequence: 0, spendableBalance: balance, feeRateDescription: WalletSendLayer.rustField("source", from: feeJSON), estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeXLM)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.stellarSendPreview = nil
-            store.sendError = "Unable to estimate Stellar fee right now. Check provider health and retry."
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "Stellar" && $0.symbol == "XLM" }, chainId: SpectraChainID.stellar,
+            resolveAddress: { s, w in s.resolvedStellarAddress(for: w) },
+            preparingKP: \.isPreparingStellarSend, previewKP: \.stellarSendPreview,
+            build: { StellarSendPreview(estimatedNetworkFeeXLM: $0.feeDisplay, feeStroops: Int64($0.feeRaw) ?? 100, sequence: 0, spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRateDescription, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) },
+            onError: { s, _ in s.stellarSendPreview = nil; s.sendError = "Unable to estimate Stellar fee right now. Check provider health and retry." })
+    }
     static func refreshMoneroSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "Monero", selectedSendCoin.symbol == "XMR", let amount = Double(store.sendAmount), amount > 0 else {
-            store.moneroSendPreview = nil
-            store.isPreparingMoneroSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedMoneroAddress(for: wallet) else {
-            store.moneroSendPreview = nil
-            store.isPreparingMoneroSend = false
-            return
-        }
-        guard !store.isPreparingMoneroSend else { return }
-        store.isPreparingMoneroSend = true
-        defer { store.isPreparingMoneroSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.monero, address: sourceAddress)
-            let feeXMR = rustFeeDisplay(from: feeJSON)
-            let piconeros = UInt64(WalletSendLayer.rustField("piconeros", from: balanceJSON)) ?? 0
-            let balance = Double(piconeros) / 1e12
-            store.moneroSendPreview = MoneroSendPreview(
-                estimatedNetworkFeeXMR: feeXMR, priorityLabel: "normal", spendableBalance: balance, feeRateDescription: WalletSendLayer.rustField("source", from: feeJSON), estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeXMR)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.moneroSendPreview = MoneroSendPreview(
-                estimatedNetworkFeeXMR: 0.0002, priorityLabel: "normal", spendableBalance: 0, feeRateDescription: "normal", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0
-            )
-            store.sendError = error.localizedDescription
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "Monero" && $0.symbol == "XMR" }, chainId: SpectraChainID.monero,
+            resolveAddress: { s, w in s.resolvedMoneroAddress(for: w) },
+            preparingKP: \.isPreparingMoneroSend, previewKP: \.moneroSendPreview,
+            build: { MoneroSendPreview(estimatedNetworkFeeXMR: $0.feeDisplay, priorityLabel: "normal", spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRateDescription, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) },
+            onError: { s, e in s.moneroSendPreview = MoneroSendPreview(estimatedNetworkFeeXMR: 0.0002, priorityLabel: "normal", spendableBalance: 0, feeRateDescription: "normal", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0); s.sendError = e.localizedDescription })
+    }
     static func refreshCardanoSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "Cardano", selectedSendCoin.symbol == "ADA", let amount = Double(store.sendAmount), amount > 0 else {
-            store.cardanoSendPreview = nil
-            store.isPreparingCardanoSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedCardanoAddress(for: wallet) else {
-            store.cardanoSendPreview = nil
-            store.isPreparingCardanoSend = false
-            return
-        }
-        guard !store.isPreparingCardanoSend else { return }
-        store.isPreparingCardanoSend = true
-        defer { store.isPreparingCardanoSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.cardano, address: sourceAddress)
-            let feeADA = rustFeeDisplay(from: feeJSON)
-            let lovelace = UInt64(WalletSendLayer.rustField("lovelace", from: balanceJSON)) ?? 0
-            let balance = Double(lovelace) / 1e6
-            store.cardanoSendPreview = CardanoSendPreview(
-                estimatedNetworkFeeADA: feeADA, ttlSlot: 0, spendableBalance: balance, feeRateDescription: WalletSendLayer.rustField("source", from: feeJSON), estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeADA)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.cardanoSendPreview = CardanoSendPreview(
-                estimatedNetworkFeeADA: 0.2, ttlSlot: 0, spendableBalance: 0, feeRateDescription: nil, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0
-            )
-            store.sendError = error.localizedDescription
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "Cardano" && $0.symbol == "ADA" }, chainId: SpectraChainID.cardano,
+            resolveAddress: { s, w in s.resolvedCardanoAddress(for: w) },
+            preparingKP: \.isPreparingCardanoSend, previewKP: \.cardanoSendPreview,
+            build: { CardanoSendPreview(estimatedNetworkFeeADA: $0.feeDisplay, ttlSlot: 0, spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRateDescription, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) },
+            onError: { s, e in s.cardanoSendPreview = CardanoSendPreview(estimatedNetworkFeeADA: 0.2, ttlSlot: 0, spendableBalance: 0, feeRateDescription: nil, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0); s.sendError = e.localizedDescription })
+    }
     static func refreshSuiSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "Sui", selectedSendCoin.symbol == "SUI", let amount = Double(store.sendAmount), amount > 0 else {
-            store.suiSendPreview = nil
-            store.isPreparingSuiSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedSuiAddress(for: wallet) else {
-            store.suiSendPreview = nil
-            store.isPreparingSuiSend = false
-            return
-        }
-        guard !store.isPreparingSuiSend else { return }
-        store.isPreparingSuiSend = true
-        defer { store.isPreparingSuiSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.sui, address: sourceAddress)
-            let feeSUI = rustFeeDisplay(from: feeJSON)
-            let gasBudgetMist = UInt64(rustFeeRaw(from: feeJSON)) ?? 3_000_000
-            let mist = UInt64(WalletSendLayer.rustField("mist", from: balanceJSON)) ?? 0
-            let balance = Double(mist) / 1e9
-            store.suiSendPreview = SuiSendPreview(
-                estimatedNetworkFeeSUI: feeSUI, gasBudgetMist: gasBudgetMist, referenceGasPrice: 1_000, spendableBalance: balance, feeRateDescription: WalletSendLayer.rustField("source", from: feeJSON), estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeSUI)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.suiSendPreview = SuiSendPreview(
-                estimatedNetworkFeeSUI: 0.001, gasBudgetMist: 3_000_000, referenceGasPrice: 1_000, spendableBalance: 0, feeRateDescription: "Reference gas price: 1000", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0
-            )
-            store.sendError = error.localizedDescription
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "Sui" && $0.symbol == "SUI" }, chainId: SpectraChainID.sui,
+            resolveAddress: { s, w in s.resolvedSuiAddress(for: w) },
+            preparingKP: \.isPreparingSuiSend, previewKP: \.suiSendPreview,
+            build: { SuiSendPreview(estimatedNetworkFeeSUI: $0.feeDisplay, gasBudgetMist: UInt64($0.feeRaw) ?? 3_000_000, referenceGasPrice: 1_000, spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRateDescription, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) },
+            onError: { s, e in s.suiSendPreview = SuiSendPreview(estimatedNetworkFeeSUI: 0.001, gasBudgetMist: 3_000_000, referenceGasPrice: 1_000, spendableBalance: 0, feeRateDescription: "Reference gas price: 1000", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0); s.sendError = e.localizedDescription })
+    }
     static func refreshAptosSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "Aptos", selectedSendCoin.symbol == "APT", let amount = Double(store.sendAmount), amount > 0 else {
-            store.aptosSendPreview = nil
-            store.isPreparingAptosSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedAptosAddress(for: wallet) else {
-            store.aptosSendPreview = nil
-            store.isPreparingAptosSend = false
-            return
-        }
-        guard !store.isPreparingAptosSend else { return }
-        store.isPreparingAptosSend = true
-        defer { store.isPreparingAptosSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.aptos, address: sourceAddress)
-            let feeAPT = rustFeeDisplay(from: feeJSON)
-            let gasUnitPriceOctas = UInt64(rustFeeRaw(from: feeJSON)) ?? 100
-            let octas = UInt64(WalletSendLayer.rustField("octas", from: balanceJSON)) ?? 0
-            let balance = Double(octas) / 1e8
-            store.aptosSendPreview = AptosSendPreview(
-                estimatedNetworkFeeAPT: feeAPT, maxGasAmount: 10_000, gasUnitPriceOctas: gasUnitPriceOctas, spendableBalance: balance, feeRateDescription: "\(gasUnitPriceOctas) octas/unit", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeAPT)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.aptosSendPreview = AptosSendPreview(
-                estimatedNetworkFeeAPT: 0.0002, maxGasAmount: 2_000, gasUnitPriceOctas: 100, spendableBalance: 0, feeRateDescription: "100 octas/unit", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0
-            )
-            store.sendError = error.localizedDescription
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "Aptos" && $0.symbol == "APT" }, chainId: SpectraChainID.aptos,
+            resolveAddress: { s, w in s.resolvedAptosAddress(for: w) },
+            preparingKP: \.isPreparingAptosSend, previewKP: \.aptosSendPreview,
+            build: { p in let g = UInt64(p.feeRaw) ?? 100; return AptosSendPreview(estimatedNetworkFeeAPT: p.feeDisplay, maxGasAmount: 10_000, gasUnitPriceOctas: g, spendableBalance: p.balanceDisplay, feeRateDescription: "\(g) octas/unit", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: p.maxSendable) },
+            onError: { s, e in s.aptosSendPreview = AptosSendPreview(estimatedNetworkFeeAPT: 0.0002, maxGasAmount: 2_000, gasUnitPriceOctas: 100, spendableBalance: 0, feeRateDescription: "100 octas/unit", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0); s.sendError = e.localizedDescription })
+    }
     static func refreshTONSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "TON", selectedSendCoin.symbol == "TON", let amount = Double(store.sendAmount), amount > 0 else {
-            store.tonSendPreview = nil
-            store.isPreparingTONSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedTONAddress(for: wallet) else {
-            store.tonSendPreview = nil
-            store.isPreparingTONSend = false
-            return
-        }
-        guard !store.isPreparingTONSend else { return }
-        store.isPreparingTONSend = true
-        defer { store.isPreparingTONSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.ton, address: sourceAddress)
-            let feeTON = rustFeeDisplay(from: feeJSON)
-            let nanotons = UInt64(WalletSendLayer.rustField("nanotons", from: balanceJSON)) ?? 0
-            let balance = Double(nanotons) / 1e9
-            store.tonSendPreview = TONSendPreview(
-                estimatedNetworkFeeTON: feeTON, sequenceNumber: 0, spendableBalance: balance, feeRateDescription: WalletSendLayer.rustField("source", from: feeJSON), estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeTON)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.tonSendPreview = TONSendPreview(
-                estimatedNetworkFeeTON: 0.005, sequenceNumber: 0, spendableBalance: 0, feeRateDescription: nil, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0
-            )
-            store.sendError = error.localizedDescription
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "TON" && $0.symbol == "TON" }, chainId: SpectraChainID.ton,
+            resolveAddress: { s, w in s.resolvedTONAddress(for: w) },
+            preparingKP: \.isPreparingTONSend, previewKP: \.tonSendPreview,
+            build: { TONSendPreview(estimatedNetworkFeeTON: $0.feeDisplay, sequenceNumber: 0, spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRateDescription, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) },
+            onError: { s, e in s.tonSendPreview = TONSendPreview(estimatedNetworkFeeTON: 0.005, sequenceNumber: 0, spendableBalance: 0, feeRateDescription: nil, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0); s.sendError = e.localizedDescription })
+    }
     static func refreshICPSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "Internet Computer", selectedSendCoin.symbol == "ICP", let amount = Double(store.sendAmount), amount > 0 else {
-            store.icpSendPreview = nil
-            store.isPreparingICPSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedICPAddress(for: wallet) else {
-            store.icpSendPreview = nil
-            store.isPreparingICPSend = false
-            return
-        }
-        guard !store.isPreparingICPSend else { return }
-        store.isPreparingICPSend = true
-        defer { store.isPreparingICPSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.icp, address: sourceAddress)
-            let feeICP = rustFeeDisplay(from: feeJSON)
-            let feeE8s = UInt64(rustFeeRaw(from: feeJSON)) ?? 10_000
-            let e8s = UInt64(WalletSendLayer.rustField("e8s", from: balanceJSON)) ?? 0
-            let balance = Double(e8s) / 1e8
-            store.icpSendPreview = ICPSendPreview(
-                estimatedNetworkFeeICP: feeICP, feeE8s: feeE8s, spendableBalance: balance, feeRateDescription: WalletSendLayer.rustField("source", from: feeJSON), estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeICP)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.icpSendPreview = nil
-            store.sendError = error.localizedDescription
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "Internet Computer" && $0.symbol == "ICP" }, chainId: SpectraChainID.icp,
+            resolveAddress: { s, w in s.resolvedICPAddress(for: w) },
+            preparingKP: \.isPreparingICPSend, previewKP: \.icpSendPreview,
+            build: { ICPSendPreview(estimatedNetworkFeeICP: $0.feeDisplay, feeE8s: UInt64($0.feeRaw) ?? 10_000, spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRateDescription, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) })
+    }
     static func refreshNearSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "NEAR", selectedSendCoin.symbol == "NEAR", let amount = Double(store.sendAmount), amount > 0 else {
-            store.nearSendPreview = nil
-            store.isPreparingNearSend = false
-            return
-        }
-        guard let sourceAddress = store.resolvedNearAddress(for: wallet) else {
-            store.nearSendPreview = nil
-            store.isPreparingNearSend = false
-            return
-        }
-        guard !store.isPreparingNearSend else { return }
-        store.isPreparingNearSend = true
-        defer { store.isPreparingNearSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.near, address: sourceAddress)
-            let feeNEAR = rustFeeDisplay(from: feeJSON)
-            let gasPriceYocto = rustFeeRaw(from: feeJSON)
-            let balance = RustBalanceDecoder.yoctoNearToDouble(from: balanceJSON) ?? 0
-            store.nearSendPreview = NearSendPreview(
-                estimatedNetworkFeeNEAR: feeNEAR, gasPriceYoctoNear: gasPriceYocto, spendableBalance: balance, feeRateDescription: gasPriceYocto, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeNEAR)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.nearSendPreview = NearSendPreview(
-                estimatedNetworkFeeNEAR: 0.00005, gasPriceYoctoNear: "100000000", spendableBalance: 0, feeRateDescription: "100000000", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0
-            )
-            store.sendError = error.localizedDescription
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "NEAR" && $0.symbol == "NEAR" }, chainId: SpectraChainID.near,
+            resolveAddress: { s, w in s.resolvedNearAddress(for: w) },
+            preparingKP: \.isPreparingNearSend, previewKP: \.nearSendPreview,
+            build: { NearSendPreview(estimatedNetworkFeeNEAR: $0.feeDisplay, gasPriceYoctoNear: $0.feeRaw, spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRaw, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) },
+            onError: { s, e in s.nearSendPreview = NearSendPreview(estimatedNetworkFeeNEAR: 0.00005, gasPriceYoctoNear: "100000000", spendableBalance: 0, feeRateDescription: "100000000", estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: 0); s.sendError = e.localizedDescription })
+    }
     static func refreshPolkadotSendPreview(using store: WalletStore) async {
-        guard let wallet = store.wallet(for: store.sendWalletID), let selectedSendCoin = store.selectedSendCoin, selectedSendCoin.chainName == "Polkadot", selectedSendCoin.symbol == "DOT", let amount = Double(store.sendAmount), amount > 0 else {
-            store.polkadotSendPreview = nil
-            store.isPreparingPolkadotSend = false
-            return
-        }
-        guard let seedPhrase = store.storedSeedPhrase(for: wallet.id), let sourceAddress = store.resolvedPolkadotAddress(for: wallet) else {
-            store.polkadotSendPreview = nil
-            store.isPreparingPolkadotSend = false
-            return
-        }
-        guard !store.isPreparingPolkadotSend else { return }
-        store.isPreparingPolkadotSend = true
-        defer { store.isPreparingPolkadotSend = false }
-        do {
-            let (feeJSON, balanceJSON) = try await rustFeeAndBalance(chainId: SpectraChainID.polkadot, address: sourceAddress)
-            let feeDOT = rustFeeDisplay(from: feeJSON)
-            let planckDouble = RustBalanceDecoder.uint128StringField("planck", from: balanceJSON) ?? 0
-            let balance = planckDouble / 1e10
-            store.polkadotSendPreview = PolkadotSendPreview(
-                estimatedNetworkFeeDOT: feeDOT, spendableBalance: balance, feeRateDescription: WalletSendLayer.rustField("source", from: feeJSON), estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: max(0, balance - feeDOT)
-            )
-            store.sendError = nil
-        } catch {
-            if store.isCancelledRequest(error) { return }
-            store.polkadotSendPreview = nil
-            store.sendError = error.localizedDescription
-        }}
+        await refreshSimpleChainSendPreview(using: store,
+            coinCheck: { $0.chainName == "Polkadot" && $0.symbol == "DOT" }, chainId: SpectraChainID.polkadot,
+            resolveAddress: { s, w in guard s.storedSeedPhrase(for: w.id) != nil else { return nil }; return s.resolvedPolkadotAddress(for: w) },
+            preparingKP: \.isPreparingPolkadotSend, previewKP: \.polkadotSendPreview,
+            build: { PolkadotSendPreview(estimatedNetworkFeeDOT: $0.feeDisplay, spendableBalance: $0.balanceDisplay, feeRateDescription: $0.feeRateDescription, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil, maxSendable: $0.maxSendable) })
+    }
 }

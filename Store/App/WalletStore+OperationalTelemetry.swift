@@ -40,8 +40,7 @@ extension WalletStore {
         return decoded
     }
     func persistChainOperationalEvents() {
-        guard let data = try? JSONEncoder().encode(chainOperationalEventsByChain) else { return }
-        UserDefaults.standard.set(data, forKey: Self.chainOperationalEventsDefaultsKey)
+        persistCodableToSQLite(chainOperationalEventsByChain, key: Self.chainOperationalEventsDefaultsKey)
     }
     func noteSendBroadcastQueued(for transaction: TransactionRecord) {
         appendChainOperationalEvent(

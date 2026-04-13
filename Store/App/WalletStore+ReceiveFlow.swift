@@ -892,5 +892,5 @@ extension WalletStore {
         return rate
     }
     func fiatRate(for currency: FiatCurrency) -> Double { fiatRateIfAvailable(for: currency) ?? (currency == .usd ? 1.0 : 0) }
-    func persistAssetDisplayDecimalsByChain() { persistCodableToUserDefaults(assetDisplayDecimalsByChain, key: Self.assetDisplayDecimalsByChainDefaultsKey) }
+    func persistAssetDisplayDecimalsByChain() { persistCodableToSQLite(assetDisplayDecimalsByChain, key: Self.assetDisplayDecimalsByChainDefaultsKey) }
 }

@@ -21,12 +21,6 @@ extension WalletStore {
         moneroBackendAPIKey = UserDefaults.standard.string(forKey: MoneroBalanceService.backendAPIKeyDefaultsKey) ?? ""
         suppressWalletSideEffects = true
         wallets = loadPersistedWallets()
-        withSuspendedTransactionSideEffects {
-            transactions = loadPersistedTransactions()
-            pruneTransactionsForActiveWallets()
-        }
-        transactionState.lastObservedTransactions = transactions
-        rebuildTransactionDerivedState()
         priceAlerts = loadPersistedPriceAlerts()
         addressBook = loadPersistedAddressBook()
         tokenPreferences = loadPersistedTokenPreferences()
@@ -56,6 +50,8 @@ extension WalletStore {
         if UserDefaults.standard.object(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey) != nil { largeMovementAlertPercentThreshold = UserDefaults.standard.double(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey) }
         if UserDefaults.standard.object(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey) != nil { largeMovementAlertUSDThreshold = UserDefaults.standard.double(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey) }
         if let storedFeePrioritySelections = UserDefaults.standard.dictionary(forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey) as? [String: String] { selectedFeePriorityOptionRawByChain = storedFeePrioritySelections }
+        let storedPins = (UserDefaults.standard.stringArray(forKey: Self.pinnedDashboardAssetSymbolsDefaultsKey) ?? []).map { $0.uppercased() }.filter { !$0.isEmpty }
+        if !storedPins.isEmpty { cachedPinnedDashboardAssetSymbols = storedPins }
         suppressWalletSideEffects = false
         applyWalletCollectionSideEffects()
         DispatchQueue.main.async {
@@ -177,7 +173,7 @@ extension WalletStore {
         cancelWalletImport()
     }
     private func resetHistoryAndCacheState() {
-        HistoryDatabaseStore.shared.hardResetStorage()
+        WalletServiceBridge.shared.clearAllHistoryRecords()
         UserDefaults.standard.removeObject(forKey: Self.chainSyncStateDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.operationalLogsDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.dogecoinKeypoolDefaultsKey)

@@ -132,6 +132,7 @@ actor WalletServiceBridge {
     func fetchEVMSendPreviewJSON(chainId: UInt32, from: String, to: String, valueWei: String, dataHex: String) async throws -> String { try await service().fetchEvmSendPreview(chainId: chainId, from: from, to: to, valueWei: valueWei, dataHex: dataHex) }
     func fetchTronSendPreviewJSON(address: String, symbol: String, contractAddress: String) async throws -> String { try await service().fetchTronSendPreview(address: address, symbol: symbol, contractAddress: contractAddress) }
     func fetchUTXOFeePreviewJSON(chainId: UInt32, address: String, feeRateSvb: UInt64) async throws -> String { try await service().fetchUtxoFeePreview(chainId: chainId, address: address, feeRateSvb: feeRateSvb) }
+    func fetchSimpleChainSendPreviewJSON(chainId: UInt32, address: String) async throws -> String { try await service().fetchSimpleChainSendPreview(chainId: chainId, address: address) }
     nonisolated func rustGenerateMnemonic(wordCount: Int) -> String { generateMnemonic(wordCount: UInt32(wordCount)) }
     nonisolated func rustValidateMnemonic(_ phrase: String) -> Bool { validateMnemonic(phrase: phrase) }
     nonisolated func rustBip39Wordlist() -> [String] { bip39EnglishWordlist().split(separator: "\n").map(String.init) }
@@ -299,6 +300,18 @@ extension WalletServiceBridge {
                 dbPath: sqliteDbPath(), walletId: walletId
             )
         }}
+    // ── Transaction history persistence (Rust SQLite) ──────────────────────────
+    func upsertHistoryRecords(recordsJSON: String) {
+        Task { try? await service().upsertHistoryRecords(dbPath: sqliteDbPath(), recordsJson: recordsJSON) }}
+    func fetchAllHistoryRecords() async throws -> String { try await service().fetchAllHistoryRecords(dbPath: sqliteDbPath()) }
+    func deleteHistoryRecords(idsJSON: String) {
+        Task { try? await service().deleteHistoryRecords(dbPath: sqliteDbPath(), idsJson: idsJSON) }}
+    func replaceAllHistoryRecords(recordsJSON: String) {
+        Task { try? await service().replaceAllHistoryRecords(dbPath: sqliteDbPath(), recordsJson: recordsJSON) }}
+    func deleteHistoryRecordsForWallet(walletId: String) {
+        Task { try? await service().deleteHistoryRecordsForWallet(dbPath: sqliteDbPath(), walletId: walletId) }}
+    func clearAllHistoryRecords() {
+        Task { try? await service().clearAllHistoryRecords(dbPath: sqliteDbPath()) }}
     func cachedHistoryJSON(chainId: UInt32, address: String) throws -> String? { try service().cachedHistory(chainId: chainId, address: address) }
     func storeHistoryCache(chainId: UInt32, address: String, json: String) throws { try service().cacheHistory(chainId: chainId, address: address, historyJson: json) }
     func invalidateHistoryCache(chainId: UInt32, address: String) throws { try service().invalidateCachedHistory(chainId: chainId, address: address) }

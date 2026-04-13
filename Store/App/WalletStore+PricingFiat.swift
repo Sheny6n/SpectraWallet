@@ -60,7 +60,7 @@ extension WalletStore {
             for currency in FiatCurrency.allCases where currency != .usd {
                 if let rate = fetchedRates[currency.rawValue], rate > 0 { rates[currency.rawValue] = rate } else if let existingRate = fiatRatesFromUSD[currency.rawValue], existingRate > 0 { rates[currency.rawValue] = existingRate }}
             fiatRatesFromUSD = rates
-            UserDefaults.standard.set(rates, forKey: Self.fiatRatesFromUSDDefaultsKey)
+            persistCodableToSQLite(rates, key: Self.fiatRatesFromUSDDefaultsKey)
             fiatRatesRefreshError = nil
             lastFiatRatesRefreshAt = Date()
         } catch {

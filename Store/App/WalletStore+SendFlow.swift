@@ -333,62 +333,43 @@ extension WalletStore {
         return reasons
     }
     func evaluateHighRiskSendReasons(wallet: ImportedWallet, holding: Coin, amount: Double, destinationAddress: String, destinationInput: String, usedENSResolution: Bool = false) -> [String] {
-        var reasons: [String] = []
-        let normalizedDestination = normalizedAddress(destinationAddress, for: holding.chainName)
-        if !isValidAddress(destinationAddress, for: holding.chainName) { reasons.append(localizedStoreFormat("The destination address format does not match %@.", holding.chainName)) }
-        let hasKnownAddressBookEntry = addressBook.contains { entry in
-            entry.chainName == holding.chainName
-                && normalizedAddress(entry.address, for: holding.chainName).caseInsensitiveCompare(normalizedDestination) == .orderedSame
+        let bookEntries = addressBook.map { ["chain_name": $0.chainName, "address": $0.address] }
+        let txAddrs = Set(transactions.compactMap { $0.chainName == holding.chainName ? $0.address : nil })
+        let txEntries = txAddrs.map { ["chain_name": holding.chainName, "address": $0] }
+        let req: [String: Any] = [
+            "chain_name": holding.chainName, "symbol": holding.symbol,
+            "amount": amount, "holding_amount": holding.amount,
+            "destination_address": destinationAddress, "destination_input": destinationInput,
+            "used_ens_resolution": usedENSResolution,
+            "wallet_selected_chain": wallet.selectedChain,
+            "address_book": bookEntries, "tx_addresses": txEntries
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: req),
+              let json = String(data: data, encoding: .utf8),
+              let result = try? coreEvaluateHighRiskSendReasonsJson(requestJson: json),
+              let wData = result.data(using: .utf8),
+              let ws = try? JSONSerialization.jsonObject(with: wData) as? [[String: Any]]
+        else { return [] }
+        return ws.compactMap { w -> String? in
+            switch w["code"] as? String {
+            case "invalid_format": return localizedStoreFormat("The destination address format does not match %@.", w["chain"] as? String ?? "")
+            case "new_address": return localizedStoreString("This is a new destination address with no prior history in this wallet.")
+            case "ens_resolved": return localizedStoreFormat("ENS name '%@' resolved to %@. Confirm this resolved address before sending.", w["name"] as? String ?? "", w["address"] as? String ?? "")
+            case "large_send":
+                let pct = (w["percent"] as? Int) ?? 0
+                let formatted = (Double(pct) / 100.0).formatted(.percent.precision(.fractionLength(0)))
+                return localizedStoreFormat("This send is %@ of your %@ balance.", formatted, w["symbol"] as? String ?? "")
+            case "non_evm_on_evm": return localizedStoreFormat("Destination appears to be a non-EVM address while sending on %@.", w["chain"] as? String ?? "")
+            case "ens_on_l2": return localizedStoreFormat("ENS names are Ethereum-specific. For %@, verify the resolved EVM address very carefully.", w["chain"] as? String ?? "")
+            case "eth_on_utxo": return localizedStoreFormat("Destination appears to be an Ethereum-style address while sending on %@.", w["chain"] as? String ?? "")
+            case "non_tron": return localizedStoreString("Destination appears to be non-Tron format while sending on Tron.")
+            case "non_solana": return localizedStoreString("Destination appears to be non-Solana format while sending on Solana.")
+            case "non_xrp": return localizedStoreString("Destination appears to be non-XRP format while sending on XRP Ledger.")
+            case "non_monero": return localizedStoreString("Destination appears to be non-Monero format while sending on Monero.")
+            case "chain_mismatch": return localizedStoreString("Wallet-chain context mismatch detected for this send.")
+            default: return nil
+            }
         }
-        let hasTransactionHistoryWithAddress = transactions.contains { record in
-            record.chainName == holding.chainName
-                && normalizedAddress(record.address, for: holding.chainName).caseInsensitiveCompare(normalizedDestination) == .orderedSame
-        }
-        if !hasKnownAddressBookEntry && !hasTransactionHistoryWithAddress { reasons.append(localizedStoreString("This is a new destination address with no prior history in this wallet.")) }
-        if usedENSResolution { reasons.append(localizedStoreFormat("ENS name '%@' resolved to %@. Confirm this resolved address before sending.", destinationInput, destinationAddress)) }
-        if holding.amount > 0 {
-            let ratio = amount / holding.amount
-            if ratio >= 0.25 {
-                let formattedPercent = ratio.formatted(.percent.precision(.fractionLength(0)))
-                reasons.append(localizedStoreFormat("This send is %@ of your %@ balance.", formattedPercent, holding.symbol))
-            }}
-        if holding.chainName == "Ethereum" || holding.chainName == "Ethereum Classic" || holding.chainName == "Arbitrum" || holding.chainName == "Optimism" || holding.chainName == "BNB Chain" || holding.chainName == "Avalanche" || holding.chainName == "Hyperliquid" {
-            let loweredInput = destinationInput.lowercased()
-            if loweredInput.hasPrefix("bc1")
-                || loweredInput.hasPrefix("tb1")
-                || loweredInput.hasPrefix("ltc1")
-                || loweredInput.hasPrefix("bnb1")
-                || loweredInput.hasPrefix("t")
-                || loweredInput.hasPrefix("d")
-                || loweredInput.hasPrefix("a") {
-                reasons.append(localizedStoreFormat("Destination appears to be a non-EVM address while sending on %@.", holding.chainName))
-            }
-            if (holding.chainName == "Arbitrum" || holding.chainName == "Optimism" || holding.chainName == "BNB Chain" || holding.chainName == "Avalanche" || holding.chainName == "Hyperliquid"), isENSNameCandidate(destinationInput) { reasons.append(localizedStoreFormat("ENS names are Ethereum-specific. For %@, verify the resolved EVM address very carefully.", holding.chainName)) }
-        } else if holding.chainName == "Bitcoin" || holding.chainName == "Bitcoin Cash" || holding.chainName == "Litecoin" || holding.chainName == "Dogecoin" {
-            if destinationInput.lowercased().hasPrefix("0x") || isENSNameCandidate(destinationInput) { reasons.append(localizedStoreFormat("Destination appears to be an Ethereum-style address while sending on %@.", holding.chainName)) }
-        } else if holding.chainName == "Tron" {
-            if destinationInput.lowercased().hasPrefix("0x") || destinationInput.lowercased().hasPrefix("bc1") { reasons.append(localizedStoreString("Destination appears to be non-Tron format while sending on Tron.")) }
-        } else if holding.chainName == "Solana" {
-            if destinationInput.lowercased().hasPrefix("0x")
-                || destinationInput.lowercased().hasPrefix("bc1")
-                || destinationInput.lowercased().hasPrefix("ltc1")
-                || destinationInput.lowercased().hasPrefix("t") {
-                reasons.append(localizedStoreString("Destination appears to be non-Solana format while sending on Solana."))
-            }
-        } else if holding.chainName == "XRP Ledger" {
-            if destinationInput.lowercased().hasPrefix("0x")
-                || destinationInput.lowercased().hasPrefix("bc1")
-                || destinationInput.lowercased().hasPrefix("t") {
-                reasons.append(localizedStoreString("Destination appears to be non-XRP format while sending on XRP Ledger."))
-            }
-        } else if holding.chainName == "Monero" {
-            if destinationInput.lowercased().hasPrefix("0x")
-                || destinationInput.lowercased().hasPrefix("bc1")
-                || destinationInput.lowercased().hasPrefix("r") {
-                reasons.append(localizedStoreString("Destination appears to be non-Monero format while sending on Monero."))
-            }}
-        if wallet.selectedChain != holding.chainName { reasons.append(localizedStoreString("Wallet-chain context mismatch detected for this send.")) }
-        return reasons
     }
     func clearHighRiskSendConfirmation() {
         pendingHighRiskSendReasons = []
@@ -601,7 +582,7 @@ extension WalletStore {
     func mapChainOptionToBitcoinFeePriority(_ option: ChainFeePriorityOption) -> BitcoinFeePriority { BitcoinFeePriority(rawValue: option.rawValue) ?? .normal }
     func mapDogecoinFeePriorityToChainOption(_ priority: DogecoinFeePriority) -> ChainFeePriorityOption { ChainFeePriorityOption(rawValue: priority.rawValue) ?? .normal }
     func mapChainOptionToDogecoinFeePriority(_ option: ChainFeePriorityOption) -> DogecoinFeePriority { DogecoinFeePriority(rawValue: option.rawValue) ?? .normal }
-    func persistSelectedFeePriorityOptions() { UserDefaults.standard.set(selectedFeePriorityOptionRawByChain, forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey) }
+    func persistSelectedFeePriorityOptions() { persistCodableToSQLite(selectedFeePriorityOptionRawByChain, key: Self.selectedFeePriorityOptionsByChainDefaultsKey) }
     func runDogecoinRescan() async {
         guard !isRunningDogecoinRescan else { return }
         isRunningDogecoinRescan = true

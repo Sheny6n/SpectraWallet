@@ -1,5 +1,5 @@
-module spectra_derivationFFI {
-    header "spectra_derivationFFI.h"
+module spectra_coreFFI {
+    header "spectra_coreFFI.h"
     export *
     use "Darwin"
     use "_Builtin_stdbool"
