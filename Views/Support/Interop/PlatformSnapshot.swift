@@ -1,24 +1,19 @@
 import Foundation
-
 protocol PlatformSnapshotConvertible {
     associatedtype PlatformSnapshot: Codable
     func makePlatformSnapshot() -> PlatformSnapshot
 }
-
 struct PlatformSnapshotEnvelope: Codable {
     static let currentSchemaVersion = 1
-
     let schemaVersion: Int
     let generatedAt: Date
     let app: PlatformAppSnapshot
-
     init(generatedAt: Date = Date(), app: PlatformAppSnapshot) {
         self.schemaVersion = Self.currentSchemaVersion
         self.generatedAt = generatedAt
         self.app = app
     }
 }
-
 struct PlatformAppSnapshot: Codable {
     let pricingProvider: String
     let fiatCurrency: String
@@ -31,7 +26,6 @@ struct PlatformAppSnapshot: Codable {
     let addressBook: [PlatformAddressBookEntrySnapshot]
     let livePrices: [String: Double]
 }
-
 struct PlatformWalletSnapshot: Codable, Identifiable {
     let id: UUID
     let name: String
@@ -42,14 +36,12 @@ struct PlatformWalletSnapshot: Codable, Identifiable {
     let addresses: [PlatformWalletAddressSnapshot]
     let holdings: [PlatformAssetSnapshot]
 }
-
 struct PlatformWalletAddressSnapshot: Codable, Identifiable {
     let id: String
     let chainID: String
     let chainName: String
     let address: String
 }
-
 struct PlatformAssetSnapshot: Codable, Identifiable {
     let id: String
     let name: String
@@ -57,18 +49,15 @@ struct PlatformAssetSnapshot: Codable, Identifiable {
     let chainID: String
     let chainName: String
     let tokenStandard: String
-    let contractAddress: String?
-    let marketDataID: String
+    let contractAddress: String? let marketDataID: String
     let coinGeckoID: String
     let amount: Double
     let priceUSD: Double
     let valueUSD: Double
 }
-
 struct PlatformTransactionSnapshot: Codable, Identifiable {
     let id: UUID
-    let walletID: UUID?
-    let kind: String
+    let walletID: UUID? let kind: String
     let status: String
     let walletName: String
     let assetName: String
@@ -77,12 +66,8 @@ struct PlatformTransactionSnapshot: Codable, Identifiable {
     let chainName: String
     let amount: Double
     let address: String
-    let transactionHash: String?
-    let failureReason: String?
-    let transactionHistorySource: String?
-    let createdAt: Date
+    let transactionHash: String? let failureReason: String? let transactionHistorySource: String? let createdAt: Date
 }
-
 struct PlatformAddressBookEntrySnapshot: Codable, Identifiable {
     let id: UUID
     let name: String

@@ -1,12 +1,10 @@
 import Foundation
-
 struct TONHistoryDiagnostics: Equatable {
     let address: String
     let sourceUsed: String
     let transactionCount: Int
     let error: String?
 }
-
 struct TONJettonBalanceSnapshot: Equatable {
     let masterAddress: String
     let walletAddress: String
@@ -18,12 +16,10 @@ struct TONJettonBalanceSnapshot: Equatable {
     let marketDataID: String
     let coinGeckoID: String
 }
-
 struct TONPortfolioSnapshot: Equatable {
     let nativeBalance: Double
     let tokenBalances: [TONJettonBalanceSnapshot]
 }
-
 enum TONBalanceService {
     struct KnownTokenMetadata: Equatable {
         let symbol: String
@@ -33,20 +29,8 @@ enum TONBalanceService {
         let marketDataID: String
         let coinGeckoID: String
     }
-
-    static func endpointCatalog() -> [String] {
-        TONProvider.endpointCatalog()
-    }
-
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        TONProvider.diagnosticsChecks()
-    }
-
-    static func normalizeJettonMasterAddress(_ address: String) -> String {
-        canonicalAddressIdentifier(address)
-    }
-
-    private static func canonicalAddressIdentifier(_ address: String?) -> String {
-        address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    }
+    static func endpointCatalog() -> [String] { TONProvider.endpointCatalog() }
+    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { TONProvider.diagnosticsChecks() }
+    static func normalizeJettonMasterAddress(_ address: String) -> String { canonicalAddressIdentifier(address) }
+    private static func canonicalAddressIdentifier(_ address: String?) -> String { address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
 }

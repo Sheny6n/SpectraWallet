@@ -1,64 +1,44 @@
 import Foundation
 import SwiftUI
 import Combine
-
 struct DiagnosticsHubView: View {
     let store: WalletStore
     @State private var searchText: String = ""
     private let copy = DiagnosticsContentCopy.current
-
     private struct DiagnosticsDestination: Identifiable {
         let id: String
         let title: String
         let keywords: [String]
         let makeView: () -> AnyView
     }
-
     private var chainDestinations: [DiagnosticsDestination] {
         ChainBackendRegistry.diagnosticsChains.compactMap { descriptor in
             guard let chain = StandardDiagnosticsChain(chainID: descriptor.id) else { return nil }
             let title = store.displayChainTitle(for: descriptor.chainName) + " Diagnostics"
             return DiagnosticsDestination(
-                id: title,
-                title: title,
-                keywords: descriptor.searchKeywords,
-                makeView: { AnyView(StandardChainDiagnosticsView(store: store, chain: chain)) }
+                id: title, title: title, keywords: descriptor.searchKeywords, makeView: { AnyView(StandardChainDiagnosticsView(store: store, chain: chain)) }
             )
-        }
-    }
-
+        }}
     private func filteredDestinations(_ destinations: [DiagnosticsDestination]) -> [DiagnosticsDestination] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return destinations }
         return destinations.filter { destination in
             destination.title.localizedCaseInsensitiveContains(query)
                 || destination.keywords.contains(where: { $0.localizedCaseInsensitiveContains(query) })
-        }
-    }
-
+        }}
     @ViewBuilder
     private func destinationSection(_ title: String, destinations: [DiagnosticsDestination]) -> some View {
         Section(title) {
             ForEach(filteredDestinations(destinations)) { destination in
                 NavigationLink {
                     destination.makeView()
-                } label: {
-                    Text(destination.title)
-                }
-            }
-        }
-    }
-
+                } label: { Text(destination.title) }}}}
     var body: some View {
         Form {
             destinationSection(copy.chainsSectionTitle, destinations: chainDestinations)
-        }
-        .navigationTitle(copy.navigationTitle)
-        .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchText, prompt: copy.searchPrompt)
+        }..navigationTitle(copy.navigationTitle).navigationBarTitleDisplayMode(.inline)..searchable(text: $searchText, prompt: copy.searchPrompt)
     }
 }
-
 enum StandardDiagnosticsChain: Hashable, CaseIterable {
     case dogecoin
     case bitcoin
@@ -84,7 +64,6 @@ enum StandardDiagnosticsChain: Hashable, CaseIterable {
     case icp
     case near
     case polkadot
-
     var chainID: AppChainID {
         switch self {
         case .dogecoin: return .dogecoin
@@ -111,9 +90,7 @@ enum StandardDiagnosticsChain: Hashable, CaseIterable {
         case .icp: return .icp
         case .near: return .near
         case .polkadot: return .polkadot
-        }
-    }
-
+        }}
     init?(chainID: AppChainID) {
         switch chainID {
         case .dogecoin: self = .dogecoin
@@ -140,76 +117,49 @@ enum StandardDiagnosticsChain: Hashable, CaseIterable {
         case .icp: self = .icp
         case .near: self = .near
         case .polkadot: self = .polkadot
-        }
-    }
-
-    var descriptor: AppChainDescriptor {
-        ChainBackendRegistry.appChain(for: chainID)
-    }
-
+        }}
+    var descriptor: AppChainDescriptor { ChainBackendRegistry.appChain(for: chainID) }
     var title: String { descriptor.title }
-
     var shortLabel: String { descriptor.shortLabel }
 }
-
 private struct StandardEndpointRow: Identifiable {
     let id = UUID()
     let endpoint: String
-    let reachable: Bool?
-    let detail: String
+    let reachable: Bool? let detail: String
 }
-
 private struct StandardHistorySourceRow: Identifiable {
     let source: String
     let count: Int
     var id: String { source }
 }
-
 struct StandardChainDiagnosticsView: View {
     let store: WalletStore
     @ObservedObject private var chainDiagnosticsState: WalletChainDiagnosticsState
     @StateObject private var refreshSignal: ViewRefreshSignal
     let chain: StandardDiagnosticsChain
     private let copy = DiagnosticsContentCopy.current
-    @State private var copiedDiagnosticsNotice: String?
-    @State private var selectedMoneroBackendID: String = MoneroBalanceService.defaultBackendID
+    @State private var copiedDiagnosticsNotice: String? @State private var selectedMoneroBackendID: String = MoneroBalanceService.defaultBackendID
     @State private var cachedEndpointRows: [StandardEndpointRow] = []
     @State private var cachedHistorySourceRows: [StandardHistorySourceRow] = []
-
     private let moneroCustomBackendID = "custom"
-
     init(store: WalletStore, chain: StandardDiagnosticsChain) {
         self.store = store
         self.chain = chain
         _chainDiagnosticsState = ObservedObject(wrappedValue: store.chainDiagnosticsState)
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([
-                store.$moneroBackendBaseURL.asVoidSignal(),
-                store.$bitcoinNetworkMode.asVoidSignal(),
-                store.$bitcoinEsploraEndpoints.asVoidSignal(),
-                store.$ethereumNetworkMode.asVoidSignal(),
-                store.$ethereumRPCEndpoint.asVoidSignal()
+            wrappedValue: ViewRefreshSignal([ store.$moneroBackendBaseURL.asVoidSignal(), store.$bitcoinNetworkMode.asVoidSignal(), store.$bitcoinEsploraEndpoints.asVoidSignal(), store.$ethereumNetworkMode.asVoidSignal(), store.$ethereumRPCEndpoint.asVoidSignal()
             ])
         )
     }
-
-    private var displayChainTitle: String {
-        store.displayChainTitle(for: chain.descriptor.chainName)
-    }
-
-    private var diagnosticsLabel: String {
-        displayChainTitle
-    }
-
+    private var displayChainTitle: String { store.displayChainTitle(for: chain.descriptor.chainName) }
+    private var diagnosticsLabel: String { displayChainTitle }
     private var moneroBackendChoices: [(id: String, title: String)] {
         let trusted = MoneroBalanceService.trustedBackends.map { ($0.id, $0.displayName) }
         return trusted + [(moneroCustomBackendID, AppLocalization.string("Custom URL"))]
     }
-
     private var selectedTrustedMoneroBackend: MoneroBalanceService.TrustedBackend? {
         MoneroBalanceService.trustedBackends.first(where: { $0.id == selectedMoneroBackendID })
     }
-
     var body: some View {
         Form {
             Section(copy.actionsSectionTitle) {
@@ -221,11 +171,8 @@ struct StandardChainDiagnosticsView: View {
                     ) {
                         Task {
                             await store.runEthereumSelfTests()
-                        }
-                    }
-                    .disabled(store.isRunningEthereumSelfTests)
+                        }}..disabled(store.isRunningEthereumSelfTests)
                 }
-
                 Button(
                     isRunningHistory
                         ? localizedFormat("Running %@ History Diagnostics...", diagnosticsLabel)
@@ -233,19 +180,12 @@ struct StandardChainDiagnosticsView: View {
                 ) {
                     Task {
                         await runHistoryDiagnostics()
-                    }
-                }
-                .disabled(isRunningHistory)
-
+                    }}..disabled(isRunningHistory)
                 Button(localizedFormat("Copy %@ Diagnostics JSON", diagnosticsLabel)) {
                     if let payload = diagnosticsJSON {
                         UIPasteboard.general.string = payload
                         copiedDiagnosticsNotice = localizedFormat("%@ diagnostics JSON copied.", diagnosticsLabel)
-                    } else {
-                        copiedDiagnosticsNotice = localizedFormat("No %@ diagnostics available to copy.", diagnosticsLabel)
-                    }
-                }
-
+                    } else { copiedDiagnosticsNotice = localizedFormat("No %@ diagnostics available to copy.", diagnosticsLabel) }}
                 Button(
                     isCheckingEndpoints
                         ? localizedFormat("Checking %@ Endpoints...", diagnosticsLabel)
@@ -253,136 +193,67 @@ struct StandardChainDiagnosticsView: View {
                 ) {
                     Task {
                         await runEndpointDiagnostics()
-                    }
-                }
-                .disabled(isCheckingEndpoints)
-
-                if let copiedDiagnosticsNotice {
-                    Text(copiedDiagnosticsNotice)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
+                    }}..disabled(isCheckingEndpoints)
+                if let copiedDiagnosticsNotice { Text(copiedDiagnosticsNotice)..font(.caption).foregroundStyle(.secondary) }}
             Section(copy.statusSectionTitle) {
-                if let updatedAt = historyLastUpdatedAt {
-                    Text(String(format: copy.lastHistoryRunFormat, updatedAt.formatted(date: .abbreviated, time: .shortened)))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(copy.historyNotRunYet)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Text(String(format: copy.walletDiagnosticsCoveredFormat, String(historyWalletCount)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                if let primarySource = historySourceRows.first {
-                    Text(String(format: copy.mostUsedHistorySourceFormat, primarySource.source, String(primarySource.count)))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
+                if let updatedAt = historyLastUpdatedAt { Text(String(format: copy.lastHistoryRunFormat, updatedAt.formatted(date: .abbreviated, time: .shortened))).font(.caption).foregroundStyle(.secondary) } else { Text(copy.historyNotRunYet)..font(.caption).foregroundStyle(.secondary) }
+                Text(String(format: copy.walletDiagnosticsCoveredFormat, String(historyWalletCount)))..font(.caption).foregroundStyle(.secondary)
+                if let primarySource = historySourceRows.first { Text(String(format: copy.mostUsedHistorySourceFormat, primarySource.source, String(primarySource.count)))..font(.caption).foregroundStyle(.secondary) }
                 if let updatedAt = endpointLastUpdatedAt {
                     let formattedUpdatedAt = updatedAt.formatted(date: .abbreviated, time: .shortened)
-                    Text(String(format: copy.lastEndpointCheckFormat, formattedUpdatedAt))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(String(format: copy.lastEndpointCheckFormat, formattedUpdatedAt))..font(.caption).foregroundStyle(.secondary)
                 }
                 if !endpointRows.isEmpty {
                     let reachableCount = endpointRows.filter { $0.reachable == true }.count
-                    Text(String(format: copy.endpointHealthFormat, String(reachableCount), String(endpointRows.count)))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
+                    Text(String(format: copy.endpointHealthFormat, String(reachableCount), String(endpointRows.count)))..font(.caption).foregroundStyle(.secondary)
+                }}
             Section(String(format: copy.historySourcesSectionTitleFormat, diagnosticsLabel)) {
-                if historySourceRows.isEmpty {
-                    Text(copy.noHistoryTelemetryYet)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
+                if historySourceRows.isEmpty { Text(copy.noHistoryTelemetryYet)..font(.caption).foregroundStyle(.secondary) } else {
                     ForEach(historySourceRows) { item in
                         HStack {
-                            Text(item.source)
-                                .font(.subheadline.weight(.semibold))
+                            Text(item.source)..font(.subheadline.weight(.semibold))
                             Spacer()
-                            Text(localizedFormat("diagnostics.countOnly", item.count))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-            }
-
+                            Text(localizedFormat("diagnostics.countOnly", item.count))..font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        }}}}
             Section(String(format: copy.endpointReachabilitySectionTitleFormat, diagnosticsLabel)) {
-                if endpointRows.isEmpty {
-                    Text(copy.noEndpointChecksYet)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
+                if endpointRows.isEmpty { Text(copy.noEndpointChecksYet)..font(.caption).foregroundStyle(.secondary) } else {
                     ForEach(endpointRows) { result in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                Image(systemName: endpointStatusIconName(for: result))
-                                    .foregroundStyle(endpointStatusColor(for: result))
-                                Text(result.endpoint)
-                                    .font(.subheadline.weight(.semibold))
+                                Image(systemName: endpointStatusIconName(for: result))..foregroundStyle(endpointStatusColor(for: result))
+                                Text(result.endpoint)..font(.subheadline.weight(.semibold))
                             }
-                            Text(result.detail)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-            }
-
+                            Text(result.detail)..font(.caption).foregroundStyle(.secondary)
+                        }..padding(.vertical, 2)
+                    }}}
             chainSpecificSections
-        }
-        .navigationTitle(displayChainTitle + " Diagnostics")
-        .onAppear {
-            if chain == .monero {
-                syncSelectedMoneroBackendIDFromStore()
-            }
+        }..navigationTitle(displayChainTitle + " Diagnostics")..onAppear {
+            if chain == .monero { syncSelectedMoneroBackendIDFromStore() }
             rebuildCachedRows()
-        }
-        .onChange(of: copiedDiagnosticsNotice) { _, newValue in
+        }..onChange(of: copiedDiagnosticsNotice) { _, newValue in
             guard newValue != nil else { return }
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 copiedDiagnosticsNotice = nil
-            }
-        }
-        .onChange(of: selectedMoneroBackendID) { _, newValue in
+            }}..onChange(of: selectedMoneroBackendID) { _, newValue in
             guard chain == .monero else { return }
-            if newValue == moneroCustomBackendID {
-                return
-            }
+            if newValue == moneroCustomBackendID { return }
             if newValue == MoneroBalanceService.defaultBackendID {
                 store.moneroBackendBaseURL = ""
                 return
             }
             if let trusted = MoneroBalanceService.trustedBackends.first(where: { $0.id == newValue }) {
                 store.moneroBackendBaseURL = trusted.baseURL
-            }
-        }
-        .onChange(of: store.moneroBackendBaseURL) { _, _ in
+            }}..onChange(of: store.moneroBackendBaseURL) { _, _ in
             guard chain == .monero else { return }
             syncSelectedMoneroBackendIDFromStore()
-        }
-        .onChange(of: historyLastUpdatedAt) { _, _ in
+        }..onChange(of: historyLastUpdatedAt) { _, _ in
             rebuildHistorySourceRows()
-        }
-        .onChange(of: historyWalletCount) { _, _ in
+        }..onChange(of: historyWalletCount) { _, _ in
             rebuildHistorySourceRows()
-        }
-        .onChange(of: endpointLastUpdatedAt) { _, _ in
+        }..onChange(of: endpointLastUpdatedAt) { _, _ in
             rebuildEndpointRows()
-        }
-    }
-
+        }}
     private var isRunningHistory: Bool {
         switch chain {
         case .dogecoin: return store.isRunningDogecoinHistoryDiagnostics
@@ -409,9 +280,7 @@ struct StandardChainDiagnosticsView: View {
         case .icp: return store.isRunningICPHistoryDiagnostics
         case .near: return store.isRunningNearHistoryDiagnostics
         case .polkadot: return store.isRunningPolkadotHistoryDiagnostics
-        }
-    }
-
+        }}
     private var isCheckingEndpoints: Bool {
         switch chain {
         case .dogecoin: return store.isCheckingDogecoinEndpointHealth
@@ -438,9 +307,7 @@ struct StandardChainDiagnosticsView: View {
         case .icp: return store.isCheckingICPEndpointHealth
         case .near: return store.isCheckingNearEndpointHealth
         case .polkadot: return store.isCheckingPolkadotEndpointHealth
-        }
-    }
-
+        }}
     private var diagnosticsJSON: String? {
         switch chain {
         case .dogecoin: return store.dogecoinDiagnosticsJSON()
@@ -467,9 +334,7 @@ struct StandardChainDiagnosticsView: View {
         case .icp: return store.icpDiagnosticsJSON()
         case .near: return store.nearDiagnosticsJSON()
         case .polkadot: return store.polkadotDiagnosticsJSON()
-        }
-    }
-
+        }}
     private var historyLastUpdatedAt: Date? {
         switch chain {
         case .dogecoin: return store.dogecoinHistoryDiagnosticsLastUpdatedAt
@@ -496,9 +361,7 @@ struct StandardChainDiagnosticsView: View {
         case .icp: return store.icpHistoryDiagnosticsLastUpdatedAt
         case .near: return store.nearHistoryDiagnosticsLastUpdatedAt
         case .polkadot: return store.polkadotHistoryDiagnosticsLastUpdatedAt
-        }
-    }
-
+        }}
     private var historyWalletCount: Int {
         switch chain {
         case .dogecoin: return store.dogecoinHistoryDiagnosticsByWallet.count
@@ -525,9 +388,7 @@ struct StandardChainDiagnosticsView: View {
         case .icp: return store.icpHistoryDiagnosticsByWallet.count
         case .near: return store.nearHistoryDiagnosticsByWallet.count
         case .polkadot: return store.polkadotHistoryDiagnosticsByWallet.count
-        }
-    }
-
+        }}
     private var endpointLastUpdatedAt: Date? {
         switch chain {
         case .dogecoin: return store.dogecoinEndpointHealthLastUpdatedAt
@@ -554,243 +415,133 @@ struct StandardChainDiagnosticsView: View {
         case .icp: return store.icpEndpointHealthLastUpdatedAt
         case .near: return store.nearEndpointHealthLastUpdatedAt
         case .polkadot: return store.polkadotEndpointHealthLastUpdatedAt
-        }
-    }
-
-    private var endpointRows: [StandardEndpointRow] {
-        cachedEndpointRows
-    }
-
-    private var historySourceRows: [StandardHistorySourceRow] {
-        cachedHistorySourceRows
-    }
-
+        }}
+    private var endpointRows: [StandardEndpointRow] { cachedEndpointRows }
+    private var historySourceRows: [StandardHistorySourceRow] { cachedHistorySourceRows }
     private func rebuildCachedRows() {
         rebuildEndpointRows()
         rebuildHistorySourceRows()
     }
-
-    private func rebuildEndpointRows() {
-        let fallbackRows = configuredEndpointsForCurrentChain().map {
-            StandardEndpointRow(endpoint: $0, reachable: nil, detail: "Not checked yet")
-        }
+    private typealias EndpointTuple = (endpoint: String, reachable: Bool?, detail: String)
+    private func rawEndpointResultTuples(for chain: StandardDiagnosticsChain) -> [EndpointTuple] {
         switch chain {
-        case .dogecoin:
-            cachedEndpointRows = store.dogecoinEndpointHealthResults.isEmpty ? fallbackRows : store.dogecoinEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .bitcoin:
-            cachedEndpointRows = store.bitcoinEndpointHealthResults.isEmpty ? fallbackRows : store.bitcoinEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .bitcoinCash:
-            cachedEndpointRows = store.bitcoinCashEndpointHealthResults.isEmpty ? fallbackRows : store.bitcoinCashEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .bitcoinSV:
-            cachedEndpointRows = store.bitcoinSVEndpointHealthResults.isEmpty ? fallbackRows : store.bitcoinSVEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .litecoin:
-            cachedEndpointRows = store.litecoinEndpointHealthResults.isEmpty ? fallbackRows : store.litecoinEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .ethereum:
-            cachedEndpointRows = store.ethereumEndpointHealthResults.isEmpty ? fallbackRows : store.ethereumEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .ethereumClassic:
-            cachedEndpointRows = store.etcEndpointHealthResults.isEmpty ? fallbackRows : store.etcEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .arbitrum:
-            cachedEndpointRows = store.arbitrumEndpointHealthResults.isEmpty ? fallbackRows : store.arbitrumEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .optimism:
-            cachedEndpointRows = store.optimismEndpointHealthResults.isEmpty ? fallbackRows : store.optimismEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .bnb:
-            cachedEndpointRows = store.bnbEndpointHealthResults.isEmpty ? fallbackRows : store.bnbEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .avalanche:
-            cachedEndpointRows = store.avalancheEndpointHealthResults.isEmpty ? fallbackRows : store.avalancheEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .hyperliquid:
-            cachedEndpointRows = store.hyperliquidEndpointHealthResults.isEmpty ? fallbackRows : store.hyperliquidEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .tron:
-            cachedEndpointRows = store.tronEndpointHealthResults.isEmpty ? fallbackRows : store.tronEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .solana:
-            cachedEndpointRows = store.solanaEndpointHealthResults.isEmpty ? fallbackRows : store.solanaEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .cardano:
-            cachedEndpointRows = store.cardanoEndpointHealthResults.isEmpty ? fallbackRows : store.cardanoEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .xrp:
-            cachedEndpointRows = store.xrpEndpointHealthResults.isEmpty ? fallbackRows : store.xrpEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .monero:
-            cachedEndpointRows = store.moneroEndpointHealthResults.isEmpty ? fallbackRows : store.moneroEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .sui:
-            cachedEndpointRows = store.suiEndpointHealthResults.isEmpty ? fallbackRows : store.suiEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .aptos:
-            cachedEndpointRows = store.aptosEndpointHealthResults.isEmpty ? fallbackRows : store.aptosEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .ton:
-            cachedEndpointRows = store.tonEndpointHealthResults.isEmpty ? fallbackRows : store.tonEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .icp:
-            cachedEndpointRows = store.icpEndpointHealthResults.isEmpty ? fallbackRows : store.icpEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .near:
-            cachedEndpointRows = store.nearEndpointHealthResults.isEmpty ? fallbackRows : store.nearEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .polkadot:
-            cachedEndpointRows = store.polkadotEndpointHealthResults.isEmpty ? fallbackRows : store.polkadotEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        case .stellar:
-            cachedEndpointRows = store.stellarEndpointHealthResults.isEmpty ? fallbackRows : store.stellarEndpointHealthResults.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }
-        }
-    }
-
+        case .bitcoin: return store.bitcoinEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .bitcoinCash: return store.bitcoinCashEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .bitcoinSV: return store.bitcoinSVEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .litecoin: return store.litecoinEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .dogecoin: return store.dogecoinEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .ethereum: return store.ethereumEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .ethereumClassic: return store.etcEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .arbitrum: return store.arbitrumEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .optimism: return store.optimismEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .bnb: return store.bnbEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .avalanche: return store.avalancheEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .hyperliquid: return store.hyperliquidEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .tron: return store.tronEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .solana: return store.solanaEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .cardano: return store.cardanoEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .xrp: return store.xrpEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .monero: return store.moneroEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .sui: return store.suiEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .aptos: return store.aptosEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .ton: return store.tonEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .icp: return store.icpEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .near: return store.nearEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .polkadot: return store.polkadotEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }
+        case .stellar: return store.stellarEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) }}}
+    private func rebuildEndpointRows() {
+        let fallbackRows = configuredEndpointsForCurrentChain().map { StandardEndpointRow(endpoint: $0, reachable: nil, detail: "Not checked yet") }
+        let raw = rawEndpointResultTuples(for: chain)
+        cachedEndpointRows = raw.isEmpty ? fallbackRows : raw.map { StandardEndpointRow(endpoint: $0.endpoint, reachable: $0.reachable, detail: $0.detail) }}
     private func endpointStatusIconName(for row: StandardEndpointRow) -> String {
         switch row.reachable {
-        case true:
-            return "checkmark.circle.fill"
-        case false:
-            return "xmark.circle.fill"
-        case nil:
-            return "clock.badge.questionmark"
-        }
-    }
-
+        case true: return "checkmark.circle.fill"
+        case false: return "xmark.circle.fill"
+        case nil: return "clock.badge.questionmark"
+        }}
     private func endpointStatusColor(for row: StandardEndpointRow) -> Color {
         switch row.reachable {
-        case true:
-            return .green
-        case false:
-            return .red
-        case nil:
-            return .secondary
-        }
-    }
-
+        case true: return .green
+        case false: return .red
+        case nil: return .secondary
+        }}
     private func configuredEndpointsForCurrentChain() -> [String] {
         switch chain {
-        case .bitcoin:
-            let parsedCustom = store.bitcoinEsploraEndpoints
-                .components(separatedBy: CharacterSet(charactersIn: ",;\n"))
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        case .bitcoin: let parsedCustom = store.bitcoinEsploraEndpoints..components(separatedBy: CharacterSet(charactersIn: ",;\n"))..map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
             return EsploraProvider.runtimeBaseURLs(for: store.bitcoinNetworkMode, custom: parsedCustom)
-        case .bitcoinCash:
-            return BitcoinCashBalanceService.endpointCatalog()
-        case .bitcoinSV:
-            return BitcoinSVBalanceService.endpointCatalog()
-        case .litecoin:
-            return LitecoinBalanceService.endpointCatalog()
-        case .dogecoin:
-            return DogecoinBalanceService.endpointCatalog()
-        case .ethereum:
-            var endpoints: [String] = []
+        case .bitcoinCash: return BitcoinCashBalanceService.endpointCatalog()
+        case .bitcoinSV: return BitcoinSVBalanceService.endpointCatalog()
+        case .litecoin: return LitecoinBalanceService.endpointCatalog()
+        case .dogecoin: return DogecoinBalanceService.endpointCatalog()
+        case .ethereum: var endpoints: [String] = []
             let custom = store.ethereumRPCEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !custom.isEmpty {
-                endpoints.append(custom)
-            }
+            if !custom.isEmpty { endpoints.append(custom) }
             let context = store.evmChainContext(for: "Ethereum") ?? .ethereum
-            for endpoint in context.defaultRPCEndpoints where !endpoints.contains(endpoint) {
-                endpoints.append(endpoint)
-            }
-            for endpoint in ChainBackendRegistry.EVMExplorerRegistry.supplementalEndpointCatalogEntries(for: ChainBackendRegistry.ethereumChainName) where !endpoints.contains(endpoint) {
-                endpoints.append(endpoint)
-            }
+            for endpoint in context.defaultRPCEndpoints where !endpoints.contains(endpoint) { endpoints.append(endpoint) }
+            for endpoint in ChainBackendRegistry.EVMExplorerRegistry.supplementalEndpointCatalogEntries(for: ChainBackendRegistry.ethereumChainName) where !endpoints.contains(endpoint) { endpoints.append(endpoint) }
             return endpoints
-        case .ethereumClassic:
-            return EVMChainContext.ethereumClassic.defaultRPCEndpoints
-        case .arbitrum:
-            return EVMChainContext.arbitrum.defaultRPCEndpoints
-        case .optimism:
-            return EVMChainContext.optimism.defaultRPCEndpoints
-        case .bnb:
-            var endpoints = EVMChainContext.bnb.defaultRPCEndpoints
-            for endpoint in ChainBackendRegistry.EVMExplorerRegistry.supplementalEndpointCatalogEntries(for: ChainBackendRegistry.bnbChainName) where !endpoints.contains(endpoint) {
-                endpoints.append(endpoint)
-            }
+        case .ethereumClassic: return EVMChainContext.ethereumClassic.defaultRPCEndpoints
+        case .arbitrum: return EVMChainContext.arbitrum.defaultRPCEndpoints
+        case .optimism: return EVMChainContext.optimism.defaultRPCEndpoints
+        case .bnb: var endpoints = EVMChainContext.bnb.defaultRPCEndpoints
+            for endpoint in ChainBackendRegistry.EVMExplorerRegistry.supplementalEndpointCatalogEntries(for: ChainBackendRegistry.bnbChainName) where !endpoints.contains(endpoint) { endpoints.append(endpoint) }
             return endpoints
-        case .avalanche:
-            return EVMChainContext.avalanche.defaultRPCEndpoints
-        case .hyperliquid:
-            return EVMChainContext.hyperliquid.defaultRPCEndpoints
-        case .tron:
-            return TronBalanceService.endpointCatalog()
-        case .solana:
-            return SolanaBalanceService.endpointCatalog()
-        case .cardano:
-            return CardanoBalanceService.endpointCatalog()
-        case .xrp:
-            return XRPBalanceService.endpointCatalog()
-        case .stellar:
-            return StellarBalanceService.endpointCatalog()
-        case .monero:
-            let trimmed = store.moneroBackendBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .avalanche: return EVMChainContext.avalanche.defaultRPCEndpoints
+        case .hyperliquid: return EVMChainContext.hyperliquid.defaultRPCEndpoints
+        case .tron: return TronBalanceService.endpointCatalog()
+        case .solana: return SolanaBalanceService.endpointCatalog()
+        case .cardano: return CardanoBalanceService.endpointCatalog()
+        case .xrp: return XRPBalanceService.endpointCatalog()
+        case .stellar: return StellarBalanceService.endpointCatalog()
+        case .monero: let trimmed = store.moneroBackendBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? [MoneroBalanceService.defaultPublicBackend.baseURL] : [trimmed]
-        case .sui:
-            return SuiBalanceService.endpointCatalog()
-        case .aptos:
-            return AptosBalanceService.endpointCatalog()
-        case .ton:
-            return TONBalanceService.endpointCatalog()
-        case .icp:
-            return ICPBalanceService.endpointCatalog()
-        case .near:
-            return NearBalanceService.endpointCatalog()
-        case .polkadot:
-            return PolkadotBalanceService.endpointCatalog()
-        }
-    }
-
+        case .sui: return SuiBalanceService.endpointCatalog()
+        case .aptos: return AptosBalanceService.endpointCatalog()
+        case .ton: return TONBalanceService.endpointCatalog()
+        case .icp: return ICPBalanceService.endpointCatalog()
+        case .near: return NearBalanceService.endpointCatalog()
+        case .polkadot: return PolkadotBalanceService.endpointCatalog()
+        }}
     private func rebuildHistorySourceRows() {
         let sources: [String]
         switch chain {
-        case .dogecoin:
-            sources = store.dogecoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .bitcoin:
-            sources = store.bitcoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .bitcoinCash:
-            sources = store.bitcoinCashHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .bitcoinSV:
-            sources = store.bitcoinSVHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .litecoin:
-            sources = store.litecoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .ethereum:
-            sources = store.ethereumHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .ethereumClassic:
-            sources = store.etcHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .arbitrum:
-            sources = store.arbitrumHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .optimism:
-            sources = store.optimismHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .bnb:
-            sources = store.bnbHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .avalanche:
-            sources = store.avalancheHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .hyperliquid:
-            sources = store.hyperliquidHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .tron:
-            sources = store.tronHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .solana:
-            sources = store.solanaHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .cardano:
-            sources = store.cardanoHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .xrp:
-            sources = store.xrpHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .monero:
-            sources = store.moneroHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .sui:
-            sources = store.suiHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .aptos:
-            sources = store.aptosHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .ton:
-            sources = store.tonHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .icp:
-            sources = store.icpHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .near:
-            sources = store.nearHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .polkadot:
-            sources = store.polkadotHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
-        case .stellar:
-            sources = store.stellarHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .dogecoin: sources = store.dogecoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .bitcoin: sources = store.bitcoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .bitcoinCash: sources = store.bitcoinCashHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .bitcoinSV: sources = store.bitcoinSVHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .litecoin: sources = store.litecoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .ethereum: sources = store.ethereumHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .ethereumClassic: sources = store.etcHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .arbitrum: sources = store.arbitrumHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .optimism: sources = store.optimismHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .bnb: sources = store.bnbHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .avalanche: sources = store.avalancheHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .hyperliquid: sources = store.hyperliquidHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .tron: sources = store.tronHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .solana: sources = store.solanaHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .cardano: sources = store.cardanoHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .xrp: sources = store.xrpHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .monero: sources = store.moneroHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .sui: sources = store.suiHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .aptos: sources = store.aptosHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .ton: sources = store.tonHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .icp: sources = store.icpHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .near: sources = store.nearHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .polkadot: sources = store.polkadotHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
+        case .stellar: sources = store.stellarHistoryDiagnosticsByWallet.values.map(\.sourceUsed)
         }
-
         var counts: [String: Int] = [:]
         for source in sources {
             let normalized = source.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !normalized.isEmpty else { continue }
             counts[normalized, default: 0] += 1
         }
-        cachedHistorySourceRows = counts
-            .map { StandardHistorySourceRow(source: $0.key, count: $0.value) }
+        cachedHistorySourceRows = counts..map { StandardHistorySourceRow(source: $0.key, count: $0.value) }
             .sorted { lhs, rhs in
-                if lhs.count != rhs.count {
-                    return lhs.count > rhs.count
-                }
+                if lhs.count != rhs.count { return lhs.count > rhs.count }
                 return lhs.source < rhs.source
-            }
-    }
-
+            }}
     private func runHistoryDiagnostics() async {
         switch chain {
         case .dogecoin: await store.runDogecoinHistoryDiagnostics()
@@ -817,9 +568,7 @@ struct StandardChainDiagnosticsView: View {
         case .near: await store.runNearHistoryDiagnostics()
         case .polkadot: await store.runPolkadotHistoryDiagnostics()
         case .stellar: await store.runStellarHistoryDiagnostics()
-        }
-    }
-
+        }}
     private func runEndpointDiagnostics() async {
         switch chain {
         case .dogecoin: await store.runDogecoinEndpointReachabilityDiagnostics()
@@ -846,214 +595,76 @@ struct StandardChainDiagnosticsView: View {
         case .near: await store.runNearEndpointReachabilityDiagnostics()
         case .polkadot: await store.runPolkadotEndpointReachabilityDiagnostics()
         case .stellar: await store.runStellarEndpointReachabilityDiagnostics()
-        }
-    }
-
+        }}
     @ViewBuilder
     private var chainSpecificSections: some View {
         if chain == .bitcoin {
             Section(AppLocalization.string("Bitcoin Settings")) {
-                Picker(AppLocalization.string("Send Fee Priority"), selection: Binding(
-                    get: { store.bitcoinFeePriority },
-                    set: { store.bitcoinFeePriority = $0 }
-                )) {
-                    ForEach(BitcoinFeePriority.allCases) { priority in
-                        Text(priority.displayName).tag(priority)
-                    }
-                }
-                .pickerStyle(.segmented)
-
+                Picker(AppLocalization.string("Send Fee Priority"), selection: Binding(get: { store.bitcoinFeePriority }, set: { store.bitcoinFeePriority = $0 })) {
+                    ForEach(BitcoinFeePriority.allCases) { priority in Text(priority.displayName).tag(priority) }}..pickerStyle(.segmented)
                 TextField(
-                    AppLocalization.string("Custom Esplora endpoints (comma-separated, optional)"),
-                    text: Binding(
-                        get: { store.bitcoinEsploraEndpoints },
-                        set: { store.bitcoinEsploraEndpoints = $0 }
-                    )
-                )
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-
-                if let bitcoinEsploraEndpointsValidationError = store.bitcoinEsploraEndpointsValidationError {
-                    Text(bitcoinEsploraEndpointsValidationError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                } else {
-                    Text(copy.bitcoinEsploraHint)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-
+                    AppLocalization.string("Custom Esplora endpoints (comma-separated, optional)"), text: Binding(get: { store.bitcoinEsploraEndpoints }, set: { store.bitcoinEsploraEndpoints = $0 })
+                )..textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                if let bitcoinEsploraEndpointsValidationError = store.bitcoinEsploraEndpointsValidationError { Text(bitcoinEsploraEndpointsValidationError)..font(.caption).foregroundStyle(.red) } else { Text(copy.bitcoinEsploraHint)..font(.caption).foregroundStyle(.secondary) }}}
         if chain == .ethereum {
             Section(AppLocalization.string("Ethereum RPC")) {
                 TextField(
-                    AppLocalization.string("Ethereum RPC URL (Optional)"),
-                    text: Binding(
-                        get: { store.ethereumRPCEndpoint },
-                        set: { store.ethereumRPCEndpoint = $0 }
-                    )
-                )
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                Text(copy.ethereumRPCNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if let ethereumRPCEndpointValidationError = store.ethereumRPCEndpointValidationError {
-                    Text(ethereumRPCEndpointValidationError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
-
+                    AppLocalization.string("Ethereum RPC URL (Optional)"), text: Binding(get: { store.ethereumRPCEndpoint }, set: { store.ethereumRPCEndpoint = $0 })
+                )..textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                Text(copy.ethereumRPCNote)..font(.caption).foregroundStyle(.secondary)
+                if let ethereumRPCEndpointValidationError = store.ethereumRPCEndpointValidationError { Text(ethereumRPCEndpointValidationError)..font(.caption).foregroundStyle(.red) }}
             Section(AppLocalization.string("Etherscan (Optional)")) {
                 TextField(
-                    AppLocalization.string("Etherscan API Key"),
-                    text: Binding(
-                        get: { store.etherscanAPIKey },
-                        set: { store.etherscanAPIKey = $0 }
-                    )
-                )
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                Text(copy.etherscanNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-
+                    AppLocalization.string("Etherscan API Key"), text: Binding(get: { store.etherscanAPIKey }, set: { store.etherscanAPIKey = $0 })
+                )..textInputAutocapitalization(.never).autocorrectionDisabled()
+                Text(copy.etherscanNote)..font(.caption).foregroundStyle(.secondary)
+            }}
         if chain == .monero {
             Section(AppLocalization.string("Monero Backend")) {
                 Picker(AppLocalization.string("Trusted Backend"), selection: $selectedMoneroBackendID) {
-                    ForEach(moneroBackendChoices, id: \.id) { choice in
-                        Text(choice.title).tag(choice.id)
-                    }
-                }
-
+                    ForEach(moneroBackendChoices, id: \.id) { choice in Text(choice.title).tag(choice.id) }}
                 if selectedMoneroBackendID == moneroCustomBackendID {
                     TextField(
-                        AppLocalization.string("Monero Backend URL (Optional)"),
-                        text: Binding(
-                            get: { store.moneroBackendBaseURL },
-                            set: { store.moneroBackendBaseURL = $0 }
-                        )
-                    )
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.URL)
-                } else {
-                    Text(selectedTrustedMoneroBackend?.baseURL ?? MoneroBalanceService.defaultPublicBackend.baseURL)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                }
-
-                if let moneroBackendBaseURLValidationError = store.moneroBackendBaseURLValidationError {
-                    Text(moneroBackendBaseURLValidationError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                } else {
-                    Text(copy.moneroBackendNote)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
+                        AppLocalization.string("Monero Backend URL (Optional)"), text: Binding(get: { store.moneroBackendBaseURL }, set: { store.moneroBackendBaseURL = $0 })
+                    )..textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                } else { Text(selectedTrustedMoneroBackend?.baseURL ?? MoneroBalanceService.defaultPublicBackend.baseURL)..font(.caption.monospaced()).textSelection(.enabled) }
+                if let moneroBackendBaseURLValidationError = store.moneroBackendBaseURLValidationError { Text(moneroBackendBaseURLValidationError)..font(.caption).foregroundStyle(.red) } else { Text(copy.moneroBackendNote)..font(.caption).foregroundStyle(.secondary) }
                 TextField(
-                    AppLocalization.string("Monero Backend API Key (Optional)"),
-                    text: Binding(
-                        get: { store.moneroBackendAPIKey },
-                        set: { store.moneroBackendAPIKey = $0 }
-                    )
-                )
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                Text(copy.moneroAPIKeyNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
+                    AppLocalization.string("Monero Backend API Key (Optional)"), text: Binding(get: { store.moneroBackendAPIKey }, set: { store.moneroBackendAPIKey = $0 })
+                )..textInputAutocapitalization(.never).autocorrectionDisabled()
+                Text(copy.moneroAPIKeyNote)..font(.caption).foregroundStyle(.secondary)
+            }}
         if supportsUTXOChainActions {
             Section(AppLocalization.string("Chain Actions")) {
                 Button(isRunningChainSelfTests ? AppLocalization.string("Running Self-Tests...") : chainSelfTestButtonTitle) {
                     runChainSelfTests()
-                }
-                .disabled(isRunningChainSelfTests)
-
+                }..disabled(isRunningChainSelfTests)
                 Button(isRunningChainRescan ? chainRescanInFlightTitle : chainRescanButtonTitle) {
                     Task {
                         await runChainRescan()
-                    }
-                }
-                .disabled(isRunningChainRescan)
-            }
-        }
-
+                    }}..disabled(isRunningChainRescan)
+            }}
         Section(AppLocalization.string("Operational Events")) {
             let events = store.operationalEvents(for: chain.title)
-            if events.isEmpty {
-                Text(AppLocalization.string("No operational events recorded yet."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
+            if events.isEmpty { Text(AppLocalization.string("No operational events recorded yet.")).font(.caption).foregroundStyle(.secondary) } else {
                 ForEach(events.prefix(20)) { event in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(event.message)
-                            .font(.subheadline)
-                        Text(event.level.rawValue.capitalized)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(event.level == .error ? .red : (event.level == .warning ? .orange : .secondary))
-                        if let transactionHash = event.transactionHash, !transactionHash.isEmpty {
-                            Text(transactionHash)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-        }
-
+                        Text(event.message)..font(.subheadline)
+                        Text(event.level.rawValue.capitalized)..font(.caption.weight(.semibold))..foregroundStyle(event.level == .error ? .red : (event.level == .warning ? .orange : .secondary))
+                        if let transactionHash = event.transactionHash, !transactionHash.isEmpty { Text(transactionHash)..font(.caption.monospaced()).foregroundStyle(.secondary) }}..padding(.vertical, 2)
+                }}}
         Section(AppLocalization.string("Owned Address Management")) {
             let diagnostics = store.chainKeypoolDiagnostics(for: chain.title)
-            if diagnostics.isEmpty {
-                Text(AppLocalization.string("No owned-address management state recorded yet."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
+            if diagnostics.isEmpty { Text(AppLocalization.string("No owned-address management state recorded yet.")).font(.caption).foregroundStyle(.secondary) } else {
                 ForEach(diagnostics) { item in
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(item.walletName)
-                            .font(.subheadline.weight(.semibold))
-                        Text("Next receive index: \(item.nextExternalIndex)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("Next change index: \(item.nextChangeIndex)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if let reservedReceiveIndex = item.reservedReceiveIndex {
-                            Text("Reserved receive index: \(reservedReceiveIndex)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let reservedReceivePath = item.reservedReceivePath, !reservedReceivePath.isEmpty {
-                            Text(reservedReceivePath)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.secondary)
-                        }
-                        if let reservedReceiveAddress = item.reservedReceiveAddress, !reservedReceiveAddress.isEmpty {
-                            Text(reservedReceiveAddress)
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
-        }
-    }
-
+                        Text(item.walletName)..font(.subheadline.weight(.semibold))
+                        Text("Next receive index: \(item.nextExternalIndex)")..font(.caption).foregroundStyle(.secondary)
+                        Text("Next change index: \(item.nextChangeIndex)")..font(.caption).foregroundStyle(.secondary)
+                        if let reservedReceiveIndex = item.reservedReceiveIndex { Text("Reserved receive index: \(reservedReceiveIndex)")..font(.caption).foregroundStyle(.secondary) }
+                        if let reservedReceivePath = item.reservedReceivePath, !reservedReceivePath.isEmpty { Text(reservedReceivePath)..font(.caption.monospaced()).foregroundStyle(.secondary) }
+                        if let reservedReceiveAddress = item.reservedReceiveAddress, !reservedReceiveAddress.isEmpty { Text(reservedReceiveAddress)..font(.caption.monospaced()).foregroundStyle(.secondary) }}..padding(.vertical, 2)
+                }}}}
     private func syncSelectedMoneroBackendIDFromStore() {
         let trimmed = store.moneroBackendBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
@@ -1066,16 +677,11 @@ struct StandardChainDiagnosticsView: View {
         }
         selectedMoneroBackendID = moneroCustomBackendID
     }
-
     private var supportsUTXOChainActions: Bool {
         switch chain {
-        case .bitcoin, .bitcoinCash, .bitcoinSV, .litecoin, .dogecoin:
-            return true
-        default:
-            return false
-        }
-    }
-
+        case .bitcoin, .bitcoinCash, .bitcoinSV, .litecoin, .dogecoin: return true
+        default: return false
+        }}
     private var isRunningChainSelfTests: Bool {
         switch chain {
         case .bitcoin: return store.isRunningBitcoinSelfTests
@@ -1084,9 +690,7 @@ struct StandardChainDiagnosticsView: View {
         case .litecoin: return store.isRunningLitecoinSelfTests
         case .dogecoin: return store.isRunningDogecoinSelfTests
         default: return false
-        }
-    }
-
+        }}
     private var isRunningChainRescan: Bool {
         switch chain {
         case .bitcoin: return store.isRunningBitcoinRescan
@@ -1095,9 +699,7 @@ struct StandardChainDiagnosticsView: View {
         case .litecoin: return store.isRunningLitecoinRescan
         case .dogecoin: return store.isRunningDogecoinRescan
         default: return false
-        }
-    }
-
+        }}
     private var chainSelfTestButtonTitle: String {
         switch chain {
         case .bitcoin: return AppLocalization.string("Run BTC Self-Tests")
@@ -1106,9 +708,7 @@ struct StandardChainDiagnosticsView: View {
         case .litecoin: return AppLocalization.string("Run LTC Self-Tests")
         case .dogecoin: return AppLocalization.string("Run DOGE Self-Tests")
         default: return AppLocalization.string("Run Self-Tests")
-        }
-    }
-
+        }}
     private var chainRescanButtonTitle: String {
         switch chain {
         case .bitcoin: return AppLocalization.string("Run BTC Rescan")
@@ -1117,9 +717,7 @@ struct StandardChainDiagnosticsView: View {
         case .litecoin: return AppLocalization.string("Run LTC Rescan")
         case .dogecoin: return AppLocalization.string("Run DOGE Rescan")
         default: return AppLocalization.string("Run Rescan")
-        }
-    }
-
+        }}
     private var chainRescanInFlightTitle: String {
         switch chain {
         case .bitcoin: return AppLocalization.string("Rescanning BTC...")
@@ -1128,45 +726,26 @@ struct StandardChainDiagnosticsView: View {
         case .litecoin: return AppLocalization.string("Rescanning LTC...")
         case .dogecoin: return AppLocalization.string("Rescanning DOGE...")
         default: return AppLocalization.string("Rescanning...")
-        }
-    }
-
+        }}
     private func runChainSelfTests() {
         switch chain {
-        case .bitcoin:
-            store.runBitcoinSelfTests()
-        case .bitcoinCash:
-            store.runBitcoinCashSelfTests()
-        case .bitcoinSV:
-            store.runBitcoinSVSelfTests()
-        case .litecoin:
-            store.runLitecoinSelfTests()
-        case .dogecoin:
-            store.runDogecoinSelfTests()
-        default:
-            break
-        }
-    }
-
+        case .bitcoin: store.runBitcoinSelfTests()
+        case .bitcoinCash: store.runBitcoinCashSelfTests()
+        case .bitcoinSV: store.runBitcoinSVSelfTests()
+        case .litecoin: store.runLitecoinSelfTests()
+        case .dogecoin: store.runDogecoinSelfTests()
+        default: break
+        }}
     private func runChainRescan() async {
         switch chain {
-        case .bitcoin:
-            await store.runBitcoinRescan()
-        case .bitcoinCash:
-            await store.runBitcoinCashRescan()
-        case .bitcoinSV:
-            await store.runBitcoinSVRescan()
-        case .litecoin:
-            await store.runLitecoinRescan()
-        case .dogecoin:
-            await store.runDogecoinRescan()
-        default:
-            break
-        }
-    }
-
+        case .bitcoin: await store.runBitcoinRescan()
+        case .bitcoinCash: await store.runBitcoinCashRescan()
+        case .bitcoinSV: await store.runBitcoinSVRescan()
+        case .litecoin: await store.runLitecoinRescan()
+        case .dogecoin: await store.runDogecoinRescan()
+        default: break
+        }}
 }
-
 private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
     let format = AppLocalization.string(key)
     return String(format: format, locale: AppLocalization.locale, arguments: arguments)

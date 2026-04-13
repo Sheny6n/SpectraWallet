@@ -1,6 +1,5 @@
 import Foundation
 import Combine
-
 final class WalletDashboardState: ObservableObject {
     @Published var pinnedAssetSymbols: [String] = []
     @Published var pinOptionBySymbol: [String: DashboardPinOption] = [:]

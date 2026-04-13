@@ -1,35 +1,24 @@
 import Foundation
-
 struct EthereumCustomFeeConfiguration: Equatable {
     let maxFeePerGasGwei: Double
     let maxPriorityFeePerGasGwei: Double
 }
-
 struct EthereumTransactionReceipt: Equatable {
     let transactionHash: String
-    let blockNumber: Int?
-    let status: String?
-    let gasUsed: Decimal?
-    let effectiveGasPriceWei: Decimal?
-
-    var isConfirmed: Bool { blockNumber != nil }
-
+    let blockNumber: Int? let status: String? let gasUsed: Decimal? let effectiveGasPriceWei: Decimal? var isConfirmed: Bool { blockNumber != nil }
     var isFailed: Bool {
         guard let status else { return false }
         return status.lowercased() == "0x0"
     }
-
     var gasUsedText: String? {
         guard let gasUsed else { return nil }
         return NSDecimalNumber(decimal: gasUsed).stringValue
     }
-
     var effectiveGasPriceGwei: Double? {
         guard let effectiveGasPriceWei else { return nil }
         let gweiValue = effectiveGasPriceWei / Decimal(1_000_000_000)
         return NSDecimalNumber(decimal: gweiValue).doubleValue
     }
-
     var networkFeeETH: Double? {
         guard let gasUsed, let effectiveGasPriceWei else { return nil }
         let feeWei = gasUsed * effectiveGasPriceWei
@@ -37,14 +26,12 @@ struct EthereumTransactionReceipt: Equatable {
         return NSDecimalNumber(decimal: feeETH).doubleValue
     }
 }
-
 struct EthereumTokenBalanceSnapshot: Equatable {
     let contractAddress: String
     let symbol: String
     let balance: Decimal
     let decimals: Int
 }
-
 struct EthereumTokenTransferSnapshot: Equatable {
     let contractAddress: String
     let tokenName: String
@@ -58,7 +45,6 @@ struct EthereumTokenTransferSnapshot: Equatable {
     let logIndex: Int
     let timestamp: Date?
 }
-
 struct EthereumNativeTransferSnapshot: Equatable {
     let fromAddress: String
     let toAddress: String
@@ -67,7 +53,6 @@ struct EthereumNativeTransferSnapshot: Equatable {
     let blockNumber: Int
     let timestamp: Date?
 }
-
 struct EthereumSupportedToken {
     let name: String
     let symbol: String
@@ -75,15 +60,7 @@ struct EthereumSupportedToken {
     let decimals: Int
     let marketDataID: String
     let coinGeckoID: String
-
-    init(
-        name: String,
-        symbol: String,
-        contractAddress: String,
-        decimals: Int,
-        marketDataID: String,
-        coinGeckoID: String
-    ) {
+    init(name: String, symbol: String, contractAddress: String, decimals: Int, marketDataID: String, coinGeckoID: String) {
         self.name = name
         self.symbol = symbol
         self.contractAddress = contractAddress
@@ -91,7 +68,6 @@ struct EthereumSupportedToken {
         self.marketDataID = marketDataID
         self.coinGeckoID = coinGeckoID
     }
-
     init(registryEntry: ChainTokenRegistryEntry) {
         self.name = registryEntry.name
         self.symbol = registryEntry.symbol
@@ -101,38 +77,19 @@ struct EthereumSupportedToken {
         self.coinGeckoID = registryEntry.coinGeckoID
     }
 }
-
 struct EthereumTokenTransferHistoryDiagnostics: Equatable {
     let address: String
     let rpcTransferCount: Int
-    let rpcError: String?
-    let blockscoutTransferCount: Int
-    let blockscoutError: String?
-    let etherscanTransferCount: Int
-    let etherscanError: String?
-    let ethplorerTransferCount: Int
-    let ethplorerError: String?
-    let sourceUsed: String
+    let rpcError: String? let blockscoutTransferCount: Int
+    let blockscoutError: String? let etherscanTransferCount: Int
+    let etherscanError: String? let ethplorerTransferCount: Int
+    let ethplorerError: String? let sourceUsed: String
     let transferScanCount: Int
     let decodedTransferCount: Int
     let unsupportedTransferDropCount: Int
     let decodingCompletenessRatio: Double
-
     init(
-        address: String,
-        rpcTransferCount: Int,
-        rpcError: String?,
-        blockscoutTransferCount: Int,
-        blockscoutError: String?,
-        etherscanTransferCount: Int,
-        etherscanError: String?,
-        ethplorerTransferCount: Int,
-        ethplorerError: String?,
-        sourceUsed: String,
-        transferScanCount: Int = 0,
-        decodedTransferCount: Int = 0,
-        unsupportedTransferDropCount: Int = 0,
-        decodingCompletenessRatio: Double = 0
+        address: String, rpcTransferCount: Int, rpcError: String?, blockscoutTransferCount: Int, blockscoutError: String?, etherscanTransferCount: Int, etherscanError: String?, ethplorerTransferCount: Int, ethplorerError: String?, sourceUsed: String, transferScanCount: Int = 0, decodedTransferCount: Int = 0, unsupportedTransferDropCount: Int = 0, decodingCompletenessRatio: Double = 0
     ) {
         self.address = address
         self.rpcTransferCount = rpcTransferCount

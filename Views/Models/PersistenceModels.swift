@@ -3,7 +3,6 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
-
 struct PersistedCoin: Codable {
     let name: String
     let symbol: String
@@ -11,41 +10,19 @@ struct PersistedCoin: Codable {
     let coinGeckoID: String
     let chainName: String
     let tokenStandard: String
-    let contractAddress: String?
-    let amount: Double
+    let contractAddress: String? let amount: Double
     let priceUSD: Double
 }
-
 struct PersistedWallet: Codable {
     let id: UUID
     let name: String
     let bitcoinNetworkMode: BitcoinNetworkMode
     let dogecoinNetworkMode: DogecoinNetworkMode
-    let bitcoinAddress: String?
-    let bitcoinXPub: String?
-    let bitcoinCashAddress: String?
-    let bitcoinSVAddress: String?
-    let litecoinAddress: String?
-    let dogecoinAddress: String?
-    let ethereumAddress: String?
-    let tronAddress: String?
-    let solanaAddress: String?
-    let stellarAddress: String?
-    let xrpAddress: String?
-    let moneroAddress: String?
-    let cardanoAddress: String?
-    let suiAddress: String?
-    let aptosAddress: String?
-    let tonAddress: String?
-    let icpAddress: String?
-    let nearAddress: String?
-    let polkadotAddress: String?
-    let seedDerivationPreset: SeedDerivationPreset
+    let bitcoinAddress: String? let bitcoinXPub: String? let bitcoinCashAddress: String? let bitcoinSVAddress: String? let litecoinAddress: String? let dogecoinAddress: String? let ethereumAddress: String? let tronAddress: String? let solanaAddress: String? let stellarAddress: String? let xrpAddress: String? let moneroAddress: String? let cardanoAddress: String? let suiAddress: String? let aptosAddress: String? let tonAddress: String? let icpAddress: String? let nearAddress: String? let polkadotAddress: String? let seedDerivationPreset: SeedDerivationPreset
     let seedDerivationPaths: SeedDerivationPaths
     let selectedChain: String
     let holdings: [PersistedCoin]
     let includeInPortfolioTotal: Bool
-
     enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -76,36 +53,8 @@ struct PersistedWallet: Codable {
         case holdings
         case includeInPortfolioTotal
     }
-
     init(
-        id: UUID,
-        name: String,
-        bitcoinNetworkMode: BitcoinNetworkMode = .mainnet,
-        dogecoinNetworkMode: DogecoinNetworkMode = .mainnet,
-        bitcoinAddress: String?,
-        bitcoinXPub: String?,
-        bitcoinCashAddress: String?,
-        bitcoinSVAddress: String?,
-        litecoinAddress: String?,
-        dogecoinAddress: String?,
-        ethereumAddress: String?,
-        tronAddress: String?,
-        solanaAddress: String?,
-        stellarAddress: String?,
-        xrpAddress: String?,
-        moneroAddress: String?,
-        cardanoAddress: String?,
-        suiAddress: String?,
-        aptosAddress: String?,
-        tonAddress: String?,
-        icpAddress: String?,
-        nearAddress: String?,
-        polkadotAddress: String?,
-        seedDerivationPreset: SeedDerivationPreset,
-        seedDerivationPaths: SeedDerivationPaths,
-        selectedChain: String,
-        holdings: [PersistedCoin],
-        includeInPortfolioTotal: Bool
+        id: UUID, name: String, bitcoinNetworkMode: BitcoinNetworkMode = .mainnet, dogecoinNetworkMode: DogecoinNetworkMode = .mainnet, bitcoinAddress: String?, bitcoinXPub: String?, bitcoinCashAddress: String?, bitcoinSVAddress: String?, litecoinAddress: String?, dogecoinAddress: String?, ethereumAddress: String?, tronAddress: String?, solanaAddress: String?, stellarAddress: String?, xrpAddress: String?, moneroAddress: String?, cardanoAddress: String?, suiAddress: String?, aptosAddress: String?, tonAddress: String?, icpAddress: String?, nearAddress: String?, polkadotAddress: String?, seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths, selectedChain: String, holdings: [PersistedCoin], includeInPortfolioTotal: Bool
     ) {
         self.id = id
         self.name = name
@@ -136,7 +85,6 @@ struct PersistedWallet: Codable {
         self.holdings = holdings
         self.includeInPortfolioTotal = includeInPortfolioTotal
     }
-
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
@@ -169,14 +117,11 @@ struct PersistedWallet: Codable {
         includeInPortfolioTotal = try container.decode(Bool.self, forKey: .includeInPortfolioTotal)
     }
 }
-
 struct PersistedWalletStore: Codable {
     let version: Int
     let wallets: [PersistedWallet]
-    
     static let currentVersion = 5
 }
-
 struct PersistedPriceAlertRule: Codable {
     let id: UUID
     let holdingKey: String
@@ -188,14 +133,11 @@ struct PersistedPriceAlertRule: Codable {
     let isEnabled: Bool
     let hasTriggered: Bool
 }
-
 struct PersistedPriceAlertStore: Codable {
     let version: Int
     let alerts: [PersistedPriceAlertRule]
-    
     static let currentVersion = 1
 }
-
 struct PersistedAddressBookEntry: Codable {
     let id: UUID
     let name: String
@@ -203,18 +145,14 @@ struct PersistedAddressBookEntry: Codable {
     let address: String
     let note: String
 }
-
 struct PersistedAddressBookStore: Codable {
     let version: Int
     let entries: [PersistedAddressBookEntry]
-
     static let currentVersion = 1
 }
-
 struct PersistedTransactionRecord: Codable, Equatable {
     let id: UUID
-    let walletID: UUID?
-    let kind: TransactionKind
+    let walletID: UUID? let kind: TransactionKind
     let status: TransactionStatus
     let walletName: String
     let assetName: String
@@ -222,32 +160,7 @@ struct PersistedTransactionRecord: Codable, Equatable {
     let chainName: String
     let amount: Double
     let address: String
-    let transactionHash: String?
-    let ethereumNonce: Int?
-    let receiptBlockNumber: Int?
-    let receiptGasUsed: String?
-    let receiptEffectiveGasPriceGwei: Double?
-    let receiptNetworkFeeETH: Double?
-    let feePriorityRaw: String?
-    let feeRateDescription: String?
-    let confirmationCount: Int?
-    let dogecoinConfirmedNetworkFeeDOGE: Double?
-    let dogecoinConfirmations: Int?
-    let dogecoinFeePriorityRaw: String?
-    let dogecoinEstimatedFeeRateDOGEPerKB: Double?
-    let usedChangeOutput: Bool?
-    let dogecoinUsedChangeOutput: Bool?
-    let sourceDerivationPath: String?
-    let changeDerivationPath: String?
-    let sourceAddress: String?
-    let changeAddress: String?
-    let dogecoinRawTransactionHex: String?
-    let signedTransactionPayload: String?
-    let signedTransactionPayloadFormat: String?
-    let failureReason: String?
-    let transactionHistorySource: String?
-    let createdAt: Date
-    
+    let transactionHash: String? let ethereumNonce: Int? let receiptBlockNumber: Int? let receiptGasUsed: String? let receiptEffectiveGasPriceGwei: Double? let receiptNetworkFeeETH: Double? let feePriorityRaw: String? let feeRateDescription: String? let confirmationCount: Int? let dogecoinConfirmedNetworkFeeDOGE: Double? let dogecoinConfirmations: Int? let dogecoinFeePriorityRaw: String? let dogecoinEstimatedFeeRateDOGEPerKB: Double? let usedChangeOutput: Bool? let dogecoinUsedChangeOutput: Bool? let sourceDerivationPath: String? let changeDerivationPath: String? let sourceAddress: String? let changeAddress: String? let dogecoinRawTransactionHex: String? let signedTransactionPayload: String? let signedTransactionPayloadFormat: String? let failureReason: String? let transactionHistorySource: String? let createdAt: Date
     enum CodingKeys: String, CodingKey {
         case id
         case walletID
@@ -285,43 +198,8 @@ struct PersistedTransactionRecord: Codable, Equatable {
         case transactionHistorySource
         case createdAt
     }
-    
     init(
-        id: UUID,
-        walletID: UUID? = nil,
-        kind: TransactionKind,
-        status: TransactionStatus,
-        walletName: String,
-        assetName: String,
-        symbol: String,
-        chainName: String,
-        amount: Double,
-        address: String,
-        transactionHash: String? = nil,
-        ethereumNonce: Int? = nil,
-        receiptBlockNumber: Int? = nil,
-        receiptGasUsed: String? = nil,
-        receiptEffectiveGasPriceGwei: Double? = nil,
-        receiptNetworkFeeETH: Double? = nil,
-        feePriorityRaw: String? = nil,
-        feeRateDescription: String? = nil,
-        confirmationCount: Int? = nil,
-        dogecoinConfirmedNetworkFeeDOGE: Double? = nil,
-        dogecoinConfirmations: Int? = nil,
-        dogecoinFeePriorityRaw: String? = nil,
-        dogecoinEstimatedFeeRateDOGEPerKB: Double? = nil,
-        usedChangeOutput: Bool? = nil,
-        dogecoinUsedChangeOutput: Bool? = nil,
-        sourceDerivationPath: String? = nil,
-        changeDerivationPath: String? = nil,
-        sourceAddress: String? = nil,
-        changeAddress: String? = nil,
-        dogecoinRawTransactionHex: String? = nil,
-        signedTransactionPayload: String? = nil,
-        signedTransactionPayloadFormat: String? = nil,
-        failureReason: String? = nil,
-        transactionHistorySource: String? = nil,
-        createdAt: Date
+        id: UUID, walletID: UUID? = nil, kind: TransactionKind, status: TransactionStatus, walletName: String, assetName: String, symbol: String, chainName: String, amount: Double, address: String, transactionHash: String? = nil, ethereumNonce: Int? = nil, receiptBlockNumber: Int? = nil, receiptGasUsed: String? = nil, receiptEffectiveGasPriceGwei: Double? = nil, receiptNetworkFeeETH: Double? = nil, feePriorityRaw: String? = nil, feeRateDescription: String? = nil, confirmationCount: Int? = nil, dogecoinConfirmedNetworkFeeDOGE: Double? = nil, dogecoinConfirmations: Int? = nil, dogecoinFeePriorityRaw: String? = nil, dogecoinEstimatedFeeRateDOGEPerKB: Double? = nil, usedChangeOutput: Bool? = nil, dogecoinUsedChangeOutput: Bool? = nil, sourceDerivationPath: String? = nil, changeDerivationPath: String? = nil, sourceAddress: String? = nil, changeAddress: String? = nil, dogecoinRawTransactionHex: String? = nil, signedTransactionPayload: String? = nil, signedTransactionPayloadFormat: String? = nil, failureReason: String? = nil, transactionHistorySource: String? = nil, createdAt: Date
     ) {
         self.id = id
         self.walletID = walletID
@@ -359,11 +237,9 @@ struct PersistedTransactionRecord: Codable, Equatable {
         self.transactionHistorySource = transactionHistorySource
         self.createdAt = createdAt
     }
-    
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(TransactionKind.self, forKey: .kind)
-        
         id = try container.decode(UUID.self, forKey: .id)
         walletID = try container.decodeIfPresent(UUID.self, forKey: .walletID)
         self.kind = kind
@@ -402,7 +278,6 @@ struct PersistedTransactionRecord: Codable, Equatable {
         createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 }
-
 private enum SeedDerivationPathsCodingKeys: String, CodingKey {
     case isCustomEnabled
     case bitcoin
@@ -428,7 +303,6 @@ private enum SeedDerivationPathsCodingKeys: String, CodingKey {
     case near
     case polkadot
 }
-
 extension SeedDerivationPaths: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: SeedDerivationPathsCodingKeys.self)
@@ -456,7 +330,6 @@ extension SeedDerivationPaths: Codable {
         near = try container.decodeIfPresent(String.self, forKey: .near) ?? SeedDerivationChain.near.defaultPath
         polkadot = try container.decodeIfPresent(String.self, forKey: .polkadot) ?? SeedDerivationChain.polkadot.defaultPath
     }
-
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: SeedDerivationPathsCodingKeys.self)
         try container.encode(isCustomEnabled, forKey: .isCustomEnabled)

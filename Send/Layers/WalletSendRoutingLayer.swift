@@ -1,5 +1,4 @@
 import Foundation
-
 extension WalletSendLayer {
     private enum SendPreviewKind: String {
         case bitcoin
@@ -21,7 +20,6 @@ extension WalletSendLayer {
         case near
         case polkadot
     }
-
     static func refreshSendPreview(using store: WalletStore) async {
         guard let selectedSendCoin = store.selectedSendCoin else {
             resetAllSendPreviews(on: store)
@@ -30,77 +28,42 @@ extension WalletSendLayer {
             store.isCheckingSendDestinationBalance = false
             return
         }
-
         await store.refreshSendDestinationRiskWarning(for: selectedSendCoin)
-
         let activePreview = plannedPreviewKind(for: selectedSendCoin, using: store)
         resetInactiveSendPreviews(except: activePreview, on: store)
-
         switch activePreview {
-        case .bitcoin:
-            await refreshBitcoinSendPreview(using: store)
-        case .bitcoinCash:
-            await refreshBitcoinCashSendPreview(using: store)
-        case .bitcoinSV:
-            await refreshBitcoinSVSendPreview(using: store)
-        case .litecoin:
-            await refreshLitecoinSendPreview(using: store)
-        case .ethereum:
-            await refreshEthereumSendPreview(using: store)
-        case .dogecoin:
-            await refreshDogecoinSendPreview(using: store)
-        case .tron:
-            await refreshTronSendPreview(using: store)
-        case .solana:
-            await refreshSolanaSendPreview(using: store)
-        case .xrp:
-            await refreshXRPSendPreview(using: store)
-        case .stellar:
-            await refreshStellarSendPreview(using: store)
-        case .monero:
-            await refreshMoneroSendPreview(using: store)
-        case .cardano:
-            await refreshCardanoSendPreview(using: store)
-        case .sui:
-            await refreshSuiSendPreview(using: store)
-        case .aptos:
-            await refreshAptosSendPreview(using: store)
-        case .ton:
-            await refreshTONSendPreview(using: store)
-        case .icp:
-            await refreshICPSendPreview(using: store)
-        case .near:
-            await refreshNearSendPreview(using: store)
-        case .polkadot:
-            await refreshPolkadotSendPreview(using: store)
-        case nil:
-            break
-        }
-    }
-
+        case .bitcoin: await refreshBitcoinSendPreview(using: store)
+        case .bitcoinCash: await refreshBitcoinCashSendPreview(using: store)
+        case .bitcoinSV: await refreshBitcoinSVSendPreview(using: store)
+        case .litecoin: await refreshLitecoinSendPreview(using: store)
+        case .ethereum: await refreshEthereumSendPreview(using: store)
+        case .dogecoin: await refreshDogecoinSendPreview(using: store)
+        case .tron: await refreshTronSendPreview(using: store)
+        case .solana: await refreshSolanaSendPreview(using: store)
+        case .xrp: await refreshXRPSendPreview(using: store)
+        case .stellar: await refreshStellarSendPreview(using: store)
+        case .monero: await refreshMoneroSendPreview(using: store)
+        case .cardano: await refreshCardanoSendPreview(using: store)
+        case .sui: await refreshSuiSendPreview(using: store)
+        case .aptos: await refreshAptosSendPreview(using: store)
+        case .ton: await refreshTONSendPreview(using: store)
+        case .icp: await refreshICPSendPreview(using: store)
+        case .near: await refreshNearSendPreview(using: store)
+        case .polkadot: await refreshPolkadotSendPreview(using: store)
+        case nil: break
+        }}
     private static func plannedPreviewKind(for coin: Coin, using store: WalletStore) -> SendPreviewKind? {
         let request = WalletRustSendPreviewRoutingRequest(
             asset: rustSendAssetRoutingInput(for: coin, using: store)
         )
-        guard let plan = try? WalletRustAppCoreBridge.planSendPreviewRouting(request),
-              let activePreviewKind = plan.activePreviewKind else {
-            return nil
-        }
+        guard let plan = try? WalletRustAppCoreBridge.planSendPreviewRouting(request), let activePreviewKind = plan.activePreviewKind else { return nil }
         return SendPreviewKind(rawValue: activePreviewKind)
     }
-
-    private static func rustSendAssetRoutingInput(
-        for coin: Coin,
-        using store: WalletStore
-    ) -> WalletRustSendAssetRoutingInput {
+    private static func rustSendAssetRoutingInput(for coin: Coin, using store: WalletStore) -> WalletRustSendAssetRoutingInput {
         WalletRustSendAssetRoutingInput(
-            chainName: coin.chainName,
-            symbol: coin.symbol,
-            isEVMChain: store.isEVMChain(coin.chainName),
-            supportsSolanaSendCoin: store.isSupportedSolanaSendCoin(coin)
+            chainName: coin.chainName, symbol: coin.symbol, isEVMChain: store.isEVMChain(coin.chainName), supportsSolanaSendCoin: store.isSupportedSolanaSendCoin(coin)
         )
     }
-
     private static func resetAllSendPreviews(on store: WalletStore) {
         store.bitcoinSendPreview = nil
         store.bitcoinCashSendPreview = nil
@@ -135,7 +98,6 @@ extension WalletSendLayer {
         store.isPreparingNearSend = false
         store.isPreparingPolkadotSend = false
     }
-
     private static func resetInactiveSendPreviews(except activePreview: SendPreviewKind?, on store: WalletStore) {
         if activePreview != .bitcoin { store.bitcoinSendPreview = nil }
         if activePreview != .bitcoinCash { store.bitcoinCashSendPreview = nil }
@@ -196,6 +158,5 @@ extension WalletSendLayer {
         if activePreview != .polkadot {
             store.polkadotSendPreview = nil
             store.isPreparingPolkadotSend = false
-        }
-    }
+        }}
 }

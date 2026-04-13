@@ -1,97 +1,62 @@
 import Foundation
-
 extension WalletStore {
     func performUserInitiatedRefresh(forChain chainName: String) async {
         let startedAt = CFAbsoluteTimeGetCurrent()
-        if appIsActive {
-            await refreshPendingTransactions(includeHistoryRefreshes: false)
-        }
-
+        if appIsActive { await refreshPendingTransactions(includeHistoryRefreshes: false) }
         await withBalanceRefreshWindow {
             switch chainName {
-            case "Bitcoin":
-                await refreshBitcoinBalances()
+            case "Bitcoin": await refreshBalances()
                 await refreshBitcoinTransactions(limit: 20)
-            case "Bitcoin Cash":
-                await refreshBitcoinCashBalances()
+            case "Bitcoin Cash": await refreshBalances()
                 await refreshBitcoinCashTransactions(limit: 20)
-            case "Bitcoin SV":
-                await refreshBitcoinSVBalances()
+            case "Bitcoin SV": await refreshBalances()
                 await refreshBitcoinSVTransactions(limit: 20)
-            case "Litecoin":
-                await refreshLitecoinBalances()
+            case "Litecoin": await refreshBalances()
                 await refreshLitecoinTransactions(limit: 20)
-            case "Dogecoin":
-                await refreshDogecoinBalances()
+            case "Dogecoin": await refreshBalances()
                 await refreshDogecoinTransactions(limit: 20)
-            case "Ethereum":
-                await refreshEthereumBalances()
+            case "Ethereum": await refreshBalances()
                 await refreshEVMTokenTransactions(chainName: "Ethereum", maxResults: 20, loadMore: false)
-            case "Arbitrum":
-                await refreshArbitrumBalances()
+            case "Arbitrum": await refreshBalances()
                 await refreshEVMTokenTransactions(chainName: "Arbitrum", maxResults: 20, loadMore: false)
-            case "Optimism":
-                await refreshOptimismBalances()
+            case "Optimism": await refreshBalances()
                 await refreshEVMTokenTransactions(chainName: "Optimism", maxResults: 20, loadMore: false)
-            case "Ethereum Classic":
-                await refreshETCBalances()
-            case "BNB Chain":
-                await refreshBNBBalances()
+            case "Ethereum Classic": await refreshBalances()
+            case "BNB Chain": await refreshBalances()
                 await refreshEVMTokenTransactions(chainName: "BNB Chain", maxResults: 20, loadMore: false)
-            case "Avalanche":
-                await refreshAvalancheBalances()
+            case "Avalanche": await refreshBalances()
                 await refreshEVMTokenTransactions(chainName: "Avalanche", maxResults: 20, loadMore: false)
-            case "Hyperliquid":
-                await refreshHyperliquidBalances()
+            case "Hyperliquid": await refreshBalances()
                 await refreshEVMTokenTransactions(chainName: "Hyperliquid", maxResults: 20, loadMore: false)
-            case "Tron":
-                await refreshTronBalances()
+            case "Tron": await refreshBalances()
                 await refreshTronTransactions(loadMore: false)
-            case "Solana":
-                await refreshSolanaBalances()
+            case "Solana": await refreshBalances()
                 await refreshSolanaTransactions(loadMore: false)
-            case "Cardano":
-                await refreshCardanoBalances()
+            case "Cardano": await refreshBalances()
                 await refreshCardanoTransactions(loadMore: false)
-            case "XRP Ledger":
-                await refreshXRPBalances()
+            case "XRP Ledger": await refreshBalances()
                 await refreshXRPTransactions(loadMore: false)
-            case "Stellar":
-                await refreshStellarBalances()
+            case "Stellar": await refreshBalances()
                 await refreshStellarTransactions(loadMore: false)
-            case "Monero":
-                await refreshMoneroBalances()
+            case "Monero": await refreshBalances()
                 await refreshMoneroTransactions(loadMore: false)
-            case "Sui":
-                await refreshSuiBalances()
+            case "Sui": await refreshBalances()
                 await refreshSuiTransactions(loadMore: false)
-            case "Aptos":
-                await refreshAptosBalances()
+            case "Aptos": await refreshBalances()
                 await refreshAptosTransactions(loadMore: false)
-            case "TON":
-                await refreshTONBalances()
+            case "TON": await refreshBalances()
                 await refreshTONTransactions(loadMore: false)
-            case "Internet Computer":
-                await refreshICPBalances()
+            case "Internet Computer": await refreshBalances()
                 await refreshICPTransactions(loadMore: false)
-            case "NEAR":
-                await refreshNearBalances()
+            case "NEAR": await refreshBalances()
                 await refreshNearTransactions(loadMore: false)
-            case "Polkadot":
-                await refreshPolkadotBalances()
+            case "Polkadot": await refreshBalances()
                 await refreshPolkadotTransactions(loadMore: false)
-            default:
-                await performUserInitiatedRefresh()
+            default: await performUserInitiatedRefresh()
                 return
-            }
-        }
-
+            }}
         await refreshLivePrices()
         await refreshFiatExchangeRatesIfNeeded()
-        recordPerformanceSample(
-            "user_refresh_chain",
-            startedAt: startedAt,
-            metadata: chainName
-        )
+        recordPerformanceSample("user_refresh_chain", startedAt: startedAt, metadata: chainName)
     }
 }

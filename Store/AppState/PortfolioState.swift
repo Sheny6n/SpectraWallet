@@ -1,14 +1,11 @@
 import Foundation
 import Combine
-
 final class WalletPortfolioState: ObservableObject {
     @Published var wallets: [ImportedWallet] = [] {
         didSet {
             walletsRevision &+= 1
-        }
-    }
+        }}
     @Published private(set) var walletsRevision: UInt64 = 0
-
     var walletByID: [UUID: ImportedWallet] = [:]
     var walletByIDString: [String: ImportedWallet] = [:]
     var includedPortfolioWallets: [ImportedWallet] = []
