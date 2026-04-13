@@ -1,0 +1,59 @@
+import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
+
+// Loads token images from Resources/TokenIcons/ via Bundle.main — no xcassets dependency.
+// The project's PBXFileSystemSynchronizedRootGroup preserves the Resources/ directory tree
+// inside the bundle, so the actual in-bundle path is:
+//   {bundle.resourceURL}/Resources/TokenIcons/{name}.png
+// On non-Apple targets, replace the UIKit branch with whatever image-loading API the
+// platform provides; the on-disk layout (a flat folder of {assetName}.png files) stays identical.
+enum BundleImageLoader {
+    private static func url(forImageNamed name: String) -> URL? {
+        guard let resourceURL = Bundle.main.resourceURL else { return nil }
+        // Primary: Resources/TokenIcons/ (matches the project's synchronized group layout)
+        let primary = resourceURL
+            .appendingPathComponent("Resources", isDirectory: true)
+            .appendingPathComponent("TokenIcons", isDirectory: true)
+            .appendingPathComponent("\(name).png")
+        if FileManager.default.fileExists(atPath: primary.path) { return primary }
+        // Fallback: bundle root (in case the Resources prefix was stripped by the build system)
+        let fallback = resourceURL
+            .appendingPathComponent("TokenIcons", isDirectory: true)
+            .appendingPathComponent("\(name).png")
+        if FileManager.default.fileExists(atPath: fallback.path) { return fallback }
+        return nil
+    }
+
+    /// Returns a UIImage loaded directly from the bundle directory, bypassing xcassets.
+    /// Returns nil if no file named `\(name).png` exists in TokenIcons/.
+    static func image(named name: String) -> UIImage? {
+#if canImport(UIKit)
+        guard let url = url(forImageNamed: name) else { return nil }
+        return UIImage(contentsOfFile: url.path)
+#else
+        return nil
+#endif
+    }
+
+    /// Returns true when a bundle image exists for the given name.
+    static func hasImage(named name: String) -> Bool { url(forImageNamed: name) != nil }
+}
+
+/// A SwiftUI view that renders a token image loaded from Resources/TokenIcons/.
+/// Falls back to `nil` content when the image is unavailable so callers can provide their own fallback.
+struct BundleTokenImage: View {
+    let name: String
+    var size: CGFloat = 40
+
+    var body: some View {
+        if let uiImage = BundleImageLoader.image(named: name) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+        }
+    }
+}

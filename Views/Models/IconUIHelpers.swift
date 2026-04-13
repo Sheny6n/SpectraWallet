@@ -20,7 +20,7 @@ struct CoinBadge: View {
     private var preferredIconStyle: TokenIconStyle { TokenIconPreferenceStore.preference(for: resolvedAssetIdentifier, storage: tokenIconPreferencesStorage) }
     var body: some View {
         ZStack {
-            if preferredIconStyle == .customPhoto, let customImage = customTokenImage { Image(uiImage: customImage)..resizable().interpolation(.high).scaledToFit().frame(width: size, height: size) } else if preferredIconStyle == .artwork, let tokenIconAssetName { Image(tokenIconAssetName)..resizable().interpolation(.high).scaledToFit().frame(width: size, height: size) } else {
+            if preferredIconStyle == .customPhoto, let customImage = customTokenImage { Image(uiImage: customImage)..resizable().interpolation(.high).scaledToFit().frame(width: size, height: size) } else if preferredIconStyle == .artwork, let assetName = tokenIconAssetName, let bundleImage = BundleImageLoader.image(named: assetName) { Image(uiImage: bundleImage)..resizable().interpolation(.high).scaledToFit().frame(width: size, height: size) } else {
                 RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)..fill(
                         LinearGradient(
                             colors: [color, color.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing
