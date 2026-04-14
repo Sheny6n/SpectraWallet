@@ -22,29 +22,26 @@ struct NetworkRetryPolicy {
     let multiplier: Double
     let maxDelay: TimeInterval
 }
+// All transport + retry now lives in Rust (core/src/http_ffi.rs). This shim
+// adapts Swift's URLRequest/URLResponse shapes to the UniFFI byte-oriented
+// call so existing call sites compile unchanged.
 enum NetworkResilience {
     static func data(
-        for request: URLRequest, profile: NetworkRetryProfile, session: URLSession = .shared, retryStatusCodes: Set<Int> = Set([429] + Array(500 ... 599))
+        for request: URLRequest, profile: NetworkRetryProfile, session _: URLSession = .shared, retryStatusCodes _: Set<Int> = Set([429] + Array(500 ... 599))
     ) async throws -> (Data, URLResponse) {
-        let policy = profile.policy
-        var delay = policy.initialDelay
-        var lastError: Error?
-        for attempt in 1 ... max(1, policy.maxAttempts) {
-            do {
-                let (data, response) = try await ProviderHTTP.sessionData(for: request, session: session)
-                if let http = response as? HTTPURLResponse, retryStatusCodes.contains(http.statusCode), attempt < policy.maxAttempts {
-                    try await sleepWithJitter(base: delay)
-                    delay = min(policy.maxDelay, delay * policy.multiplier)
-                    continue
-                }
-                return (data, response)
-            } catch {
-                lastError = error
-                guard shouldRetry(error: error), attempt < policy.maxAttempts else { throw error }
-                try await sleepWithJitter(base: delay)
-                delay = min(policy.maxDelay, delay * policy.multiplier)
-            }}
-        throw lastError ?? URLError(.unknown)
+        guard let url = request.url else { throw URLError(.badURL) }
+        let method = (request.httpMethod ?? "GET").uppercased()
+        let headers: [HttpHeader] = (request.allHTTPHeaderFields ?? [:]).map { HttpHeader(name: $0.key, value: $0.value) }
+        let body: Data? = request.httpBody
+        let rustProfile = profile.rustProfile
+        let resp = try await httpRequest(method: method, url: url.absoluteString, headers: headers, body: body, profile: rustProfile)
+        let httpResponse = HTTPURLResponse(
+            url: url,
+            statusCode: Int(resp.statusCode),
+            httpVersion: "HTTP/1.1",
+            headerFields: Dictionary(resp.headers.map { ($0.name, $0.value) }, uniquingKeysWith: { a, _ in a })
+        ) ?? HTTPURLResponse()
+        return (resp.body, httpResponse)
     }
     static func data(
         from url: URL, profile: NetworkRetryProfile, session: URLSession = .shared, retryStatusCodes: Set<Int> = Set([429] + Array(500 ... 599))
@@ -53,16 +50,18 @@ enum NetworkResilience {
         request.httpMethod = "GET"
         return try await data(for: request, profile: profile, session: session, retryStatusCodes: retryStatusCodes)
     }
-    private static func shouldRetry(error: Error) -> Bool {
-        guard let urlError = error as? URLError else { return false }
-        switch urlError.code {
-        case .timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .resourceUnavailable, .internationalRoamingOff, .callIsActive, .dataNotAllowed: return true
-        default: return false
-        }}
-    private static func sleepWithJitter(base: TimeInterval) async throws {
-        let jitter = Double.random(in: 0 ... 0.15)
-        let total = max(0.05, base + jitter)
-        try await Task.sleep(nanoseconds: UInt64(total * 1_000_000_000))
+}
+
+private extension NetworkRetryProfile {
+    var rustProfile: HttpRetryProfile {
+        switch self {
+        case .chainRead: return .chainRead
+        case .chainWrite: return .chainWrite
+        case .diagnostics: return .diagnostics
+        case .litecoinRead: return .litecoinRead
+        case .litecoinWrite: return .litecoinWrite
+        case .litecoinDiagnostics: return .litecoinDiagnostics
+        }
     }
 }
 protocol SpectraNetworkClient {
@@ -101,16 +100,6 @@ actor TestSpectraNetworkClient: SpectraNetworkClient {
     func enqueueResponse(method: String = "GET", url: String, statusCode: Int = 200, headers: [String: String] = [:], body: Data) {
         let key = RequestKey(method: method.uppercased(), url: url)
         queues[key, default: []].append(.response(statusCode: statusCode, headers: headers, body: body))
-    }
-    func enqueueJSONResponse(method: String = "GET", url: String, statusCode: Int = 200, headers: [String: String] = [:], object: Any) throws {
-        let data = try JSONSerialization.data(withJSONObject: object, options: [])
-        var mergedHeaders = headers
-        if mergedHeaders["Content-Type"] == nil { mergedHeaders["Content-Type"] = "application/json" }
-        enqueueResponse(method: method, url: url, statusCode: statusCode, headers: mergedHeaders, body: data)
-    }
-    func enqueueFailure(method: String = "GET", url: String, code: URLError.Code) {
-        let key = RequestKey(method: method.uppercased(), url: url)
-        queues[key, default: []].append(.failure(code))
     }
     func data(for request: URLRequest, profile _: NetworkRetryProfile) async throws -> (Data, URLResponse) {
         let method = (request.httpMethod ?? "GET").uppercased()

@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class DiagnosticsBundleTests: XCTestCase {
     func testExportsAndImportsDiagnosticsBundleJSON() async throws {
-        let store = WalletStore()
+        let store = AppState()
         let fileURL = try store.exportDiagnosticsBundle()
         let imported = try store.importDiagnosticsBundle(from: fileURL)
         XCTAssertEqual(imported.schemaVersion, 1)

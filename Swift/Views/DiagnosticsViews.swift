@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 import Combine
 struct DiagnosticsHubView: View {
-    let store: WalletStore
+    let store: AppState
     @State private var searchText: String = ""
     private let copy = DiagnosticsContentCopy.current
     private struct DiagnosticsDestination: Identifiable {
@@ -134,7 +134,7 @@ private struct StandardHistorySourceRow: Identifiable {
     var id: String { source }
 }
 struct StandardChainDiagnosticsView: View {
-    let store: WalletStore
+    let store: AppState
     @ObservedObject private var chainDiagnosticsState: WalletChainDiagnosticsState
     @StateObject private var refreshSignal: ViewRefreshSignal
     let chain: StandardDiagnosticsChain
@@ -144,13 +144,12 @@ struct StandardChainDiagnosticsView: View {
     @State private var cachedEndpointRows: [StandardEndpointRow] = []
     @State private var cachedHistorySourceRows: [StandardHistorySourceRow] = []
     private let moneroCustomBackendID = "custom"
-    init(store: WalletStore, chain: StandardDiagnosticsChain) {
+    init(store: AppState, chain: StandardDiagnosticsChain) {
         self.store = store
         self.chain = chain
         _chainDiagnosticsState = ObservedObject(wrappedValue: store.chainDiagnosticsState)
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$moneroBackendBaseURL.asVoidSignal(), store.$bitcoinNetworkMode.asVoidSignal(), store.$bitcoinEsploraEndpoints.asVoidSignal(), store.$ethereumNetworkMode.asVoidSignal(), store.$ethereumRPCEndpoint.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     private var displayChainTitle: String { store.displayChainTitle(for: chain.descriptor.chainName) }

@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit
 struct ReceiveView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     @State private var didCopyReceiveAddress: Bool = false
     @State private var isShowingReceiveQRShareSheet: Bool = false
     @State private var receiveQRExportMessage: String?
@@ -14,7 +14,7 @@ struct ReceiveView: View {
         let receiveWallets: [ImportedWallet]
         let selectedCoin: Coin?
         let sameChainSymbolsText: String? }
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
     }
     private func localized(_ key: String) -> String { AppLocalization.string(key) }
@@ -41,7 +41,7 @@ struct ReceiveView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     receiveDetailCard(title: "Wallet") {
                         Picker("Wallet", selection: store.receiveWalletIDBinding) {
-                            ForEach(presentation.receiveWallets) { wallet in Text(wallet.name).tag(wallet.id.uuidString) }}.onChange(of: store.receiveWalletID) { _, _ in
+                            ForEach(presentation.receiveWallets) { wallet in Text(wallet.name).tag(wallet.id) }}.onChange(of: store.receiveWalletID) { _, _ in
                             store.syncReceiveAssetSelection()
                         }}
                     receiveAddressSections

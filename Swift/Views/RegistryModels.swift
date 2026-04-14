@@ -32,20 +32,58 @@ struct WalletChainID: Hashable, Codable, Identifiable, Comparable {
         return entries
     }()
 }
-enum TokenTrackingChain: String, CaseIterable, Codable, Identifiable {
-    case ethereum = "Ethereum"
-    case arbitrum = "Arbitrum"
-    case optimism = "Optimism"
-    case bnb = "BNB Chain"
-    case avalanche = "Avalanche"
-    case hyperliquid = "Hyperliquid"
-    case solana = "Solana"
-    case sui = "Sui"
-    case aptos = "Aptos"
-    case ton = "TON"
-    case near = "NEAR"
-    case tron = "Tron"
-    var id: String { rawValue }
+typealias TokenTrackingChain = CoreTokenTrackingChain
+extension CoreTokenTrackingChain: RawRepresentable, CaseIterable, Codable, Identifiable {
+    public typealias RawValue = String
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "Ethereum": self = .ethereum
+        case "Arbitrum": self = .arbitrum
+        case "Optimism": self = .optimism
+        case "BNB Chain": self = .bnb
+        case "Avalanche": self = .avalanche
+        case "Hyperliquid": self = .hyperliquid
+        case "Solana": self = .solana
+        case "Sui": self = .sui
+        case "Aptos": self = .aptos
+        case "TON": self = .ton
+        case "NEAR": self = .near
+        case "Tron": self = .tron
+        default: return nil
+        }
+    }
+    public var rawValue: String {
+        switch self {
+        case .ethereum: return "Ethereum"
+        case .arbitrum: return "Arbitrum"
+        case .optimism: return "Optimism"
+        case .bnb: return "BNB Chain"
+        case .avalanche: return "Avalanche"
+        case .hyperliquid: return "Hyperliquid"
+        case .solana: return "Solana"
+        case .sui: return "Sui"
+        case .aptos: return "Aptos"
+        case .ton: return "TON"
+        case .near: return "NEAR"
+        case .tron: return "Tron"
+        }
+    }
+    public static var allCases: [CoreTokenTrackingChain] {
+        [.ethereum, .arbitrum, .optimism, .bnb, .avalanche, .hyperliquid, .solana, .sui, .aptos, .ton, .near, .tron]
+    }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        guard let v = CoreTokenTrackingChain(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown TokenTrackingChain: \(raw)")
+        }
+        self = v
+    }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+    public var id: String { rawValue }
     var tokenStandard: String {
         switch self {
         case .ethereum, .arbitrum, .optimism, .hyperliquid: return "ERC-20"
@@ -155,42 +193,88 @@ struct TokenVisualRegistryEntry: Identifiable {
         return assetIdentifierFragments.first { normalized.contains($0.fragment) }?.entry
     }
 }
-enum TokenPreferenceCategory: String, CaseIterable, Codable, Identifiable {
-    case stablecoin
-    case meme
-    case custom
-    var id: String { rawValue }
+typealias TokenPreferenceCategory = CoreTokenPreferenceCategory
+extension CoreTokenPreferenceCategory: RawRepresentable, CaseIterable, Codable, Identifiable {
+    public typealias RawValue = String
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "stablecoin": self = .stablecoin
+        case "meme": self = .meme
+        case "custom": self = .custom
+        default: return nil
+        }
+    }
+    public var rawValue: String {
+        switch self { case .stablecoin: return "stablecoin"; case .meme: return "meme"; case .custom: return "custom" }
+    }
+    public static var allCases: [CoreTokenPreferenceCategory] { [.stablecoin, .meme, .custom] }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        let raw = try c.decode(String.self)
+        guard let v = CoreTokenPreferenceCategory(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(in: c, debugDescription: "Unknown TokenPreferenceCategory: \(raw)")
+        }
+        self = v
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer(); try c.encode(rawValue)
+    }
+    public var id: String { rawValue }
 }
-struct TokenPreferenceEntry: Identifiable, Codable, Equatable {
-    let id: UUID
-    let chain: TokenTrackingChain
-    let name: String
-    let symbol: String
-    let tokenStandard: String
-    let contractAddress: String
-    let marketDataID: String
-    let coinGeckoID: String
-    var decimals: Int
-    var displayDecimals: Int?
-    let category: TokenPreferenceCategory
-    let isBuiltIn: Bool
-    var isEnabled: Bool
+
+typealias TokenPreferenceEntry = CoreTokenPreferenceEntry
+extension CoreTokenPreferenceEntry: Identifiable, Codable {
+    // Legacy UUID-style id initializer & convenience matching Swift-era struct.
     init(
         id: UUID = UUID(), chain: TokenTrackingChain, name: String, symbol: String, tokenStandard: String, contractAddress: String, marketDataID: String, coinGeckoID: String, decimals: Int, displayDecimals: Int? = nil, category: TokenPreferenceCategory, isBuiltIn: Bool, isEnabled: Bool
     ) {
-        self.id = id
-        self.chain = chain
-        self.name = name
-        self.symbol = symbol
-        self.tokenStandard = tokenStandard
-        self.contractAddress = contractAddress
-        self.marketDataID = marketDataID
-        self.coinGeckoID = coinGeckoID
-        self.decimals = decimals
-        self.displayDecimals = displayDecimals
-        self.category = category
-        self.isBuiltIn = isBuiltIn
-        self.isEnabled = isEnabled
+        self.init(
+            id: id.uuidString, chain: chain, name: name, symbol: symbol, tokenStandard: tokenStandard,
+            contractAddress: contractAddress, marketDataId: marketDataID, coinGeckoId: coinGeckoID,
+            decimals: Int32(decimals), displayDecimals: displayDecimals.map(Int32.init),
+            category: category, isBuiltIn: isBuiltIn, isEnabled: isEnabled
+        )
+    }
+    // Legacy acronym forwarders (ID uppercase expected by Swift callers and JSON keys).
+    public var marketDataID: String { get { marketDataId } set { marketDataId = newValue } }
+    public var coinGeckoID: String { get { coinGeckoId } set { coinGeckoId = newValue } }
+    private enum CodingKeys: String, CodingKey {
+        case id, chain, name, symbol, tokenStandard, contractAddress, marketDataID, coinGeckoID, decimals, displayDecimals, category, isBuiltIn, isEnabled
+    }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let rawID = try c.decode(String.self, forKey: .id)
+        self.init(
+            id: rawID,
+            chain: try c.decode(CoreTokenTrackingChain.self, forKey: .chain),
+            name: try c.decode(String.self, forKey: .name),
+            symbol: try c.decode(String.self, forKey: .symbol),
+            tokenStandard: try c.decode(String.self, forKey: .tokenStandard),
+            contractAddress: try c.decode(String.self, forKey: .contractAddress),
+            marketDataId: try c.decode(String.self, forKey: .marketDataID),
+            coinGeckoId: try c.decode(String.self, forKey: .coinGeckoID),
+            decimals: try c.decode(Int32.self, forKey: .decimals),
+            displayDecimals: try c.decodeIfPresent(Int32.self, forKey: .displayDecimals),
+            category: try c.decode(CoreTokenPreferenceCategory.self, forKey: .category),
+            isBuiltIn: try c.decode(Bool.self, forKey: .isBuiltIn),
+            isEnabled: try c.decode(Bool.self, forKey: .isEnabled)
+        )
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(chain, forKey: .chain)
+        try c.encode(name, forKey: .name)
+        try c.encode(symbol, forKey: .symbol)
+        try c.encode(tokenStandard, forKey: .tokenStandard)
+        try c.encode(contractAddress, forKey: .contractAddress)
+        try c.encode(marketDataId, forKey: .marketDataID)
+        try c.encode(coinGeckoId, forKey: .coinGeckoID)
+        try c.encode(decimals, forKey: .decimals)
+        try c.encodeIfPresent(displayDecimals, forKey: .displayDecimals)
+        try c.encode(category, forKey: .category)
+        try c.encode(isBuiltIn, forKey: .isBuiltIn)
+        try c.encode(isEnabled, forKey: .isEnabled)
     }
 }
 struct ChainTokenRegistryEntry: Identifiable, Equatable {
@@ -235,8 +319,8 @@ struct ChainTokenRegistryEntry: Identifiable, Equatable {
         contractAddress = tokenPreferenceEntry.contractAddress
         marketDataID = tokenPreferenceEntry.marketDataID
         coinGeckoID = tokenPreferenceEntry.coinGeckoID
-        decimals = tokenPreferenceEntry.decimals
-        displayDecimals = tokenPreferenceEntry.displayDecimals
+        decimals = Int(tokenPreferenceEntry.decimals)
+        displayDecimals = tokenPreferenceEntry.displayDecimals.map(Int.init)
         category = tokenPreferenceEntry.category
         isBuiltIn = tokenPreferenceEntry.isBuiltIn
         isEnabledByDefault = tokenPreferenceEntry.isEnabled

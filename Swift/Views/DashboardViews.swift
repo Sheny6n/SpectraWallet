@@ -11,19 +11,18 @@ private func dashboardConfigButtonLabel() -> some View {
     Image(systemName: "slider.horizontal.3").font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.78)).frame(width: 30, height: 30).background(Circle().fill(.white.opacity(0.14)))
 }
 struct DashboardView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var dashboardPage: DashboardPage = .assets
     @State private var isShowingPinnedAssetsSheet = false
-    @State private var selectedWalletID: UUID?
+    @State private var selectedWalletID: String?
     @State private var walletPageIndex: Int = 0
     @State private var selectedAssetGroup: DashboardAssetGroup?
     @State private var isShowingAddWalletPage: Bool = false
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal(), store.$hideBalances.asVoidSignal(), store.$quoteRefreshError.asVoidSignal(), store.$fiatRatesRefreshError.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     private var deleteWalletMessage: String {
@@ -33,7 +32,7 @@ struct DashboardView: View {
     }
     private var selectedWallet: ImportedWallet? {
         guard let selectedWalletID else { return nil }
-        return store.wallet(for: selectedWalletID.uuidString)
+        return store.wallet(for: selectedWalletID)
     }
     var body: some View {
         NavigationStack {
@@ -268,39 +267,38 @@ struct AppNoticeItem: Identifiable {
     let systemImage: String
     var timestamp: Date? = nil
 }
-struct DashboardAssetChainEntry: Identifiable {
-    let coin: Coin
-    let valueUSD: Double?
-    var id: String {
+typealias DashboardAssetChainEntry = CoreDashboardAssetChainEntry
+extension CoreDashboardAssetChainEntry: Identifiable {
+    public var id: String {
         let contract = DashboardAssetIdentity.normalizedContractAddress(
             coin.contractAddress, chainName: coin.chainName, tokenStandard: coin.tokenStandard
         ) ?? "native"
         return "\(coin.chainName.lowercased())|\(coin.symbol.lowercased())|\(contract)"
     }
+    // Legacy uppercased acronym forwarder.
+    var valueUSD: Double? { valueUsd }
+    init(coin: Coin, valueUSD: Double?) {
+        self.init(coin: coin, valueUsd: valueUSD)
+    }
 }
-struct DashboardAssetGroup: Identifiable, Hashable {
-    let id: String
-    let representativeCoin: Coin
-    let totalAmount: Double
-    let totalValueUSD: Double?
-    let chainEntries: [DashboardAssetChainEntry]
-    let isPinned: Bool
+
+typealias DashboardAssetGroup = CoreDashboardAssetGroup
+extension CoreDashboardAssetGroup: Identifiable {
     var name: String { representativeCoin.name }
     var symbol: String { representativeCoin.symbol }
     var iconIdentifier: String { representativeCoin.iconIdentifier }
     var mark: String { representativeCoin.mark }
     var color: Color { representativeCoin.color }
-    static func == (lhs: DashboardAssetGroup, rhs: DashboardAssetGroup) -> Bool { lhs.id == rhs.id }
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    var totalValueUSD: Double? { totalValueUsd }
+    init(id: String, representativeCoin: Coin, totalAmount: Double, totalValueUSD: Double?, chainEntries: [DashboardAssetChainEntry], isPinned: Bool) {
+        self.init(id: id, representativeCoin: representativeCoin, totalAmount: totalAmount, totalValueUsd: totalValueUSD, chainEntries: chainEntries, isPinned: isPinned)
+    }
 }
-struct DashboardPinOption: Identifiable {
-    let symbol: String
-    let name: String
-    let subtitle: String
-    let assetIdentifier: String?
-    let mark: String
-    let color: Color
-    var id: String { symbol }
+
+typealias DashboardPinOption = CoreDashboardPinOption
+extension CoreDashboardPinOption: Identifiable {
+    public var id: String { symbol }
+    var color: Color { Coin.displayColor(for: symbol) }
 }
 enum DashboardAssetIdentity {
     static func normalizedContractAddress(_ contractAddress: String?, chainName: String, tokenStandard: String) -> String? {
@@ -351,7 +349,7 @@ enum DashboardAssetIdentity {
     }
 }
 struct AssetGroupDetailView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     let assetGroup: DashboardAssetGroup
     private var supportedTokenEntries: [TokenPreferenceEntry] { store.cachedDashboardSupportedTokenEntriesBySymbol[assetGroup.symbol.uppercased()] ?? [] }
     var body: some View {
@@ -405,7 +403,7 @@ struct AssetGroupDetailView: View {
                     }}}}}
 }
 struct AssetContractsDetailView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     let assetGroup: DashboardAssetGroup
     private var supportedTokenEntries: [TokenPreferenceEntry] { store.cachedDashboardSupportedTokenEntriesBySymbol[assetGroup.symbol.uppercased()] ?? [] }
     var body: some View {
@@ -442,7 +440,7 @@ struct AssetContractsDetailView: View {
     }
 }
 struct PinnedAssetsView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var searchText: String = ""
     private var filteredOptions: [DashboardPinOption] {
@@ -479,7 +477,7 @@ struct PinnedAssetsView: View {
     }
 }
 struct PortfolioWalletSelectionView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     var body: some View {
         List {
             Section {
@@ -492,7 +490,7 @@ struct PortfolioWalletSelectionView: View {
                 Text("Only selected wallets contribute to the portfolio total and the aggregated asset list on the home page.")
             }}.navigationTitle("Portfolio Wallets")
     }
-    private func binding(for walletID: UUID) -> Binding<Bool> {
+    private func binding(for walletID: String) -> Binding<Bool> {
         Binding(
             get: {
                 store.wallets.first(where: { $0.id == walletID })?.includeInPortfolioTotal ?? true
@@ -501,7 +499,7 @@ struct PortfolioWalletSelectionView: View {
     }
 }
 struct AppNoticesView: View {
-    let store: WalletStore
+    let store: AppState
     var body: some View {
         List {
             if store.appNoticeItems.isEmpty {

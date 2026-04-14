@@ -1,59 +1,53 @@
 import Foundation
 
-// MARK: - RustBalanceDecoder
+// MARK: - RustBalanceDecoder (thin Swift forwarders; logic lives in Rust core/src/balance_decoder.rs)
 enum RustBalanceDecoder {
-    static func uint64Field(_ field: String, from json: String) -> UInt64? {
-        guard let obj = parseObject(json) else { return nil }
-        if let n = obj[field] as? NSNumber { return n.uint64Value }
-        if let s = obj[field] as? String   { return UInt64(s) }
+    static func uint64Field(_ field: String, from json: String) -> UInt64? { balanceDecoderU64Field(field: field, json: json) }
+    static func int64Field(_ field: String, from json: String) -> Int64? { balanceDecoderI64Field(field: field, json: json) }
+    static func uint128StringField(_ field: String, from json: String) -> Double? { balanceDecoderU128StringFieldAsF64(field: field, json: json) }
+    static func evmNativeBalance(from json: String) -> Double? { balanceDecoderEvmNativeBalance(json: json) }
+    static func yoctoNearToDouble(from json: String) -> Double? { balanceDecoderYoctoNearToDouble(json: json) }
+}
+
+// MARK: - Codable/RawRepresentable helpers for Rust-owned enums
+protocol RustStringEnum: RawRepresentable, CaseIterable, Codable, Identifiable, Equatable where RawValue == String {
+    static var rawMap: [(Self, String)] { get }
+}
+extension RustStringEnum {
+    public init?(rawValue: String) {
+        for (c, r) in Self.rawMap where r == rawValue { self = c; return }
         return nil
     }
-    static func int64Field(_ field: String, from json: String) -> Int64? {
-        guard let obj = parseObject(json) else { return nil }
-        if let n = obj[field] as? NSNumber { return n.int64Value }
-        if let s = obj[field] as? String   { return Int64(s) }
-        return nil
+    public var rawValue: String { Self.rawMap.first(where: { $0.0 == self })?.1 ?? "" }
+    public static var allCases: [Self] { Self.rawMap.map(\.0) }
+    public var id: String { rawValue }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        let raw = try c.decode(String.self)
+        guard let v = Self(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(in: c, debugDescription: "Invalid \(Self.self): \(raw)")
+        }
+        self = v
     }
-    static func uint128StringField(_ field: String, from json: String) -> Double? {
-        guard let obj = parseObject(json) else { return nil }
-        if let n = obj[field] as? NSNumber { return n.doubleValue }
-        if let s = obj[field] as? String   { return Double(s) }
-        return nil
-    }
-    static func evmNativeBalance(from json: String) -> Double? {
-        guard let obj = parseObject(json) else { return nil }
-        if let s = obj["balance_display"] as? String, let v = Double(s) { return v }
-        if let n = obj["balance_wei"] as? NSNumber { return n.doubleValue / 1e18 }
-        if let s = obj["balance_wei"] as? String, let wei = Double(s) { return wei / 1e18 }
-        return nil
-    }
-    static func yoctoNearToDouble(from json: String) -> Double? {
-        guard let obj = parseObject(json) else { return nil }
-        if let s = obj["near_display"] as? String, let v = Double(s) { return v }
-        if let s = obj["yocto_near"] as? String, let yocto = Double(s) { return yocto / 1e24 }
-        if let n = obj["yocto_near"] as? NSNumber { return n.doubleValue / 1e24 }
-        return nil
-    }
-    private static func parseObject(_ json: String) -> [String: Any]? {
-        guard let data = json.data(using: .utf8) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer(); try c.encode(rawValue)
     }
 }
 
 // MARK: - Bitcoin
-enum BitcoinNetworkMode: String, CaseIterable, Identifiable, Codable {
-    case mainnet
-    case testnet
-    case testnet4
-    case signet
-    var id: String { rawValue }
-    var displayName: String {
+typealias BitcoinNetworkMode = CoreBitcoinNetworkMode
+extension CoreBitcoinNetworkMode: RustStringEnum {
+    static var rawMap: [(CoreBitcoinNetworkMode, String)] {
+        [(.mainnet, "mainnet"), (.testnet, "testnet"), (.testnet4, "testnet4"), (.signet, "signet")]
+    }
+    public var displayName: String {
         switch self {
         case .mainnet:  return "Mainnet"
         case .testnet:  return "Testnet"
         case .testnet4: return "Testnet4"
         case .signet:   return "Signet"
-        }}
+        }
+    }
 }
 struct BitcoinHistorySnapshot: Equatable {
     let txid: String
@@ -71,15 +65,10 @@ struct BitcoinHistoryPage {
 }
 
 // MARK: - Dogecoin
-enum DogecoinNetworkMode: String, CaseIterable, Codable, Identifiable {
-    case mainnet
-    case testnet
-    var id: String { rawValue }
-    var displayName: String {
-        switch self {
-        case .mainnet: return "Mainnet"
-        case .testnet: return "Testnet"
-        }}
+typealias DogecoinNetworkMode = CoreDogecoinNetworkMode
+extension CoreDogecoinNetworkMode: RustStringEnum {
+    static var rawMap: [(CoreDogecoinNetworkMode, String)] { [(.mainnet, "mainnet"), (.testnet, "testnet")] }
+    public var displayName: String { self == .mainnet ? "Mainnet" : "Testnet" }
 }
 struct DogecoinTransactionStatus {
     let confirmed: Bool
@@ -186,40 +175,7 @@ struct EthereumSupportedToken {
         self.coinGeckoID = registryEntry.coinGeckoID
     }
 }
-struct EthereumTokenTransferHistoryDiagnostics: Equatable {
-    let address: String
-    let rpcTransferCount: Int
-    let rpcError: String?
-    let blockscoutTransferCount: Int
-    let blockscoutError: String?
-    let etherscanTransferCount: Int
-    let etherscanError: String?
-    let ethplorerTransferCount: Int
-    let ethplorerError: String?
-    let sourceUsed: String
-    let transferScanCount: Int
-    let decodedTransferCount: Int
-    let unsupportedTransferDropCount: Int
-    let decodingCompletenessRatio: Double
-    init(
-        address: String, rpcTransferCount: Int, rpcError: String?, blockscoutTransferCount: Int, blockscoutError: String?, etherscanTransferCount: Int, etherscanError: String?, ethplorerTransferCount: Int, ethplorerError: String?, sourceUsed: String, transferScanCount: Int = 0, decodedTransferCount: Int = 0, unsupportedTransferDropCount: Int = 0, decodingCompletenessRatio: Double = 0
-    ) {
-        self.address = address
-        self.rpcTransferCount = rpcTransferCount
-        self.rpcError = rpcError
-        self.blockscoutTransferCount = blockscoutTransferCount
-        self.blockscoutError = blockscoutError
-        self.etherscanTransferCount = etherscanTransferCount
-        self.etherscanError = etherscanError
-        self.ethplorerTransferCount = ethplorerTransferCount
-        self.ethplorerError = ethplorerError
-        self.sourceUsed = sourceUsed
-        self.transferScanCount = transferScanCount
-        self.decodedTransferCount = decodedTransferCount
-        self.unsupportedTransferDropCount = unsupportedTransferDropCount
-        self.decodingCompletenessRatio = decodingCompletenessRatio
-    }
-}
+// EthereumTokenTransferHistoryDiagnostics moved to Rust core; see DiagnosticsTypesCompat.swift.
 
 // MARK: - Tron
 struct TronTokenBalanceSnapshot: Equatable {
@@ -227,13 +183,7 @@ struct TronTokenBalanceSnapshot: Equatable {
     let contractAddress: String?
     let balance: Double
 }
-struct TronHistoryDiagnostics: Equatable {
-    let address: String
-    let tronScanTxCount: Int
-    let tronScanTRC20Count: Int
-    let sourceUsed: String
-    let error: String?
-}
+// TronHistoryDiagnostics moved to Rust core.
 enum TronBalanceService {
     static let usdtTronContract = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
     static let usddTronContract = "TXDk8mbtRbXeYuMNS83CfKPaYYT8XWv9Hz"
@@ -249,60 +199,35 @@ enum TronBalanceService {
 }
 
 // MARK: - Stellar
-struct StellarHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// StellarHistoryDiagnostics moved to Rust core.
 enum StellarBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.stellarChainName) }
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.stellarChainName) }
 }
 
 // MARK: - ICP
-struct ICPHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// ICPHistoryDiagnostics moved to Rust core.
 enum ICPBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.icpChainName) }
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.icpChainName) }
 }
 
 // MARK: - XRP
-struct XRPHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// XRPHistoryDiagnostics moved to Rust core.
 enum XRPBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.xrpChainName) }
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { endpointCatalog().map { base in (endpoint: base, probeURL: base) }}
 }
 
 // MARK: - Cardano
-struct CardanoHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// CardanoHistoryDiagnostics moved to Rust core.
 enum CardanoBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: ChainBackendRegistry.cardanoChainName) }
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.cardanoChainName) }
 }
 
 // MARK: - Polkadot
-struct PolkadotHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// PolkadotHistoryDiagnostics moved to Rust core.
 enum PolkadotBalanceService {
     static func endpointCatalog() -> [String] { PolkadotProvider.endpointCatalog() }
     static func sidecarEndpointCatalog() -> [String] { PolkadotProvider.sidecarBaseURLs }
@@ -310,12 +235,7 @@ enum PolkadotBalanceService {
 }
 
 // MARK: - Monero
-struct MoneroHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// MoneroHistoryDiagnostics moved to Rust core.
 enum MoneroBalanceService {
     typealias TrustedBackend = MoneroProvider.TrustedBackend
     static let backendBaseURLDefaultsKey = MoneroProvider.backendBaseURLDefaultsKey
@@ -344,12 +264,7 @@ enum LitecoinBalanceService {
 }
 
 // MARK: - Solana
-struct SolanaHistoryDiagnostics: Equatable {
-    let address: String
-    let rpcCount: Int
-    let sourceUsed: String
-    let error: String?
-}
+// SolanaHistoryDiagnostics moved to Rust core.
 struct SolanaSPLTokenBalanceSnapshot: Equatable {
     let mintAddress: String
     let sourceTokenAccountAddress: String
@@ -426,12 +341,7 @@ struct NearHistorySnapshot: Equatable {
     let createdAt: Date
     let status: TransactionStatus
 }
-struct NearHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// NearHistoryDiagnostics moved to Rust core.
 struct NearTokenBalanceSnapshot: Equatable {
     let contractAddress: String
     let symbol: String
@@ -455,95 +365,22 @@ enum NearBalanceService {
     static func rpcEndpointCatalog() -> [String] { ChainBackendRegistry.NearRuntimeEndpoints.rpcBaseURLs }
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: ChainBackendRegistry.nearChainName) }
     static func parseHistoryResponse(_ data: Data, ownerAddress: String) throws -> [NearHistorySnapshot] {
-        let jsonObject = try JSONSerialization.jsonObject(with: data, options: [])
-        let rows = historyRows(from: jsonObject)
-        return rows.compactMap { snapshot(from: $0, ownerAddress: ownerAddress) }}
-    private static func historyRows(from jsonObject: Any) -> [[String: Any]] {
-        if let rows = jsonObject as? [[String: Any]] { return rows }
-        guard let dictionary = jsonObject as? [String: Any] else { return [] }
-        if let rows = dictionary["txns"] as? [[String: Any]] { return rows }
-        if let rows = dictionary["transactions"] as? [[String: Any]] { return rows }
-        if let rows = dictionary["data"] as? [[String: Any]] { return rows }
-        if let rows = dictionary["result"] as? [[String: Any]] { return rows }
-        return []
-    }
-    private static func snapshot(from row: [String: Any], ownerAddress: String) -> NearHistorySnapshot? {
-        guard let hash = stringValue(in: row, keys: ["transaction_hash", "hash", "receipt_id"]), !hash.isEmpty else { return nil }
-        let owner = normalizedAddress(ownerAddress)
-        let signer = normalizedAddress(
-            stringValue(in: row, keys: ["signer_account_id", "predecessor_account_id", "signer_id", "signer"]) ?? ""
-        )
-        let receiver = normalizedAddress(
-            stringValue(in: row, keys: ["receiver_account_id", "receiver_id", "receiver"]) ?? ""
-        )
-        let kind: TransactionKind
-        let counterparty: String
-        if signer == owner {
-            kind = .send
-            counterparty = receiver
-        } else if receiver == owner {
-            kind = .receive
-            counterparty = signer
-        } else if !signer.isEmpty {
-            kind = .receive
-            counterparty = signer
-        } else {
-            kind = .send
-            counterparty = receiver
+        let jsonString = String(data: data, encoding: .utf8) ?? ""
+        return nearParseHistoryResponse(json: jsonString, ownerAddress: ownerAddress).map { parsed in
+            NearHistorySnapshot(
+                transactionHash: parsed.transactionHash,
+                kind: TransactionKind(rawValue: parsed.kind) ?? .send,
+                amount: parsed.amountNear,
+                counterpartyAddress: parsed.counterpartyAddress,
+                createdAt: parsed.createdAtUnixSeconds > 0 ? Date(timeIntervalSince1970: parsed.createdAtUnixSeconds) : Date(),
+                status: .confirmed
+            )
         }
-        let depositYocto = depositText(in: row).flatMap { Decimal(string: $0) } ?? 0
-        let amount = decimalToDouble(depositYocto / Decimal(string: "1000000000000000000000000")!)
-        let createdAt = timestampDate(in: row) ?? Date()
-        return NearHistorySnapshot(
-            transactionHash: hash, kind: kind, amount: amount, counterpartyAddress: counterparty, createdAt: createdAt, status: .confirmed
-        )
     }
-    private static func depositText(in row: [String: Any]) -> String? {
-        if let direct = stringValue(in: row, keys: ["deposit", "amount"]), !direct.isEmpty { return direct }
-        if let actionsAggregate = row["actions_agg"] as? [String: Any], let aggregateDeposit = stringValue(in: actionsAggregate, keys: ["deposit", "total_deposit", "amount"]), !aggregateDeposit.isEmpty { return aggregateDeposit }
-        if let actions = row["actions"] as? [[String: Any]] {
-            for action in actions {
-                if let deposit = stringValue(in: action, keys: ["deposit", "amount"]), !deposit.isEmpty { return deposit }
-                if let args = action["args"] as? [String: Any], let nestedDeposit = stringValue(in: args, keys: ["deposit", "amount"]), !nestedDeposit.isEmpty { return nestedDeposit }}}
-        return nil
-    }
-    private static func timestampDate(in row: [String: Any]) -> Date? {
-        if let timestamp = numericTimestamp(in: row, keys: ["block_timestamp", "timestamp", "included_in_block_timestamp"]) { return normalizedDate(fromTimestamp: timestamp) }
-        for nestedKey in ["block", "receipt_block", "included_in_block", "receipt"] {
-            if let nested = row[nestedKey] as? [String: Any], let timestamp = numericTimestamp(in: nested, keys: ["block_timestamp", "timestamp"]) { return normalizedDate(fromTimestamp: timestamp) }}
-        return nil
-    }
-    private static func normalizedDate(fromTimestamp timestamp: Double) -> Date? {
-        guard timestamp > 0 else { return nil }
-        if timestamp >= 1_000_000_000_000_000 { return Date(timeIntervalSince1970: timestamp / 1_000_000_000.0) }
-        if timestamp >= 1_000_000_000_000 { return Date(timeIntervalSince1970: timestamp / 1_000.0) }
-        return Date(timeIntervalSince1970: timestamp)
-    }
-    private static func numericTimestamp(in row: [String: Any], keys: [String]) -> Double? {
-        for key in keys {
-            if let number = row[key] as? NSNumber { return number.doubleValue }
-            if let string = row[key] as? String, let parsed = Double(string) { return parsed }}
-        return nil
-    }
-    private static func stringValue(in row: [String: Any], keys: [String]) -> String? {
-        for key in keys {
-            if let string = row[key] as? String {
-                let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty { return trimmed }}
-            if let number = row[key] as? NSNumber { return number.stringValue }}
-        return nil
-    }
-    private static func normalizedAddress(_ address: String) -> String { address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-    private static func decimalToDouble(_ value: Decimal) -> Double { NSDecimalNumber(decimal: value).doubleValue }
 }
 
 // MARK: - Aptos
-struct AptosHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// AptosHistoryDiagnostics moved to Rust core.
 struct AptosTokenBalanceSnapshot: Equatable {
     let coinType: String
     let symbol: String
@@ -573,12 +410,7 @@ enum AptosBalanceService {
 }
 
 // MARK: - Sui
-struct SuiHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// SuiHistoryDiagnostics moved to Rust core.
 struct SuiTokenBalanceSnapshot: Equatable {
     let coinType: String
     let symbol: String
@@ -608,12 +440,7 @@ enum SuiBalanceService {
 }
 
 // MARK: - TON
-struct TONHistoryDiagnostics: Equatable {
-    let address: String
-    let sourceUsed: String
-    let transactionCount: Int
-    let error: String?
-}
+// TONHistoryDiagnostics moved to Rust core.
 struct TONJettonBalanceSnapshot: Equatable {
     let masterAddress: String
     let walletAddress: String
@@ -642,4 +469,23 @@ enum TONBalanceService {
     static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { TONProvider.diagnosticsChecks() }
     static func normalizeJettonMasterAddress(_ address: String) -> String { canonicalAddressIdentifier(address) }
     private static func canonicalAddressIdentifier(_ address: String?) -> String { address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
+}
+
+// MARK: - Transactions & price alerts (Rust-owned enums)
+
+typealias TransactionKind = CoreTransactionKind
+extension CoreTransactionKind: RustStringEnum {
+    static var rawMap: [(CoreTransactionKind, String)] { [(.send, "send"), (.receive, "receive")] }
+}
+
+typealias TransactionStatus = CoreTransactionStatus
+extension CoreTransactionStatus: RustStringEnum {
+    static var rawMap: [(CoreTransactionStatus, String)] {
+        [(.pending, "pending"), (.confirmed, "confirmed"), (.failed, "failed")]
+    }
+}
+
+typealias PriceAlertCondition = CorePriceAlertCondition
+extension CorePriceAlertCondition: RustStringEnum {
+    static var rawMap: [(CorePriceAlertCondition, String)] { [(.above, "Above"), (.below, "Below")] }
 }

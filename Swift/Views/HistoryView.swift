@@ -22,10 +22,10 @@ private struct HistoryPresentationSection: Identifiable {
     var id: String { title }
 }
 struct HistoryView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     @State private var selectedFilter: HistoryFilter = .all
     @State private var selectedSortOrder: HistorySortOrder = .newest
-    @State private var selectedWalletID: UUID?
+    @State private var selectedWalletID: String?
     @State private var searchText: String = ""
     @State private var currentPageIndex: Int = 0
     @State private var pendingScrollToTopToken = UUID()
@@ -33,7 +33,7 @@ struct HistoryView: View {
     @State private var visibleRows: [HistoryRowPresentation] = []
     @State private var groupedSectionsCache: [HistoryPresentationSection] = []
     private let entriesPerPage = 10
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
     }
     var body: some View {
@@ -144,7 +144,7 @@ struct HistoryView: View {
     }
     private var totalLoadedPages: Int { max(1, Int(ceil(Double(visibleTransactions.count) / Double(entriesPerPage)))) }
     private var hasNextLoadedPage: Bool { clampedPageIndex < totalLoadedPages - 1 }
-    private var loadedHistoryWalletIDs: Set<UUID> { Set(visibleTransactions.compactMap(\.walletID)) }
+    private var loadedHistoryWalletIDs: Set<String> { Set(visibleTransactions.compactMap(\.walletID)) }
     private var canLoadMoreVisibleHistory: Bool { store.canLoadMoreOnChainHistory(for: loadedHistoryWalletIDs) }
     private var shouldShowPagingControls: Bool { !visibleRows.isEmpty && (clampedPageIndex > 0 || hasNextLoadedPage || canLoadMoreVisibleHistory || store.isLoadingMoreOnChainHistory) }
     private var pagedRows: [HistoryRowPresentation] {
@@ -205,11 +205,11 @@ struct HistoryView: View {
         Task {
             await store.loadMoreOnChainHistory(for: candidateWalletIDs)
         }}
-    private func historyPrefetchCandidateWalletIDs() -> Set<UUID> {
+    private func historyPrefetchCandidateWalletIDs() -> Set<String> {
         let currentPageWalletIDs = Set(pagedRows.compactMap(\.transaction.walletID))
         guard !currentPageWalletIDs.isEmpty else { return [] }
         let nextLoadedTransactions = Array(visibleTransactions.dropFirst((clampedPageIndex + 1) * entriesPerPage))
-        var remainingCountByWallet: [UUID: Int] = [:]
+        var remainingCountByWallet: [String: Int] = [:]
         for transaction in nextLoadedTransactions {
             guard let walletID = transaction.walletID else { continue }
             remainingCountByWallet[walletID, default: 0] += 1
@@ -261,7 +261,7 @@ struct HistoryView: View {
         return localizedHistoryString("Try a different filter or search term.")
     }
     private var selectedWalletName: String {
-        guard let selectedWalletID, let wallet = store.wallet(for: selectedWalletID.uuidString) else { return localizedHistoryString("All Wallets") }
+        guard let selectedWalletID, let wallet = store.wallet(for: selectedWalletID) else { return localizedHistoryString("All Wallets") }
         return wallet.name
     }
     @ViewBuilder

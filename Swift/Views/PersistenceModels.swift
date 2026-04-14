@@ -15,7 +15,7 @@ struct PersistedCoin: Codable {
     let priceUSD: Double
 }
 struct PersistedWallet: Codable {
-    let id: UUID
+    let id: String
     let name: String
     let bitcoinNetworkMode: BitcoinNetworkMode
     let dogecoinNetworkMode: DogecoinNetworkMode
@@ -74,7 +74,7 @@ struct PersistedWallet: Codable {
         case includeInPortfolioTotal
     }
     init(
-        id: UUID, name: String, bitcoinNetworkMode: BitcoinNetworkMode = .mainnet, dogecoinNetworkMode: DogecoinNetworkMode = .mainnet, bitcoinAddress: String?, bitcoinXPub: String?, bitcoinCashAddress: String?, bitcoinSVAddress: String?, litecoinAddress: String?, dogecoinAddress: String?, ethereumAddress: String?, tronAddress: String?, solanaAddress: String?, stellarAddress: String?, xrpAddress: String?, moneroAddress: String?, cardanoAddress: String?, suiAddress: String?, aptosAddress: String?, tonAddress: String?, icpAddress: String?, nearAddress: String?, polkadotAddress: String?, seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths, selectedChain: String, holdings: [PersistedCoin], includeInPortfolioTotal: Bool
+        id: String, name: String, bitcoinNetworkMode: BitcoinNetworkMode = .mainnet, dogecoinNetworkMode: DogecoinNetworkMode = .mainnet, bitcoinAddress: String?, bitcoinXPub: String?, bitcoinCashAddress: String?, bitcoinSVAddress: String?, litecoinAddress: String?, dogecoinAddress: String?, ethereumAddress: String?, tronAddress: String?, solanaAddress: String?, stellarAddress: String?, xrpAddress: String?, moneroAddress: String?, cardanoAddress: String?, suiAddress: String?, aptosAddress: String?, tonAddress: String?, icpAddress: String?, nearAddress: String?, polkadotAddress: String?, seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths, selectedChain: String, holdings: [PersistedCoin], includeInPortfolioTotal: Bool
     ) {
         self.id = id
         self.name = name
@@ -107,7 +107,7 @@ struct PersistedWallet: Codable {
     }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
+        id = try container.decode(String.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         bitcoinNetworkMode = try container.decodeIfPresent(BitcoinNetworkMode.self, forKey: .bitcoinNetworkMode) ?? .mainnet
         dogecoinNetworkMode = try container.decodeIfPresent(DogecoinNetworkMode.self, forKey: .dogecoinNetworkMode) ?? .mainnet
@@ -142,187 +142,6 @@ struct PersistedWalletStore: Codable {
     let wallets: [PersistedWallet]
     static let currentVersion = 5
 }
-struct PersistedPriceAlertRule: Codable {
-    let id: UUID
-    let holdingKey: String
-    let assetName: String
-    let symbol: String
-    let chainName: String
-    let targetPrice: Double
-    let condition: PriceAlertCondition
-    let isEnabled: Bool
-    let hasTriggered: Bool
-}
-struct PersistedPriceAlertStore: Codable {
-    let version: Int
-    let alerts: [PersistedPriceAlertRule]
-    static let currentVersion = 1
-}
-struct PersistedAddressBookEntry: Codable {
-    let id: UUID
-    let name: String
-    let chainName: String
-    let address: String
-    let note: String
-}
-struct PersistedAddressBookStore: Codable {
-    let version: Int
-    let entries: [PersistedAddressBookEntry]
-    static let currentVersion = 1
-}
-struct PersistedTransactionRecord: Codable, Equatable {
-    let id: UUID
-    let walletID: UUID?
-    let kind: TransactionKind
-    let status: TransactionStatus
-    let walletName: String
-    let assetName: String
-    let symbol: String
-    let chainName: String
-    let amount: Double
-    let address: String
-    let transactionHash: String?
-    let ethereumNonce: Int?
-    let receiptBlockNumber: Int?
-    let receiptGasUsed: String?
-    let receiptEffectiveGasPriceGwei: Double?
-    let receiptNetworkFeeETH: Double?
-    let feePriorityRaw: String?
-    let feeRateDescription: String?
-    let confirmationCount: Int?
-    let dogecoinConfirmedNetworkFeeDOGE: Double?
-    let dogecoinConfirmations: Int?
-    let dogecoinFeePriorityRaw: String?
-    let dogecoinEstimatedFeeRateDOGEPerKB: Double?
-    let usedChangeOutput: Bool?
-    let dogecoinUsedChangeOutput: Bool?
-    let sourceDerivationPath: String?
-    let changeDerivationPath: String?
-    let sourceAddress: String?
-    let changeAddress: String?
-    let dogecoinRawTransactionHex: String?
-    let signedTransactionPayload: String?
-    let signedTransactionPayloadFormat: String?
-    let failureReason: String?
-    let transactionHistorySource: String?
-    let createdAt: Date
-    enum CodingKeys: String, CodingKey {
-        case id
-        case walletID
-        case kind
-        case status
-        case walletName
-        case assetName
-        case symbol
-        case chainName
-        case amount
-        case address
-        case transactionHash
-        case ethereumNonce
-        case receiptBlockNumber
-        case receiptGasUsed
-        case receiptEffectiveGasPriceGwei
-        case receiptNetworkFeeETH
-        case feePriorityRaw
-        case feeRateDescription
-        case confirmationCount
-        case dogecoinConfirmedNetworkFeeDOGE
-        case dogecoinConfirmations
-        case dogecoinFeePriorityRaw
-        case dogecoinEstimatedFeeRateDOGEPerKB
-        case usedChangeOutput
-        case dogecoinUsedChangeOutput
-        case sourceDerivationPath
-        case changeDerivationPath
-        case sourceAddress
-        case changeAddress
-        case dogecoinRawTransactionHex
-        case signedTransactionPayload
-        case signedTransactionPayloadFormat
-        case failureReason
-        case transactionHistorySource
-        case createdAt
-    }
-    init(
-        id: UUID, walletID: UUID? = nil, kind: TransactionKind, status: TransactionStatus, walletName: String, assetName: String, symbol: String, chainName: String, amount: Double, address: String, transactionHash: String? = nil, ethereumNonce: Int? = nil, receiptBlockNumber: Int? = nil, receiptGasUsed: String? = nil, receiptEffectiveGasPriceGwei: Double? = nil, receiptNetworkFeeETH: Double? = nil, feePriorityRaw: String? = nil, feeRateDescription: String? = nil, confirmationCount: Int? = nil, dogecoinConfirmedNetworkFeeDOGE: Double? = nil, dogecoinConfirmations: Int? = nil, dogecoinFeePriorityRaw: String? = nil, dogecoinEstimatedFeeRateDOGEPerKB: Double? = nil, usedChangeOutput: Bool? = nil, dogecoinUsedChangeOutput: Bool? = nil, sourceDerivationPath: String? = nil, changeDerivationPath: String? = nil, sourceAddress: String? = nil, changeAddress: String? = nil, dogecoinRawTransactionHex: String? = nil, signedTransactionPayload: String? = nil, signedTransactionPayloadFormat: String? = nil, failureReason: String? = nil, transactionHistorySource: String? = nil, createdAt: Date
-    ) {
-        self.id = id
-        self.walletID = walletID
-        self.kind = kind
-        self.status = status
-        self.walletName = walletName
-        self.assetName = assetName
-        self.symbol = symbol
-        self.chainName = chainName
-        self.amount = amount
-        self.address = address
-        self.transactionHash = transactionHash
-        self.ethereumNonce = ethereumNonce
-        self.receiptBlockNumber = receiptBlockNumber
-        self.receiptGasUsed = receiptGasUsed
-        self.receiptEffectiveGasPriceGwei = receiptEffectiveGasPriceGwei
-        self.receiptNetworkFeeETH = receiptNetworkFeeETH
-        self.feePriorityRaw = feePriorityRaw
-        self.feeRateDescription = feeRateDescription
-        self.confirmationCount = confirmationCount
-        self.dogecoinConfirmedNetworkFeeDOGE = dogecoinConfirmedNetworkFeeDOGE
-        self.dogecoinConfirmations = dogecoinConfirmations
-        self.dogecoinFeePriorityRaw = dogecoinFeePriorityRaw
-        self.dogecoinEstimatedFeeRateDOGEPerKB = dogecoinEstimatedFeeRateDOGEPerKB
-        self.usedChangeOutput = usedChangeOutput
-        self.dogecoinUsedChangeOutput = dogecoinUsedChangeOutput
-        self.sourceDerivationPath = sourceDerivationPath
-        self.changeDerivationPath = changeDerivationPath
-        self.sourceAddress = sourceAddress
-        self.changeAddress = changeAddress
-        self.dogecoinRawTransactionHex = dogecoinRawTransactionHex
-        self.signedTransactionPayload = signedTransactionPayload
-        self.signedTransactionPayloadFormat = signedTransactionPayloadFormat
-        self.failureReason = failureReason
-        self.transactionHistorySource = transactionHistorySource
-        self.createdAt = createdAt
-    }
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try container.decode(TransactionKind.self, forKey: .kind)
-        id = try container.decode(UUID.self, forKey: .id)
-        walletID = try container.decodeIfPresent(UUID.self, forKey: .walletID)
-        self.kind = kind
-        status = try container.decodeIfPresent(TransactionStatus.self, forKey: .status)
-            ?? (kind == .receive ? .pending : .confirmed)
-        walletName = try container.decode(String.self, forKey: .walletName)
-        assetName = try container.decode(String.self, forKey: .assetName)
-        symbol = try container.decode(String.self, forKey: .symbol)
-        chainName = try container.decode(String.self, forKey: .chainName)
-        amount = try container.decode(Double.self, forKey: .amount)
-        address = try container.decode(String.self, forKey: .address)
-        transactionHash = try container.decodeIfPresent(String.self, forKey: .transactionHash)
-        ethereumNonce = try container.decodeIfPresent(Int.self, forKey: .ethereumNonce)
-        receiptBlockNumber = try container.decodeIfPresent(Int.self, forKey: .receiptBlockNumber)
-        receiptGasUsed = try container.decodeIfPresent(String.self, forKey: .receiptGasUsed)
-        receiptEffectiveGasPriceGwei = try container.decodeIfPresent(Double.self, forKey: .receiptEffectiveGasPriceGwei)
-        receiptNetworkFeeETH = try container.decodeIfPresent(Double.self, forKey: .receiptNetworkFeeETH)
-        feePriorityRaw = try container.decodeIfPresent(String.self, forKey: .feePriorityRaw)
-        feeRateDescription = try container.decodeIfPresent(String.self, forKey: .feeRateDescription)
-        confirmationCount = try container.decodeIfPresent(Int.self, forKey: .confirmationCount)
-        dogecoinConfirmedNetworkFeeDOGE = try container.decodeIfPresent(Double.self, forKey: .dogecoinConfirmedNetworkFeeDOGE)
-        dogecoinConfirmations = try container.decodeIfPresent(Int.self, forKey: .dogecoinConfirmations)
-        dogecoinFeePriorityRaw = try container.decodeIfPresent(String.self, forKey: .dogecoinFeePriorityRaw)
-        dogecoinEstimatedFeeRateDOGEPerKB = try container.decodeIfPresent(Double.self, forKey: .dogecoinEstimatedFeeRateDOGEPerKB)
-        usedChangeOutput = try container.decodeIfPresent(Bool.self, forKey: .usedChangeOutput)
-        dogecoinUsedChangeOutput = try container.decodeIfPresent(Bool.self, forKey: .dogecoinUsedChangeOutput)
-        sourceDerivationPath = try container.decodeIfPresent(String.self, forKey: .sourceDerivationPath)
-        changeDerivationPath = try container.decodeIfPresent(String.self, forKey: .changeDerivationPath)
-        sourceAddress = try container.decodeIfPresent(String.self, forKey: .sourceAddress)
-        changeAddress = try container.decodeIfPresent(String.self, forKey: .changeAddress)
-        dogecoinRawTransactionHex = try container.decodeIfPresent(String.self, forKey: .dogecoinRawTransactionHex)
-        signedTransactionPayload = try container.decodeIfPresent(String.self, forKey: .signedTransactionPayload)
-        signedTransactionPayloadFormat = try container.decodeIfPresent(String.self, forKey: .signedTransactionPayloadFormat)
-        failureReason = try container.decodeIfPresent(String.self, forKey: .failureReason)
-        transactionHistorySource = try container.decodeIfPresent(String.self, forKey: .transactionHistorySource)
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
-    }
-}
 private enum SeedDerivationPathsCodingKeys: String, CodingKey {
     case isCustomEnabled
     case bitcoin
@@ -349,8 +168,9 @@ private enum SeedDerivationPathsCodingKeys: String, CodingKey {
     case polkadot
 }
 extension SeedDerivationPaths: Codable {
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: SeedDerivationPathsCodingKeys.self)
+        self = SeedDerivationPaths.defaults
         isCustomEnabled = try container.decodeIfPresent(Bool.self, forKey: .isCustomEnabled) ?? false
         bitcoin = try container.decodeIfPresent(String.self, forKey: .bitcoin) ?? SeedDerivationChain.bitcoin.defaultPath
         bitcoinCash = try container.decodeIfPresent(String.self, forKey: .bitcoinCash) ?? SeedDerivationChain.bitcoinCash.defaultPath
@@ -375,7 +195,7 @@ extension SeedDerivationPaths: Codable {
         near = try container.decodeIfPresent(String.self, forKey: .near) ?? SeedDerivationChain.near.defaultPath
         polkadot = try container.decodeIfPresent(String.self, forKey: .polkadot) ?? SeedDerivationChain.polkadot.defaultPath
     }
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: SeedDerivationPathsCodingKeys.self)
         try container.encode(isCustomEnabled, forKey: .isCustomEnabled)
         try container.encode(bitcoin, forKey: .bitcoin)

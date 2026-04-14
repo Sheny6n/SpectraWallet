@@ -13,7 +13,7 @@ private extension ImportedWallet {
         return candidates.compactMap { chainName, address in
             guard let resolvedAddress = address?.platformTrimmedOrNil, let chainID = WalletChainID(chainName) else { return nil }
             return PlatformWalletAddressSnapshot(
-                id: "\(id.uuidString):\(chainID.rawValue)", chainID: chainID.rawValue, chainName: chainID.displayName, address: resolvedAddress
+                id: "\(id):\(chainID.rawValue)", chainID: chainID.rawValue, chainName: chainID.displayName, address: resolvedAddress
             )
         }}
 }
@@ -50,7 +50,7 @@ extension AddressBookEntry: PlatformSnapshotConvertible {
     }
 }
 @MainActor
-extension WalletStore {
+extension AppState {
     func makePlatformSnapshotEnvelope(generatedAt: Date = Date()) -> PlatformSnapshotEnvelope {
         PlatformSnapshotEnvelope(
             generatedAt: generatedAt, app: PlatformAppSnapshot(

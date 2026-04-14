@@ -1,6 +1,6 @@
 import SwiftUI
 struct AddWalletEntryView: View {
-    let store: WalletStore
+    let store: AppState
     var body: some View {
         ZStack {
             SpectraBackdrop()

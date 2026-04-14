@@ -51,7 +51,7 @@ struct DashboardPinnedAssetRowView: View {
             }}}
 }
 struct PortfolioWalletToggleRowView: View {
-    let store: WalletStore
+    let store: AppState
     let wallet: ImportedWallet
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {

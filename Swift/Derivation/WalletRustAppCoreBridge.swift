@@ -33,28 +33,10 @@ private struct WalletRustDerivationPathResolutionPayload: Decodable {
 
 private struct WalletRustSeedDerivationPathsPayload: Decodable {
     let isCustomEnabled: Bool
-    let bitcoin: String
-    let bitcoinCash: String
-    let bitcoinSV: String
-    let litecoin: String
-    let dogecoin: String
-    let ethereum: String
-    let ethereumClassic: String
-    let arbitrum: String
-    let optimism: String
-    let avalanche: String
-    let hyperliquid: String
-    let tron: String
-    let solana: String
-    let stellar: String
-    let xrp: String
-    let cardano: String
-    let sui: String
-    let aptos: String
-    let ton: String
-    let internetComputer: String
-    let near: String
-    let polkadot: String
+    let bitcoin: String, bitcoinCash: String, bitcoinSV: String, litecoin: String, dogecoin: String
+    let ethereum: String, ethereumClassic: String, arbitrum: String, optimism: String, avalanche: String, hyperliquid: String
+    let tron: String, solana: String, stellar: String, xrp: String, cardano: String, sui: String, aptos: String, ton: String
+    let internetComputer: String, near: String, polkadot: String
     var model: SeedDerivationPaths {
         SeedDerivationPaths(
             isCustomEnabled: isCustomEnabled, bitcoin: bitcoin, bitcoinCash: bitcoinCash,
@@ -99,31 +81,27 @@ enum WalletRustAppCoreBridge {
     }
 
     static func activeMaintenancePlan(_ request: WalletRustActiveMaintenancePlanRequest) -> WalletRustActiveMaintenancePlan {
-        let plan = coreActiveMaintenancePlan(request: request.toFFI())
-        return WalletRustActiveMaintenancePlan(
-            refreshPendingTransactions: plan.refreshPendingTransactions,
-            refreshLivePrices: plan.refreshLivePrices
-        )
+        coreActiveMaintenancePlan(request: request)
     }
 
     static func shouldRunBackgroundMaintenance(_ request: WalletRustBackgroundMaintenanceRequest) -> Bool {
-        coreShouldRunBackgroundMaintenance(request: request.toFFI())
+        coreShouldRunBackgroundMaintenance(request: request)
     }
 
     static func chainRefreshPlans(_ request: WalletRustChainRefreshPlanRequest) -> [WalletRustChainRefreshPlan] {
-        coreChainRefreshPlans(request: request.toFFI()).map { $0.toWalletRust() }
+        coreChainRefreshPlans(request: request.toFFI())
     }
 
     static func historyRefreshPlans(_ request: WalletRustHistoryRefreshPlanRequest) -> [String] {
-        coreHistoryRefreshPlans(request: request.toFFI())
+        coreHistoryRefreshPlans(request: request)
     }
 
     static func normalizeHistory(_ request: WalletRustNormalizeHistoryRequest) -> [WalletRustNormalizedHistoryEntry] {
-        coreNormalizeHistory(request: request.toFFI()).map { $0.toWalletRust() }
+        coreNormalizeHistory(request: request.toFFI())
     }
 
     static func mergeBitcoinHistorySnapshots(_ request: WalletRustMergeBitcoinHistorySnapshotsRequest) -> [WalletRustBitcoinHistorySnapshotPayload] {
-        coreMergeBitcoinHistorySnapshots(request: request.toFFI()).map { $0.toWalletRust() }
+        coreMergeBitcoinHistorySnapshots(request: request.toFFI())
     }
 
     static func planEVMRefreshTargets(_ request: WalletRustEVMRefreshTargetsRequest) -> WalletRustEVMRefreshPlan {
@@ -149,48 +127,31 @@ enum WalletRustAppCoreBridge {
     }
 
     static func aggregateOwnedAddresses(_ request: WalletRustOwnedAddressAggregationRequest) -> [String] {
-        coreAggregateOwnedAddresses(request: OwnedAddressAggregationRequest(candidateAddresses: request.candidateAddresses))
+        coreAggregateOwnedAddresses(request: request)
     }
 
     static func planReceiveSelection(_ request: WalletRustReceiveSelectionRequest) -> WalletRustReceiveSelectionPlan {
-        let plan = corePlanReceiveSelection(request: request.toFFI())
-        return WalletRustReceiveSelectionPlan(
-            resolvedChainName: plan.resolvedChainName,
-            selectedReceiveHoldingIndex: plan.selectedReceiveHoldingIndex.map { Int($0) }
-        )
+        corePlanReceiveSelection(request: request.toFFI())
     }
 
     static func planSelfSendConfirmation(_ request: WalletRustSelfSendConfirmationRequest) -> WalletRustSelfSendConfirmationPlan {
-        let plan = corePlanSelfSendConfirmation(request: request.toFFI())
-        return WalletRustSelfSendConfirmationPlan(
-            requiresConfirmation: plan.requiresConfirmation,
-            consumeExistingConfirmation: plan.consumeExistingConfirmation,
-            clearPendingConfirmation: plan.clearPendingConfirmation
-        )
+        corePlanSelfSendConfirmation(request: request.toFFI())
     }
 
     static func planSendPreviewRouting(_ request: WalletRustSendPreviewRoutingRequest) -> WalletRustSendPreviewRoutingPlan {
-        let plan = corePlanSendPreviewRouting(request: request.toFFI())
-        return WalletRustSendPreviewRoutingPlan(activePreviewKind: plan.activePreviewKind)
+        corePlanSendPreviewRouting(request: request.toFFI())
     }
 
     static func planSendSubmitPreflight(_ request: WalletRustSendSubmitPreflightRequest) throws -> WalletRustSendSubmitPreflightPlan {
-        let plan = try corePlanSendSubmitPreflight(request: request.toFFI())
-        return WalletRustSendSubmitPreflightPlan(
-            submitKind: plan.submitKind,
-            previewKind: plan.previewKind,
-            normalizedDestinationAddress: plan.normalizedDestinationAddress,
-            amount: plan.amount,
-            chainName: plan.chainName,
-            symbol: plan.symbol,
-            nativeEVMSymbol: plan.nativeEvmSymbol,
-            isNativeEVMAsset: plan.isNativeEvmAsset,
-            allowsZeroAmount: plan.allowsZeroAmount
-        )
+        try corePlanSendSubmitPreflight(request: request.toFFI())
     }
 
     static func mergeTransactions(_ request: WalletRustTransactionMergeRequest) -> [WalletRustTransactionRecord] {
         coreMergeTransactions(request: request.toFFI()).map { $0.toWalletRust() }
+    }
+
+    static func encodeHistoryRecordsJSON(_ records: [HistoryRecordEncodeInput]) throws -> String {
+        try coreEncodeHistoryRecordsJson(records: records)
     }
 
     // ─── Derivation bridge (unchanged — calls derivation FFI, not core) ────────
@@ -351,31 +312,6 @@ private extension WalletSecretInstruction {
     }
 }
 
-private extension WalletRustActiveMaintenancePlanRequest {
-    func toFFI() -> ActiveMaintenancePlanRequest {
-        ActiveMaintenancePlanRequest(
-            nowUnix: nowUnix,
-            lastPendingTransactionRefreshAtUnix: lastPendingTransactionRefreshAtUnix,
-            lastLivePriceRefreshAtUnix: lastLivePriceRefreshAtUnix,
-            hasPendingTransactionMaintenanceWork: hasPendingTransactionMaintenanceWork,
-            shouldRunScheduledPriceRefresh: shouldRunScheduledPriceRefresh,
-            pendingRefreshInterval: pendingRefreshInterval,
-            priceRefreshInterval: priceRefreshInterval
-        )
-    }
-}
-
-private extension WalletRustBackgroundMaintenanceRequest {
-    func toFFI() -> BackgroundMaintenanceRequest {
-        BackgroundMaintenanceRequest(
-            nowUnix: nowUnix,
-            isNetworkReachable: isNetworkReachable,
-            lastBackgroundMaintenanceAtUnix: lastBackgroundMaintenanceAtUnix,
-            interval: interval
-        )
-    }
-}
-
 private extension WalletRustChainRefreshPlanRequest {
     func toFFI() -> ChainRefreshPlanRequest {
         ChainRefreshPlanRequest(
@@ -389,23 +325,6 @@ private extension WalletRustChainRefreshPlanRequest {
             lastGoodChainSyncById: lastGoodChainSyncByID,
             lastHistoryRefreshAtByChainId: lastHistoryRefreshAtByChainID,
             automaticChainRefreshStalenessInterval: automaticChainRefreshStalenessInterval
-        )
-    }
-}
-
-private extension ChainRefreshPlan {
-    func toWalletRust() -> WalletRustChainRefreshPlan {
-        WalletRustChainRefreshPlan(chainID: chainId, chainName: chainName, refreshHistory: refreshHistory)
-    }
-}
-
-private extension WalletRustHistoryRefreshPlanRequest {
-    func toFFI() -> HistoryRefreshPlanRequest {
-        HistoryRefreshPlanRequest(
-            chainIds: chainIDs,
-            nowUnix: nowUnix,
-            interval: interval,
-            lastHistoryRefreshAtByChainId: lastHistoryRefreshAtByChainID
         )
     }
 }
@@ -437,44 +356,10 @@ private extension WalletRustNormalizeHistoryRequest {
     }
 }
 
-private extension NormalizedHistoryEntry {
-    func toWalletRust() -> WalletRustNormalizedHistoryEntry {
-        WalletRustNormalizedHistoryEntry(
-            id: id, transactionID: transactionId, dedupeKey: dedupeKey,
-            createdAtUnix: createdAtUnix, kind: kind, status: status,
-            walletName: walletName, assetName: assetName, symbol: symbol,
-            chainName: chainName, address: address, transactionHash: transactionHash,
-            sourceTag: sourceTag, providerCount: Int(providerCount), searchIndex: searchIndex
-        )
-    }
-}
-
-private extension WalletRustBitcoinHistorySnapshotPayload {
-    func toFFI() -> BitcoinHistorySnapshot {
-        BitcoinHistorySnapshot(
-            txid: txid, amountBtc: amountBTC, kind: kind, status: status,
-            counterpartyAddress: counterpartyAddress,
-            blockHeight: blockHeight.map { Int64($0) },
-            createdAtUnix: createdAtUnix
-        )
-    }
-}
-
-private extension BitcoinHistorySnapshot {
-    func toWalletRust() -> WalletRustBitcoinHistorySnapshotPayload {
-        WalletRustBitcoinHistorySnapshotPayload(
-            txid: txid, amountBTC: amountBtc, kind: kind, status: status,
-            counterpartyAddress: counterpartyAddress,
-            blockHeight: blockHeight.map { Int($0) },
-            createdAtUnix: createdAtUnix
-        )
-    }
-}
-
 private extension WalletRustMergeBitcoinHistorySnapshotsRequest {
     func toFFI() -> MergeBitcoinHistorySnapshotsRequest {
         MergeBitcoinHistorySnapshotsRequest(
-            snapshots: snapshots.map { $0.toFFI() },
+            snapshots: snapshots,
             ownedAddresses: ownedAddresses,
             limit: UInt64(limit)
         )
@@ -711,8 +596,8 @@ private extension WalletRustSelfSendConfirmationRequest {
 }
 
 private extension WalletRustTransactionRecord {
-    func toFFI() -> TransactionRecord {
-        TransactionRecord(
+    func toFFI() -> CoreTransactionRecord {
+        CoreTransactionRecord(
             id: id, walletId: walletID, kind: kind, status: status,
             walletName: walletName, assetName: assetName, symbol: symbol,
             chainName: chainName, amount: amount, address: address,
@@ -721,14 +606,14 @@ private extension WalletRustTransactionRecord {
             receiptBlockNumber: receiptBlockNumber.map { Int64($0) },
             receiptGasUsed: receiptGasUsed,
             receiptEffectiveGasPriceGwei: receiptEffectiveGasPriceGwei,
-            receiptNetworkFeeEth: receiptNetworkFeeETH,
+            receiptNetworkFeeEth: receiptNetworkFeeEth,
             feePriorityRaw: feePriorityRaw,
             feeRateDescription: feeRateDescription,
             confirmationCount: confirmationCount.map { Int64($0) },
-            dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDOGE,
+            dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge,
             dogecoinConfirmations: dogecoinConfirmations.map { Int64($0) },
             dogecoinFeePriorityRaw: dogecoinFeePriorityRaw,
-            dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDOGEPerKB,
+            dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDogePerKb,
             usedChangeOutput: usedChangeOutput,
             dogecoinUsedChangeOutput: dogecoinUsedChangeOutput,
             sourceDerivationPath: sourceDerivationPath,
@@ -745,7 +630,7 @@ private extension WalletRustTransactionRecord {
     }
 }
 
-private extension TransactionRecord {
+private extension CoreTransactionRecord {
     func toWalletRust() -> WalletRustTransactionRecord {
         WalletRustTransactionRecord(
             id: id, walletID: walletId, kind: kind, status: status,
@@ -756,14 +641,14 @@ private extension TransactionRecord {
             receiptBlockNumber: receiptBlockNumber.map { Int($0) },
             receiptGasUsed: receiptGasUsed,
             receiptEffectiveGasPriceGwei: receiptEffectiveGasPriceGwei,
-            receiptNetworkFeeETH: receiptNetworkFeeEth,
+            receiptNetworkFeeEth: receiptNetworkFeeEth,
             feePriorityRaw: feePriorityRaw,
             feeRateDescription: feeRateDescription,
             confirmationCount: confirmationCount.map { Int($0) },
-            dogecoinConfirmedNetworkFeeDOGE: dogecoinConfirmedNetworkFeeDoge,
+            dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge,
             dogecoinConfirmations: dogecoinConfirmations.map { Int($0) },
             dogecoinFeePriorityRaw: dogecoinFeePriorityRaw,
-            dogecoinEstimatedFeeRateDOGEPerKB: dogecoinEstimatedFeeRateDogePerKb,
+            dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDogePerKb,
             usedChangeOutput: usedChangeOutput,
             dogecoinUsedChangeOutput: dogecoinUsedChangeOutput,
             sourceDerivationPath: sourceDerivationPath,

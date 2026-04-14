@@ -16,15 +16,15 @@ extension View {
     func spectraInputFieldStyle(cornerRadius: CGFloat = 18, borderColor: Color? = nil) -> some View { modifier(SpectraInputFieldChrome(cornerRadius: cornerRadius, borderColor: borderColor)) }
 }
 struct ContentView: View {
-    @StateObject private var store: WalletStore
+    @StateObject private var store: AppState
     @Environment(\.scenePhase) private var scenePhase
     @MainActor
     init() {
-        let store = WalletStore()
+        let store = AppState()
         _store = StateObject(wrappedValue: store)
     }
     @MainActor
-    init(store: WalletStore) {
+    init(store: AppState) {
         _store = StateObject(wrappedValue: store)
     }
     private func refreshAppStateForActivePhase() {

@@ -12,14 +12,13 @@ private func localizedSettingsFormat(_ key: String, _ arguments: CVarArg...) -> 
     return String(format: format, locale: AppLocalization.locale, arguments: arguments)
 }
 struct PricingSettingsView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     private var copy: SettingsContentCopy { .current }
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$pricingProvider.asVoidSignal(), store.$selectedFiatCurrency.asVoidSignal(), store.$fiatRateProvider.asVoidSignal(), store.$coinGeckoAPIKey.asVoidSignal(), store.$quoteRefreshError.asVoidSignal(), store.$fiatRatesRefreshError.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     var body: some View {
@@ -60,17 +59,16 @@ struct PricingSettingsView: View {
     }
 }
 struct PriceAlertsView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var selectedHoldingKey: String = ""
     @State private var selectedCondition: PriceAlertCondition = .above
     @State private var targetPriceText: String = ""
     @State private var formMessage: String?
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$usePriceAlerts.asVoidSignal(), store.$priceAlerts.asVoidSignal(), store.$selectedFiatCurrency.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     private var alertableHoldingKeys: Set<String> { Set(store.alertableCoins.map(\.holdingKey)) }
@@ -163,7 +161,7 @@ struct PriceAlertsView: View {
     }
 }
 struct AddressBookView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var contactName: String = ""
     @State private var selectedChainName: String = "Bitcoin"
@@ -173,11 +171,10 @@ struct AddressBookView: View {
     @State private var editingEntry: AddressBookEntry?
     @State private var editedName: String = ""
     @State private var copiedEntryID: UUID?
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$addressBook.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     private let supportedChains = ["Bitcoin", "Litecoin", "Dogecoin", "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid", "Tron", "Solana", "Cardano", "XRP Ledger", "Monero", "Sui", "Aptos", "TON", "Internet Computer", "NEAR", "Polkadot", "Stellar"]
@@ -338,13 +335,12 @@ struct AboutView: View {
     }
 }
 struct BackgroundSyncSettingsView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$automaticRefreshFrequencyMinutes.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     var body: some View {
@@ -371,18 +367,17 @@ struct BackgroundSyncSettingsView: View {
     private func isTooFrequent(_ minutes: Int) -> Bool { minutes <= 10 }
 }
 struct ChainFeePrioritySettingsView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     private struct ChainFeePrioritySetting: Identifiable {
         let chainName: String
         let title: String
         let detail: String
         var id: String { chainName }}
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$bitcoinFeePriority.asVoidSignal(), store.$dogecoinFeePriority.asVoidSignal(), store.$selectedFeePriorityOptionRawByChain.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     var body: some View {
@@ -404,14 +399,13 @@ struct ChainFeePrioritySettingsView: View {
     }
 }
 struct SettingsView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var isShowingResetWalletWarning: Bool = false
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$hideBalances.asVoidSignal(), store.$useTransactionStatusNotifications.asVoidSignal(), store.$useFaceID.asVoidSignal(), store.$useAutoLock.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     private enum Route: Hashable {
@@ -585,7 +579,7 @@ struct BuyCryptoHelpView: View {
     }
 }
 struct AdvancedSettingsView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var isRunningMaintenance = false
     @State private var maintenanceNotice: String?
@@ -595,11 +589,10 @@ struct AdvancedSettingsView: View {
     private let singleChainRefreshNames = [
         "Bitcoin", "Litecoin", "Dogecoin", "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid", "Tron", "Solana", "Cardano", "XRP Ledger", "Monero", "Sui", "Aptos", "TON", "Internet Computer", "NEAR", "Polkadot", "Stellar"
     ]
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$requireBiometricForSendActions.asVoidSignal(), store.$useStrictRPCOnly.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     var body: some View {
@@ -712,7 +705,7 @@ struct AdvancedSettingsView: View {
     }
 }
 struct DiagnosticsExportsBrowserView: View {
-    let store: WalletStore
+    let store: AppState
     @Environment(\.dismiss) private var dismiss
     @State private var exportURLs: [URL] = []
     var body: some View {
@@ -748,13 +741,12 @@ struct DiagnosticsExportsBrowserView: View {
     }
 }
 struct LargeMovementAlertsSettingsView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$useLargeMovementNotifications.asVoidSignal(), store.$largeMovementAlertPercentThreshold.asVoidSignal(), store.$largeMovementAlertUSDThreshold.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     var body: some View {
@@ -796,7 +788,7 @@ private enum TokenRegistryGrouping {
     }
 }
 struct TokenRegistrySettingsView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     private enum TokenRegistryChainFilter: CaseIterable, Identifiable {
         case all
@@ -844,7 +836,7 @@ struct TokenRegistrySettingsView: View {
     @State private var searchText: String = ""
     @State private var chainFilter: TokenRegistryChainFilter = .all
     @State private var sourceFilter: TokenRegistrySourceFilter = .all
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
             wrappedValue: ViewRefreshSignal([ store.$tokenPreferences.asVoidSignal()
@@ -933,7 +925,7 @@ struct TokenRegistrySettingsView: View {
         }}
 }
 struct TokenRegistryDetailView: View {
-    let store: WalletStore
+    let store: AppState
     let groupKey: String
     private var groupEntries: [TokenPreferenceEntry] {
         store.resolvedTokenPreferences.filter { TokenRegistryGrouping.key(for: $0) == groupKey }
@@ -965,7 +957,7 @@ struct TokenRegistryDetailView: View {
             } else { ContentUnavailableView(localizedSettingsString("Token Not Found"), systemImage: "questionmark.circle") }}}
 }
 struct AddCustomTokenView: View {
-    let store: WalletStore
+    let store: AppState
     @State private var selectedChain: TokenTrackingChain = .ethereum
     @State private var symbolInput: String = ""
     @State private var nameInput: String = ""
@@ -1003,16 +995,15 @@ struct AddCustomTokenView: View {
     }
 }
 struct DecimalDisplaySettingsView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var searchText: String = ""
     private let decimalExamples: [(symbol: String, chainName: String)] = [
         ("BTC", "Bitcoin"), ("BCH", "Bitcoin Cash"), ("LTC", "Litecoin"), ("DOGE", "Dogecoin"), ("ETH", "Ethereum"), ("ETC", "Ethereum Classic"), ("BNB", "BNB Chain"), ("AVAX", "Avalanche"), ("HYPE", "Hyperliquid"), ("SOL", "Solana"), ("ADA", "Cardano"), ("XRP", "XRP Ledger"), ("TRX", "Tron"), ("XMR", "Monero"), ("SUI", "Sui"), ("APT", "Aptos"), ("TON", "TON"), ("ICP", "Internet Computer"), ("NEAR", "NEAR"), ("DOT", "Polkadot"), ("XLM", "Stellar"), ]
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$assetDisplayDecimalsByChain.asVoidSignal(), store.$tokenPreferences.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     var body: some View {
@@ -1049,7 +1040,7 @@ struct DecimalDisplaySettingsView: View {
                 if filteredTokenDecimalEntries.isEmpty { Text(store.enabledTrackedTokenPreferences.isEmpty ? localizedSettingsString("No tokens are currently enabled for tracking.") : localizedSettingsString("No matching tracked tokens.")).font(.caption).foregroundStyle(.secondary) } else {
                     ForEach(filteredTokenDecimalEntries, id: \.id) { entry in
                         let currentDisplayDecimals = store.displayAssetDecimals(symbol: entry.symbol, chainName: entry.chain.rawValue)
-                        let supportedDecimals = entry.decimals
+                        let supportedDecimals = Int(entry.decimals)
                         decimalStepperCard(
                             assetIdentifier: decimalTokenAssetIdentifier(for: entry), fallbackText: String(entry.symbol.prefix(2)).uppercased(), tint: decimalTokenTint(for: entry.chain), title: entry.name, subtitle: "\(entry.chain.rawValue) · \(entry.symbol)", currentDisplayDecimals: currentDisplayDecimals, supportedDecimals: supportedDecimals, supportedLabel: localizedSettingsString("Token supports"), detailText: entry.contractAddress, onDecrease: {
                                 store.updateTokenPreferenceDisplayDecimals(id: entry.id, decimals: currentDisplayDecimals - 1)
@@ -1122,7 +1113,7 @@ struct DecimalDisplaySettingsView: View {
         }}
 }
 struct LogsView: View {
-    let store: WalletStore
+    let store: AppState
     @ObservedObject private var diagnosticsState: WalletDiagnosticsState
     @State private var searchText: String = ""
     @State private var selectedLevelFilter: LogLevelFilter = .all
@@ -1130,8 +1121,8 @@ struct LogsView: View {
     @State private var selectedCategoryFilter: String = "__all__"
     @State private var copiedNotice: String?
     @State private var cachedAvailableCategories: [String] = ["__all__"]
-    @State private var cachedFilteredLogs: [WalletStore.OperationalLogEvent] = []
-    init(store: WalletStore) {
+    @State private var cachedFilteredLogs: [AppState.OperationalLogEvent] = []
+    init(store: AppState) {
         self.store = store
         _diagnosticsState = ObservedObject(wrappedValue: store.diagnostics)
     }
@@ -1151,7 +1142,7 @@ struct LogsView: View {
             case .error: return localizedSettingsString("Error")
             }}}
     private var availableCategories: [String] { cachedAvailableCategories }
-    private var filteredLogs: [WalletStore.OperationalLogEvent] { cachedFilteredLogs }
+    private var filteredLogs: [AppState.OperationalLogEvent] { cachedFilteredLogs }
     private func rebuildLogPresentation() {
         let categories = Set(diagnosticsState.operationalLogs.map { $0.category })
         cachedAvailableCategories = [allCategoryFilter] + categories.sorted()
@@ -1170,7 +1161,7 @@ struct LogsView: View {
             let searchMatches: Bool
             if query.isEmpty { searchMatches = true } else {
                 let haystack = [
-                    event.message, event.category, event.chainName ?? "", event.source ?? "", event.metadata ?? "", event.walletID?.uuidString ?? "", event.transactionHash ?? ""
+                    event.message, event.category, event.chainName ?? "", event.source ?? "", event.metadata ?? "", event.walletID ?? "", event.transactionHash ?? ""
                 ].joined(separator: " ").lowercased()
                 searchMatches = haystack.contains(query)
             }
@@ -1194,7 +1185,11 @@ struct LogsView: View {
                 Picker(localizedSettingsString("Level"), selection: $selectedLevelFilter) {
                     ForEach(LogLevelFilter.allCases) { level in Text(level.title).tag(level) }}
                 Picker(localizedSettingsString("Category"), selection: $selectedCategoryFilter) {
-                    ForEach(availableCategories, id: \.self) { category in Text(category == allCategoryFilter ? localizedSettingsString("All") : category).tag(category) }}}
+                    ForEach(availableCategories, id: \.self) { category in
+                        let label: String = category == allCategoryFilter ? localizedSettingsString("All") : category
+                        Text(label).tag(category)
+                    }
+                }}
             if filteredLogs.isEmpty {
                 Section(localizedSettingsString("Events")) { Text(localizedSettingsString("No operational events yet.")).font(.caption).foregroundStyle(.secondary) }
             } else {
@@ -1209,7 +1204,7 @@ struct LogsView: View {
                             Text(event.message).font(.subheadline)
                             if let source = event.source, !source.isEmpty { Text(localizedSettingsFormat("source: %@", source)).font(.caption.monospaced()).foregroundStyle(.secondary) }
                             if let chainName = event.chainName, !chainName.isEmpty { Text(localizedSettingsFormat("chain: %@", chainName)).font(.caption.monospaced()).foregroundStyle(.secondary) }
-                            if let walletID = event.walletID { Text(localizedSettingsFormat("wallet: %@", walletID.uuidString)).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled) }
+                            if let walletID = event.walletID { Text(localizedSettingsFormat("wallet: %@", walletID)).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled) }
                             if let transactionHash = event.transactionHash, !transactionHash.isEmpty { Text(transactionHash).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled) }
                             if let metadata = event.metadata, !metadata.isEmpty { Text(metadata).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled) }}.padding(.vertical, 2)
                     }}}}.navigationTitle(localizedSettingsString("Logs")).searchable(text: $searchText, prompt: localizedSettingsString("Search message, chain, tx hash, wallet")).onAppear {
@@ -1239,14 +1234,14 @@ struct LogsView: View {
                     store.clearOperationalLogs()
                 }.disabled(diagnosticsState.operationalLogs.isEmpty)
             }}}
-    private func iconName(for level: WalletStore.OperationalLogEvent.Level) -> String {
+    private func iconName(for level: AppState.OperationalLogEvent.Level) -> String {
         switch level {
         case .debug: return "ladybug.fill"
         case .info: return "info.circle.fill"
         case .warning: return "exclamationmark.triangle.fill"
         case .error: return "xmark.octagon.fill"
         }}
-    private func color(for level: WalletStore.OperationalLogEvent.Level) -> Color {
+    private func color(for level: AppState.OperationalLogEvent.Level) -> Color {
         switch level {
         case .debug: return .gray
         case .info: return .blue
@@ -1255,9 +1250,9 @@ struct LogsView: View {
         }}
 }
 struct ResetWalletWarningView: View {
-    let store: WalletStore
+    let store: AppState
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedScopes = Set(WalletStore.ResetScope.allCases)
+    @State private var selectedScopes = Set(AppState.ResetScope.allCases)
     var body: some View {
         NavigationView {
             Form {
@@ -1268,7 +1263,7 @@ struct ResetWalletWarningView: View {
                     Text(localizedSettingsString("Before You Continue"))
                 }
                 Section(localizedSettingsString("Choose What To Reset")) {
-                    ForEach(WalletStore.ResetScope.allCases) { scope in
+                    ForEach(AppState.ResetScope.allCases) { scope in
                         Toggle(isOn: binding(for: scope)) {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(scope.title)
@@ -1293,7 +1288,7 @@ struct ResetWalletWarningView: View {
                     Button(localizedSettingsString("Cancel")) {
                         dismiss()
                     }}}}}
-    private func binding(for scope: WalletStore.ResetScope) -> Binding<Bool> {
+    private func binding(for scope: AppState.ResetScope) -> Binding<Bool> {
         Binding(
             get: { selectedScopes.contains(scope) }, set: { isSelected in
                 if isSelected { selectedScopes.insert(scope) } else { selectedScopes.remove(scope) }}
@@ -1334,8 +1329,8 @@ struct TokenIconSettingsView: View {
             }}}
 }
 struct MainTabView: View {
-    let store: WalletStore
-    init(store: WalletStore) {
+    let store: AppState
+    init(store: AppState) {
         self.store = store
     }
     private var selectedMainTabBinding: Binding<MainAppTab> {

@@ -1,4 +1,5 @@
 import Foundation
+
 enum EVMChainContext: Equatable {
     case ethereum
     case ethereumSepolia
@@ -61,6 +62,36 @@ enum EVMChainContext: Equatable {
         }}
     var isEthereumMainnet: Bool { self == .ethereum }
 }
+
+// Send preview types are now UniFFI-generated from Rust (core/src/wallet_core.rs).
+// Swift owns only the send *result* types (not yet lifted) + chain-specific enums used by the UI.
+
+
+struct EthereumSendResult: Equatable {
+    let fromAddress: String
+    let transactionHash: String
+    let rawTransactionHex: String
+    let preview: EthereumSendPreview
+    let verificationStatus: SendBroadcastVerificationStatus
+}
+struct TronSendResult: Equatable {
+    let transactionHash: String
+    let estimatedNetworkFeeTrx: Double
+    let signedTransactionJSON: String
+    let verificationStatus: SendBroadcastVerificationStatus
+}
+struct SolanaSendResult: Equatable {
+    let transactionHash: String
+    let estimatedNetworkFeeSol: Double
+    let signedTransactionBase64: String
+    let verificationStatus: SendBroadcastVerificationStatus
+}
+struct BitcoinSendResult: Equatable {
+    let transactionHash: String
+    let rawTransactionHex: String
+    let verificationStatus: SendBroadcastVerificationStatus
+}
+
 enum EthereumNetworkMode: String, CaseIterable, Identifiable {
     case mainnet
     case sepolia
@@ -73,165 +104,6 @@ enum EthereumNetworkMode: String, CaseIterable, Identifiable {
         case .hoodi:    return "Hoodi"
         }}
 }
-struct EthereumSendPreview: Equatable {
-    let nonce: Int
-    let gasLimit: Int
-    let maxFeePerGasGwei: Double
-    let maxPriorityFeePerGasGwei: Double
-    let estimatedNetworkFeeETH: Double
-    let spendableBalance: Double?
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double?
-}
-struct EthereumSendResult: Equatable {
-    let fromAddress: String
-    let transactionHash: String
-    let rawTransactionHex: String
-    let preview: EthereumSendPreview
-    let verificationStatus: SendBroadcastVerificationStatus
-}
-struct TronSendPreview: Equatable {
-    let estimatedNetworkFeeTRX: Double
-    let feeLimitSun: Int64
-    let simulationUsed: Bool
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct TronSendResult: Equatable {
-    let transactionHash: String
-    let estimatedNetworkFeeTRX: Double
-    let signedTransactionJSON: String
-    let verificationStatus: SendBroadcastVerificationStatus
-}
-struct SolanaSendPreview: Equatable {
-    let estimatedNetworkFeeSOL: Double
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct SolanaSendResult: Equatable {
-    let transactionHash: String
-    let estimatedNetworkFeeSOL: Double
-    let signedTransactionBase64: String
-    let verificationStatus: SendBroadcastVerificationStatus
-}
-struct XRPSendPreview: Equatable {
-    let estimatedNetworkFeeXRP: Double
-    let feeDrops: Int64
-    let sequence: Int64
-    let lastLedgerSequence: Int64
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct StellarSendPreview: Equatable {
-    let estimatedNetworkFeeXLM: Double
-    let feeStroops: Int64
-    let sequence: Int64
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct MoneroSendPreview: Equatable {
-    let estimatedNetworkFeeXMR: Double
-    let priorityLabel: String
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct CardanoSendPreview: Equatable {
-    let estimatedNetworkFeeADA: Double
-    let ttlSlot: UInt64
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct SuiSendPreview: Equatable {
-    let estimatedNetworkFeeSUI: Double
-    let gasBudgetMist: UInt64
-    let referenceGasPrice: UInt64
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct AptosSendPreview: Equatable {
-    let estimatedNetworkFeeAPT: Double
-    let maxGasAmount: UInt64
-    let gasUnitPriceOctas: UInt64
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct TONSendPreview: Equatable {
-    let estimatedNetworkFeeTON: Double
-    let sequenceNumber: UInt32
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct ICPSendPreview: Equatable {
-    let estimatedNetworkFeeICP: Double
-    let feeE8s: UInt64
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct NearSendPreview: Equatable {
-    let estimatedNetworkFeeNEAR: Double
-    let gasPriceYoctoNear: String
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-struct PolkadotSendPreview: Equatable {
-    let estimatedNetworkFeeDOT: Double
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double
-}
-
-// MARK: - UTXO engine types (moved from Send/Engines/UTXOEngineTypes.swift)
-
 enum BitcoinFeePriority: String, CaseIterable, Identifiable {
     case economy
     case normal
@@ -244,39 +116,10 @@ enum BitcoinFeePriority: String, CaseIterable, Identifiable {
         case .priority: return "Priority"
         }}
 }
-struct BitcoinSendPreview: Equatable {
-    let estimatedFeeRateSatVb: UInt64
-    let estimatedNetworkFeeBTC: Double
-    let feeRateDescription: String?
-    let spendableBalance: Double?
-    let estimatedTransactionBytes: Int?
-    let selectedInputCount: Int?
-    let usesChangeOutput: Bool?
-    let maxSendable: Double?
-}
-struct BitcoinSendResult: Equatable {
-    let transactionHash: String
-    let rawTransactionHex: String
-    let verificationStatus: SendBroadcastVerificationStatus
-}
-enum DogecoinFeePriority: String, CaseIterable, Equatable {
+enum DogecoinFeePriority: String, CaseIterable, Equatable, Codable {
     case economy
     case normal
     case priority
-}
-struct DogecoinSendPreview: Equatable {
-    let spendableBalanceDOGE: Double
-    let requestedAmountDOGE: Double
-    let estimatedNetworkFeeDOGE: Double
-    let estimatedFeeRateDOGEPerKB: Double
-    let estimatedTransactionBytes: Int
-    let selectedInputCount: Int
-    let usesChangeOutput: Bool
-    let feePriority: DogecoinFeePriority
-    let maxSendableDOGE: Double
-    let spendableBalance: Double
-    let feeRateDescription: String?
-    let maxSendable: Double
 }
 enum LitecoinChangeStrategy: String, CaseIterable, Identifiable {
     case derivedChange
@@ -326,3 +169,4 @@ func evmHasContractCode(_ code: String) -> Bool {
     let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     return normalized != "0x" && normalized != "0x0"
 }
+

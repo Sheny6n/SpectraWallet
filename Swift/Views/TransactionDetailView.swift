@@ -2,13 +2,13 @@ import Foundation
 import SwiftUI
 import UIKit
 struct HistoryDetailView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     let transaction: TransactionRecord
     @State private var didCopyAddress = false
     @State private var ethereumReplacementMessage: String?
     @State private var liveTransaction: TransactionRecord?
     @State private var liveOwnedAddresses: Set<String> = []
-    init(store: WalletStore, transaction: TransactionRecord) {
+    init(store: AppState, transaction: TransactionRecord) {
         self.store = store
         self.transaction = transaction
     }
@@ -77,7 +77,7 @@ struct HistoryDetailView: View {
                         if let receiptEffectiveGasPriceText = displayedTransaction.receiptEffectiveGasPriceText { detailRow(label: "Effective Gas Price", value: receiptEffectiveGasPriceText) }
                         if let receiptNetworkFeeText = displayedTransaction.receiptNetworkFeeText { detailRow(label: "Network Fee", value: receiptNetworkFeeText) }
                         if let storedFeePriorityText = displayedTransaction.storedFeePriorityText { detailRow(label: "Fee Priority", value: storedFeePriorityText) }
-                        if let dogecoinConfirmedNetworkFeeDOGE = displayedTransaction.dogecoinConfirmedNetworkFeeDOGE { detailRow(label: "Confirmed Fee", value: String(format: "%.6f DOGE", dogecoinConfirmedNetworkFeeDOGE)) }
+                        if let dogecoinConfirmedNetworkFeeDoge = displayedTransaction.dogecoinConfirmedNetworkFeeDoge { detailRow(label: "Confirmed Fee", value: String(format: "%.6f DOGE", dogecoinConfirmedNetworkFeeDoge)) }
                         if let storedFeeRateText = displayedTransaction.storedFeeRateText { detailRow(label: "Fee Rate", value: storedFeeRateText) }
                         if let storedUsedChangeOutputText = displayedTransaction.storedUsedChangeOutputText { detailRow(label: "Used Change Output", value: storedUsedChangeOutputText) }
                         if let rawTransactionFormatText = displayedTransaction.rawTransactionFormatText { detailRow(label: "Signed Payload Format", value: rawTransactionFormatText) }

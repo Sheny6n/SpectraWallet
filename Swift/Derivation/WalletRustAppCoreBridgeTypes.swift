@@ -1,47 +1,11 @@
 import Foundation
 
 struct WalletRustImportAddresses {
-    let bitcoinAddress: String?
-    let bitcoinXpub: String?
-    let bitcoinCashAddress: String?
-    let bitcoinSVAddress: String?
-    let litecoinAddress: String?
-    let dogecoinAddress: String?
-    let ethereumAddress: String?
-    let ethereumClassicAddress: String?
-    let tronAddress: String?
-    let solanaAddress: String?
-    let xrpAddress: String?
-    let stellarAddress: String?
-    let moneroAddress: String?
-    let cardanoAddress: String?
-    let suiAddress: String?
-    let aptosAddress: String?
-    let tonAddress: String?
-    let icpAddress: String?
-    let nearAddress: String?
-    let polkadotAddress: String?
+    let bitcoinAddress: String?, bitcoinXpub: String?, bitcoinCashAddress: String?, bitcoinSVAddress: String?, litecoinAddress: String?, dogecoinAddress: String?, ethereumAddress: String?, ethereumClassicAddress: String?, tronAddress: String?, solanaAddress: String?, xrpAddress: String?, stellarAddress: String?, moneroAddress: String?, cardanoAddress: String?, suiAddress: String?, aptosAddress: String?, tonAddress: String?, icpAddress: String?, nearAddress: String?, polkadotAddress: String?
 }
 
 struct WalletRustWatchOnlyEntries {
-    let bitcoinAddresses: [String]
-    let bitcoinXpub: String?
-    let bitcoinCashAddresses: [String]
-    let bitcoinSVAddresses: [String]
-    let litecoinAddresses: [String]
-    let dogecoinAddresses: [String]
-    let ethereumAddresses: [String]
-    let tronAddresses: [String]
-    let solanaAddresses: [String]
-    let xrpAddresses: [String]
-    let stellarAddresses: [String]
-    let cardanoAddresses: [String]
-    let suiAddresses: [String]
-    let aptosAddresses: [String]
-    let tonAddresses: [String]
-    let icpAddresses: [String]
-    let nearAddresses: [String]
-    let polkadotAddresses: [String]
+    let bitcoinAddresses: [String], bitcoinXpub: String?, bitcoinCashAddresses: [String], bitcoinSVAddresses: [String], litecoinAddresses: [String], dogecoinAddresses: [String], ethereumAddresses: [String], tronAddresses: [String], solanaAddresses: [String], xrpAddresses: [String], stellarAddresses: [String], cardanoAddresses: [String], suiAddresses: [String], aptosAddresses: [String], tonAddresses: [String], icpAddresses: [String], nearAddresses: [String], polkadotAddresses: [String]
 }
 
 struct WalletRustImportPlanRequest {
@@ -91,16 +55,27 @@ struct WalletRustPersistedSnapshotBuildRequest: Encodable {
     let secretObservations: [WalletRustSecretObservation]
 }
 
-struct WalletRustSecretMaterialDescriptor: Decodable {
-    let walletID: String
-    let secretKind: String
-    let hasSeedPhrase: Bool
-    let hasPrivateKey: Bool
-    let hasPassword: Bool
-    let hasSigningMaterial: Bool
-    let seedPhraseStoreKey: String
-    let passwordStoreKey: String
-    let privateKeyStoreKey: String
+typealias WalletRustSecretMaterialDescriptor = CoreWalletRustSecretMaterialDescriptor
+extension CoreWalletRustSecretMaterialDescriptor: Decodable {
+    // Legacy Swift acronym (uppercase) accessor forwarding to camelCased UniFFI field.
+    public var walletID: String { walletId }
+    private enum CodingKeys: String, CodingKey {
+        case walletID, secretKind, hasSeedPhrase, hasPrivateKey, hasPassword, hasSigningMaterial, seedPhraseStoreKey, passwordStoreKey, privateKeyStoreKey
+    }
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            walletId: try c.decode(String.self, forKey: .walletID),
+            secretKind: try c.decode(String.self, forKey: .secretKind),
+            hasSeedPhrase: try c.decode(Bool.self, forKey: .hasSeedPhrase),
+            hasPrivateKey: try c.decode(Bool.self, forKey: .hasPrivateKey),
+            hasPassword: try c.decode(Bool.self, forKey: .hasPassword),
+            hasSigningMaterial: try c.decode(Bool.self, forKey: .hasSigningMaterial),
+            seedPhraseStoreKey: try c.decode(String.self, forKey: .seedPhraseStoreKey),
+            passwordStoreKey: try c.decode(String.self, forKey: .passwordStoreKey),
+            privateKeyStoreKey: try c.decode(String.self, forKey: .privateKeyStoreKey)
+        )
+    }
 }
 
 struct WalletRustWalletSecretIndex: Decodable {
@@ -110,27 +85,11 @@ struct WalletRustWalletSecretIndex: Decodable {
     let passwordProtectedWalletIDs: [String]
 }
 
-struct WalletRustActiveMaintenancePlanRequest {
-    let nowUnix: Double
-    let lastPendingTransactionRefreshAtUnix: Double?
-    let lastLivePriceRefreshAtUnix: Double?
-    let hasPendingTransactionMaintenanceWork: Bool
-    let shouldRunScheduledPriceRefresh: Bool
-    let pendingRefreshInterval: Double
-    let priceRefreshInterval: Double
-}
+typealias WalletRustActiveMaintenancePlanRequest = ActiveMaintenancePlanRequest
 
-struct WalletRustActiveMaintenancePlan {
-    let refreshPendingTransactions: Bool
-    let refreshLivePrices: Bool
-}
+typealias WalletRustActiveMaintenancePlan = ActiveMaintenancePlan
 
-struct WalletRustBackgroundMaintenanceRequest {
-    let nowUnix: Double
-    let isNetworkReachable: Bool
-    let lastBackgroundMaintenanceAtUnix: Double?
-    let interval: Double
-}
+typealias WalletRustBackgroundMaintenanceRequest = BackgroundMaintenanceRequest
 
 struct WalletRustChainRefreshPlanRequest {
     let chainIDs: [String]
@@ -145,18 +104,9 @@ struct WalletRustChainRefreshPlanRequest {
     let automaticChainRefreshStalenessInterval: Double
 }
 
-struct WalletRustChainRefreshPlan {
-    let chainID: String
-    let chainName: String
-    let refreshHistory: Bool
-}
+typealias WalletRustChainRefreshPlan = ChainRefreshPlan
 
-struct WalletRustHistoryRefreshPlanRequest {
-    let chainIDs: [String]
-    let nowUnix: Double
-    let interval: Double
-    let lastHistoryRefreshAtByChainID: [String: Double]
-}
+typealias WalletRustHistoryRefreshPlanRequest = HistoryRefreshPlanRequest
 
 struct WalletRustHistoryWallet {
     let walletID: String
@@ -184,15 +134,7 @@ struct WalletRustNormalizeHistoryRequest {
     let unknownLabel: String
 }
 
-struct WalletRustBitcoinHistorySnapshotPayload {
-    let txid: String
-    let amountBTC: Double
-    let kind: String
-    let status: String
-    let counterpartyAddress: String
-    let blockHeight: Int?
-    let createdAtUnix: Double
-}
+typealias WalletRustBitcoinHistorySnapshotPayload = CoreBitcoinHistorySnapshot
 
 struct WalletRustMergeBitcoinHistorySnapshotsRequest {
     let snapshots: [WalletRustBitcoinHistorySnapshotPayload]
@@ -200,23 +142,7 @@ struct WalletRustMergeBitcoinHistorySnapshotsRequest {
     let limit: Int
 }
 
-struct WalletRustNormalizedHistoryEntry {
-    let id: String
-    let transactionID: String
-    let dedupeKey: String
-    let createdAtUnix: Double
-    let kind: String
-    let status: String
-    let walletName: String
-    let assetName: String
-    let symbol: String
-    let chainName: String
-    let address: String
-    let transactionHash: String?
-    let sourceTag: String
-    let providerCount: Int
-    let searchIndex: String
-}
+typealias WalletRustNormalizedHistoryEntry = CoreNormalizedHistoryEntry
 
 enum WalletRustTransactionMergeStrategy {
     case standardUTXO
@@ -226,41 +152,19 @@ enum WalletRustTransactionMergeStrategy {
 }
 
 struct WalletRustTransactionRecord {
-    let id: String
-    let walletID: String?
-    let kind: String
-    let status: String
-    let walletName: String
-    let assetName: String
-    let symbol: String
-    let chainName: String
-    let amount: Double
-    let address: String
-    let transactionHash: String?
-    let ethereumNonce: Int?
-    let receiptBlockNumber: Int?
-    let receiptGasUsed: String?
-    let receiptEffectiveGasPriceGwei: Double?
-    let receiptNetworkFeeETH: Double?
-    let feePriorityRaw: String?
-    let feeRateDescription: String?
-    let confirmationCount: Int?
-    let dogecoinConfirmedNetworkFeeDOGE: Double?
-    let dogecoinConfirmations: Int?
-    let dogecoinFeePriorityRaw: String?
-    let dogecoinEstimatedFeeRateDOGEPerKB: Double?
-    let usedChangeOutput: Bool?
-    let dogecoinUsedChangeOutput: Bool?
-    let sourceDerivationPath: String?
-    let changeDerivationPath: String?
-    let sourceAddress: String?
-    let changeAddress: String?
-    let dogecoinRawTransactionHex: String?
-    let signedTransactionPayload: String?
-    let signedTransactionPayloadFormat: String?
-    let failureReason: String?
-    let transactionHistorySource: String?
-    let createdAtUnix: Double
+    let id: String, walletID: String?, kind: String, status: String
+    let walletName: String, assetName: String, symbol: String, chainName: String
+    let amount: Double, address: String, transactionHash: String?
+    let ethereumNonce: Int?, receiptBlockNumber: Int?, receiptGasUsed: String?
+    let receiptEffectiveGasPriceGwei: Double?, receiptNetworkFeeEth: Double?
+    let feePriorityRaw: String?, feeRateDescription: String?, confirmationCount: Int?
+    let dogecoinConfirmedNetworkFeeDoge: Double?, dogecoinConfirmations: Int?
+    let dogecoinFeePriorityRaw: String?, dogecoinEstimatedFeeRateDogePerKb: Double?
+    let usedChangeOutput: Bool?, dogecoinUsedChangeOutput: Bool?
+    let sourceDerivationPath: String?, changeDerivationPath: String?
+    let sourceAddress: String?, changeAddress: String?, dogecoinRawTransactionHex: String?
+    let signedTransactionPayload: String?, signedTransactionPayloadFormat: String?
+    let failureReason: String?, transactionHistorySource: String?, createdAtUnix: Double
 }
 
 struct WalletRustTransactionMergeRequest {
@@ -334,9 +238,7 @@ struct WalletRustSendPreviewRoutingRequest {
     let asset: WalletRustSendAssetRoutingInput?
 }
 
-struct WalletRustSendPreviewRoutingPlan {
-    let activePreviewKind: String?
-}
+typealias WalletRustSendPreviewRoutingPlan = SendPreviewRoutingPlan
 
 struct WalletRustSendSubmitPreflightRequest {
     let walletFound: Bool
@@ -347,17 +249,7 @@ struct WalletRustSendSubmitPreflightRequest {
     let asset: WalletRustSendAssetRoutingInput?
 }
 
-struct WalletRustSendSubmitPreflightPlan {
-    let submitKind: String
-    let previewKind: String?
-    let normalizedDestinationAddress: String
-    let amount: Double
-    let chainName: String
-    let symbol: String
-    let nativeEVMSymbol: String?
-    let isNativeEVMAsset: Bool
-    let allowsZeroAmount: Bool
-}
+typealias WalletRustSendSubmitPreflightPlan = SendSubmitPreflightPlan
 
 struct WalletRustTransferHoldingInput {
     let index: Int
@@ -433,9 +325,7 @@ struct WalletRustStoreDerivedStatePlan {
     let privateKeyBackedWalletIDs: [String]
 }
 
-struct WalletRustOwnedAddressAggregationRequest {
-    let candidateAddresses: [String]
-}
+typealias WalletRustOwnedAddressAggregationRequest = OwnedAddressAggregationRequest
 
 struct WalletRustReceiveSelectionHoldingInput {
     let holdingIndex: Int
@@ -449,10 +339,7 @@ struct WalletRustReceiveSelectionRequest {
     let availableReceiveHoldings: [WalletRustReceiveSelectionHoldingInput]
 }
 
-struct WalletRustReceiveSelectionPlan {
-    let resolvedChainName: String
-    let selectedReceiveHoldingIndex: Int?
-}
+typealias WalletRustReceiveSelectionPlan = ReceiveSelectionPlan
 
 struct WalletRustPendingSelfSendConfirmationInput {
     let walletID: String
@@ -475,11 +362,7 @@ struct WalletRustSelfSendConfirmationRequest {
     let ownedAddresses: [String]
 }
 
-struct WalletRustSelfSendConfirmationPlan {
-    let requiresConfirmation: Bool
-    let consumeExistingConfirmation: Bool
-    let clearPendingConfirmation: Bool
-}
+typealias WalletRustSelfSendConfirmationPlan = SelfSendConfirmationPlan
 
 struct WalletRustResolvedDerivationPath {
     let chain: SeedDerivationChain

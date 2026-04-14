@@ -74,7 +74,7 @@ struct QRCodeScannerView: UIViewControllerRepresentable {
         }}
 }
 struct WalletCardView: View {
-    @ObservedObject var store: WalletStore
+    @ObservedObject var store: AppState
     struct Presentation {
         let wallet: ImportedWallet
         let totalValueText: String
@@ -165,7 +165,7 @@ struct QRCodeImage: View {
     private var qrUIImage: UIImage? { QRCodeRenderer.makeImage(from: address) }
 }
 struct WalletDetailView: View {
-    let store: WalletStore
+    let store: AppState
     let wallet: ImportedWallet
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -178,7 +178,7 @@ struct WalletDetailView: View {
     @State private var didCopyWalletAddress: Bool = false
     @State private var isShowingDeleteWalletAlert: Bool = false
     @State private var isShowingAdvancedPage: Bool = false
-    init(store: WalletStore, wallet: ImportedWallet) {
+    init(store: AppState, wallet: ImportedWallet) {
         self.store = store
         self.wallet = wallet
     }
@@ -186,7 +186,7 @@ struct WalletDetailView: View {
         let coin: Coin
         let amountText: String
         let valueText: String
-        var id: UUID { coin.id }}
+        var id: String { coin.id }}
     private struct DetailPresentation {
         let wallet: ImportedWallet
         let nonZeroAssetCount: Int
@@ -209,7 +209,7 @@ struct WalletDetailView: View {
         store.wallets.first(where: { $0.id == wallet.id }) ?? wallet
     }
     private var firstActivityDateText: String {
-        guard let firstDate = store.firstActivityDate(for: wallet.id) else { return localizedWalletFlowString("No activity yet") }
+        guard let firstDate = store.cachedFirstActivityDateByWalletID[wallet.id] else { return localizedWalletFlowString("No activity yet") }
         return Self.firstActivityFormatter.string(from: firstDate)
     }
     private var detailPresentation: DetailPresentation {
@@ -292,19 +292,7 @@ struct WalletDetailView: View {
                     }
                     if detailPresentation.visibleHoldingPresentations.isEmpty { Text("No assets loaded for this wallet yet.").font(.subheadline).foregroundStyle(Color.primary.opacity(0.72)) } else {
                         ForEach(detailPresentation.visibleHoldingPresentations) { holding in
-                            HStack(spacing: 12) {
-                                CoinBadge(
-                                    assetIdentifier: holding.coin.iconIdentifier, fallbackText: holding.coin.mark, color: holding.coin.color, size: 34
-                                )
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(holding.coin.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
-                                    Text("\(holding.coin.symbol) • \(holding.coin.tokenStandard)").font(.caption).foregroundStyle(Color.primary.opacity(0.62))
-                                }
-                                Spacer()
-                                VStack(alignment: .trailing, spacing: 3) {
-                                    Text(holding.amountText).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary).spectraNumericTextLayout()
-                                    Text(holding.valueText).font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
-                                }}.padding(.vertical, 4)
+                            holdingRow(holding)
                         }}}.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 if let walletAddress = detailPresentation.walletAddress {
                     VStack(alignment: .leading, spacing: 12) {
@@ -358,7 +346,7 @@ struct WalletDetailView: View {
                     isShowingAdvancedPage = true
                 }}}.navigationDestination(isPresented: $isShowingAdvancedPage) {
             WalletAdvancedDetailsView(
-                walletID: detailPresentation.wallet.id.uuidString, derivationPathsText: detailPresentation.derivationPathsText
+                walletID: detailPresentation.wallet.id, derivationPathsText: detailPresentation.derivationPathsText
             )
         }.navigationDestination(isPresented: Binding(
             get: { store.isShowingWalletImporter && store.editingWalletID == wallet.id }, set: { isPresented in
@@ -425,6 +413,23 @@ struct WalletDetailView: View {
                         Button("Done") {
                             isShowingSeedPhraseSheet = false
                         }}}}}}
+    @ViewBuilder
+    private func holdingRow(_ holding: HoldingPresentation) -> some View {
+        HStack(spacing: 12) {
+            CoinBadge(
+                assetIdentifier: holding.coin.iconIdentifier, fallbackText: holding.coin.mark, color: holding.coin.color, size: 34
+            )
+            VStack(alignment: .leading, spacing: 3) {
+                Text(holding.coin.name).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+                Text("\(holding.coin.symbol) • \(holding.coin.tokenStandard)").font(.caption).foregroundStyle(Color.primary.opacity(0.62))
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(holding.amountText).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary).spectraNumericTextLayout()
+                Text(holding.valueText).font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
+            }
+        }.padding(.vertical, 4)
+    }
     @ViewBuilder
     private func detailRow(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -525,7 +530,7 @@ struct SeedPathSlotEditor: View {
     }
 }
 struct AssetRowView: View {
-    let store: WalletStore
+    let store: AppState
     struct Presentation {
         let coin: Coin
         let amountText: String

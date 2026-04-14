@@ -48,7 +48,7 @@ struct TokenRegistryGroup: Identifiable {
     let entries: [TokenPreferenceEntry]
     var id: String { key }
     var representativeEntry: TokenPreferenceEntry { entries[0] }
-    var allEntryIDs: [UUID] { entries.map(\.id) }
+    var allEntryIDs: [String] { entries.map(\.id) }
     var isEnabled: Bool { entries.contains(where: \.isEnabled) }
 }
 struct TokenRegistryGroupRowView: View {
@@ -93,7 +93,7 @@ struct TokenRegistryEntryCardView: View {
             if !entry.marketDataID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, entry.marketDataID != "0" { settingsTokenDetailRow(title: settingsLocalizedString("Market Data ID"), value: entry.marketDataID) }
             if !entry.isBuiltIn {
                 Stepper(
-                    settingsLocalizedFormat("Supports: %lld decimals", entry.decimals), value: Binding(get: { entry.decimals }, set: updateDecimals), in: 0 ... 30, step: 1
+                    settingsLocalizedFormat("Supports: %lld decimals", Int(entry.decimals)), value: Binding(get: { Int(entry.decimals) }, set: updateDecimals), in: 0 ... 30, step: 1
                 )
                 Button(role: .destructive, action: removeToken) {
                     Label(settingsLocalizedString("Remove Token"), systemImage: "trash")

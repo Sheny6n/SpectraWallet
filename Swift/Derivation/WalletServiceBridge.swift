@@ -61,16 +61,8 @@ actor WalletServiceBridge {
         try await service().updateEndpoints(endpointsJson: json)
     }
     func fetchBalanceJSON(chainId: UInt32, address: String) async throws -> String { try await service().fetchBalance(chainId: chainId, address: address) }
-    func fetchBalanceJSON(chainName: String, address: String) async throws -> String {
-        guard let chainId = SpectraChainID.id(for: chainName) else { throw WalletServiceBridgeError.unsupportedChain(chainName) }
-        return try await fetchBalanceJSON(chainId: chainId, address: address)
-    }
     func fetchBalanceAuto(chainId: UInt32, address: String) async throws -> String { try await service().fetchBalanceAuto(chainId: chainId, address: address) }
     func fetchHistoryJSON(chainId: UInt32, address: String) async throws -> String { try await service().fetchHistory(chainId: chainId, address: address) }
-    func fetchHistoryJSON(chainName: String, address: String) async throws -> String {
-        guard let chainId = SpectraChainID.id(for: chainName) else { throw WalletServiceBridgeError.unsupportedChain(chainName) }
-        return try await fetchHistoryJSON(chainId: chainId, address: address)
-    }
     func fetchEVMHistoryPageJSON(
         chainId: UInt32, address: String, tokens: [(contract: String, symbol: String, name: String, decimals: Int)], page: Int, pageSize: Int
     ) async throws -> String {
@@ -85,10 +77,6 @@ actor WalletServiceBridge {
         )
     }
     func signAndSend(chainId: UInt32, paramsJson: String) async throws -> String { try await service().signAndSend(chainId: chainId, paramsJson: paramsJson) }
-    func signAndSend(chainName: String, paramsJson: String) async throws -> String {
-        guard let chainId = SpectraChainID.id(for: chainName) else { throw WalletServiceBridgeError.unsupportedChain(chainName) }
-        return try await signAndSend(chainId: chainId, paramsJson: paramsJson)
-    }
     func fetchEVMTokenBalancesBatch(
         chainId: UInt32, address: String, tokens: [(contract: String, symbol: String, decimals: Int)]
     ) async throws -> [EthereumTokenBalanceSnapshot] {
@@ -144,10 +132,6 @@ actor WalletServiceBridge {
     func fetchTokenBalanceJSON(chainId: UInt32, paramsJson: String) async throws -> String { try await service().fetchTokenBalance(chainId: chainId, paramsJson: paramsJson) }
     func signAndSendToken(chainId: UInt32, paramsJson: String) async throws -> String { try await service().signAndSendToken(chainId: chainId, paramsJson: paramsJson) }
     func fetchFeeEstimateJSON(chainId: UInt32) async throws -> String { try await service().fetchFeeEstimate(chainId: chainId) }
-    func fetchFeeEstimateJSON(chainName: String) async throws -> String {
-        guard let chainId = SpectraChainID.id(for: chainName) else { throw WalletServiceBridgeError.unsupportedChain(chainName) }
-        return try await fetchFeeEstimateJSON(chainId: chainId)
-    }
     func deriveBitcoinHdAddressesJSON(xpub: String, change: UInt32, startIndex: UInt32, count: UInt32) async throws -> String { try await service().deriveBitcoinHdAddresses(xpub: xpub, change: change, startIndex: startIndex, count: count) }
     func fetchBitcoinXpubBalanceJSON(xpub: String, receiveCount: UInt32 = 20, changeCount: UInt32 = 20) async throws -> String { try await service().fetchBitcoinXpubBalance(xpub: xpub, receiveCount: receiveCount, changeCount: changeCount) }
     func fetchBitcoinNextUnusedAddressJSON(xpub: String, change: UInt32 = 0, gapLimit: UInt32 = 20) async throws -> String { try await service().fetchBitcoinNextUnusedAddress(xpub: xpub, change: change, gapLimit: gapLimit) }
@@ -236,9 +220,7 @@ extension WalletServiceBridge {
         )
         let derived = try WalletRustDerivationBridge.derive(requestModel)
         guard let privKeyHex = derived.privateKeyHex else { throw WalletServiceBridgeError.serviceInit("erc20: derivation missing private key") }
-        let payload = """
-        {"from":"\(from)","contract":"\(contract)","to":"\(to)","amount_raw":"\(amountRaw)","private_key_hex":"\(privKeyHex)"}
-        """
+        let payload = sendPayload(.str("from", from), .str("contract", contract), .str("to", to), .str("amount_raw", amountRaw), .str("private_key_hex", privKeyHex))
         return try await signAndSendToken(chainId: chainId, paramsJson: payload)
     }
     func loadState(key: String) async throws -> String { try await service().loadState(dbPath: sqliteDbPath(), key: key) }

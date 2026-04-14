@@ -18,7 +18,7 @@ final class WalletDiagnosticsState: ObservableObject {
         didSet {
             scheduleChainSyncPersistence()
         }}
-    @Published var operationalLogs: [WalletStore.OperationalLogEvent] = [] {
+    @Published var operationalLogs: [AppState.OperationalLogEvent] = [] {
         didSet {
             operationalLogsRevision &+= 1
             scheduleOperationalLogsPersistence()
@@ -60,16 +60,16 @@ final class WalletDiagnosticsState: ObservableObject {
     var lastGoodChainSyncByChainID: [WalletChainID: Date] {
         get { lastGoodChainSyncByID }
         set { lastGoodChainSyncByID = newValue }}
-    var chainDegradedBanners: [WalletStore.ChainDegradedBanner] {
+    var chainDegradedBanners: [AppState.ChainDegradedBanner] {
         chainDegradedMessagesByID.keys.sorted().map { chainID in
-                WalletStore.ChainDegradedBanner(
+                AppState.ChainDegradedBanner(
                     chainName: chainID.displayName, message: localizedDegradedMessage(
                         chainDegradedMessagesByID[chainID] ?? "", chainID: chainID
                     ), lastGoodSyncAt: lastGoodChainSyncByID[chainID]
                 )
             }}
     func clearOperationalLogs() { operationalLogs = [] }
-    func exportOperationalLogsText(networkSyncStatusText: String, events: [WalletStore.OperationalLogEvent]? = nil) -> String {
+    func exportOperationalLogsText(networkSyncStatusText: String, events: [AppState.OperationalLogEvent]? = nil) -> String {
         let entries = events ?? operationalLogs
         let header = [
             localizedStoreString("Spectra Operational Logs"), localizedStoreFormat("Generated: %@", Self.operationalLogTimestampFormatter.string(from: Date())), localizedStoreFormat("Entries: %d", entries.count), networkSyncStatusText, ""
@@ -80,15 +80,15 @@ final class WalletDiagnosticsState: ObservableObject {
             ]
             if let source = event.source, !source.isEmpty { parts.append("source=\(source)") }
             if let chainName = event.chainName, !chainName.isEmpty { parts.append("chain=\(chainName)") }
-            if let walletID = event.walletID { parts.append("wallet=\(walletID.uuidString)") }
+            if let walletID = event.walletID { parts.append("wallet=\(walletID)") }
             if let transactionHash = event.transactionHash, !transactionHash.isEmpty { parts.append("tx=\(transactionHash)") }
             if let metadata = event.metadata, !metadata.isEmpty { parts.append("meta=\(metadata)") }
             return parts.joined(separator: " | ")
         }
         return (header + lines).joined(separator: "\n")
     }
-    func appendOperationalLog(_ level: WalletStore.OperationalLogEvent.Level, category: String, message: String, chainName: String? = nil, walletID: UUID? = nil, transactionHash: String? = nil, source: String? = nil, metadata: String? = nil) {
-        let event = WalletStore.OperationalLogEvent(
+    func appendOperationalLog(_ level: AppState.OperationalLogEvent.Level, category: String, message: String, chainName: String? = nil, walletID: String? = nil, transactionHash: String? = nil, source: String? = nil, metadata: String? = nil) {
+        let event = AppState.OperationalLogEvent(
             id: UUID(), timestamp: Date(), level: level, category: category.trimmingCharacters(in: .whitespacesAndNewlines), message: message.trimmingCharacters(in: .whitespacesAndNewlines), chainName: chainName?.trimmingCharacters(in: .whitespacesAndNewlines), walletID: walletID, transactionHash: transactionHash?.trimmingCharacters(in: .whitespacesAndNewlines), source: source?.trimmingCharacters(in: .whitespacesAndNewlines), metadata: metadata?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         operationalLogs.insert(event, at: 0)
@@ -156,8 +156,8 @@ final class WalletDiagnosticsState: ObservableObject {
         if message.hasSuffix(" No prior successful sync yet.") { return String(message.dropLast(" No prior successful sync yet.".count)).trimmingCharacters(in: .whitespacesAndNewlines) }
         return message.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    private func loadOperationalLogs() -> [WalletStore.OperationalLogEvent] {
-        guard let data = UserDefaults.standard.data(forKey: Self.operationalLogsDefaultsKey), let decoded = try? JSONDecoder().decode([WalletStore.OperationalLogEvent].self, from: data) else { return [] }
+    private func loadOperationalLogs() -> [AppState.OperationalLogEvent] {
+        guard let data = UserDefaults.standard.data(forKey: Self.operationalLogsDefaultsKey), let decoded = try? JSONDecoder().decode([AppState.OperationalLogEvent].self, from: data) else { return [] }
         return decoded.sorted { $0.timestamp > $1.timestamp }}
     func flushPendingPersistence() {
         pendingChainSyncPersistence?.cancel()
@@ -190,8 +190,8 @@ final class WalletDiagnosticsState: ObservableObject {
         UserDefaults.standard.set(data, forKey: Self.operationalLogsDefaultsKey)
     }
     private func persistChainSyncState() {
-        let payload = WalletStore.PersistedChainSyncState(
-            version: WalletStore.PersistedChainSyncState.currentVersion, degradedMessages: Dictionary(
+        let payload = AppState.PersistedChainSyncState(
+            version: AppState.PersistedChainSyncState.currentVersion, degradedMessages: Dictionary(
                 uniqueKeysWithValues: chainDegradedMessagesByID.map { ($0.key.rawValue, $0.value) }
             ), lastGoodSyncUnix: Dictionary(
                 uniqueKeysWithValues: lastGoodChainSyncByID.map { key, value in
@@ -203,7 +203,7 @@ final class WalletDiagnosticsState: ObservableObject {
         UserDefaults.standard.set(data, forKey: Self.chainSyncStateDefaultsKey)
     }
     private func loadChainSyncState() -> (degradedMessages: [WalletChainID: String], lastGoodSyncByID: [WalletChainID: Date]) {
-        guard let data = UserDefaults.standard.data(forKey: Self.chainSyncStateDefaultsKey), let payload = try? Self.persistenceDecoder.decode(WalletStore.PersistedChainSyncState.self, from: data), payload.version == WalletStore.PersistedChainSyncState.currentVersion else { return ([:], [:]) }
+        guard let data = UserDefaults.standard.data(forKey: Self.chainSyncStateDefaultsKey), let payload = try? Self.persistenceDecoder.decode(AppState.PersistedChainSyncState.self, from: data), payload.version == AppState.PersistedChainSyncState.currentVersion else { return ([:], [:]) }
         let degradedMessages = Dictionary(
             uniqueKeysWithValues: payload.degradedMessages.compactMap { key, value in
                 WalletChainID(key).map { ($0, value) }}

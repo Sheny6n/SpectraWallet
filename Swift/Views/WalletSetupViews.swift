@@ -47,7 +47,7 @@ struct SetupView: View {
         case simple
         case advanced
     }
-    @ObservedObject private var store: WalletStore
+    @ObservedObject private var store: AppState
     @ObservedObject var draft: WalletImportDraft
     private let copy = ImportFlowContent.current
     @Environment(\.colorScheme) private var colorScheme
@@ -65,7 +65,7 @@ struct SetupView: View {
         GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)
     ]
     private let setupCardCornerRadius: CGFloat = 24
-    init(store: WalletStore, draft: WalletImportDraft) {
+    init(store: AppState, draft: WalletImportDraft) {
         _store = ObservedObject(wrappedValue: store)
         self.draft = draft
         _setupPage = State(initialValue: draft.isEditingWallet ? .details : .setupModeChoice)

@@ -27,7 +27,7 @@ struct PlatformAppSnapshot: Codable {
     let livePrices: [String: Double]
 }
 struct PlatformWalletSnapshot: Codable, Identifiable {
-    let id: UUID
+    let id: String
     let name: String
     let selectedChainID: String
     let selectedChainName: String
@@ -58,7 +58,7 @@ struct PlatformAssetSnapshot: Codable, Identifiable {
 }
 struct PlatformTransactionSnapshot: Codable, Identifiable {
     let id: UUID
-    let walletID: UUID?
+    let walletID: String?
     let kind: String
     let status: String
     let walletName: String

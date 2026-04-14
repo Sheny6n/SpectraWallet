@@ -1,15 +1,14 @@
 import SwiftUI
 import Combine
 struct EndpointCatalogSettingsView: View {
-    let store: WalletStore
+    let store: AppState
     @StateObject private var refreshSignal: ViewRefreshSignal
     @State private var newBitcoinEndpoint: String = ""
     private let copy = EndpointsContentCopy.current
-    init(store: WalletStore) {
+    init(store: AppState) {
         self.store = store
         _refreshSignal = StateObject(
-            wrappedValue: ViewRefreshSignal([ store.$bitcoinEsploraEndpoints.asVoidSignal(), store.$bitcoinNetworkMode.asVoidSignal(), store.$ethereumNetworkMode.asVoidSignal(), store.$ethereumRPCEndpoint.asVoidSignal(), store.$moneroBackendBaseURL.asVoidSignal()
-            ])
+            wrappedValue: ViewRefreshSignal([ store.objectWillChange.asVoidSignal() ])
         )
     }
     private var endpointSections: [AppChainDescriptor] { ChainBackendRegistry.endpointCatalogChains }

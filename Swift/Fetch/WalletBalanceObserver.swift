@@ -1,6 +1,6 @@
 import Foundation
 final class WalletBalanceObserver: BalanceObserverImpl {
-    weak var store: WalletStore?
+    weak var store: AppState?
     init() {
         super.init(noPointer: BalanceObserverImpl.NoPointer())
     }
