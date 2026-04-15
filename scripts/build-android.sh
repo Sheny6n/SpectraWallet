@@ -7,7 +7,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FFI_DIR="${REPO_ROOT}/ffi"
 CARGO_TARGET_DIR="${REPO_ROOT}/target"
-JNILIBS_DIR="${REPO_ROOT}/Kotlin/app/src/main/jniLibs"
+JNILIBS_DIR="${REPO_ROOT}/kotlin/app/src/main/jniLibs"
 
 PROFILE="debug"
 PROFILE_FLAG=""

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Generate Kotlin UniFFI bindings from the compiled ffi crate.
 # Run after build-android.sh or any cargo build that produces libspectra_core (host).
-# Output: Kotlin/app/src/main/kotlin/uniffi/
+# Output: kotlin/app/src/main/kotlin/uniffi/
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,7 +9,7 @@ FFI_DIR="${REPO_ROOT}/ffi"
 CARGO_TARGET_DIR="${REPO_ROOT}/target"
 BINDGEN_MANIFEST="${REPO_ROOT}/tools/uniffi-bindgen/Cargo.toml"
 HOST_DYLIB="${CARGO_TARGET_DIR}/debug/libspectra_core.dylib"
-OUT_DIR="${REPO_ROOT}/Kotlin/app/src/main/kotlin/uniffi"
+OUT_DIR="${REPO_ROOT}/kotlin/app/src/main/kotlin/uniffi"
 
 export PATH="${HOME}/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:${PATH}"
 if [[ -f "${HOME}/.cargo/env" ]]; then source "${HOME}/.cargo/env"; fi
