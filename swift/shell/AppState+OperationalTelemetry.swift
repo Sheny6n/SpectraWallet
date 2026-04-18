@@ -99,7 +99,7 @@ extension AppState {
     }
     func requiresSelfSendConfirmation(wallet: ImportedWallet, holding: Coin, destinationAddress: String, amount: Double) -> Bool {
         let ownAddresses: [String]
-        if holding.chainName == "Dogecoin" { ownAddresses = knownDogecoinAddresses(for: wallet) } else { ownAddresses = knownOwnedAddresses(for: wallet.id) }
+        if holding.chainName == "Dogecoin" { ownAddresses = knownUTXOAddresses(for: wallet, chainName: "Dogecoin") } else { ownAddresses = knownOwnedAddresses(for: wallet.id) }
         if let plan = rustSelfSendConfirmationPlan(
             walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress, amount: amount, ownedAddresses: ownAddresses
         ) {

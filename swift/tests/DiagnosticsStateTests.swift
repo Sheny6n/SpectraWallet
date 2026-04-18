@@ -4,20 +4,18 @@ import XCTest
 @testable import Spectra
 @MainActor
 final class WalletDiagnosticsStateTests: XCTestCase {
-    private let chainSyncStateDefaultsKey = "chain.sync.state.v1"
-    private let operationalLogsDefaultsKey = "operational.logs.v1"
-    override func setUp() {
-        super.setUp()
-        clearDiagnosticsDefaults()
+    override func setUp() async throws {
+        try await super.setUp()
+        await clearDiagnosticsSQLite()
     }
-    override func tearDown() {
-        clearDiagnosticsDefaults()
-        super.tearDown()
+    override func tearDown() async throws {
+        await clearDiagnosticsSQLite()
+        try await super.tearDown()
     }
-    func testMarkChainDegradedCreatesBannerAndPersistsState() {
+    func testMarkChainDegradedCreatesBannerAndPersistsState() async throws {
         let state = WalletDiagnosticsState()
         state.markChainDegraded("Ethereum", detail: "Ethereum refresh timed out. Using cached balances and history.")
-        state.flushPendingPersistence()
+        await state.flushPendingPersistence()
         XCTAssertEqual(state.chainDegradedBanners.count, 1)
         XCTAssertEqual(state.chainDegradedBanners.first?.chainName, "Ethereum")
         XCTAssertTrue(state.chainDegradedBanners.first?.message.contains("Ethereum refresh timed out.") == true)
@@ -25,15 +23,16 @@ final class WalletDiagnosticsStateTests: XCTestCase {
         XCTAssertEqual(state.operationalLogs.first?.level, .warning)
         XCTAssertEqual(state.operationalLogs.first?.chainName, "Ethereum")
         let reloaded = WalletDiagnosticsState()
+        await reloaded.loadFromSQLite()
         XCTAssertEqual(reloaded.chainDegradedMessages["Ethereum"], state.chainDegradedMessages["Ethereum"])
         XCTAssertEqual(reloaded.operationalLogs.count, 1)
         XCTAssertEqual(reloaded.operationalLogs.first?.chainName, "Ethereum")
     }
-    func testMarkChainHealthyClearsBannerAndRecordsRecoveryLog() {
+    func testMarkChainHealthyClearsBannerAndRecordsRecoveryLog() async throws {
         let state = WalletDiagnosticsState()
         state.markChainDegraded("Solana", detail: "Solana history refresh failed. Using cached history.")
         state.markChainHealthy("Solana")
-        state.flushPendingPersistence()
+        await state.flushPendingPersistence()
         XCTAssertTrue(state.chainDegradedMessages["Solana"] == nil)
         XCTAssertNotNil(state.lastGoodChainSyncByName["Solana"])
         XCTAssertEqual(state.operationalLogs.count, 2)
@@ -41,7 +40,7 @@ final class WalletDiagnosticsStateTests: XCTestCase {
         XCTAssertEqual(state.operationalLogs.first?.chainName, "Solana")
         XCTAssertEqual(state.operationalLogs.first?.message, "Chain recovered")
     }
-    func testAppendOperationalLogTrimsFieldsAndCapsAtEightHundredEntries() {
+    func testAppendOperationalLogTrimsFieldsAndCapsAtEightHundredEntries() async throws {
         let state = WalletDiagnosticsState()
         state.appendOperationalLog(
             .error, category: "  Network  ", message: "  Request failed  ", chainName: "  Bitcoin  ", source: "  rpc  ", metadata: "  timeout  "
@@ -52,16 +51,16 @@ final class WalletDiagnosticsStateTests: XCTestCase {
         XCTAssertEqual(state.operationalLogs.first?.source, "rpc")
         XCTAssertEqual(state.operationalLogs.first?.metadata, "timeout")
         for index in 0..<810 { state.appendOperationalLog(.info, category: "Load", message: "Event \(index)") }
-        state.flushPendingPersistence()
+        await state.flushPendingPersistence()
         XCTAssertEqual(state.operationalLogs.count, 800)
     }
-    func testExportOperationalLogsTextIncludesHeaderAndMetadata() {
+    func testExportOperationalLogsTextIncludesHeaderAndMetadata() async throws {
         let state = WalletDiagnosticsState()
         let walletID = UUID()
         state.appendOperationalLog(
             .warning, category: "Chain Sync", message: "Ethereum refresh timed out.", chainName: "Ethereum", walletID: walletID, transactionHash: "0xabc", source: "network", metadata: "cached"
         )
-        state.flushPendingPersistence()
+        await state.flushPendingPersistence()
         let text = state.exportOperationalLogsText(networkSyncStatusText: "Network Status: Healthy")
         XCTAssertTrue(text.contains("Spectra Operational Logs"))
         XCTAssertTrue(text.contains("Entries: 1"))
@@ -71,10 +70,9 @@ final class WalletDiagnosticsStateTests: XCTestCase {
         XCTAssertTrue(text.contains("tx=0xabc"))
         XCTAssertTrue(text.contains("meta=cached"))
     }
-    private func clearDiagnosticsDefaults() {
-        UserDefaults.standard.removeObject(forKey: chainSyncStateDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: operationalLogsDefaultsKey)
-        UserDefaults.standard.synchronize()
+    private func clearDiagnosticsSQLite() async {
+        try? await WalletServiceBridge.shared.saveState(key: WalletDiagnosticsState.chainSyncStateDefaultsKey, stateJSON: "{}")
+        try? await WalletServiceBridge.shared.saveState(key: WalletDiagnosticsState.operationalLogsDefaultsKey, stateJSON: "{}")
     }
 }
 #endif

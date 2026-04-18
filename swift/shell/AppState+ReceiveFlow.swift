@@ -2,6 +2,12 @@ import Foundation
 import SwiftUI
 @MainActor
 extension AppState {
+    var receiveWalletIDBinding: Binding<String> {
+        Binding(get: { self.receiveWalletID }, set: { self.receiveWalletID = $0 })
+    }
+    var isShowingReceiveSheetBinding: Binding<Bool> {
+        Binding(get: { self.isShowingReceiveSheet }, set: { self.isShowingReceiveSheet = $0 })
+    }
     func beginReceive() {
         guard let firstWallet = receiveEnabledWallets.first else { return }
         receiveWalletID = firstWallet.id
@@ -127,14 +133,11 @@ extension AppState {
             receiveResolvedAddress = activateLiveReceiveAddress(resolver(wallet), for: wallet, chainName: chainName)
             return
         }
-        if receiveCoin.symbol == "DOGE", receiveCoin.chainName == "Dogecoin" {
-            receiveResolvedAddress = dogecoinReservedReceiveAddress(for: wallet, reserveIfMissing: true) ?? ""
-            return
-        }
         guard receiveCoin.symbol == "BTC" else {
             if (receiveCoin.symbol == "BCH" && receiveCoin.chainName == "Bitcoin Cash")
                 || (receiveCoin.symbol == "BSV" && receiveCoin.chainName == "Bitcoin SV")
-                || (receiveCoin.symbol == "LTC" && receiveCoin.chainName == "Litecoin") {
+                || (receiveCoin.symbol == "LTC" && receiveCoin.chainName == "Litecoin")
+                || (receiveCoin.symbol == "DOGE" && receiveCoin.chainName == "Dogecoin") {
                 receiveResolvedAddress = reservedReceiveAddress(for: wallet, chainName: receiveCoin.chainName, reserveIfMissing: true) ?? ""
                 return
             }
@@ -254,14 +257,14 @@ extension AppState {
             }}
         if isWatchOnlyImport && wantsBitcoinImport {
             let hasValidAddress = !bitcoinAddressEntries.isEmpty
-                && bitcoinAddressEntries.allSatisfy { AddressValidation.isValidBitcoinAddress($0, networkMode: self.bitcoinNetworkMode) }
+                && bitcoinAddressEntries.allSatisfy { AddressValidation.isValid($0, kind: "bitcoin", networkMode: self.bitcoinNetworkMode.rawValue) }
             let hasValidXPub = resolvedBitcoinXPub.map { $0.hasPrefix("xpub") || $0.hasPrefix("ypub") || $0.hasPrefix("zpub") } ?? false
             if !hasValidAddress && !hasValidXPub {
                 importError = "Enter one valid Bitcoin address per line or a valid xpub/zpub for watched addresses."
                 return
             }}
         if wantsMoneroImport {
-            if (resolvedMoneroAddress?.isEmpty ?? true) || !AddressValidation.isValidMoneroAddress(resolvedMoneroAddress ?? "") {
+            if (resolvedMoneroAddress?.isEmpty ?? true) || !AddressValidation.isValid(resolvedMoneroAddress ?? "", kind: "monero") {
                 importError = localizedStoreString("Enter a valid Monero address.")
                 return
             }
@@ -270,20 +273,20 @@ extension AppState {
                 return
             }}
         if wantsCardanoImport && !isWatchOnlyImport {
-            if let resolvedCardanoAddress, !resolvedCardanoAddress.isEmpty, !AddressValidation.isValidCardanoAddress(resolvedCardanoAddress) {
+            if let resolvedCardanoAddress, !resolvedCardanoAddress.isEmpty, !AddressValidation.isValid(resolvedCardanoAddress, kind: "cardano") {
                 importError = localizedStoreString("Enter a valid Cardano address.")
                 return
             }}
         if isWatchOnlyImport {
             let watchOnlyValidations: [(Bool, [String], (String) -> Bool, String)] = [
-                (wantsBitcoinCashImport, bitcoinCashAddressEntries, AddressValidation.isValidBitcoinCashAddress,    "Bitcoin Cash address"), (wantsBitcoinSVImport,   bitcoinSvAddressEntries,   AddressValidation.isValidBitcoinSVAddress,      "Bitcoin SV address"), (wantsLitecoinImport,    litecoinAddressEntries,    AddressValidation.isValidLitecoinAddress,        "Litecoin address"), (wantsDogecoinImport,    dogecoinAddressEntries,    { self.isValidDogecoinAddressForPolicy($0) },    "Dogecoin address"), (wantsTronImport,        tronAddressEntries,        AddressValidation.isValidTronAddress,            "Tron address"), (wantsSolanaImport,      solanaAddressEntries,      AddressValidation.isValidSolanaAddress,          "Solana address"), (wantsXRPImport,         xrpAddressEntries,         AddressValidation.isValidXRPAddress,             "XRP address"), (wantsStellarImport,     stellarAddressEntries,     AddressValidation.isValidStellarAddress,         "Stellar address"), (wantsCardanoImport,     cardanoAddressEntries,     AddressValidation.isValidCardanoAddress,         "Cardano address"), (wantsSuiImport,         suiAddressEntries,         AddressValidation.isValidSuiAddress,             "Sui address"), (wantsAptosImport,       aptosAddressEntries,       AddressValidation.isValidAptosAddress,           "Aptos address"), (wantsTONImport,         tonAddressEntries,         AddressValidation.isValidTONAddress,             "TON address"), (wantsICPImport,         icpAddressEntries,         AddressValidation.isValidICPAddress,             "Internet Computer account identifier"), (wantsNearImport,        nearAddressEntries,        AddressValidation.isValidNearAddress,            "NEAR address"), (wantsPolkadotImport,    polkadotAddressEntries,    AddressValidation.isValidPolkadotAddress,        "Polkadot address"), ]
+                (wantsBitcoinCashImport, bitcoinCashAddressEntries, { AddressValidation.isValid($0, kind: "bitcoinCash") }, "Bitcoin Cash address"), (wantsBitcoinSVImport,   bitcoinSvAddressEntries,   { AddressValidation.isValid($0, kind: "bitcoinSV") }, "Bitcoin SV address"), (wantsLitecoinImport,    litecoinAddressEntries,    { AddressValidation.isValid($0, kind: "litecoin") }, "Litecoin address"), (wantsDogecoinImport,    dogecoinAddressEntries,    { self.isValidDogecoinAddressForPolicy($0) },    "Dogecoin address"), (wantsTronImport,        tronAddressEntries,        { AddressValidation.isValid($0, kind: "tron") }, "Tron address"), (wantsSolanaImport,      solanaAddressEntries,      { AddressValidation.isValid($0, kind: "solana") }, "Solana address"), (wantsXRPImport,         xrpAddressEntries,         { AddressValidation.isValid($0, kind: "xrp") }, "XRP address"), (wantsStellarImport,     stellarAddressEntries,     { AddressValidation.isValid($0, kind: "stellar") }, "Stellar address"), (wantsCardanoImport,     cardanoAddressEntries,     { AddressValidation.isValid($0, kind: "cardano") }, "Cardano address"), (wantsSuiImport,         suiAddressEntries,         { AddressValidation.isValid($0, kind: "sui") }, "Sui address"), (wantsAptosImport,       aptosAddressEntries,       { AddressValidation.isValid($0, kind: "aptos") }, "Aptos address"), (wantsTONImport,         tonAddressEntries,         { AddressValidation.isValid($0, kind: "ton") }, "TON address"), (wantsICPImport,         icpAddressEntries,         { AddressValidation.isValid($0, kind: "internetComputer") }, "Internet Computer account identifier"), (wantsNearImport,        nearAddressEntries,        { AddressValidation.isValid($0, kind: "near") }, "NEAR address"), (wantsPolkadotImport,    polkadotAddressEntries,    { AddressValidation.isValid($0, kind: "polkadot") }, "Polkadot address"), ]
             for (wantsImport, entries, validator, name) in watchOnlyValidations where wantsImport {
                 if entries.isEmpty || !entries.allSatisfy(validator) {
                     importError = "Enter one valid \(name) per line for watched addresses."
                     return
                 }}}
         if isWatchOnlyImport && (wantsEthereumImport || wantsEthereumClassicImport || wantsArbitrumImport || wantsOptimismImport || wantsBNBImport || wantsAvalancheImport || wantsHyperliquidImport) {
-            if ethereumAddressEntries.isEmpty || !ethereumAddressEntries.allSatisfy(AddressValidation.isValidEthereumAddress) {
+            if ethereumAddressEntries.isEmpty || !ethereumAddressEntries.allSatisfy({ AddressValidation.isValid($0, kind: "evm") }) {
                 importError = "Enter one valid EVM address per line for watched addresses."
                 return
             }}
@@ -331,24 +334,24 @@ extension AppState {
             } else {
                 let derivedPrivateKeyAddress = isPrivateKeyImport ? derivePrivateKeyImportAddress(privateKeyHex: trimmedPrivateKey, chainName: primarySelectedChainName) : PrivateKeyImportAddressResolution(bitcoin: nil, bitcoinCash: nil, bitcoinSV: nil, litecoin: nil, dogecoin: nil, evm: nil, tron: nil, solana: nil, xrp: nil, stellar: nil, cardano: nil, sui: nil, aptos: nil, ton: nil, icp: nil, near: nil, polkadot: nil)
                 derivedBitcoinAddress = derivedPrivateKeyAddress.bitcoin
-                bitcoinCashAddress = derivedPrivateKeyAddress.bitcoinCash ?? (AddressValidation.isValidBitcoinCashAddress(typedBitcoinCashAddress) ? typedBitcoinCashAddress : nil)
-                bitcoinSvAddress = derivedPrivateKeyAddress.bitcoinSV ?? (AddressValidation.isValidBitcoinSVAddress(typedBitcoinSVAddress) ? typedBitcoinSVAddress : nil)
-                litecoinAddress = derivedPrivateKeyAddress.litecoin ?? (AddressValidation.isValidLitecoinAddress(typedLitecoinAddress) ? typedLitecoinAddress : nil)
+                bitcoinCashAddress = derivedPrivateKeyAddress.bitcoinCash ?? (AddressValidation.isValid(typedBitcoinCashAddress, kind: "bitcoinCash") ? typedBitcoinCashAddress : nil)
+                bitcoinSvAddress = derivedPrivateKeyAddress.bitcoinSV ?? (AddressValidation.isValid(typedBitcoinSVAddress, kind: "bitcoinSV") ? typedBitcoinSVAddress : nil)
+                litecoinAddress = derivedPrivateKeyAddress.litecoin ?? (AddressValidation.isValid(typedLitecoinAddress, kind: "litecoin") ? typedLitecoinAddress : nil)
                 dogecoinAddress = derivedPrivateKeyAddress.dogecoin ?? (isValidDogecoinAddressForPolicy(typedDogecoinAddress) ? typedDogecoinAddress : nil)
-                ethereumAddress = derivedPrivateKeyAddress.evm ?? (AddressValidation.isValidEthereumAddress(typedEthereumAddress) ? normalizeEVMAddress(typedEthereumAddress) : nil)
+                ethereumAddress = derivedPrivateKeyAddress.evm ?? (AddressValidation.isValid(typedEthereumAddress, kind: "evm") ? normalizeEVMAddress(typedEthereumAddress) : nil)
                 ethereumClassicAddress = ethereumAddress
-                tronAddress = derivedPrivateKeyAddress.tron ?? (AddressValidation.isValidTronAddress(typedTronAddress) ? typedTronAddress : nil)
-                solanaAddress = derivedPrivateKeyAddress.solana ?? (AddressValidation.isValidSolanaAddress(typedSolanaAddress) ? typedSolanaAddress : nil)
-                xrpAddress = derivedPrivateKeyAddress.xrp ?? (AddressValidation.isValidXRPAddress(typedXRPAddress) ? typedXRPAddress : nil)
-                stellarAddress = derivedPrivateKeyAddress.stellar ?? (AddressValidation.isValidStellarAddress(typedStellarAddress) ? typedStellarAddress : nil)
-                moneroAddress = AddressValidation.isValidMoneroAddress(typedMoneroAddress) ? typedMoneroAddress : nil
-                cardanoAddress = derivedPrivateKeyAddress.cardano ?? (AddressValidation.isValidCardanoAddress(typedCardanoAddress) ? typedCardanoAddress : nil)
-                suiAddress = derivedPrivateKeyAddress.sui ?? (AddressValidation.isValidSuiAddress(typedSuiAddress) ? typedSuiAddress.lowercased() : nil)
-                aptosAddress = derivedPrivateKeyAddress.aptos ?? (AddressValidation.isValidAptosAddress(typedAptosAddress) ? normalizedAddress(typedAptosAddress, for: "Aptos") : nil)
-                tonAddress = derivedPrivateKeyAddress.ton ?? (AddressValidation.isValidTONAddress(typedTonAddress) ? normalizedAddress(typedTonAddress, for: "TON") : nil)
-                icpAddress = derivedPrivateKeyAddress.icp ?? (AddressValidation.isValidICPAddress(typedICPAddress) ? normalizedAddress(typedICPAddress, for: "Internet Computer") : nil)
-                nearAddress = derivedPrivateKeyAddress.near ?? (AddressValidation.isValidNearAddress(typedNearAddress) ? typedNearAddress.lowercased() : nil)
-                polkadotAddress = derivedPrivateKeyAddress.polkadot ?? (AddressValidation.isValidPolkadotAddress(typedPolkadotAddress) ? typedPolkadotAddress : nil)
+                tronAddress = derivedPrivateKeyAddress.tron ?? (AddressValidation.isValid(typedTronAddress, kind: "tron") ? typedTronAddress : nil)
+                solanaAddress = derivedPrivateKeyAddress.solana ?? (AddressValidation.isValid(typedSolanaAddress, kind: "solana") ? typedSolanaAddress : nil)
+                xrpAddress = derivedPrivateKeyAddress.xrp ?? (AddressValidation.isValid(typedXRPAddress, kind: "xrp") ? typedXRPAddress : nil)
+                stellarAddress = derivedPrivateKeyAddress.stellar ?? (AddressValidation.isValid(typedStellarAddress, kind: "stellar") ? typedStellarAddress : nil)
+                moneroAddress = AddressValidation.isValid(typedMoneroAddress, kind: "monero") ? typedMoneroAddress : nil
+                cardanoAddress = derivedPrivateKeyAddress.cardano ?? (AddressValidation.isValid(typedCardanoAddress, kind: "cardano") ? typedCardanoAddress : nil)
+                suiAddress = derivedPrivateKeyAddress.sui ?? (AddressValidation.isValid(typedSuiAddress, kind: "sui") ? typedSuiAddress.lowercased() : nil)
+                aptosAddress = derivedPrivateKeyAddress.aptos ?? (AddressValidation.isValid(typedAptosAddress, kind: "aptos") ? normalizedAddress(typedAptosAddress, for: "Aptos") : nil)
+                tonAddress = derivedPrivateKeyAddress.ton ?? (AddressValidation.isValid(typedTonAddress, kind: "ton") ? normalizedAddress(typedTonAddress, for: "TON") : nil)
+                icpAddress = derivedPrivateKeyAddress.icp ?? (AddressValidation.isValid(typedICPAddress, kind: "internetComputer") ? normalizedAddress(typedICPAddress, for: "Internet Computer") : nil)
+                nearAddress = derivedPrivateKeyAddress.near ?? (AddressValidation.isValid(typedNearAddress, kind: "near") ? typedNearAddress.lowercased() : nil)
+                polkadotAddress = derivedPrivateKeyAddress.polkadot ?? (AddressValidation.isValid(typedPolkadotAddress, kind: "polkadot") ? typedPolkadotAddress : nil)
             }
             let plannedWalletIDs: [UUID]
             if isWatchOnlyImport {

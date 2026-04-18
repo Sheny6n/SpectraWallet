@@ -222,30 +222,6 @@ extension AppState {
         }
         if !upsertSnapshots.isEmpty, let json = encodeHistoryRecords(upsertSnapshots) { Task { await WalletServiceBridge.shared.upsertHistoryRecords(recordsJSON: json) } }
     }
-    func loadDogecoinKeypoolState() -> [String: DogecoinKeypoolState] {
-        guard let payload = loadCodableFromUserDefaults(PersistedDogecoinKeypoolStore.self, key: Self.dogecoinKeypoolDefaultsKey) else { return [:] }
-        guard payload.version == PersistedDogecoinKeypoolStore.currentVersion else { return [:] }
-        return payload.keypoolByWalletID
-    }
-    func mergeDogecoinKeypoolIntoChainMap(_ chainMap: [String: [String: ChainKeypoolState]]) -> [String: [String: ChainKeypoolState]] {
-        var result = chainMap
-        let dogeDefaults = loadDogecoinKeypoolState()
-        if !dogeDefaults.isEmpty, result["Dogecoin"] == nil { result["Dogecoin"] = dogeDefaults }
-        return result
-    }
-    func mergeDogecoinOwnedAddressesIntoChainMap(_ chainMap: [String: [String: ChainOwnedAddressRecord]]) -> [String: [String: ChainOwnedAddressRecord]] {
-        var result = chainMap
-        let dogeDefaults = loadDogecoinOwnedAddressMap()
-        if !dogeDefaults.isEmpty, result["Dogecoin"] == nil {
-            result["Dogecoin"] = dogeDefaults.reduce(into: [:]) { r, pair in
-                r[pair.key] = ChainOwnedAddressRecord(
-                    chainName: "Dogecoin", address: pair.value.address, walletID: pair.value.walletID,
-                    derivationPath: pair.value.derivationPath, index: pair.value.index, branch: pair.value.branch
-                )
-            }
-        }
-        return result
-    }
     func persistChainKeypoolState() {
         for (chainName, walletMap) in chainKeypoolByChain { persistKeypoolToRust(chainName: chainName, walletMap: walletMap) }}
     func persistKeypoolForChain(_ chainName: String) {
@@ -256,15 +232,6 @@ extension AppState {
         guard let payload = loadCodableFromUserDefaults(PersistedChainKeypoolStore.self, key: Self.chainKeypoolDefaultsKey) else { return [:] }
         guard payload.version == PersistedChainKeypoolStore.currentVersion else { return [:] }
         return payload.keypoolByChain
-    }
-    func loadDogecoinOwnedAddressMap() -> [String: DogecoinOwnedAddressRecord] {
-        guard let payload = loadCodableFromUserDefaults(
-            PersistedDogecoinOwnedAddressStore.self, key: Self.dogecoinOwnedAddressMapDefaultsKey
-        ) else {
-            return [:]
-        }
-        guard payload.version == PersistedDogecoinOwnedAddressStore.currentVersion else { return [:] }
-        return payload.addressMap
     }
     func persistChainOwnedAddressMap() {
         for (chainName, addressMap) in chainOwnedAddressMapByChain {

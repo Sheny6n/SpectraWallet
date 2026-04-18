@@ -7,6 +7,26 @@ import Network
 #endif
 @MainActor
 extension AppState {
+    var sendWalletIDBinding: Binding<String> {
+        Binding(get: { self.sendWalletID }, set: { self.sendWalletID = $0 })
+    }
+    var sendHoldingKeyBinding: Binding<String> {
+        Binding(get: { self.sendHoldingKey }, set: { self.sendHoldingKey = $0 })
+    }
+    var sendAddressBinding: Binding<String> {
+        Binding(get: { self.sendAddress }, set: { self.sendAddress = $0 })
+    }
+    var sendAmountBinding: Binding<String> {
+        Binding(get: { self.sendAmount }, set: { self.sendAmount = $0 })
+    }
+    var isShowingHighRiskSendConfirmationBinding: Binding<Bool> {
+        Binding(
+            get: { self.isShowingHighRiskSendConfirmation }, set: { self.isShowingHighRiskSendConfirmation = $0 }
+        )
+    }
+    var isShowingSendSheetBinding: Binding<Bool> {
+        Binding(get: { self.isShowingSendSheet }, set: { self.isShowingSendSheet = $0 })
+    }
     private func clearAllChainSendState() {
         bitcoinSendPreview = nil; bitcoinCashSendPreview = nil; bitcoinSVSendPreview = nil; litecoinSendPreview = nil; dogecoinSendPreview = nil; ethereumSendPreview = nil; tronSendPreview = nil; solanaSendPreview = nil; xrpSendPreview = nil; stellarSendPreview = nil; moneroSendPreview = nil; cardanoSendPreview = nil; suiSendPreview = nil; aptosSendPreview = nil; tonSendPreview = nil; icpSendPreview = nil; nearSendPreview = nil; polkadotSendPreview = nil
         isSendingBitcoin = false; isSendingBitcoinCash = false; isSendingBitcoinSV = false; isSendingLitecoin = false; isSendingDogecoin = false; isSendingEthereum = false; isSendingTron = false; isSendingSolana = false; isSendingXRP = false; isSendingStellar = false; isSendingMonero = false; isSendingCardano = false; isSendingSui = false; isSendingAptos = false; isSendingTON = false; isSendingICP = false; isSendingNear = false; isSendingPolkadot = false
@@ -188,7 +208,7 @@ extension AppState {
             let normalizedContract = normalizeEVMAddress(contractAddress)
             return chainTokens.first { $0.symbol == coin.symbol && $0.contractAddress == normalizedContract }}
         return chainTokens.first { $0.symbol == coin.symbol }}
-    func isValidDogecoinAddressForPolicy(_ address: String, networkMode: DogecoinNetworkMode? = nil) -> Bool { AddressValidation.isValidDogecoinAddress(address, networkMode: networkMode ?? dogecoinNetworkMode) }
+    func isValidDogecoinAddressForPolicy(_ address: String, networkMode: DogecoinNetworkMode? = nil) -> Bool { AddressValidation.isValid(address, kind: "dogecoin", networkMode: (networkMode ?? dogecoinNetworkMode).rawValue) }
     func isValidAddress(_ address: String, for chainName: String) -> Bool {
         let mode: String? = {
             switch chainName {
@@ -211,7 +231,7 @@ extension AppState {
     func resolveEVMRecipientAddress(input: String, for chainName: String) async throws -> (address: String, usedENS: Bool) {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw EthereumWalletEngineError.invalidAddress }
-        if AddressValidation.isValidEthereumAddress(trimmed) { return (normalizeEVMAddress(trimmed), false) }
+        if AddressValidation.isValid(trimmed, kind: "evm") { return (normalizeEVMAddress(trimmed), false) }
         guard chainName == "Ethereum", isENSNameCandidate(trimmed) else { throw EthereumWalletEngineError.invalidAddress }
         let cacheKey = trimmed.lowercased()
         if let cached = cachedResolvedENSAddresses[cacheKey] { return (cached, true) }
@@ -322,15 +342,15 @@ extension AppState {
         let failedCount = r.filter { !$0.passed }.count
         appendChainOperationalEvent(failedCount == 0 ? .info : .warning, chainName: chainName, message: failedCount == 0 ? "\(abbrev) self-tests passed (\(r.count) checks)." : "\(abbrev) self-tests completed with \(failedCount) failure(s).")
     }
-    func runBitcoinSelfTests() { runSyncSelfTests(running: \.isRunningBitcoinSelfTests, results: \.bitcoinSelfTestResults, lastRun: \.bitcoinSelfTestsLastRunAt, suite: BitcoinSelfTestSuite.runAll, chainName: "Bitcoin", abbrev: "BTC") }
-    func runBitcoinCashSelfTests() { runSyncSelfTests(running: \.isRunningBitcoinCashSelfTests, results: \.bitcoinCashSelfTestResults, lastRun: \.bitcoinCashSelfTestsLastRunAt, suite: BitcoinCashSelfTestSuite.runAll, chainName: "Bitcoin Cash", abbrev: "BCH") }
-    func runBitcoinSVSelfTests() { runSyncSelfTests(running: \.isRunningBitcoinSVSelfTests, results: \.bitcoinSVSelfTestResults, lastRun: \.bitcoinSVSelfTestsLastRunAt, suite: BitcoinSVSelfTestSuite.runAll, chainName: "Bitcoin SV", abbrev: "BSV") }
-    func runLitecoinSelfTests() { runSyncSelfTests(running: \.isRunningLitecoinSelfTests, results: \.litecoinSelfTestResults, lastRun: \.litecoinSelfTestsLastRunAt, suite: LitecoinSelfTestSuite.runAll, chainName: "Litecoin", abbrev: "LTC") }
-    func runDogecoinSelfTests() { runSyncSelfTests(running: \.isRunningDogecoinSelfTests, results: \.dogecoinSelfTestResults, lastRun: \.dogecoinSelfTestsLastRunAt, suite: DogecoinChainSelfTestSuite.runAll, chainName: "Dogecoin", abbrev: "DOGE") }
+    func runBitcoinSelfTests() { runSyncSelfTests(running: \.isRunningBitcoinSelfTests, results: \.bitcoinSelfTestResults, lastRun: \.bitcoinSelfTestsLastRunAt, suite: { ChainSelfTests.run("Bitcoin") }, chainName: "Bitcoin", abbrev: "BTC") }
+    func runBitcoinCashSelfTests() { runSyncSelfTests(running: \.isRunningBitcoinCashSelfTests, results: \.bitcoinCashSelfTestResults, lastRun: \.bitcoinCashSelfTestsLastRunAt, suite: { ChainSelfTests.run("Bitcoin Cash") }, chainName: "Bitcoin Cash", abbrev: "BCH") }
+    func runBitcoinSVSelfTests() { runSyncSelfTests(running: \.isRunningBitcoinSVSelfTests, results: \.bitcoinSVSelfTestResults, lastRun: \.bitcoinSVSelfTestsLastRunAt, suite: { ChainSelfTests.run("Bitcoin SV") }, chainName: "Bitcoin SV", abbrev: "BSV") }
+    func runLitecoinSelfTests() { runSyncSelfTests(running: \.isRunningLitecoinSelfTests, results: \.litecoinSelfTestResults, lastRun: \.litecoinSelfTestsLastRunAt, suite: { ChainSelfTests.run("Litecoin") }, chainName: "Litecoin", abbrev: "LTC") }
+    func runDogecoinSelfTests() { runSyncSelfTests(running: \.isRunningDogecoinSelfTests, results: \.dogecoinSelfTestResults, lastRun: \.dogecoinSelfTestsLastRunAt, suite: { ChainSelfTests.run("Dogecoin") }, chainName: "Dogecoin", abbrev: "DOGE") }
     func runEthereumSelfTests() async {
         guard !isRunningEthereumSelfTests else { return }
         isRunningEthereumSelfTests = true; defer { isRunningEthereumSelfTests = false }
-        var results = EthereumChainSelfTestSuite.runAll()
+        var results = ChainSelfTests.run("Ethereum")
         let rpcLabel = configuredEthereumRPCEndpointURL()?.absoluteString ?? "default RPC pool"
         do {
             guard let rpcURL = configuredEthereumRPCEndpointURL() ?? URL(string: "https://ethereum.publicnode.com") else { throw URLError(.badURL) }
@@ -398,8 +418,8 @@ extension AppState {
             running: \.isRunningDogecoinRescan, lastRun: \.dogecoinRescanLastRunAt,
             chainName: "Dogecoin", abbrev: "DOGE",
             preWork: {
-                await self.refreshDogecoinAddressDiscovery()
-                await self.refreshDogecoinReceiveReservationState()
+                await self.refreshUTXOAddressDiscovery(chainName: "Dogecoin")
+                await self.refreshUTXOReceiveReservationState(chainName: "Dogecoin")
             },
             refreshHistory: { await self.refreshDogecoinTransactions(limit: HistoryPaging.endpointBatchSize) },
             refreshPending: { await self.refreshPendingDogecoinTransactions() }
@@ -606,135 +626,14 @@ extension AppState {
         if (transaction.chainName == "Bitcoin" || transaction.chainName == "Dogecoin"), let walletID = transaction.walletID, let wallet = cachedWalletByID[walletID] { return displayChainTitle(for: wallet) }
         return displayChainTitle(for: transaction.chainName)
     }
-    func solanaDerivationPreference(for wallet: ImportedWallet) -> SolanaDerivationPreference { derivationResolution(for: wallet, chain: .solana).flavor == .legacy ? .legacy : .standard }
-    func resolvedEthereumAddress(for wallet: ImportedWallet) -> String? { resolvedEVMAddress(for: wallet, chainName: "Ethereum") }
-    func resolvedBitcoinAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(
-                seedPhrase: seedPhrase, chain: .bitcoin, network: derivationNetwork(for: bitcoinNetworkMode(for: wallet)),
-                derivationPath: walletDerivationPath(for: wallet, chain: .bitcoin)
-           ), AddressValidation.isValidBitcoinAddress(derived, networkMode: bitcoinNetworkMode(for: wallet)) { return derived }
-        if let addr = wallet.bitcoinAddress, AddressValidation.isValidBitcoinAddress(addr, networkMode: bitcoinNetworkMode(for: wallet)) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedEVMAddress(for wallet: ImportedWallet, chainName: String) -> String? {
-        guard isEVMChain(chainName), evmChainContext(for: chainName) != nil else { return nil }
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derivationChain = WalletDerivationLayer.evmSeedDerivationChain(for: chainName),
-           let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: derivationChain, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: derivationChain)) { return derived }
-        if let addr = wallet.ethereumAddress, !addr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return AddressValidation.normalizedEthereumAddress(addr) }
-        return nil
-    }
-    func resolvedTronAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .tron, network: .mainnet, derivationPath: wallet.seedDerivationPaths.tron), AddressValidation.isValidTronAddress(derived) { return derived }
-        if let addr = wallet.tronAddress, AddressValidation.isValidTronAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedSolanaAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .solana, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .solana)), AddressValidation.isValidSolanaAddress(derived) { return derived }
-        if let addr = wallet.solanaAddress, AddressValidation.isValidSolanaAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedSuiAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .sui, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .sui)), AddressValidation.isValidSuiAddress(derived) { return derived }
-        if let addr = wallet.suiAddress, let normalized = AddressValidation.normalizedSuiAddress(addr) { return normalized }
-        return nil
-    }
-    func resolvedAptosAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .aptos, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .aptos)), AddressValidation.isValidAptosAddress(derived) { return derived }
-        if let addr = wallet.aptosAddress, let normalized = AddressValidation.normalizedAptosAddress(addr) { return normalized }
-        return nil
-    }
-    func resolvedTONAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .ton, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .ton)), AddressValidation.isValidTONAddress(derived) { return derived }
-        if let addr = wallet.tonAddress, let normalized = AddressValidation.normalizedTONAddress(addr) { return normalized }
-        return nil
-    }
-    func resolvedICPAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .internetComputer, network: .mainnet, derivationPath: wallet.seedDerivationPaths.internetComputer), AddressValidation.isValidICPAddress(derived) { return derived }
-        if let addr = wallet.icpAddress, let normalized = AddressValidation.normalizedICPAddress(addr) { return normalized }
-        return nil
-    }
-    func resolvedNearAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .near, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .near)), AddressValidation.isValidNearAddress(derived) { return derived.lowercased() }
-        if let addr = wallet.nearAddress, let normalized = AddressValidation.normalizedNearAddress(addr) { return normalized }
-        return nil
-    }
-    func resolvedPolkadotAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .polkadot, network: .mainnet, derivationPath: wallet.seedDerivationPaths.polkadot), AddressValidation.isValidPolkadotAddress(derived) { return derived.trimmingCharacters(in: .whitespacesAndNewlines) }
-        if let addr = wallet.polkadotAddress, AddressValidation.isValidPolkadotAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedStellarAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .stellar, network: .mainnet, derivationPath: wallet.seedDerivationPaths.stellar), AddressValidation.isValidStellarAddress(derived) { return derived.trimmingCharacters(in: .whitespacesAndNewlines) }
-        if let addr = wallet.stellarAddress, AddressValidation.isValidStellarAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedCardanoAddress(for wallet: ImportedWallet) -> String? {
-        if let addr = wallet.cardanoAddress, AddressValidation.isValidCardanoAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .cardano, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .cardano)), AddressValidation.isValidCardanoAddress(derived) { return derived }
-        return nil
-    }
-    func resolvedXRPAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .xrp, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .xrp)), AddressValidation.isValidXRPAddress(derived) { return derived }
-        if let addr = wallet.xrpAddress, AddressValidation.isValidXRPAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedMoneroAddress(for wallet: ImportedWallet) -> String? {
-        if let addr = wallet.moneroAddress, AddressValidation.isValidMoneroAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedDogecoinAddress(for wallet: ImportedWallet) -> String? {
-        let networkMode = dogecoinNetworkMode(for: wallet)
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(
-                seedPhrase: seedPhrase, chain: .dogecoin, network: derivationNetwork(for: networkMode), derivationPath: WalletDerivationPath.dogecoin(
-                    account: derivationAccount(for: wallet, chain: .dogecoin), branch: .external, index: 0
-                )
-           ), isValidDogecoinAddressForPolicy(derived, networkMode: networkMode) { return derived }
-        if let addr = wallet.dogecoinAddress, isValidDogecoinAddressForPolicy(addr, networkMode: networkMode) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedLitecoinAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .litecoin, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .litecoin)), AddressValidation.isValidLitecoinAddress(derived) { return derived }
-        if let addr = wallet.litecoinAddress, AddressValidation.isValidLitecoinAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedBitcoinCashAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .bitcoinCash, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinCash)), AddressValidation.isValidBitcoinCashAddress(derived) { return derived }
-        if let addr = wallet.bitcoinCashAddress, AddressValidation.isValidBitcoinCashAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func resolvedBitcoinSVAddress(for wallet: ImportedWallet) -> String? {
-        if let seedPhrase = storedSeedPhrase(for: wallet.id), let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .bitcoinSV, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinSV)), AddressValidation.isValidBitcoinSVAddress(derived) { return derived }
-        if let addr = wallet.bitcoinSvAddress, AddressValidation.isValidBitcoinSVAddress(addr) { return addr.trimmingCharacters(in: .whitespacesAndNewlines) }
-        return nil
-    }
-    func walletWithResolvedDogecoinAddress(_ wallet: ImportedWallet) -> ImportedWallet {
-        ImportedWallet(id: wallet.id, name: wallet.name, bitcoinNetworkMode: wallet.bitcoinNetworkMode, dogecoinNetworkMode: wallet.dogecoinNetworkMode, bitcoinAddress: wallet.bitcoinAddress, bitcoinXpub: wallet.bitcoinXpub, bitcoinCashAddress: wallet.bitcoinCashAddress, bitcoinSvAddress: wallet.bitcoinSvAddress, litecoinAddress: wallet.litecoinAddress, dogecoinAddress: resolvedDogecoinAddress(for: wallet) ?? wallet.dogecoinAddress, ethereumAddress: wallet.ethereumAddress, tronAddress: wallet.tronAddress, solanaAddress: wallet.solanaAddress, stellarAddress: wallet.stellarAddress, xrpAddress: wallet.xrpAddress, moneroAddress: wallet.moneroAddress, cardanoAddress: wallet.cardanoAddress, suiAddress: wallet.suiAddress, aptosAddress: wallet.aptosAddress, tonAddress: wallet.tonAddress, icpAddress: wallet.icpAddress, nearAddress: wallet.nearAddress, polkadotAddress: wallet.polkadotAddress, seedDerivationPreset: wallet.seedDerivationPreset, seedDerivationPaths: wallet.seedDerivationPaths, selectedChain: wallet.selectedChain, holdings: wallet.holdings, includeInPortfolioTotal: wallet.includeInPortfolioTotal)
-    }
-    func knownDogecoinAddresses(for wallet: ImportedWallet) -> [String] {
-        var ordered: [String] = []; var seen: Set<String> = []
-        let networkMode = wallet.dogecoinNetworkMode
-        func addIfValid(_ candidate: String?) {
-            guard let candidate else { return }
-            let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard isValidDogecoinAddressForPolicy(trimmed, networkMode: networkMode), seen.insert(trimmed.lowercased()).inserted else { return }
-            ordered.append(trimmed)
-        }
-        addIfValid(resolvedDogecoinAddress(for: wallet)); addIfValid(wallet.dogecoinAddress)
-        for tx in transactions where tx.chainName == "Dogecoin" && tx.walletID == wallet.id { addIfValid(tx.sourceAddress); addIfValid(tx.changeAddress) }
-        for a in discoveredDogecoinAddressesByWallet[wallet.id] ?? [] { addIfValid(a) }
-        for a in ownedDogecoinAddresses(for: wallet.id) { addIfValid(a) }
-        addIfValid(dogecoinReservedReceiveAddress(for: wallet, reserveIfMissing: false))
-        return ordered
-    }
-    func parseDogecoinDerivationIndex(path: String?, expectedPrefix: String) -> Int? { coreParseDogecoinDerivationIndex(path: path, expectedPrefix: expectedPrefix).map(Int.init) }
     func supportsDeepUTXODiscovery(chainName: String) -> Bool { coreSupportsDeepUtxoDiscovery(chainName: chainName) }
     func isValidUTXOAddressForPolicy(_ address: String, chainName: String) -> Bool {
         switch chainName {
-        case "Bitcoin": return AddressValidation.isValidBitcoinAddress(address, networkMode: bitcoinNetworkMode)
-        case "Bitcoin Cash": return AddressValidation.isValidBitcoinCashAddress(address)
-        case "Bitcoin SV": return AddressValidation.isValidBitcoinSVAddress(address)
-        case "Litecoin": return AddressValidation.isValidLitecoinAddress(address)
-        case "Dogecoin": return AddressValidation.isValidDogecoinAddress(address, networkMode: dogecoinNetworkMode)
+        case "Bitcoin": return AddressValidation.isValid(address, kind: "bitcoin", networkMode: bitcoinNetworkMode.rawValue)
+        case "Bitcoin Cash": return AddressValidation.isValid(address, kind: "bitcoinCash")
+        case "Bitcoin SV": return AddressValidation.isValid(address, kind: "bitcoinSV")
+        case "Litecoin": return AddressValidation.isValid(address, kind: "litecoin")
+        case "Dogecoin": return AddressValidation.isValid(address, kind: "dogecoin", networkMode: dogecoinNetworkMode.rawValue)
         default: return false
         }}
     func utxoDiscoveryDerivationPath(for wallet: ImportedWallet, chainName: String, branch: WalletDerivationBranch, index: Int) -> String? {
@@ -884,29 +783,6 @@ extension AppState {
         "Bitcoin": .bitcoin, "Bitcoin Cash": .bitcoinCash, "Bitcoin SV": .bitcoinSV, "Litecoin": .litecoin, "Dogecoin": .dogecoin, "Ethereum": .ethereum, "Ethereum Classic": .ethereumClassic, "Arbitrum": .arbitrum, "Optimism": .optimism, "BNB Chain": .ethereum, "Avalanche": .avalanche, "Hyperliquid": .hyperliquid, "Tron": .tron, "Solana": .solana, "Stellar": .stellar, "XRP Ledger": .xrp, "Cardano": .cardano, "Sui": .sui, "Aptos": .aptos, "TON": .ton, "Internet Computer": .internetComputer, "NEAR": .near, "Polkadot": .polkadot, ]
     func seedDerivationChain(for chainName: String) -> SeedDerivationChain? { Self.chainNameToDerivationChain[chainName] }
     func walletHasAddress(for wallet: ImportedWallet, chainName: String) -> Bool { resolvedAddress(for: wallet, chainName: chainName) != nil }
-    func resolvedAddress(for wallet: ImportedWallet, chainName: String) -> String? {
-        switch chainName {
-        case "Bitcoin": return resolvedBitcoinAddress(for: wallet)
-        case "Bitcoin Cash": return resolvedBitcoinCashAddress(for: wallet)
-        case "Bitcoin SV": return resolvedBitcoinSVAddress(for: wallet)
-        case "Litecoin": return resolvedLitecoinAddress(for: wallet)
-        case "Dogecoin": return resolvedDogecoinAddress(for: wallet)
-        case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid": return resolvedEVMAddress(for: wallet, chainName: chainName)
-        case "Tron": return resolvedTronAddress(for: wallet)
-        case "Solana": return resolvedSolanaAddress(for: wallet)
-        case "Stellar": return resolvedStellarAddress(for: wallet)
-        case "XRP Ledger": return resolvedXRPAddress(for: wallet)
-        case "Monero": return resolvedMoneroAddress(for: wallet)
-        case "Cardano": return resolvedCardanoAddress(for: wallet)
-        case "Sui": return resolvedSuiAddress(for: wallet)
-        case "Aptos": return resolvedAptosAddress(for: wallet)
-        case "TON": return resolvedTONAddress(for: wallet)
-        case "Internet Computer": return resolvedICPAddress(for: wallet)
-        case "NEAR": return resolvedNearAddress(for: wallet)
-        case "Polkadot": return resolvedPolkadotAddress(for: wallet)
-        default: return nil
-        }
-    }
     func normalizedOwnedAddressKey(chainName: String, address: String) -> String { address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
     func registerOwnedAddress(
         chainName: String, address: String?, walletID: String?, derivationPath: String?, index: Int?, branch: String? ) {
@@ -925,24 +801,7 @@ extension AppState {
             guard value.walletID == walletID else { return nil }
             return value.address ?? key
         }}
-    func normalizedDogecoinAddressKey(_ address: String) -> String { address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-    func registerDogecoinOwnedAddress(address: String?, walletID: String?, derivationPath: String?, index: Int?, branch: String?, networkMode: DogecoinNetworkMode = .mainnet) {
-        guard let address, let walletID, let derivationPath, let index, let branch else { return }
-        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard isValidDogecoinAddressForPolicy(trimmed, networkMode: networkMode) else { return }
-        let key = normalizedDogecoinAddressKey(trimmed)
-        chainOwnedAddressMapByChain["Dogecoin", default: [:]][key] = ChainOwnedAddressRecord(
-            chainName: "Dogecoin", address: trimmed, walletID: walletID, derivationPath: derivationPath, index: index, branch: branch
-        )
-    }
-    private var dogecoinOwnedAddresses: [String: ChainOwnedAddressRecord] {
-        chainOwnedAddressMapByChain["Dogecoin"] ?? [:]
-    }
-    func ownedDogecoinAddresses(for walletID: String) -> [String] {
-        ownedAddresses(for: walletID, chainName: "Dogecoin")
-    }
     func baselineChainKeypoolState(for wallet: ImportedWallet, chainName: String) -> ChainKeypoolState {
-        if chainName == "Dogecoin" { return baselineDogecoinKeypoolState(for: wallet) }
         if supportsDeepUTXODiscovery(chainName: chainName) {
             let chainTransactions = transactions.filter { $0.walletID == wallet.id && $0.chainName == chainName }
             let maxExternalIndex = chainTransactions.compactMap {
@@ -964,12 +823,12 @@ extension AppState {
         )
     }
     func keypoolState(for wallet: ImportedWallet, chainName: String) -> ChainKeypoolState {
-        if chainName == "Dogecoin" { return keypoolState(for: wallet) }
         let baseline = baselineChainKeypoolState(for: wallet, chainName: chainName)
         if var existing = (chainKeypoolByChain[chainName] ?? [:])[wallet.id] {
             existing.nextExternalIndex = max(existing.nextExternalIndex, baseline.nextExternalIndex)
             existing.nextChangeIndex = max(existing.nextChangeIndex, baseline.nextChangeIndex)
             if existing.reservedReceiveIndex == nil { existing.reservedReceiveIndex = baseline.reservedReceiveIndex }
+            if let reserved = existing.reservedReceiveIndex { existing.nextExternalIndex = max(existing.nextExternalIndex, reserved + 1) }
             storeChainKeypoolState(existing, chainName: chainName, walletID: wallet.id)
             return existing
         }
@@ -977,7 +836,6 @@ extension AppState {
         return baseline
     }
     func reserveReceiveIndex(for wallet: ImportedWallet, chainName: String) -> Int? {
-        if chainName == "Dogecoin" { return reserveDogecoinReceiveIndex(for: wallet) }
         var state = keypoolState(for: wallet, chainName: chainName)
         if let reserved = state.reservedReceiveIndex { return reserved }
         let reserved = max(state.nextExternalIndex, 0)
@@ -986,19 +844,12 @@ extension AppState {
         return reserved
     }
     func reserveChangeIndex(for wallet: ImportedWallet, chainName: String) -> Int? {
-        if chainName == "Dogecoin" { return reserveDogecoinChangeIndex(for: wallet) }
         var state = keypoolState(for: wallet, chainName: chainName)
         let reserved = max(state.nextChangeIndex, 0); state.nextChangeIndex = reserved + 1
         storeChainKeypoolState(state, chainName: chainName, walletID: wallet.id)
         return reserved
     }
     func reservedReceiveDerivationPath(for wallet: ImportedWallet, chainName: String, index: Int?) -> String? {
-        if chainName == "Dogecoin" {
-            guard let index else { return nil }
-            return WalletDerivationPath.dogecoin(
-                account: 0, branch: .external, index: UInt32(index)
-            )
-        }
         if supportsDeepUTXODiscovery(chainName: chainName) {
             guard let index else { return nil }
             return utxoDiscoveryDerivationPath(for: wallet, chainName: chainName, branch: .external, index: index)
@@ -1006,7 +857,6 @@ extension AppState {
         guard seedDerivationChain(for: chainName) != nil else { return nil }
         return seedDerivationChain(for: chainName).map { walletDerivationPath(for: wallet, chain: $0) }}
     func reservedReceiveAddress(for wallet: ImportedWallet, chainName: String, reserveIfMissing: Bool) -> String? {
-        if chainName == "Dogecoin" { return dogecoinReservedReceiveAddress(for: wallet, reserveIfMissing: reserveIfMissing) }
         if supportsDeepUTXODiscovery(chainName: chainName) {
             var state = keypoolState(for: wallet, chainName: chainName)
             if state.reservedReceiveIndex == nil, reserveIfMissing {
@@ -1049,152 +899,10 @@ extension AppState {
                     chainName: chainName, address: address, walletID: wallet.id, derivationPath: reservedReceiveDerivationPath(for: wallet, chainName: chainName, index: reservedIndex), index: reservedIndex, branch: "external"
                 )
             }}}
-    func baselineDogecoinKeypoolState(for wallet: ImportedWallet) -> DogecoinKeypoolState {
-        let dogecoinTransactions = transactions.filter {
-            $0.chainName == "Dogecoin"
-                && $0.walletID == wallet.id
-        }
-        let maxExternalIndex = dogecoinTransactions.compactMap {
-                parseDogecoinDerivationIndex(
-                    path: $0.sourceDerivationPath, expectedPrefix: WalletDerivationPath.dogecoinExternalPrefix(account: 0)
-                )
-            }.max() ?? 0
-        let maxChangeIndex = dogecoinTransactions.compactMap {
-                parseDogecoinDerivationIndex(
-                    path: $0.changeDerivationPath, expectedPrefix: WalletDerivationPath.dogecoinChangePrefix(account: 0)
-                )
-            }.max() ?? -1
-        let maxOwnedExternalIndex = dogecoinOwnedAddresses.values.filter { $0.walletID == wallet.id && $0.branch == "external" }.compactMap(\.index).max() ?? 0
-        let maxOwnedChangeIndex = dogecoinOwnedAddresses.values.filter { $0.walletID == wallet.id && $0.branch == "change" }.compactMap(\.index).max() ?? -1
-        return DogecoinKeypoolState(
-            nextExternalIndex: max(max(maxExternalIndex, maxOwnedExternalIndex) + 1, 1), nextChangeIndex: max(max(maxChangeIndex, maxOwnedChangeIndex) + 1, 0), reservedReceiveIndex: nil
-        )
-    }
-    func keypoolState(for wallet: ImportedWallet) -> DogecoinKeypoolState {
-        let baseline = baselineDogecoinKeypoolState(for: wallet)
-        if var existing = dogecoinKeypoolByWalletID[wallet.id] {
-            existing.nextExternalIndex = max(existing.nextExternalIndex, baseline.nextExternalIndex)
-            existing.nextChangeIndex = max(existing.nextChangeIndex, baseline.nextChangeIndex)
-            if let reserved = existing.reservedReceiveIndex { existing.nextExternalIndex = max(existing.nextExternalIndex, reserved + 1) }
-            dogecoinKeypoolByWalletID[wallet.id] = existing
-            return existing
-        }
-        dogecoinKeypoolByWalletID[wallet.id] = baseline
-        return baseline
-    }
     private func storeChainKeypoolState(_ state: ChainKeypoolState, chainName: String, walletID: String) {
         var perWallet = chainKeypoolByChain[chainName] ?? [:]
         perWallet[walletID] = state
         chainKeypoolByChain[chainName] = perWallet
-    }
-    private func persistDogecoinKeypoolState(_ state: DogecoinKeypoolState, walletID: String) {
-        dogecoinKeypoolByWalletID[walletID] = state
-    }
-    func reserveDogecoinReceiveIndex(for wallet: ImportedWallet) -> Int {
-        var state = keypoolState(for: wallet)
-        if let reserved = state.reservedReceiveIndex { return reserved }
-        let reserved = max(state.nextExternalIndex, 1)
-        state.reservedReceiveIndex = reserved; state.nextExternalIndex = reserved + 1
-        persistDogecoinKeypoolState(state, walletID: wallet.id)
-        return reserved
-    }
-    func reserveDogecoinChangeIndex(for wallet: ImportedWallet) -> Int {
-        var state = keypoolState(for: wallet)
-        let reserved = max(state.nextChangeIndex, 0)
-        state.nextChangeIndex = reserved + 1
-        persistDogecoinKeypoolState(state, walletID: wallet.id)
-        return reserved
-    }
-    func dogecoinReservedReceiveAddress(for wallet: ImportedWallet, reserveIfMissing: Bool) -> String? {
-        var state = keypoolState(for: wallet)
-        if state.reservedReceiveIndex == nil, reserveIfMissing {
-            let reserved = max(state.nextExternalIndex, 1)
-            state.reservedReceiveIndex = reserved
-            state.nextExternalIndex = max(state.nextExternalIndex, reserved + 1)
-            dogecoinKeypoolByWalletID[wallet.id] = state
-        }
-        guard let reservedIndex = state.reservedReceiveIndex else { return nil }
-        if let derivedAddress = deriveDogecoinAddress(for: wallet, isChange: false, index: reservedIndex), isValidDogecoinAddressForPolicy(derivedAddress, networkMode: wallet.dogecoinNetworkMode) {
-            registerDogecoinOwnedAddress(
-                address: derivedAddress, walletID: wallet.id, derivationPath: WalletDerivationPath.dogecoin(
-                    account: 0, branch: .external, index: UInt32(reservedIndex)
-                ), index: reservedIndex, branch: "external", networkMode: wallet.dogecoinNetworkMode
-            )
-            return derivedAddress
-        }
-        return resolvedDogecoinAddress(for: wallet)
-    }
-    private func registerDogecoinExternal(_ address: String, wallet: ImportedWallet, index: Int) {
-        registerDogecoinOwnedAddress(address: address, walletID: wallet.id, derivationPath: WalletDerivationPath.dogecoin(account: 0, branch: .external, index: UInt32(index)), index: index, branch: "external", networkMode: wallet.dogecoinNetworkMode)
-    }
-    func refreshDogecoinReceiveReservationState() async {
-        let dogecoinWallets = wallets.filter { $0.selectedChain == "Dogecoin" }
-        guard !dogecoinWallets.isEmpty else { return }
-        for wallet in dogecoinWallets {
-            guard storedSeedPhrase(for: wallet.id) != nil else { continue }
-            _ = reserveDogecoinReceiveIndex(for: wallet)
-            var state = keypoolState(for: wallet)
-            guard let reservedIndex = state.reservedReceiveIndex, let reservedAddress = deriveDogecoinAddress(for: wallet, isChange: false, index: reservedIndex), isValidDogecoinAddressForPolicy(reservedAddress, networkMode: wallet.dogecoinNetworkMode) else { continue }
-            registerDogecoinExternal(reservedAddress, wallet: wallet, index: reservedIndex)
-            guard await hasDogecoinOnChainActivity(address: reservedAddress, networkMode: wallet.dogecoinNetworkMode) else { continue }
-            let nextReserved = max(state.nextExternalIndex, reservedIndex + 1)
-            state.reservedReceiveIndex = nextReserved; state.nextExternalIndex = max(state.nextExternalIndex, nextReserved + 1)
-            dogecoinKeypoolByWalletID[wallet.id] = state
-            if let nextAddress = deriveDogecoinAddress(for: wallet, isChange: false, index: nextReserved), isValidDogecoinAddressForPolicy(nextAddress, networkMode: wallet.dogecoinNetworkMode) {
-                registerDogecoinExternal(nextAddress, wallet: wallet, index: nextReserved)
-            }}}
-    func hasDogecoinOnChainActivity(address: String, networkMode: DogecoinNetworkMode) async -> Bool {
-        if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.dogecoin, address: address), let koin = RustBalanceDecoder.uint64Field("balance_koin", from: json), koin > 0 { return true }
-        if let histJSON = try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.dogecoin, address: address), RustBalanceDecoder.jsonArrayIsNonEmpty(histJSON) {
-            return true
-        }
-        return false
-    }
-    func discoverDogecoinAddresses(for wallet: ImportedWallet) async -> [String] {
-        var ordered: [String] = []; var seen: Set<String> = []
-        func appendAddress(_ candidate: String?) {
-            guard let candidate else { return }
-            let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard isValidDogecoinAddressForPolicy(trimmed), seen.insert(trimmed.lowercased()).inserted else { return }
-            ordered.append(trimmed)
-        }
-        appendAddress(wallet.dogecoinAddress); appendAddress(resolvedDogecoinAddress(for: wallet)); appendAddress(dogecoinReservedReceiveAddress(for: wallet, reserveIfMissing: false))
-        for tx in transactions where tx.chainName == "Dogecoin" && tx.walletID == wallet.id { appendAddress(tx.sourceAddress); appendAddress(tx.changeAddress) }
-        if let seedPhrase = storedSeedPhrase(for: wallet.id) {
-            let state = keypoolState(for: wallet)
-            let highestOwnedExternal = dogecoinOwnedAddresses.values.filter { $0.walletID == wallet.id && $0.branch == "external" }.compactMap(\.index).max() ?? 0
-            let reserved = state.reservedReceiveIndex ?? 0
-            let scanUpperBound = min(
-                Self.dogecoinDiscoveryMaxIndex, max(state.nextExternalIndex, max(highestOwnedExternal + 1, reserved + 1)) + Self.dogecoinDiscoveryGapLimit
-            )
-            if scanUpperBound >= 0 {
-                for index in 0 ... scanUpperBound {
-                    if let derived = try? deriveSeedPhraseAddress(
-                        seedPhrase: seedPhrase, chain: .dogecoin, network: derivationNetwork(for: .dogecoin, wallet: wallet), derivationPath: WalletDerivationPath.dogecoin(
-                            account: derivationAccount(for: wallet, chain: .dogecoin), branch: .external, index: UInt32(index)
-                        )
-                    ) {
-                        appendAddress(derived)
-                    }}}}
-        return ordered
-    }
-    func deriveDogecoinAddress(for wallet: ImportedWallet, isChange: Bool, index: Int) -> String? {
-        guard let seedPhrase = storedSeedPhrase(for: wallet.id) else { return nil }
-        return try? deriveSeedPhraseAddress(
-            seedPhrase: seedPhrase, chain: .dogecoin, network: derivationNetwork(for: .dogecoin, wallet: wallet), derivationPath: WalletDerivationPath.dogecoin(
-                account: derivationAccount(for: wallet, chain: .dogecoin), branch: isChange ? .change : .external, index: UInt32(index)
-            )
-        )
-    }
-    func refreshDogecoinAddressDiscovery() async {
-        let dogecoinWallets = wallets.filter { $0.selectedChain == "Dogecoin" }
-        guard !dogecoinWallets.isEmpty else { discoveredDogecoinAddressesByWallet = [:]; return }
-        discoveredDogecoinAddressesByWallet = await withTaskGroup(of: (String, [String]).self, returning: [String: [String]].self) { group in
-            for wallet in dogecoinWallets { group.addTask { [wallet] in (wallet.id, await self.discoverDogecoinAddresses(for: wallet)) } }
-            var mapping: [String: [String]] = [:]
-            for await (walletID, addresses) in group { mapping[walletID] = addresses }
-            return mapping
-        }
     }
     func refreshSendDestinationRiskWarning(for coin: Coin) async {
         let probeID = "\(sendWalletID)|\(sendHoldingKey)|\(sendAddress)"

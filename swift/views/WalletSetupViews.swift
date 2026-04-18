@@ -568,38 +568,38 @@ struct SetupView: View {
                             if draft.wantsBitcoin {
                                 let bitcoinAddressEntries = draft.watchOnlyEntries(from: draft.bitcoinAddressInput)
                                 let bitcoinValidation = watchedAddressValidationMessage(
-                                    entries: bitcoinAddressEntries, assetName: "Bitcoin", validator: { AddressValidation.isValidBitcoinAddress($0, networkMode: store.bitcoinNetworkMode) }
+                                    entries: bitcoinAddressEntries, assetName: "Bitcoin", validator: { AddressValidation.isValid($0, kind: "bitcoin", networkMode: store.bitcoinNetworkMode.rawValue) }
                                 )
                                 watchedAddressSection(
                                     title: "Bitcoin", text: $draft.bitcoinAddressInput, caption: copy.bitcoinWatchCaption, validationMessage: bitcoinValidation.message, validationColor: bitcoinValidation.color
                                 )
                                 TextField("xpub... / zpub...", text: $draft.bitcoinXpubInput).textInputAutocapitalization(.never).autocorrectionDisabled().padding(14).spectraInputFieldStyle().foregroundStyle(Color.primary)
                             }
-                            conditionalWatchedAddressSection(condition: draft.wantsBitcoinCash, title: "Bitcoin Cash", text: $draft.bitcoinCashAddressInput, validator: { AddressValidation.isValidBitcoinCashAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsBitcoinSV, title: "Bitcoin SV", text: $draft.bitcoinSvAddressInput, validator: { AddressValidation.isValidBitcoinSVAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsDogecoin, title: "Dogecoin", text: $draft.dogecoinAddressInput, validator: { AddressValidation.isValidDogecoinAddress($0, networkMode: store.dogecoinNetworkMode) })
-                            conditionalWatchedAddressSection(condition: draft.wantsLitecoin, title: "Litecoin", text: $draft.litecoinAddressInput, validator: { AddressValidation.isValidLitecoinAddress($0) })
+                            conditionalWatchedAddressSection(condition: draft.wantsBitcoinCash, title: "Bitcoin Cash", text: $draft.bitcoinCashAddressInput, validator: { AddressValidation.isValid($0, kind: "bitcoinCash") })
+                            conditionalWatchedAddressSection(condition: draft.wantsBitcoinSV, title: "Bitcoin SV", text: $draft.bitcoinSvAddressInput, validator: { AddressValidation.isValid($0, kind: "bitcoinSV") })
+                            conditionalWatchedAddressSection(condition: draft.wantsDogecoin, title: "Dogecoin", text: $draft.dogecoinAddressInput, validator: { AddressValidation.isValid($0, kind: "dogecoin", networkMode: store.dogecoinNetworkMode.rawValue) })
+                            conditionalWatchedAddressSection(condition: draft.wantsLitecoin, title: "Litecoin", text: $draft.litecoinAddressInput, validator: { AddressValidation.isValid($0, kind: "litecoin") })
                             if draft.wantsEthereum || draft.wantsEthereumClassic || draft.wantsArbitrum || draft.wantsOptimism || draft.wantsBNBChain || draft.wantsAvalanche || draft.wantsHyperliquid {
                                 let ethereumAddressEntries = draft.watchOnlyEntries(from: draft.ethereumAddressInput)
                                 let evmValidation = watchedAddressValidationMessage(
-                                    entries: ethereumAddressEntries, assetName: "EVM", validator: { AddressValidation.isValidEthereumAddress($0) }
+                                    entries: ethereumAddressEntries, assetName: "EVM", validator: { AddressValidation.isValid($0, kind: "evm") }
                                 )
                                 watchedAddressSection(
                                     title: "EVM (Ethereum / ETC / Arbitrum / Optimism / BNB Chain / Avalanche / Hyperliquid)", text: $draft.ethereumAddressInput, validationMessage: evmValidation.message, validationColor: evmValidation.color
                                 )
                             }
-                            conditionalWatchedAddressSection(condition: draft.wantsTron, title: "Tron", text: $draft.tronAddressInput, validator: { AddressValidation.isValidTronAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsSolana, title: "Solana", text: $draft.solanaAddressInput, validator: { AddressValidation.isValidSolanaAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsXRP, title: "XRP Ledger", text: $draft.xrpAddressInput, validator: { AddressValidation.isValidXRPAddress($0) })
+                            conditionalWatchedAddressSection(condition: draft.wantsTron, title: "Tron", text: $draft.tronAddressInput, validator: { AddressValidation.isValid($0, kind: "tron") })
+                            conditionalWatchedAddressSection(condition: draft.wantsSolana, title: "Solana", text: $draft.solanaAddressInput, validator: { AddressValidation.isValid($0, kind: "solana") })
+                            conditionalWatchedAddressSection(condition: draft.wantsXRP, title: "XRP Ledger", text: $draft.xrpAddressInput, validator: { AddressValidation.isValid($0, kind: "xrp") })
                             conditionalWatchedAddressSection(condition: draft.wantsMonero, title: "Monero", text: $draft.moneroAddressInput)
-                            conditionalWatchedAddressSection(condition: draft.wantsCardano, title: "Cardano", text: $draft.cardanoAddressInput, validator: { AddressValidation.isValidCardanoAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsSui, title: "Sui", text: $draft.suiAddressInput, validator: { AddressValidation.isValidSuiAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsAptos, title: "Aptos", text: $draft.aptosAddressInput, validator: { AddressValidation.isValidAptosAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsTON, title: "TON", text: $draft.tonAddressInput, validator: { AddressValidation.isValidTONAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsICP, title: "Internet Computer", text: $draft.icpAddressInput, validator: { AddressValidation.isValidICPAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsNear, title: "NEAR", text: $draft.nearAddressInput, validator: { AddressValidation.isValidNearAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsPolkadot, title: "Polkadot", text: $draft.polkadotAddressInput, validator: { AddressValidation.isValidPolkadotAddress($0) })
-                            conditionalWatchedAddressSection(condition: draft.wantsStellar, title: "Stellar", text: $draft.stellarAddressInput, validator: { AddressValidation.isValidStellarAddress($0) })
+                            conditionalWatchedAddressSection(condition: draft.wantsCardano, title: "Cardano", text: $draft.cardanoAddressInput, validator: { AddressValidation.isValid($0, kind: "cardano") })
+                            conditionalWatchedAddressSection(condition: draft.wantsSui, title: "Sui", text: $draft.suiAddressInput, validator: { AddressValidation.isValid($0, kind: "sui") })
+                            conditionalWatchedAddressSection(condition: draft.wantsAptos, title: "Aptos", text: $draft.aptosAddressInput, validator: { AddressValidation.isValid($0, kind: "aptos") })
+                            conditionalWatchedAddressSection(condition: draft.wantsTON, title: "TON", text: $draft.tonAddressInput, validator: { AddressValidation.isValid($0, kind: "ton") })
+                            conditionalWatchedAddressSection(condition: draft.wantsICP, title: "Internet Computer", text: $draft.icpAddressInput, validator: { AddressValidation.isValid($0, kind: "internetComputer") })
+                            conditionalWatchedAddressSection(condition: draft.wantsNear, title: "NEAR", text: $draft.nearAddressInput, validator: { AddressValidation.isValid($0, kind: "near") })
+                            conditionalWatchedAddressSection(condition: draft.wantsPolkadot, title: "Polkadot", text: $draft.polkadotAddressInput, validator: { AddressValidation.isValid($0, kind: "polkadot") })
+                            conditionalWatchedAddressSection(condition: draft.wantsStellar, title: "Stellar", text: $draft.stellarAddressInput, validator: { AddressValidation.isValid($0, kind: "stellar") })
                             if !draft.wantsBitcoin && !draft.wantsBitcoinCash && !draft.wantsBitcoinSV && !draft.wantsLitecoin && !draft.wantsDogecoin && !draft.wantsEthereum && !draft.wantsEthereumClassic && !draft.wantsSolana && !draft.wantsBNBChain && !draft.wantsTron && !draft.wantsXRP && !draft.wantsMonero && !draft.wantsCardano && !draft.wantsSui && !draft.wantsAptos && !draft.wantsTON && !draft.wantsICP && !draft.wantsNear && !draft.wantsPolkadot && !draft.wantsStellar { Text(localizedSetupString("Select a supported chain above to enter its address to watch.")).font(.caption).foregroundStyle(.orange.opacity(0.9)) }}}}
                     if isShowingDetailsPage || isEditingWallet {
                         setupCard {

@@ -263,8 +263,8 @@ struct AppNoticeItem: Identifiable {
 typealias DashboardAssetChainEntry = CoreDashboardAssetChainEntry
 extension CoreDashboardAssetChainEntry: Identifiable {
     public var id: String {
-        let contract = DashboardAssetIdentity.normalizedContractAddress(
-            coin.contractAddress, chainName: coin.chainName, tokenStandard: coin.tokenStandard
+        let contract = normalizeDashboardContractAddress(
+            contractAddress: coin.contractAddress, chainName: coin.chainName, tokenStandard: coin.tokenStandard
         ) ?? "native"
         return "\(coin.chainName.lowercased())|\(coin.symbol.lowercased())|\(contract)"
     }
@@ -292,54 +292,6 @@ typealias DashboardPinOption = CoreDashboardPinOption
 extension CoreDashboardPinOption: Identifiable {
     public var id: String { symbol }
     var color: Color { Coin.displayColor(for: symbol) }
-}
-enum DashboardAssetIdentity {
-    static func normalizedContractAddress(_ contractAddress: String?, chainName: String, tokenStandard: String) -> String? {
-        guard let trimmed = contractAddress?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
-        if chainName == "Sui" {
-            let lowercased = trimmed.lowercased()
-            let components = lowercased.split(separator: "::", omittingEmptySubsequences: false)
-            guard let first = components.first else { return lowercased }
-            let normalizedPackage = normalizeSuiPackage(String(first))
-            guard components.count > 1 else { return normalizedPackage }
-            return ([normalizedPackage] + components.dropFirst().map(String.init)).joined(separator: "::")
-        }
-        if chainName == "Aptos" { return normalizeAptosIdentifier(trimmed) }
-        return trimmed.lowercased()
-    }
-    private static func normalizeSuiPackage(_ value: String) -> String {
-        guard value.hasPrefix("0x") else { return value }
-        let hexPortion = value.dropFirst(2)
-        let trimmedHex = hexPortion.drop { $0 == "0" }
-        let canonicalHex = trimmedHex.isEmpty ? "0" : String(trimmedHex)
-        return "0x" + canonicalHex
-    }
-    private static func normalizeAptosIdentifier(_ value: String) -> String {
-        let lowercased = value.lowercased()
-        var result = ""
-        var index = lowercased.startIndex
-        while index < lowercased.endIndex {
-            if lowercased[index...].hasPrefix("0x") {
-                let start = index
-                var end = lowercased.index(index, offsetBy: 2)
-                while end < lowercased.endIndex, lowercased[end].isHexDigit {
-                    end = lowercased.index(after: end)
-                }
-                result += canonicalAptosAddress(String(lowercased[start..<end]))
-                index = end
-            } else {
-                result.append(lowercased[index])
-                index = lowercased.index(after: index)
-            }}
-        return result
-    }
-    private static func canonicalAptosAddress(_ value: String) -> String {
-        guard value.hasPrefix("0x") else { return value }
-        let hexPortion = value.dropFirst(2)
-        let trimmedHex = hexPortion.drop { $0 == "0" }
-        let canonicalHex = trimmedHex.isEmpty ? "0" : String(trimmedHex)
-        return "0x" + canonicalHex
-    }
 }
 struct AssetGroupDetailView: View {
     @ObservedObject var store: AppState
@@ -508,6 +460,84 @@ struct AppNoticesView: View {
     }
 }
 private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
+    let format = AppLocalization.string(key)
+    return String(format: format, locale: AppLocalization.locale, arguments: arguments)
+}
+struct DashboardAssetRowPresentation: Identifiable {
+    let assetGroup: DashboardAssetGroup
+    let amountText: String
+    let totalValueText: String
+    let priceText: String
+    let chainSummaryText: String
+    var id: String { assetGroup.id }
+}
+@ViewBuilder
+func dashboardDetailRow(label: String, value: String) -> some View {
+    HStack(alignment: .top) {
+        Text(label).foregroundStyle(.secondary)
+        Spacer(minLength: 16)
+        Text(value).multilineTextAlignment(.trailing)
+    }.font(.caption)
+}
+struct DashboardAssetRowView: View {
+    let presentation: DashboardAssetRowPresentation
+    var body: some View {
+        HStack(spacing: 14) {
+            CoinBadge(
+                assetIdentifier: presentation.assetGroup.iconIdentifier, fallbackText: presentation.assetGroup.mark, color: presentation.assetGroup.color, size: 40
+            )
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    if presentation.assetGroup.isPinned { Image(systemName: "pin.fill").font(.caption.weight(.semibold)).foregroundStyle(Color.red.opacity(0.82)).frame(width: 28, height: 20).background(Color.red.opacity(0.1), in: Capsule()).clipped() }
+                    Text(presentation.assetGroup.name).font(.headline).foregroundStyle(Color.primary).lineLimit(1).truncationMode(.tail)
+                }
+                Text(presentation.amountText).font(.caption).foregroundStyle(Color.primary.opacity(0.72)).spectraNumericTextLayout()
+                Text(presentation.chainSummaryText).font(.caption2).foregroundStyle(Color.primary.opacity(0.58))
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(presentation.totalValueText).font(.headline).foregroundStyle(Color.primary).spectraNumericTextLayout()
+                Text(presentation.priceText).font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
+            }
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.42))
+        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+    }
+}
+struct DashboardPinnedAssetRowView: View {
+    let option: DashboardPinOption
+    let subtitleText: String
+    var body: some View {
+        HStack(spacing: 12) {
+            CoinBadge(assetIdentifier: option.assetIdentifier, fallbackText: option.mark, color: option.color, size: 34)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(option.name)
+                Text(subtitleText).font(.caption).foregroundStyle(.secondary)
+            }}}
+}
+struct PortfolioWalletToggleRowView: View {
+    let store: AppState
+    let wallet: ImportedWallet
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(wallet.name)
+            Text(store.displayChainTitle(for: wallet)).font(.caption).foregroundStyle(.secondary)
+        }}
+}
+struct DashboardNoticeCardView: View {
+    let notice: AppNoticeItem
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: notice.systemImage).foregroundStyle(notice.severity.tint)
+                Text(notice.title).font(.headline)
+                Spacer()
+                Text(notice.severity.label).font(.caption.weight(.semibold)).foregroundStyle(notice.severity.tint)
+            }
+            Text(notice.message).font(.subheadline).foregroundStyle(.primary)
+            if let timestamp = notice.timestamp { Text(dashboardComponentsLocalizedFormat("Last known healthy sync: %@", timestamp.formatted(date: .abbreviated, time: .shortened))).font(.caption).foregroundStyle(.secondary) }}.padding(.vertical, 4)
+    }
+}
+private func dashboardComponentsLocalizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
     let format = AppLocalization.string(key)
     return String(format: format, locale: AppLocalization.locale, arguments: arguments)
 }

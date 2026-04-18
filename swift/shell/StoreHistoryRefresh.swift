@@ -39,7 +39,24 @@ extension AppState {
     func canLoadMoreOnChainHistory(for walletIDs: Set<String>) -> Bool {
         !isLoadingMoreOnChainHistory && walletIDs.contains(where: canLoadMoreHistory(for:))
     }
-    func loadMoreOnChainHistory(for walletIDs: Set<String>) async { await WalletFetchLayer.loadMoreOnChainHistory(for: walletIDs, using: self) }
+    func loadMoreOnChainHistory(for walletIDs: Set<String>) async {
+        guard canLoadMoreOnChainHistory(for: walletIDs) else { return }
+        isLoadingMoreOnChainHistory = true
+        defer { isLoadingMoreOnChainHistory = false }
+        let eligibleWalletIDs = Set(walletIDs.filter(canLoadMoreHistory(for:)))
+        if hasWalletForChain("Bitcoin") { await refreshBitcoinTransactions(limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Bitcoin Cash") { await refreshBitcoinCashTransactions(limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Bitcoin SV") { await refreshBitcoinSVTransactions(limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Litecoin") { await refreshLitecoinTransactions(limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Dogecoin") { await refreshDogecoinTransactions(limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Ethereum") { await refreshEVMTokenTransactions(chainName: "Ethereum", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Arbitrum") { await refreshEVMTokenTransactions(chainName: "Arbitrum", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Optimism") { await refreshEVMTokenTransactions(chainName: "Optimism", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("BNB Chain") { await refreshEVMTokenTransactions(chainName: "BNB Chain", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Avalanche") { await refreshEVMTokenTransactions(chainName: "Avalanche", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Hyperliquid") { await refreshEVMTokenTransactions(chainName: "Hyperliquid", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+        if hasWalletForChain("Tron") { await refreshTronTransactions(loadMore: true, targetWalletIDs: eligibleWalletIDs) }
+    }
 
     // ── Generic normalized refresh (covers BCH, BSV, LTC, XRP, XLM, ADA, DOT,
     //    SOL, TRX, SUI, APT, TON, NEAR, ICP, XMR and any future account-based chain)
@@ -52,18 +69,26 @@ extension AppState {
         targetWalletIDs: Set<String>? = nil
     ) async {
         let walletSnapshot = wallets
-        let filtered = walletSnapshot.filter { wallet in
-            guard wallet.selectedChain == chainName, resolveAddress(wallet) != nil else { return false }
-            guard let targetWalletIDs else { return true }
-            return targetWalletIDs.contains(wallet.id)
-        }
-        guard !filtered.isEmpty else { return }
+        let targets = WalletRustAppCoreBridge.planNormalizedRefreshTargets(
+            NormalizedRefreshTargetsRequest(
+                chainName: chainName,
+                wallets: walletSnapshot.enumerated().map { index, wallet in
+                    NormalizedRefreshWalletInput(
+                        index: UInt64(index), walletId: wallet.id, selectedChain: wallet.selectedChain, address: resolveAddress(wallet)
+                    )
+                },
+                allowedWalletIds: targetWalletIDs.map(Array.init)
+            )
+        )
+        guard !targets.isEmpty else { return }
+        let walletByID = Dictionary(uniqueKeysWithValues: walletSnapshot.map { ($0.id, $0) })
         let results: [(records: [TransactionRecord], error: Bool)] = await withTaskGroup(
             of: (records: [TransactionRecord], error: Bool).self,
             returning: [(records: [TransactionRecord], error: Bool)].self
         ) { group in
-            for wallet in filtered {
-                guard let address = resolveAddress(wallet) else { continue }
+            for target in targets {
+                guard let wallet = walletByID[target.walletId] else { continue }
+                let address = target.address
                 let walletSnapshot = wallet
                 group.addTask {
                     do {
@@ -244,9 +269,9 @@ extension AppState {
 func refreshDogecoinTransactions(limit: Int? = nil, loadMore: Bool = false, targetWalletIDs: Set<String>? = nil) async {
     let walletSnapshot = wallets
     let walletsToRefresh = plannedDogecoinHistoryWallets(walletSnapshot: walletSnapshot, targetWalletIDs: targetWalletIDs) ?? walletSnapshot.compactMap { wallet -> (ImportedWallet, [String])? in
-        guard wallet.selectedChain == "Dogecoin", !knownDogecoinAddresses(for: wallet).isEmpty else { return nil }
+        guard wallet.selectedChain == "Dogecoin", !knownUTXOAddresses(for: wallet, chainName: "Dogecoin").isEmpty else { return nil }
         if let targetWalletIDs, !targetWalletIDs.contains(wallet.id) { return nil }
-        return (wallet, knownDogecoinAddresses(for: wallet))
+        return (wallet, knownUTXOAddresses(for: wallet, chainName: "Dogecoin"))
     }
     guard !walletsToRefresh.isEmpty else { return }
     if !loadMore {
@@ -293,7 +318,7 @@ private func plannedDogecoinHistoryWallets(
     let request = WalletRustDogecoinRefreshTargetsRequest(
         wallets: walletSnapshot.enumerated().map { index, wallet in
             WalletRustDogecoinRefreshWalletInput(
-                index: UInt64(index), walletId: wallet.id, selectedChain: wallet.selectedChain, addresses: knownDogecoinAddresses(for: wallet)
+                index: UInt64(index), walletId: wallet.id, selectedChain: wallet.selectedChain, addresses: knownUTXOAddresses(for: wallet, chainName: "Dogecoin")
             )
         }, allowedWalletIds: targetWalletIDs.map(Array.init)
     )
@@ -406,37 +431,25 @@ extension AppState {
             if isLastPage { markHistoryExhausted(chainId: evmChainId, walletId: wallet.id) } else { markHistoryActive(chainId: evmChainId, walletId: wallet.id) }
             setHistoryPage(chainId: evmChainId, walletId: wallet.id, page: page)
         }
-        for wallet in targetWallets {
-            for transfer in decodedPage.tokens {
-                let isOutgoing = transfer.fromAddress == normalizedAddress
-                let isIncoming = transfer.toAddress == normalizedAddress
-                guard isOutgoing || isIncoming else { continue }
-                let counterparty = isOutgoing ? transfer.toAddress : transfer.fromAddress
-                let walletSideAddress = isOutgoing ? transfer.fromAddress : transfer.toAddress
-                let createdAt = transfer.timestamp > 0 ? Date(timeIntervalSince1970: transfer.timestamp) : unknownTimestamp
-                let amount = (Decimal(string: transfer.amountDecimal) ?? 0) as NSDecimalNumber
-                syncedTransactions.append(
-                    TransactionRecord(
-                        walletID: wallet.id, kind: isOutgoing ? .send : .receive, status: .confirmed, walletName: wallet.name, assetName: transfer.tokenName, symbol: transfer.symbol, chainName: chainName, amount: amount.doubleValue, address: counterparty, transactionHash: transfer.transactionHash, receiptBlockNumber: Int(transfer.blockNumber), sourceAddress: walletSideAddress, transactionHistorySource: tokenDiagnostics?.sourceUsed ?? "none", createdAt: createdAt
-                    )
-                )
-            }}
-        for wallet in targetWallets {
-            for transfer in decodedPage.native {
-                let isOutgoing = transfer.fromAddress == normalizedAddress
-                let isIncoming = transfer.toAddress == normalizedAddress
-                guard isOutgoing || isIncoming else { continue }
-                let counterparty = isOutgoing ? transfer.toAddress : transfer.fromAddress
-                let walletSideAddress = isOutgoing ? transfer.fromAddress : transfer.toAddress
-                let createdAt = transfer.timestamp > 0 ? Date(timeIntervalSince1970: transfer.timestamp) : unknownTimestamp
-                let nativeAsset = historyEvmNativeAsset(chainName: chainName) ?? EvmNativeAsset(assetName: "Ether", symbol: "ETH")
-                let amount = (Decimal(string: transfer.amountDecimal) ?? 0) as NSDecimalNumber
-                syncedTransactions.append(
-                    TransactionRecord(
-                        walletID: wallet.id, kind: isOutgoing ? .send : .receive, status: .confirmed, walletName: wallet.name, assetName: nativeAsset.assetName, symbol: nativeAsset.symbol, chainName: chainName, amount: amount.doubleValue, address: counterparty, transactionHash: transfer.transactionHash, receiptBlockNumber: Int(transfer.blockNumber), sourceAddress: walletSideAddress, transactionHistorySource: "etherscan", createdAt: createdAt
-                    )
-                )
-            }}}
+        let nativeAsset = historyEvmNativeAsset(chainName: chainName) ?? EvmNativeAsset(assetName: "Ether", symbol: "ETH")
+        let plannedRecords = WalletRustAppCoreBridge.planEVMTransactionRecords(
+            EvmTransactionRecordRequest(
+                decodedPage: decodedPage,
+                normalizedAddress: normalizedAddress,
+                chainName: chainName,
+                tokenSourceUsed: tokenDiagnostics?.sourceUsed,
+                nativeAssetName: nativeAsset.assetName,
+                nativeAssetSymbol: nativeAsset.symbol,
+                wallets: targetWallets.map { EvmTransactionRecordWalletInput(walletId: $0.id, walletName: $0.name) },
+                unknownTimestampSentinelUnix: unknownTimestamp.timeIntervalSince1970
+            )
+        )
+        syncedTransactions.append(contentsOf: plannedRecords.map { record in
+            let amount = (Decimal(string: record.amountDecimal) ?? 0) as NSDecimalNumber
+            return TransactionRecord(
+                walletID: record.walletId, kind: TransactionKind(rawValue: record.kind) ?? .send, status: .confirmed, walletName: record.walletName, assetName: record.assetName, symbol: record.symbol, chainName: record.chainName, amount: amount.doubleValue, address: record.counterparty, transactionHash: record.transactionHash, receiptBlockNumber: Int(record.blockNumber), sourceAddress: record.sourceAddress, transactionHistorySource: record.sourceUsed, createdAt: Date(timeIntervalSince1970: record.createdAtUnix)
+            )
+        })}
     guard !syncedTransactions.isEmpty else {
         if encounteredErrors {
             let hasCachedHistory = transactions.contains { transaction in

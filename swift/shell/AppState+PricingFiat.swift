@@ -30,16 +30,10 @@ extension AppState {
                 quoteRefreshError = localizedStoreFormat("%@ returned no supported asset quotes", pricingProvider.rawValue)
                 return false
             }
-            var updatedPrices = livePrices
-            var sawMeaningfulPriceChange = false
-            for (key, value) in fetchedPrices {
-                if updatedPrices[key] != value {
-                    updatedPrices[key] = value
-                    sawMeaningfulPriceChange = true
-                }}
-            if sawMeaningfulPriceChange { livePrices = updatedPrices }
+            let outcome = priceMergeLiveUpdates(existing: livePrices, fetched: fetchedPrices)
+            if outcome.hadMeaningfulChange { livePrices = outcome.updatedPrices }
             quoteRefreshError = nil
-            didUpdatePrices = sawMeaningfulPriceChange
+            didUpdatePrices = outcome.hadMeaningfulChange
         } catch {
             quoteRefreshError = localizedStoreFormat("%@ pricing unavailable", pricingProvider.rawValue)
         }
@@ -53,12 +47,14 @@ extension AppState {
     }
     func refreshFiatExchangeRates() async {
         do {
-            var rates: [String: Double] = [FiatCurrency.usd.rawValue: 1.0]
             let fetchedRates = try await WalletServiceBridge.shared.fetchFiatRatesViaRust(
                 provider: fiatRateProvider.rawValue, currencies: FiatCurrency.allCases.map(\.rawValue)
             )
-            for currency in FiatCurrency.allCases where currency != .usd {
-                if let rate = fetchedRates[currency.rawValue], rate > 0 { rates[currency.rawValue] = rate } else if let existingRate = fiatRatesFromUSD[currency.rawValue], existingRate > 0 { rates[currency.rawValue] = existingRate }}
+            let rates = priceMergeFiatRateUpdates(
+                fetched: fetchedRates, existing: fiatRatesFromUSD,
+                currencies: FiatCurrency.allCases.map(\.rawValue),
+                baseCurrency: FiatCurrency.usd.rawValue
+            )
             fiatRatesFromUSD = rates
             persistCodableToSQLite(rates, key: Self.fiatRatesFromUSDDefaultsKey)
             fiatRatesRefreshError = nil
@@ -84,34 +80,11 @@ extension AppState {
             guard wallet.selectedChain == chainName else { return false }
             if chainName == "Bitcoin" {
                 if let seedPhrase = storedSeedPhrase(for: wallet.id), !seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
-                if let address = wallet.bitcoinAddress, AddressValidation.isValidBitcoinAddress(address, networkMode: wallet.bitcoinNetworkMode) { return true }
+                if let address = wallet.bitcoinAddress, AddressValidation.isValid(address, kind: "bitcoin", networkMode: wallet.bitcoinNetworkMode.rawValue) { return true }
                 if let xpub = wallet.bitcoinXpub, (xpub.hasPrefix("xpub") || xpub.hasPrefix("ypub") || xpub.hasPrefix("zpub")) { return true }
                 return false
             }
             return resolvedAddress(for: wallet, chainName: chainName) != nil
-        }}
-    func resolvedAddress(for wallet: ImportedWallet, chainName: String) -> String? {
-        switch chainName {
-        case "Bitcoin": return resolvedBitcoinAddress(for: wallet)
-        case "Bitcoin Cash": return resolvedBitcoinCashAddress(for: wallet)
-        case "Bitcoin SV": return resolvedBitcoinSVAddress(for: wallet)
-        case "Litecoin": return resolvedLitecoinAddress(for: wallet)
-        case "Dogecoin": return resolvedDogecoinAddress(for: wallet)
-        case "Tron": return resolvedTronAddress(for: wallet)
-        case "Solana": return resolvedSolanaAddress(for: wallet)
-        case "XRP Ledger": return resolvedXRPAddress(for: wallet)
-        case "Stellar": return resolvedStellarAddress(for: wallet)
-        case "Monero": return resolvedMoneroAddress(for: wallet)
-        case "Cardano": return resolvedCardanoAddress(for: wallet)
-        case "Sui": return resolvedSuiAddress(for: wallet)
-        case "Aptos": return resolvedAptosAddress(for: wallet)
-        case "TON": return resolvedTONAddress(for: wallet)
-        case "Internet Computer": return resolvedICPAddress(for: wallet)
-        case "NEAR": return resolvedNearAddress(for: wallet)
-        case "Polkadot": return resolvedPolkadotAddress(for: wallet)
-        default:
-            if isEVMChain(chainName) { return resolvedEVMAddress(for: wallet, chainName: chainName) }
-            return nil
         }}
     func refreshChainBalances(includeHistoryRefreshes: Bool = true, historyRefreshInterval: TimeInterval = 120, forceChainRefresh: Bool = true) async {
         _ = forceChainRefresh  // Rust always fetches fresh data
@@ -192,4 +165,49 @@ extension AppState {
         )
     }
 #endif
+}
+enum PricingProvider: String, CaseIterable, Identifiable {
+    case coinGecko = "CoinGecko"
+    case binance = "Binance Public API"
+    case coinbaseExchange = "Coinbase Exchange API"
+    case coinPaprika = "CoinPaprika"
+    case coinLore = "CoinLore"
+    var id: String { rawValue }
+}
+enum FiatRateProvider: String, CaseIterable, Identifiable {
+    case openER = "Open ER"
+    case exchangeRateHost = "ExchangeRate.host"
+    case frankfurter = "Frankfurter API"
+    case fawazAhmed = "Fawaz Ahmed Currency API"
+    var id: String { rawValue }
+}
+enum FiatCurrency: String, CaseIterable, Identifiable {
+    case usd = "USD"
+    case eur = "EUR"
+    case gbp = "GBP"
+    case jpy = "JPY"
+    case cny = "CNY"
+    case inr = "INR"
+    case cad = "CAD"
+    case aud = "AUD"
+    case chf = "CHF"
+    case brl = "BRL"
+    case sgd = "SGD"
+    case aed = "AED"
+    var id: String { rawValue }
+    var displayName: String {
+        switch self {
+        case .usd: return "US Dollar (USD)"
+        case .eur: return "Euro (EUR)"
+        case .gbp: return "British Pound (GBP)"
+        case .jpy: return "Japanese Yen (JPY)"
+        case .cny: return "Chinese Yuan (CNY)"
+        case .inr: return "Indian Rupee (INR)"
+        case .cad: return "Canadian Dollar (CAD)"
+        case .aud: return "Australian Dollar (AUD)"
+        case .chf: return "Swiss Franc (CHF)"
+        case .brl: return "Brazilian Real (BRL)"
+        case .sgd: return "Singapore Dollar (SGD)"
+        case .aed: return "UAE Dirham (AED)"
+        }}
 }

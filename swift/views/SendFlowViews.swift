@@ -409,22 +409,22 @@ struct SendView: View {
     }
     private func isValidScannedAddress(_ address: String, for chainName: String) -> Bool {
         switch chainName {
-        case "Bitcoin": return AddressValidation.isValidBitcoinAddress(address, networkMode: store.bitcoinNetworkMode)
-        case "Bitcoin Cash": return AddressValidation.isValidBitcoinCashAddress(address)
-        case "Bitcoin SV": return AddressValidation.isValidBitcoinSVAddress(address)
-        case "Litecoin": return AddressValidation.isValidLitecoinAddress(address)
-        case "Dogecoin": return AddressValidation.isValidDogecoinAddress(address, networkMode: store.wallet(for: store.sendWalletID)?.dogecoinNetworkMode ?? store.dogecoinNetworkMode)
-        case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid": return AddressValidation.isValidEthereumAddress(address)
-        case "Tron": return AddressValidation.isValidTronAddress(address)
-        case "Solana": return AddressValidation.isValidSolanaAddress(address)
-        case "Cardano": return AddressValidation.isValidCardanoAddress(address)
-        case "XRP Ledger": return AddressValidation.isValidXRPAddress(address)
-        case "Monero": return AddressValidation.isValidMoneroAddress(address)
-        case "Sui": return AddressValidation.isValidSuiAddress(address)
-        case "Aptos": return AddressValidation.isValidAptosAddress(address)
-        case "TON": return AddressValidation.isValidTONAddress(address)
-        case "Internet Computer": return AddressValidation.isValidICPAddress(address)
-        case "NEAR": return AddressValidation.isValidNearAddress(address)
+        case "Bitcoin": return AddressValidation.isValid(address, kind: "bitcoin", networkMode: store.bitcoinNetworkMode.rawValue)
+        case "Bitcoin Cash": return AddressValidation.isValid(address, kind: "bitcoinCash")
+        case "Bitcoin SV": return AddressValidation.isValid(address, kind: "bitcoinSV")
+        case "Litecoin": return AddressValidation.isValid(address, kind: "litecoin")
+        case "Dogecoin": return AddressValidation.isValid(address, kind: "dogecoin", networkMode: (store.wallet(for: store.sendWalletID)?.dogecoinNetworkMode ?? store.dogecoinNetworkMode).rawValue)
+        case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid": return AddressValidation.isValid(address, kind: "evm")
+        case "Tron": return AddressValidation.isValid(address, kind: "tron")
+        case "Solana": return AddressValidation.isValid(address, kind: "solana")
+        case "Cardano": return AddressValidation.isValid(address, kind: "cardano")
+        case "XRP Ledger": return AddressValidation.isValid(address, kind: "xrp")
+        case "Monero": return AddressValidation.isValid(address, kind: "monero")
+        case "Sui": return AddressValidation.isValid(address, kind: "sui")
+        case "Aptos": return AddressValidation.isValid(address, kind: "aptos")
+        case "TON": return AddressValidation.isValid(address, kind: "ton")
+        case "Internet Computer": return AddressValidation.isValid(address, kind: "internetComputer")
+        case "NEAR": return AddressValidation.isValid(address, kind: "near")
         default: return false
         }}
     private func confirmationPreferenceText(for priority: String) -> String {

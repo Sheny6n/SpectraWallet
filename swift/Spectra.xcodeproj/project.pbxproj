@@ -71,11 +71,6 @@
 			path = fetch;
 			sourceTree = "<group>";
 		};
-		907491672F56D1E500D098D2 /* providercatalog */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = providercatalog;
-			sourceTree = "<group>";
-		};
 		907491682F56D1E500D098D2 /* send */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = send;
@@ -171,7 +166,6 @@
 				90AA00202F60000200BBB001 /* generated */,
 				90AA00212F60000200BBB001 /* rustbridge */,
 				907491662F56D1E500D098D2 /* fetch */,
-				907491672F56D1E500D098D2 /* providercatalog */,
 				907491682F56D1E500D098D2 /* send */,
 				907491692F56D1E500D098D2 /* shell */,
 				9074916C2F56D1E500D098D2 /* views */,
@@ -214,7 +208,6 @@
 			fileSystemSynchronizedGroups = (
 				907491652F56D1E500D098D2 /* derivation */,
 				907491662F56D1E500D098D2 /* fetch */,
-				907491672F56D1E500D098D2 /* providercatalog */,
 				907491682F56D1E500D098D2 /* send */,
 				907491692F56D1E500D098D2 /* shell */,
 				9074916A2F56D1E500D098D2 /* resources */,

@@ -26,8 +26,8 @@ extension AppState {
         tokenPreferences = loadPersistedTokenPreferences()
         rebuildTokenPreferenceDerivedState()
         livePrices = loadPersistedLivePrices()
-        chainKeypoolByChain = mergeDogecoinKeypoolIntoChainMap(loadChainKeypoolState())
-        chainOwnedAddressMapByChain = mergeDogecoinOwnedAddressesIntoChainMap(loadChainOwnedAddressMap())
+        chainKeypoolByChain = loadChainKeypoolState()
+        chainOwnedAddressMapByChain = loadChainOwnedAddressMap()
         chainOperationalEventsByChain = loadChainOperationalEvents()
         syncChainOwnedAddressManagementState()
         if UserDefaults.standard.object(forKey: Self.hideBalancesDefaultsKey) != nil { hideBalances = UserDefaults.standard.bool(forKey: Self.hideBalancesDefaultsKey) }
@@ -171,8 +171,6 @@ extension AppState {
         Task { await WalletServiceBridge.shared.clearAllHistoryRecords() }
         UserDefaults.standard.removeObject(forKey: Self.chainSyncStateDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.operationalLogsDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.dogecoinKeypoolDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: Self.dogecoinOwnedAddressMapDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.chainKeypoolDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.chainOwnedAddressMapDefaultsKey)
         setTransactions([])

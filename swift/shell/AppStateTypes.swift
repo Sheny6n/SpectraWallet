@@ -136,26 +136,10 @@ extension AppState {
         var reservedReceiveIndex: Int?
     }
 
-    typealias DogecoinKeypoolState = ChainKeypoolState
-
-    struct PersistedDogecoinKeypoolStore: Codable {
-        let version: Int
-        let keypoolByWalletID: [String: DogecoinKeypoolState]
-        static let currentVersion = 1
-    }
-
     struct PersistedChainKeypoolStore: Codable {
         let version: Int
         let keypoolByChain: [String: [String: ChainKeypoolState]]
         static let currentVersion = 1
-    }
-
-    struct DogecoinOwnedAddressRecord: Codable {
-        let address: String?
-        let walletID: String
-        let derivationPath: String
-        let index: Int
-        let branch: String
     }
 
     struct ChainOwnedAddressRecord: Codable, Equatable {
@@ -182,12 +166,6 @@ extension AppState {
         let receiptBlockNumber: Int?
         let confirmations: Int?
         let dogecoinNetworkFeeDoge: Double?
-    }
-
-    struct PersistedDogecoinOwnedAddressStore: Codable {
-        let version: Int
-        let addressMap: [String: DogecoinOwnedAddressRecord]
-        static let currentVersion = 1
     }
 
     struct PersistedChainOwnedAddressStore: Codable {

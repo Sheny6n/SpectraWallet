@@ -53,7 +53,7 @@ final class AppStatePlatformBridgeTests: XCTestCase {
         XCTAssertEqual(store.wallets.first?.selectedChain, "Bitcoin")
         XCTAssertNotNil(store.wallets.first?.bitcoinAddress)
         XCTAssertTrue(
-            AddressValidation.isValidBitcoinAddress(store.wallets.first?.bitcoinAddress ?? "", networkMode: .testnet4)
+            AddressValidation.isValid(store.wallets.first?.bitcoinAddress ?? "", kind: "bitcoin", networkMode: BitcoinNetworkMode.testnet4.rawValue)
         )
     }
     func testBitcoinDisplayNetworkNameUsesSelectedMode() {

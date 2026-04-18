@@ -35,11 +35,13 @@ extension AppState {
     private func fiatFormatter(for currency: FiatCurrency) -> NumberFormatter {
         let key = currency.rawValue
         if let formatter = cachedCurrencyFormatters[key] { return formatter }
+        let rules = formattingFiatAmountRules(currencyCode: currency.rawValue)
+        let decimals = Int(rules.decimals)
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = currency.rawValue
-        formatter.minimumFractionDigits = currency == .jpy ? 0 : 2
-        formatter.maximumFractionDigits = currency == .jpy ? 0 : 2
+        formatter.minimumFractionDigits = decimals
+        formatter.maximumFractionDigits = decimals
         cachedCurrencyFormatters[key] = formatter
         return formatter
     }
@@ -56,7 +58,7 @@ extension AppState {
     }
     private func formatFiatAmount(amount: Double, currency: FiatCurrency) -> String {
         let formatter = fiatFormatter(for: currency)
-        let minimumVisibleAmount = currency == .jpy ? 1.0 : 0.01
+        let minimumVisibleAmount = formattingFiatAmountRules(currencyCode: currency.rawValue).minimumVisible
         if amount > 0, amount < minimumVisibleAmount, let thresholdString = formatter.string(from: NSNumber(value: minimumVisibleAmount)) { return "<\(thresholdString)" }
         return formatter.string(from: NSNumber(value: amount)) ?? "\(currency.rawValue) \(String(format: "%.2f", amount))"
     }
@@ -73,7 +75,7 @@ extension AppState {
             minimumFractionDigits: 0, maximumFractionDigits: visibleDecimals, usesGroupingSeparator: false
         )
         if amount > 0, visibleDecimals > 0 {
-            let threshold = pow(10.0, Double(-visibleDecimals))
+            let threshold = formattingAssetMinimumVisibleAmount(visibleDecimals: UInt32(visibleDecimals))
             if amount < threshold {
                 let thresholdFormatter = decimalFormatter(
                     minimumFractionDigits: visibleDecimals, maximumFractionDigits: visibleDecimals, usesGroupingSeparator: false

@@ -70,14 +70,14 @@ extension AppState {
         rebuildDashboardDerivedState()
     }
     private func dashboardAssetGroupingKey(for coin: Coin) -> String {
-        let normalizedCoinGeckoID = coin.coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let chainIdentity = runtimeChainIdentity(for: coin.chainName).lowercased()
-        if !normalizedCoinGeckoID.isEmpty { return "chain:\(chainIdentity)|cg:\(normalizedCoinGeckoID)" }
-        return "chain:\(chainIdentity)|symbol:\(coin.symbol.lowercased())"
+        formattingDashboardAssetGroupingKey(
+            chainIdentity: runtimeChainIdentity(for: coin.chainName),
+            coinGeckoId: coin.coinGeckoId,
+            symbol: coin.symbol
+        )
     }
     private func prototypeCoinForTrackedEntry(_ entry: TokenPreferenceEntry) -> Coin {
-        let stableSymbols: Set<String> = ["USDC", "USDT", "FDUSD", "TUSD"]
-        let price: Double = stableSymbols.contains(entry.symbol) ? 1.0 : 0.0
+        let price: Double = formattingStablecoinFallbackPriceUsd(symbol: entry.symbol)
         let contractAddress: String? = entry.contractAddress
         let mark: String = Coin.displayMark(for: entry.symbol)
         let name: String = entry.name
@@ -145,8 +145,7 @@ extension AppState {
         )
         cachedDashboardSupportedTokenEntriesBySymbol = Dictionary(
             uniqueKeysWithValues: trackedEntriesBySymbol.map { symbol, entries in
-                let supportedEntries = uniqueDashboardSupportedTokenEntries(from: entries)
-                return (symbol, supportedEntries)
+                (symbol, WalletRustAppCoreBridge.planDashboardSupportedTokenEntries(entries))
             }
         )
         let positiveCoins = includedHoldings.filter { $0.amount > 0 }
@@ -161,8 +160,8 @@ extension AppState {
             guard let coins = grouped[key], !coins.isEmpty else { return nil }
             var chainGrouped: [String: Coin] = [:]
             for coin in coins {
-                let normalizedContract = DashboardAssetIdentity.normalizedContractAddress(
-                    coin.contractAddress, chainName: coin.chainName, tokenStandard: coin.tokenStandard
+                let normalizedContract = normalizeDashboardContractAddress(
+                    contractAddress: coin.contractAddress, chainName: coin.chainName, tokenStandard: coin.tokenStandard
                 ) ?? "native"
                 let chainKey = "\(runtimeChainIdentity(for: coin.chainName).lowercased())|\(coin.tokenStandard.lowercased())|\(normalizedContract)"
                 if let existing = chainGrouped[chainKey] {
@@ -245,14 +244,6 @@ extension AppState {
         }
         return nil
     }
-    private func uniqueDashboardSupportedTokenEntries(from entries: [TokenPreferenceEntry]) -> [TokenPreferenceEntry] {
-        var seenKeys = Set<String>()
-        return entries.filter { !$0.contractAddress.isEmpty }
-            .sorted { $0.chain.rawValue.localizedCaseInsensitiveCompare($1.chain.rawValue) == .orderedAscending }
-            .filter { entry in
-                let key = "\(entry.chain.rawValue.lowercased())|\(entry.contractAddress.lowercased())"
-                return seenKeys.insert(key).inserted
-            }}
     var appNoticeItems: [AppNoticeItem] {
         let commonCopy = CommonLocalizationContent.current
         var notices: [AppNoticeItem] = []

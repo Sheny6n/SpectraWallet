@@ -295,22 +295,6 @@ class AppState: ObservableObject {
     let chainDiagnosticsState = WalletChainDiagnosticsState()
     private(set) var recentPerformanceSamples: [PerformanceSample] = []
     var isOnboarded: Bool { !wallets.isEmpty }
-    var dogecoinKeypoolDiagnostics: [DogecoinKeypoolDiagnostic] {
-        wallets.filter { $0.selectedChain == "Dogecoin" }
-            .map { wallet in
-                let state = dogecoinKeypoolByWalletID[wallet.id] ?? baselineDogecoinKeypoolState(for: wallet)
-                let reservedIndex = state.reservedReceiveIndex
-                let reservedPath = reservedIndex.map {
-                    WalletDerivationPath.dogecoin(
-                        account: 0, branch: .external, index: UInt32($0)
-                    )
-                }
-                let reservedAddress = reservedIndex.flatMap { index in deriveDogecoinAddress(for: wallet, isChange: false, index: index) }
-                return DogecoinKeypoolDiagnostic(
-                    walletID: wallet.id, walletName: wallet.name, reservedReceiveIndex: reservedIndex, reservedReceivePath: reservedPath, reservedReceiveAddress: reservedAddress, nextExternalIndex: state.nextExternalIndex, nextChangeIndex: state.nextChangeIndex
-                )
-            }
-            .sorted { $0.walletName.localizedCaseInsensitiveCompare($1.walletName) == .orderedAscending }}
     func chainKeypoolDiagnostics(for chainName: String) -> [ChainKeypoolDiagnostic] {
         wallets.filter { wallet in wallet.selectedChain == chainName || walletHasAddress(for: wallet, chainName: chainName) }
             .compactMap { wallet in
@@ -658,10 +642,6 @@ class AppState: ObservableObject {
             persistAppSettings()
         }
     }
-    var dogecoinKeypoolByWalletID: [String: DogecoinKeypoolState] {
-        get { chainKeypoolByChain["Dogecoin"] ?? [:] }
-        set { chainKeypoolByChain["Dogecoin"] = newValue }
-    }
     @Published var chainKeypoolByChain: [String: [String: ChainKeypoolState]] = [:] {
         didSet {
             let changedChains = chainKeypoolByChain.keys.filter { chainKeypoolByChain[$0] != oldValue[$0] }
@@ -674,10 +654,6 @@ class AppState: ObservableObject {
         }}
     var pendingEthereumSendPreviewRefresh: Bool = false
     var pendingDogecoinSendPreviewRefresh: Bool = false
-    var discoveredDogecoinAddressesByWallet: [String: [String]] {
-        get { discoveredUTXOAddressesByChain["Dogecoin"] ?? [:] }
-        set { discoveredUTXOAddressesByChain["Dogecoin"] = newValue }
-    }
     @Published var discoveredUTXOAddressesByChain: [String: [String: [String]]] = [:]
     var isLoadingMoreOnChainHistory: Bool { get { shellState.getIsLoadingMoreOnChainHistory() } set { notifyIfChanged(isLoadingMoreOnChainHistory, newValue) { shellState.setIsLoadingMoreOnChainHistory(value: newValue) } } }
     let diagnostics = WalletDiagnosticsState()
@@ -766,14 +742,10 @@ class AppState: ObservableObject {
     static let chainOperationalEventsDefaultsKey = "chain.operational.events.v1"
     static let operationalLogsDefaultsKey = "operational.logs.v1"
     static let dogecoinFeePriorityDefaultsKey = "settings.dogecoinFeePriority"
-    static let dogecoinKeypoolDefaultsKey = "dogecoin.keypool.snapshot"
-    static let dogecoinOwnedAddressMapDefaultsKey = "dogecoin.ownedAddressMap.snapshot"
     static let chainKeypoolDefaultsKey = "chain.keypool.snapshot.v1"
     static let chainOwnedAddressMapDefaultsKey = "chain.ownedAddressMap.snapshot.v1"
     static let chainSyncStateDefaultsKey = "chain.sync.state.v1"
     static let installMarkerDefaultsKey = "app.install.marker.v1"
-    static let dogecoinDiscoveryGapLimit = 3
-    static let dogecoinDiscoveryMaxIndex = 40
     static let utxoDiscoveryGapLimit = 3
     static let utxoDiscoveryMaxIndex = 40
     static let pendingStatusPollSeconds: TimeInterval = 20
@@ -1046,14 +1018,14 @@ class AppState: ObservableObject {
         guard !normalizedContract.isEmpty else { return localizedStoreString("Contract address is required.") }
         switch chain {
         case .ethereum, .arbitrum, .optimism, .bnb, .avalanche, .hyperliquid: guard isValidEVMAddress(normalizedContract) else { return localizedStoreString("Enter a valid \(chain.rawValue) token contract address.") }
-        case .solana: guard AddressValidation.isValidSolanaAddress(normalizedContract) else { return localizedStoreString("Enter a valid Solana token mint address.") }
+        case .solana: guard AddressValidation.isValid(normalizedContract, kind: "solana") else { return localizedStoreString("Enter a valid Solana token mint address.") }
         case .sui: let isLikelySuiIdentifier = normalizedContract.hasPrefix("0x")
                 && (normalizedContract.contains("::") || normalizedContract.count > 2)
             guard isLikelySuiIdentifier else { return localizedStoreString("Enter a valid Sui coin type or package address.") }
         case .aptos: guard AddressValidation.isValidAptosTokenType(normalizedContract) else { return localizedStoreString("Enter a valid Aptos coin type.") }
-        case .ton: guard AddressValidation.isValidTONAddress(normalizedContract) else { return localizedStoreString("Enter a valid TON jetton master address.") }
-        case .near: guard AddressValidation.isValidNearAddress(normalizedContract) else { return localizedStoreString("Enter a valid NEAR token contract account ID.") }
-        case .tron: guard AddressValidation.isValidTronAddress(normalizedContract) else { return localizedStoreString("Enter a valid Tron TRC-20 contract address.") }}
+        case .ton: guard AddressValidation.isValid(normalizedContract, kind: "ton") else { return localizedStoreString("Enter a valid TON jetton master address.") }
+        case .near: guard AddressValidation.isValid(normalizedContract, kind: "near") else { return localizedStoreString("Enter a valid NEAR token contract account ID.") }
+        case .tron: guard AddressValidation.isValid(normalizedContract, kind: "tron") else { return localizedStoreString("Enter a valid Tron TRC-20 contract address.") }}
         let duplicateExists = tokenPreferences.contains { entry in entry.chain == chain && normalizedTrackedTokenIdentifier(for: entry.chain, contractAddress: entry.contractAddress) == normalizedTrackedTokenIdentifier(for: chain, contractAddress: normalizedContract) }
         guard !duplicateExists else { return localizedStoreFormat("This token is already tracked for %@.", chain.rawValue) }
         tokenPreferences.append(

@@ -47,7 +47,7 @@ extension AppState {
         let trimmedDestination = sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         let previewDestination: String
         if trimmedDestination.isEmpty { previewDestination = fromAddress } else {
-            if AddressValidation.isValidEthereumAddress(trimmedDestination) { previewDestination = normalizeEVMAddress(trimmedDestination) } else if selectedSendCoin.chainName == "Ethereum", isENSNameCandidate(trimmedDestination) {
+            if AddressValidation.isValid(trimmedDestination, kind: "evm") { previewDestination = normalizeEVMAddress(trimmedDestination) } else if selectedSendCoin.chainName == "Ethereum", isENSNameCandidate(trimmedDestination) {
                 do {
                     guard let resolved = try await WalletServiceBridge.shared.resolveENSName(trimmedDestination) else {
                         ethereumSendPreview = nil

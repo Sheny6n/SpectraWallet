@@ -233,7 +233,7 @@ enum SolanaBalanceService {
         case "BONK": return bonkMintAddress
         default: return nil
         }}
-    static func isValidAddress(_ address: String) -> Bool { AddressValidation.isValidSolanaAddress(address) }
+    static func isValidAddress(_ address: String) -> Bool { AddressValidation.isValid(address, kind: "solana") }
 }
 
 // MARK: - NEAR
