@@ -17,7 +17,10 @@ extension AppState {
                 updated.isEnabled = existing.isEnabled
                 updated.displayDecimals = existing.displayDecimals
                 merged.append(updated)
-            } else { merged.append(builtIn) }}
+            } else {
+                merged.append(builtIn)
+            }
+        }
         merged.append(contentsOf: custom)
         merged.sort { lhs, rhs in
             if lhs.chain != rhs.chain { return lhs.chain.rawValue < rhs.chain.rawValue }
@@ -31,7 +34,9 @@ extension AppState {
         var updatedAlerts = priceAlerts
         for index in updatedAlerts.indices {
             let alert = updatedAlerts[index]
-            guard alert.isEnabled, let coin = portfolio.first(where: { $0.holdingKey == alert.holdingKey }), let livePrice = currentPriceIfAvailable(for: coin) else { continue }
+            guard alert.isEnabled, let coin = portfolio.first(where: { $0.holdingKey == alert.holdingKey }),
+                let livePrice = currentPriceIfAvailable(for: coin)
+            else { continue }
             let meetsTarget: Bool
             switch alert.condition {
             case .above: meetsTarget = livePrice >= alert.targetPrice
@@ -40,12 +45,16 @@ extension AppState {
             if meetsTarget && !alert.hasTriggered {
                 updatedAlerts[index].hasTriggered = true
                 sendPriceAlertNotification(for: alert, livePrice: livePrice)
-            } else if !meetsTarget && alert.hasTriggered { updatedAlerts[index].hasTriggered = false }}
+            } else if !meetsTarget && alert.hasTriggered {
+                updatedAlerts[index].hasTriggered = false
+            }
+        }
         priceAlerts = updatedAlerts
     }
     private func requestStandardNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in
-        }}
+        }
+    }
     private func postNotification(identifier: String, title: String, body: String) {
         let content = UNMutableNotificationContent()
         content.title = title
@@ -69,13 +78,18 @@ extension AppState {
             let pinnedPrototypeKeys = Set(
                 dashboardPinnedAssetPricingPrototypes.filter(isPricedAsset).map(assetIdentityKey)
             )
-            return pinnedPrototypeKeys.contains { key in oldPrices[key] != newPrices[key] }}
+            return pinnedPrototypeKeys.contains { key in oldPrices[key] != newPrices[key] }
+        }
         return false
     }
     private func sendPriceAlertNotification(for alert: PriceAlertRule, livePrice: Double) {
         postNotification(
-            identifier: "price-alert-\(alert.id.uuidString)-\(UUID().uuidString)", title: localizedStoreFormat("%@ price alert", alert.symbol), body: localizedStoreFormat(
-                "%@ on %@ is now %@, which is %@ your target of %@.", alert.assetName, alert.chainName, formattedFiatAmount(fromUSD: livePrice), alert.condition.rawValue.lowercased(), formattedFiatAmount(fromUSD: alert.targetPrice)
+            identifier: "price-alert-\(alert.id.uuidString)-\(UUID().uuidString)",
+            title: localizedStoreFormat("%@ price alert", alert.symbol),
+            body: localizedStoreFormat(
+                "%@ on %@ is now %@, which is %@ your target of %@.", alert.assetName, alert.chainName,
+                formattedFiatAmount(fromUSD: livePrice), alert.condition.rawValue.lowercased(),
+                formattedFiatAmount(fromUSD: alert.targetPrice)
             )
         )
     }
@@ -84,10 +98,16 @@ extension AppState {
         let title: String
         let body: String
         switch newStatus {
-        case .confirmed: title = localizedStoreFormat("%@ transaction confirmed", transaction.symbol)
-            body = localizedStoreFormat("Your %@ send from %@ is now confirmed on %@.", transaction.symbol, transaction.walletName, transaction.chainName)
-        case .failed: title = localizedStoreFormat("%@ transaction failed", transaction.symbol)
-            body = transaction.failureReason ?? localizedStoreFormat("Your %@ send from %@ failed on %@.", transaction.symbol, transaction.walletName, transaction.chainName)
+        case .confirmed:
+            title = localizedStoreFormat("%@ transaction confirmed", transaction.symbol)
+            body = localizedStoreFormat(
+                "Your %@ send from %@ is now confirmed on %@.", transaction.symbol, transaction.walletName, transaction.chainName)
+        case .failed:
+            title = localizedStoreFormat("%@ transaction failed", transaction.symbol)
+            body =
+                transaction.failureReason
+                ?? localizedStoreFormat(
+                    "Your %@ send from %@ failed on %@.", transaction.symbol, transaction.walletName, transaction.chainName)
         case .pending: return
         }
         postNotification(

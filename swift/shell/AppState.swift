@@ -1,13 +1,14 @@
 import Foundation
 import SwiftUI
-import Combine
 import os
 import UIKit
 #if canImport(Network)
-import Network
+    import Network
 #endif
 @MainActor
-class AppState: ObservableObject {
+@Observable
+@dynamicMemberLookup
+class AppState {
     enum HistoryPaging {
         static let endpointBatchSize = 20
         static let uiPageSize = 10
@@ -35,13 +36,13 @@ class AppState: ObservableObject {
     // moved to Shell/AppStateTypes.swift via `extension AppState`.
     let logger = Logger(subsystem: "com.spectra.wallet", category: "dogecoin")
     let balanceTelemetryLogger = Logger(subsystem: "com.spectra.wallet", category: "balance.telemetry")
-    var appSettingsPersistTask: Task<Void, Never>?
-    private var priceAlertsPersistTask: Task<Void, Never>?
-    private var addressBookPersistTask: Task<Void, Never>?
-    private var livePricesPersistTask: Task<Void, Never>?
-    private var tokenPreferenceRebuildTask: Task<Void, Never>?
-    private var transactionRebuildTask: Task<Void, Never>?
-    @Published var transactions: [TransactionRecord] = [] {
+    @ObservationIgnored var appSettingsPersistTask: Task<Void, Never>?
+    @ObservationIgnored private var priceAlertsPersistTask: Task<Void, Never>?
+    @ObservationIgnored private var addressBookPersistTask: Task<Void, Never>?
+    @ObservationIgnored private var livePricesPersistTask: Task<Void, Never>?
+    @ObservationIgnored private var tokenPreferenceRebuildTask: Task<Void, Never>?
+    @ObservationIgnored private var transactionRebuildTask: Task<Void, Never>?
+    var transactions: [TransactionRecord] = [] {
         didSet {
             transactionRevision &+= 1
             let old = lastObservedTransactions
@@ -50,33 +51,37 @@ class AppState: ObservableObject {
                 persistTransactionsDelta(from: old, to: transactions)
                 transactionRebuildTask?.cancel()
                 transactionRebuildTask = Task { @MainActor [weak self] in
-                    try? await Task.sleep(nanoseconds: 30_000_000) // 30ms debounce
+                    try? await Task.sleep(nanoseconds: 30_000_000)  // 30ms debounce
                     guard !Task.isCancelled, let self else { return }
                     self.rebuildTransactionDerivedState()
                 }
-            }}}
-    @Published var normalizedHistoryIndex: [NormalizedHistoryEntry] = [] {
-        didSet { normalizedHistoryRevision &+= 1 }}
-    @Published private(set) var transactionRevision: UInt64 = 0
-    @Published private(set) var normalizedHistoryRevision: UInt64 = 0
-    var cachedTransactionByID: [UUID: TransactionRecord] = [:]
-    var cachedFirstActivityDateByWalletID: [String: Date] = [:]
-    var lastNormalizedHistorySignature: Int?
-    var suppressSideEffects = false
-    var lastObservedTransactions: [TransactionRecord] = []
+            }
+        }
+    }
+    var normalizedHistoryIndex: [NormalizedHistoryEntry] = [] {
+        didSet { normalizedHistoryRevision &+= 1 }
+    }
+    private(set) var transactionRevision: UInt64 = 0
+    private(set) var normalizedHistoryRevision: UInt64 = 0
+    @ObservationIgnored var cachedTransactionByID: [UUID: TransactionRecord] = [:]
+    @ObservationIgnored var cachedFirstActivityDateByWalletID: [String: Date] = [:]
+    @ObservationIgnored var lastNormalizedHistorySignature: Int?
+    @ObservationIgnored var suppressSideEffects = false
+    @ObservationIgnored var lastObservedTransactions: [TransactionRecord] = []
     // Nested value types (event records, persisted-store schemas, keypool / diagnostic
     // structs and associated typealiases) moved to Shell/AppStateTypes.swift.
-    @Published var wallets: [ImportedWallet] = [] {
-        didSet { walletsRevision &+= 1 }}
-    @Published private(set) var walletsRevision: UInt64 = 0
+    var wallets: [ImportedWallet] = [] {
+        didSet { walletsRevision &+= 1 }
+    }
+    private(set) var walletsRevision: UInt64 = 0
     // Derived caches. Recomputed by `applyWalletCollectionSideEffects`,
     // `rebuildWalletDerivedState`, `rebuildDashboardDerivedState`, and
     // `rebuildTokenPreferenceDerivedState`. Each `didSet` bumps
     // `cachesRevision` so SwiftUI views observing it refresh; bulk rebuilds
     // wrap their work in `batchCacheUpdates` to coalesce into a single bump.
-    @Published private(set) var cachesRevision: UInt64 = 0
-    private var cacheBatchDepth: Int = 0
-    private func bumpCachesRevision() {
+    var cachesRevision: UInt64 = 0
+    @ObservationIgnored private var cacheBatchDepth: Int = 0
+    func bumpCachesRevision() {
         guard cacheBatchDepth == 0 else { return }
         cachesRevision &+= 1
     }
@@ -104,121 +109,168 @@ class AppState: ObservableObject {
     var cachedPasswordProtectedWalletIDs: Set<String> = [] { didSet { bumpCachesRevision() } }
     var cachedSecretDescriptorsByWalletID: [String: CoreWalletRustSecretMaterialDescriptor] = [:] { didSet { bumpCachesRevision() } }
     let importDraft = WalletImportDraft()
-    @Published var importError: String? = nil
-    @Published var isImportingWallet: Bool = false
-    @Published var isShowingWalletImporter: Bool = false
-    @Published var isShowingSendSheet: Bool = false
-    @Published var isShowingReceiveSheet: Bool = false
-    @Published var walletPendingDeletion: ImportedWallet?
-    @Published var editingWalletID: String? = nil
-    @Published var sendWalletID: String = ""
-    @Published var sendHoldingKey: String = ""
-    @Published var sendAmount: String = ""
-    @Published var sendAddress: String = ""
-    @Published var sendError: String? = nil
-    @Published var sendDestinationRiskWarning: String? = nil
-    @Published var sendDestinationInfoMessage: String? = nil
-    @Published var isCheckingSendDestinationBalance: Bool = false
-    @Published var pendingHighRiskSendReasons: [String] = []
-    @Published var isShowingHighRiskSendConfirmation: Bool = false
-    @Published var sendVerificationNotice: String? = nil
-    @Published var sendVerificationNoticeIsWarning: Bool = false
-    @Published var receiveWalletID: String = ""
-    @Published var receiveChainName: String = ""
-    @Published var receiveHoldingKey: String = ""
-    @Published var receiveResolvedAddress: String = ""
-    @Published var isResolvingReceiveAddress: Bool = false
-    // Dedicated observable for tab selection — isolates MainTabView from
-    // AppState.objectWillChange so swapping tabs doesn't re-render every
-    // view that holds `@ObservedObject var store: AppState`.
-    let tabSelection = AppTabSelection()
-    var selectedMainTab: MainAppTab {
-        get { tabSelection.value }
-        set { tabSelection.value = newValue }
-    }
-    @Published var isAppLocked: Bool = false
-    @Published var appLockError: String? = nil
-    @Published var isPreparingEthereumReplacementContext: Bool = false
-    @Published var isPreparingEthereumSend: Bool = false
-    @Published var isPreparingDogecoinSend: Bool = false
-    @Published var isPreparingTronSend: Bool = false
-    @Published var isPreparingSolanaSend: Bool = false
-    @Published var isPreparingXRPSend: Bool = false
-    @Published var isPreparingStellarSend: Bool = false
-    @Published var isPreparingMoneroSend: Bool = false
-    @Published var isPreparingCardanoSend: Bool = false
-    @Published var isPreparingSuiSend: Bool = false
-    @Published var isPreparingAptosSend: Bool = false
-    @Published var isPreparingTONSend: Bool = false
-    @Published var isPreparingICPSend: Bool = false
-    @Published var isPreparingNearSend: Bool = false
-    @Published var isPreparingPolkadotSend: Bool = false
-    var statusTrackingByTransactionID: [UUID: AppState.TransactionStatusTrackingState] = [:]
-    var pendingSelfSendConfirmation: AppState.PendingSelfSendConfirmation?
-    var activeEthereumSendWalletIDs: Set<String> = []
-    var lastSendDestinationProbeKey: String?
-    var lastSendDestinationProbeWarning: String?
-    var lastSendDestinationProbeInfoMessage: String?
+    var importError: String? = nil
+    var isImportingWallet: Bool = false
+    var isShowingWalletImporter: Bool = false
+    var isShowingSendSheet: Bool = false
+    var isShowingReceiveSheet: Bool = false
+    var walletPendingDeletion: ImportedWallet?
+    var editingWalletID: String? = nil
+    var sendWalletID: String = ""
+    var sendHoldingKey: String = ""
+    var sendAmount: String = ""
+    var sendAddress: String = ""
+    var sendError: String? = nil
+    var sendDestinationRiskWarning: String? = nil
+    var sendDestinationInfoMessage: String? = nil
+    var isCheckingSendDestinationBalance: Bool = false
+    var pendingHighRiskSendReasons: [String] = []
+    var isShowingHighRiskSendConfirmation: Bool = false
+    var sendVerificationNotice: String? = nil
+    var sendVerificationNoticeIsWarning: Bool = false
+    var receiveWalletID: String = ""
+    var receiveChainName: String = ""
+    var receiveHoldingKey: String = ""
+    var receiveResolvedAddress: String = ""
+    var isResolvingReceiveAddress: Bool = false
+    var selectedMainTab: MainAppTab = .home
+    var isAppLocked: Bool = false
+    var appLockError: String? = nil
+    var isPreparingEthereumReplacementContext: Bool = false
+    var isPreparingEthereumSend: Bool = false
+    var isPreparingDogecoinSend: Bool = false
+    var isPreparingTronSend: Bool = false
+    var isPreparingSolanaSend: Bool = false
+    var isPreparingXRPSend: Bool = false
+    var isPreparingStellarSend: Bool = false
+    var isPreparingMoneroSend: Bool = false
+    var isPreparingCardanoSend: Bool = false
+    var isPreparingSuiSend: Bool = false
+    var isPreparingAptosSend: Bool = false
+    var isPreparingTONSend: Bool = false
+    var isPreparingICPSend: Bool = false
+    var isPreparingNearSend: Bool = false
+    var isPreparingPolkadotSend: Bool = false
+    @ObservationIgnored var statusTrackingByTransactionID: [UUID: AppState.TransactionStatusTrackingState] = [:]
+    @ObservationIgnored var pendingSelfSendConfirmation: AppState.PendingSelfSendConfirmation?
+    @ObservationIgnored var activeEthereumSendWalletIDs: Set<String> = []
+    @ObservationIgnored var lastSendDestinationProbeKey: String?
+    @ObservationIgnored var lastSendDestinationProbeWarning: String?
+    @ObservationIgnored var lastSendDestinationProbeInfoMessage: String?
     var cachedResolvedENSAddresses: [String: String] = [:] { didSet { bumpCachesRevision() } }
-    var bypassHighRiskSendConfirmation = false
-    var isRefreshingLivePrices = false
-    var isRefreshingChainBalances = false
-    var allowsBalanceNetworkRefresh = false
-    var isRefreshingPendingTransactions = false
-    var lastLivePriceRefreshAt: Date?
-    var lastFiatRatesRefreshAt: Date?
-    var lastFullRefreshAt: Date?
-    var lastChainBalanceRefreshAt: Date?
-    var lastBackgroundMaintenanceAt: Date?
-    var isNetworkReachable: Bool = true
-    var isConstrainedNetwork: Bool = false
-    var isExpensiveNetwork: Bool = false
-    @Published var lastSentTransaction: TransactionRecord?
-    @Published var lastPendingTransactionRefreshAt: Date? = nil
+    @ObservationIgnored var bypassHighRiskSendConfirmation = false
+    @ObservationIgnored var isRefreshingLivePrices = false
+    @ObservationIgnored var isRefreshingChainBalances = false
+    @ObservationIgnored var allowsBalanceNetworkRefresh = false
+    @ObservationIgnored var isRefreshingPendingTransactions = false
+    @ObservationIgnored var lastLivePriceRefreshAt: Date?
+    @ObservationIgnored var lastFiatRatesRefreshAt: Date?
+    @ObservationIgnored var lastFullRefreshAt: Date?
+    @ObservationIgnored var lastChainBalanceRefreshAt: Date?
+    @ObservationIgnored var lastBackgroundMaintenanceAt: Date?
+    @ObservationIgnored var isNetworkReachable: Bool = true
+    @ObservationIgnored var isConstrainedNetwork: Bool = false
+    @ObservationIgnored var isExpensiveNetwork: Bool = false
+    var lastSentTransaction: TransactionRecord?
+    var lastPendingTransactionRefreshAt: Date? = nil
     // Send previews live in a dedicated sub-store so updates during the send flow
     // do not invalidate every view that observes AppState. Views that need the
     // preview values should observe `sendPreviewStore` directly.
     let sendPreviewStore = SendPreviewStore()
-    var ethereumSendPreview: EthereumSendPreview? { get { sendPreviewStore.ethereumSendPreview } set { sendPreviewStore.ethereumSendPreview = newValue } }
-    var bitcoinSendPreview: BitcoinSendPreview? { get { sendPreviewStore.bitcoinSendPreview } set { sendPreviewStore.bitcoinSendPreview = newValue } }
-    var bitcoinCashSendPreview: BitcoinSendPreview? { get { sendPreviewStore.bitcoinCashSendPreview } set { sendPreviewStore.bitcoinCashSendPreview = newValue } }
-    var bitcoinSVSendPreview: BitcoinSendPreview? { get { sendPreviewStore.bitcoinSVSendPreview } set { sendPreviewStore.bitcoinSVSendPreview = newValue } }
-    var litecoinSendPreview: BitcoinSendPreview? { get { sendPreviewStore.litecoinSendPreview } set { sendPreviewStore.litecoinSendPreview = newValue } }
-    var dogecoinSendPreview: DogecoinSendPreview? { get { sendPreviewStore.dogecoinSendPreview } set { sendPreviewStore.dogecoinSendPreview = newValue } }
-    var tronSendPreview: TronSendPreview? { get { sendPreviewStore.tronSendPreview } set { sendPreviewStore.tronSendPreview = newValue } }
-    var solanaSendPreview: SolanaSendPreview? { get { sendPreviewStore.solanaSendPreview } set { sendPreviewStore.solanaSendPreview = newValue } }
-    var xrpSendPreview: XrpSendPreview? { get { sendPreviewStore.xrpSendPreview } set { sendPreviewStore.xrpSendPreview = newValue } }
-    var stellarSendPreview: StellarSendPreview? { get { sendPreviewStore.stellarSendPreview } set { sendPreviewStore.stellarSendPreview = newValue } }
-    var moneroSendPreview: MoneroSendPreview? { get { sendPreviewStore.moneroSendPreview } set { sendPreviewStore.moneroSendPreview = newValue } }
-    var cardanoSendPreview: CardanoSendPreview? { get { sendPreviewStore.cardanoSendPreview } set { sendPreviewStore.cardanoSendPreview = newValue } }
-    var suiSendPreview: SuiSendPreview? { get { sendPreviewStore.suiSendPreview } set { sendPreviewStore.suiSendPreview = newValue } }
-    var aptosSendPreview: AptosSendPreview? { get { sendPreviewStore.aptosSendPreview } set { sendPreviewStore.aptosSendPreview = newValue } }
-    var tonSendPreview: TonSendPreview? { get { sendPreviewStore.tonSendPreview } set { sendPreviewStore.tonSendPreview = newValue } }
-    var icpSendPreview: IcpSendPreview? { get { sendPreviewStore.icpSendPreview } set { sendPreviewStore.icpSendPreview = newValue } }
-    var nearSendPreview: NearSendPreview? { get { sendPreviewStore.nearSendPreview } set { sendPreviewStore.nearSendPreview = newValue } }
-    var polkadotSendPreview: PolkadotSendPreview? { get { sendPreviewStore.polkadotSendPreview } set { sendPreviewStore.polkadotSendPreview = newValue } }
-    @Published var isSendingBitcoin: Bool = false
-    @Published var isSendingBitcoinCash: Bool = false
-    @Published var isSendingBitcoinSV: Bool = false
-    @Published var isSendingLitecoin: Bool = false
-    @Published var isSendingDogecoin: Bool = false
-    @Published var isSendingEthereum: Bool = false
-    @Published var isSendingTron: Bool = false
-    @Published var isSendingSolana: Bool = false
-    @Published var isSendingXRP: Bool = false
-    @Published var isSendingStellar: Bool = false
-    @Published var isSendingMonero: Bool = false
-    @Published var isSendingCardano: Bool = false
-    @Published var isSendingSui: Bool = false
-    @Published var isSendingAptos: Bool = false
-    @Published var isSendingTON: Bool = false
-    @Published var isSendingICP: Bool = false
-    @Published var isSendingNear: Bool = false
-    @Published var isSendingPolkadot: Bool = false
-    @Published var tronLastSendErrorDetails: String? = nil
-    @Published var tronLastSendErrorAt: Date? = nil
+    var ethereumSendPreview: EthereumSendPreview? {
+        get { sendPreviewStore.ethereumSendPreview }
+        set { sendPreviewStore.ethereumSendPreview = newValue }
+    }
+    var bitcoinSendPreview: BitcoinSendPreview? {
+        get { sendPreviewStore.bitcoinSendPreview }
+        set { sendPreviewStore.bitcoinSendPreview = newValue }
+    }
+    var bitcoinCashSendPreview: BitcoinSendPreview? {
+        get { sendPreviewStore.bitcoinCashSendPreview }
+        set { sendPreviewStore.bitcoinCashSendPreview = newValue }
+    }
+    var bitcoinSVSendPreview: BitcoinSendPreview? {
+        get { sendPreviewStore.bitcoinSVSendPreview }
+        set { sendPreviewStore.bitcoinSVSendPreview = newValue }
+    }
+    var litecoinSendPreview: BitcoinSendPreview? {
+        get { sendPreviewStore.litecoinSendPreview }
+        set { sendPreviewStore.litecoinSendPreview = newValue }
+    }
+    var dogecoinSendPreview: DogecoinSendPreview? {
+        get { sendPreviewStore.dogecoinSendPreview }
+        set { sendPreviewStore.dogecoinSendPreview = newValue }
+    }
+    var tronSendPreview: TronSendPreview? {
+        get { sendPreviewStore.tronSendPreview }
+        set { sendPreviewStore.tronSendPreview = newValue }
+    }
+    var solanaSendPreview: SolanaSendPreview? {
+        get { sendPreviewStore.solanaSendPreview }
+        set { sendPreviewStore.solanaSendPreview = newValue }
+    }
+    var xrpSendPreview: XrpSendPreview? {
+        get { sendPreviewStore.xrpSendPreview }
+        set { sendPreviewStore.xrpSendPreview = newValue }
+    }
+    var stellarSendPreview: StellarSendPreview? {
+        get { sendPreviewStore.stellarSendPreview }
+        set { sendPreviewStore.stellarSendPreview = newValue }
+    }
+    var moneroSendPreview: MoneroSendPreview? {
+        get { sendPreviewStore.moneroSendPreview }
+        set { sendPreviewStore.moneroSendPreview = newValue }
+    }
+    var cardanoSendPreview: CardanoSendPreview? {
+        get { sendPreviewStore.cardanoSendPreview }
+        set { sendPreviewStore.cardanoSendPreview = newValue }
+    }
+    var suiSendPreview: SuiSendPreview? {
+        get { sendPreviewStore.suiSendPreview }
+        set { sendPreviewStore.suiSendPreview = newValue }
+    }
+    var aptosSendPreview: AptosSendPreview? {
+        get { sendPreviewStore.aptosSendPreview }
+        set { sendPreviewStore.aptosSendPreview = newValue }
+    }
+    var tonSendPreview: TonSendPreview? {
+        get { sendPreviewStore.tonSendPreview }
+        set { sendPreviewStore.tonSendPreview = newValue }
+    }
+    var icpSendPreview: IcpSendPreview? {
+        get { sendPreviewStore.icpSendPreview }
+        set { sendPreviewStore.icpSendPreview = newValue }
+    }
+    var nearSendPreview: NearSendPreview? {
+        get { sendPreviewStore.nearSendPreview }
+        set { sendPreviewStore.nearSendPreview = newValue }
+    }
+    var polkadotSendPreview: PolkadotSendPreview? {
+        get { sendPreviewStore.polkadotSendPreview }
+        set { sendPreviewStore.polkadotSendPreview = newValue }
+    }
+    var isSendingBitcoin: Bool = false
+    var isSendingBitcoinCash: Bool = false
+    var isSendingBitcoinSV: Bool = false
+    var isSendingLitecoin: Bool = false
+    var isSendingDogecoin: Bool = false
+    var isSendingEthereum: Bool = false
+    var isSendingTron: Bool = false
+    var isSendingSolana: Bool = false
+    var isSendingXRP: Bool = false
+    var isSendingStellar: Bool = false
+    var isSendingMonero: Bool = false
+    var isSendingCardano: Bool = false
+    var isSendingSui: Bool = false
+    var isSendingAptos: Bool = false
+    var isSendingTON: Bool = false
+    var isSendingICP: Bool = false
+    var isSendingNear: Bool = false
+    var isSendingPolkadot: Bool = false
+    var tronLastSendErrorDetails: String? = nil
+    var tronLastSendErrorAt: Date? = nil
     let chainDiagnosticsState = WalletChainDiagnosticsState()
-    private(set) var recentPerformanceSamples: [PerformanceSample] = []
+    @ObservationIgnored private(set) var recentPerformanceSamples: [PerformanceSample] = []
     var isOnboarded: Bool { !wallets.isEmpty }
     func chainKeypoolDiagnostics(for chainName: String) -> [ChainKeypoolDiagnostic] {
         wallets.filter { wallet in wallet.selectedChain == chainName || walletHasAddress(for: wallet, chainName: chainName) }
@@ -226,113 +278,120 @@ class AppState: ObservableObject {
                 let state = keypoolState(for: wallet, chainName: chainName)
                 let reservedIndex = state.reservedReceiveIndex
                 return ChainKeypoolDiagnostic(
-                    walletID: wallet.id, walletName: wallet.name, chainName: chainName, reservedReceiveIndex: reservedIndex, reservedReceivePath: reservedReceiveDerivationPath(for: wallet, chainName: chainName, index: reservedIndex), reservedReceiveAddress: reservedReceiveAddress(for: wallet, chainName: chainName, reserveIfMissing: false), nextExternalIndex: state.nextExternalIndex, nextChangeIndex: state.nextChangeIndex
+                    walletID: wallet.id, walletName: wallet.name, chainName: chainName, reservedReceiveIndex: reservedIndex,
+                    reservedReceivePath: reservedReceiveDerivationPath(for: wallet, chainName: chainName, index: reservedIndex),
+                    reservedReceiveAddress: reservedReceiveAddress(for: wallet, chainName: chainName, reserveIfMissing: false),
+                    nextExternalIndex: state.nextExternalIndex, nextChangeIndex: state.nextChangeIndex
                 )
             }
-            .sorted { $0.walletName.localizedCaseInsensitiveCompare($1.walletName) == .orderedAscending }}
-    @Published var pricingProvider: PricingProvider = .coinGecko {
+            .sorted { $0.walletName.localizedCaseInsensitiveCompare($1.walletName) == .orderedAscending }
+    }
+    var pricingProvider: PricingProvider = .coinGecko {
         didSet {
             guard pricingProvider != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var selectedFiatCurrency: FiatCurrency = .usd {
+    var selectedFiatCurrency: FiatCurrency = .usd {
         didSet {
             guard selectedFiatCurrency != oldValue else { return }
             persistAppSettings()
             Task { @MainActor in await refreshFiatExchangeRatesIfNeeded(force: true) }
         }
     }
-    @Published var fiatRateProvider: FiatRateProvider = .openER {
+    var fiatRateProvider: FiatRateProvider = .openER {
         didSet {
             guard fiatRateProvider != oldValue else { return }
             persistAppSettings()
             Task { @MainActor in await refreshFiatExchangeRatesIfNeeded(force: true) }
         }
     }
-    @Published var coinGeckoAPIKey: String = "" {
+    var coinGeckoAPIKey: String = "" {
         didSet {
             guard coinGeckoAPIKey != oldValue else { return }
             SecureStore.save(coinGeckoAPIKey, for: Self.coinGeckoAPIKeyAccount)
         }
     }
-    @Published var ethereumRPCEndpoint: String = "" {
+    var ethereumRPCEndpoint: String = "" {
         didSet {
             guard ethereumRPCEndpoint != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var ethereumNetworkMode: EthereumNetworkMode = .mainnet {
+    var ethereumNetworkMode: EthereumNetworkMode = .mainnet {
         didSet {
             guard ethereumNetworkMode != oldValue else { return }
             persistAppSettings()
             WalletServiceBridge.shared.resetHistoryForChain(chainId: 1)
         }
     }
-    @Published var etherscanAPIKey: String = "" {
+    var etherscanAPIKey: String = "" {
         didSet {
             guard etherscanAPIKey != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var moneroBackendBaseURL: String = "" {
+    var moneroBackendBaseURL: String = "" {
         didSet {
             guard moneroBackendBaseURL != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var moneroBackendAPIKey: String = "" {
+    var moneroBackendAPIKey: String = "" {
         didSet {
             guard moneroBackendAPIKey != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var isUserInitiatedRefreshInProgress: Bool = false
-    @Published var priceAlerts: [PriceAlertRule] = [] {
+    var isUserInitiatedRefreshInProgress: Bool = false
+    var priceAlerts: [PriceAlertRule] = [] {
         didSet {
             priceAlertsPersistTask?.cancel()
             priceAlertsPersistTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms debounce
+                try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms debounce
                 guard !Task.isCancelled, let self else { return }
                 self.persistPriceAlerts()
             }
-        }}
-    @Published var addressBook: [AddressBookEntry] = [] {
+        }
+    }
+    var addressBook: [AddressBookEntry] = [] {
         didSet {
             addressBookPersistTask?.cancel()
             addressBookPersistTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms debounce
+                try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms debounce
                 guard !Task.isCancelled, let self else { return }
                 self.persistAddressBook()
             }
-        }}
-    @Published var tokenPreferences: [TokenPreferenceEntry] = [] {
+        }
+    }
+    var tokenPreferences: [TokenPreferenceEntry] = [] {
         didSet {
             persistTokenPreferences()
             tokenPreferenceRebuildTask?.cancel()
             tokenPreferenceRebuildTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 30_000_000) // 30ms debounce
+                try? await Task.sleep(nanoseconds: 30_000_000)  // 30ms debounce
                 guard !Task.isCancelled, let self else { return }
                 self.rebuildTokenPreferenceDerivedState()
                 self.rebuildWalletDerivedState()
                 self.rebuildDashboardDerivedState()
             }
-        }}
-    @Published var livePrices: [String: Double] = [:] {
+        }
+    }
+    var livePrices: [String: Double] = [:] {
         didSet {
             guard livePrices != oldValue else { return }
             livePricesPersistTask?.cancel()
             livePricesPersistTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: 200_000_000) // 200ms debounce
+                try? await Task.sleep(nanoseconds: 200_000_000)  // 200ms debounce
                 guard !Task.isCancelled, let self else { return }
                 self.persistLivePrices()
             }
             if shouldRebuildDashboardForLivePriceChange(from: oldValue, to: livePrices) { rebuildDashboardDerivedState() }
         }
     }
-    @Published var fiatRatesFromUSD: [String: Double] = [:]
-    @Published var fiatRatesRefreshError: String? = nil
-    @Published var quoteRefreshError: String? = nil
+    var fiatRatesFromUSD: [String: Double] = [:]
+    var fiatRatesRefreshError: String? = nil
+    var quoteRefreshError: String? = nil
     var cachedPinnedDashboardAssetSymbols: [String] = [] { didSet { bumpCachesRevision() } }
     var cachedDashboardPinOptionBySymbol: [String: DashboardPinOption] = [:] { didSet { bumpCachesRevision() } }
     var cachedAvailableDashboardPinOptions: [DashboardPinOption] = [] { didSet { bumpCachesRevision() } }
@@ -352,19 +411,19 @@ class AppState: ObservableObject {
     var cachedResolvedTokenPreferencesBySymbol: [String: [TokenPreferenceEntry]] = [:] { didSet { bumpCachesRevision() } }
     var cachedEnabledTrackedTokenPreferences: [TokenPreferenceEntry] = [] { didSet { bumpCachesRevision() } }
     var cachedTokenPreferenceByChainAndSymbol: [String: TokenPreferenceEntry] = [:] { didSet { bumpCachesRevision() } }
-    var cachedCurrencyFormatters: [String: NumberFormatter] = [:]
-    var cachedDecimalFormatters: [String: NumberFormatter] = [:]
-    @Published var useCustomEthereumFees: Bool = false
-    @Published var customEthereumMaxFeeGwei: String = ""
-    @Published var customEthereumPriorityFeeGwei: String = ""
-    @Published var sendAdvancedMode: Bool = false
-    @Published var sendUTXOMaxInputCount: Int = 0
-    @Published var sendEnableRBF: Bool = true
-    @Published var sendEnableCPFP: Bool = false
-    @Published var sendLitecoinChangeStrategy: LitecoinChangeStrategy = .derivedChange
-    @Published var ethereumManualNonceEnabled: Bool = false
-    @Published var ethereumManualNonce: String = ""
-    @Published var bitcoinNetworkMode: BitcoinNetworkMode = .mainnet {
+    @ObservationIgnored var cachedCurrencyFormatters: [String: NumberFormatter] = [:]
+    @ObservationIgnored var cachedDecimalFormatters: [String: NumberFormatter] = [:]
+    var useCustomEthereumFees: Bool = false
+    var customEthereumMaxFeeGwei: String = ""
+    var customEthereumPriorityFeeGwei: String = ""
+    var sendAdvancedMode: Bool = false
+    var sendUTXOMaxInputCount: Int = 0
+    var sendEnableRBF: Bool = true
+    var sendEnableCPFP: Bool = false
+    var sendLitecoinChangeStrategy: LitecoinChangeStrategy = .derivedChange
+    var ethereumManualNonceEnabled: Bool = false
+    var ethereumManualNonce: String = ""
+    var bitcoinNetworkMode: BitcoinNetworkMode = .mainnet {
         didSet {
             persistAppSettings()
             WalletServiceBridge.shared.resetHistoryForChain(chainId: 0)
@@ -376,7 +435,7 @@ class AppState: ObservableObject {
             chainOwnedAddressMapByChain.removeValue(forKey: "Bitcoin")
         }
     }
-    @Published var dogecoinNetworkMode: DogecoinNetworkMode = .mainnet {
+    var dogecoinNetworkMode: DogecoinNetworkMode = .mainnet {
         didSet {
             persistAppSettings()
             Task {
@@ -387,13 +446,13 @@ class AppState: ObservableObject {
             chainOwnedAddressMapByChain["Dogecoin"] = [:]
         }
     }
-    @Published var bitcoinEsploraEndpoints: String = "" {
+    var bitcoinEsploraEndpoints: String = "" {
         didSet {
             persistAppSettings()
             WalletServiceBridge.shared.resetHistoryForChain(chainId: 0)
         }
     }
-    @Published var bitcoinStopGap: Int = 10 {
+    var bitcoinStopGap: Int = 10 {
         didSet {
             let clamped = max(1, min(bitcoinStopGap, 200))
             if clamped != bitcoinStopGap {
@@ -403,25 +462,25 @@ class AppState: ObservableObject {
             persistAppSettings()
         }
     }
-    @Published var bitcoinFeePriority: BitcoinFeePriority = .normal {
+    var bitcoinFeePriority: BitcoinFeePriority = .normal {
         didSet {
             guard bitcoinFeePriority != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var dogecoinFeePriority: DogecoinFeePriority = .normal {
+    var dogecoinFeePriority: DogecoinFeePriority = .normal {
         didSet {
             guard dogecoinFeePriority != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var hideBalances: Bool = false {
+    var hideBalances: Bool = false {
         didSet {
             guard hideBalances != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var assetDisplayDecimalsByChain: [String: Int] = [:] {
+    var assetDisplayDecimalsByChain: [String: Int] = [:] {
         didSet {
             let normalized = assetDisplayDecimalsByChain.mapValues { min(max($0, 0), 30) }
             if normalized != assetDisplayDecimalsByChain {
@@ -432,7 +491,7 @@ class AppState: ObservableObject {
             cachedDecimalFormatters = [:]
         }
     }
-    @Published var useFaceID: Bool = true {
+    var useFaceID: Bool = true {
         didSet {
             guard useFaceID != oldValue else { return }
             persistAppSettings()
@@ -442,45 +501,45 @@ class AppState: ObservableObject {
             }
         }
     }
-    @Published var useAutoLock: Bool = false {
+    var useAutoLock: Bool = false {
         didSet {
             guard useAutoLock != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var useStrictRPCOnly: Bool = false {
+    var useStrictRPCOnly: Bool = false {
         didSet {
             guard useStrictRPCOnly != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var requireBiometricForSendActions: Bool = true {
+    var requireBiometricForSendActions: Bool = true {
         didSet {
             guard requireBiometricForSendActions != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var usePriceAlerts: Bool = true {
+    var usePriceAlerts: Bool = true {
         didSet {
             guard usePriceAlerts != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var useTransactionStatusNotifications: Bool = true {
+    var useTransactionStatusNotifications: Bool = true {
         didSet {
             guard useTransactionStatusNotifications != oldValue else { return }
             persistAppSettings()
             if useTransactionStatusNotifications { requestNotificationPermissionIfNeeded() }
         }
     }
-    @Published var useLargeMovementNotifications: Bool = true {
+    var useLargeMovementNotifications: Bool = true {
         didSet {
             guard useLargeMovementNotifications != oldValue else { return }
             persistAppSettings()
             if useLargeMovementNotifications { requestNotificationPermissionIfNeeded() }
         }
     }
-    @Published var automaticRefreshFrequencyMinutes: Int = 5 {
+    var automaticRefreshFrequencyMinutes: Int = 5 {
         didSet {
             let clamped = min(max(automaticRefreshFrequencyMinutes, 5), 60)
             if clamped != automaticRefreshFrequencyMinutes {
@@ -491,13 +550,13 @@ class AppState: ObservableObject {
             persistAppSettings()
         }
     }
-    @Published var backgroundSyncProfile: BackgroundSyncProfile = .balanced {
+    var backgroundSyncProfile: BackgroundSyncProfile = .balanced {
         didSet {
             guard backgroundSyncProfile != oldValue else { return }
             persistAppSettings()
         }
     }
-    @Published var largeMovementAlertPercentThreshold: Double = 10.0 {
+    var largeMovementAlertPercentThreshold: Double = 10.0 {
         didSet {
             let clamped = min(max(largeMovementAlertPercentThreshold, 1), 90)
             if clamped != largeMovementAlertPercentThreshold {
@@ -507,7 +566,7 @@ class AppState: ObservableObject {
             persistAppSettings()
         }
     }
-    @Published var largeMovementAlertUSDThreshold: Double = 50.0 {
+    var largeMovementAlertUSDThreshold: Double = 50.0 {
         didSet {
             let clamped = min(max(largeMovementAlertUSDThreshold, 1), 100_000)
             if clamped != largeMovementAlertUSDThreshold {
@@ -517,55 +576,58 @@ class AppState: ObservableObject {
             persistAppSettings()
         }
     }
-    @Published var chainKeypoolByChain: [String: [String: ChainKeypoolState]] = [:] {
+    var chainKeypoolByChain: [String: [String: ChainKeypoolState]] = [:] {
         didSet {
             let changedChains = chainKeypoolByChain.keys.filter { chainKeypoolByChain[$0] != oldValue[$0] }
             for chainName in changedChains { persistKeypoolForChain(chainName) }
-        }}
-    @Published var chainOwnedAddressMapByChain: [String: [String: ChainOwnedAddressRecord]] = [:] {
+        }
+    }
+    var chainOwnedAddressMapByChain: [String: [String: ChainOwnedAddressRecord]] = [:] {
         didSet {
             let changedChains = chainOwnedAddressMapByChain.keys.filter { chainOwnedAddressMapByChain[$0] != oldValue[$0] }
             for chainName in changedChains { persistOwnedAddressesForChain(chainName) }
-        }}
-    var pendingEthereumSendPreviewRefresh: Bool = false
-    var pendingDogecoinSendPreviewRefresh: Bool = false
-    @Published var discoveredUTXOAddressesByChain: [String: [String: [String]]] = [:]
-    @Published var isLoadingMoreOnChainHistory: Bool = false
+        }
+    }
+    @ObservationIgnored var pendingEthereumSendPreviewRefresh: Bool = false
+    @ObservationIgnored var pendingDogecoinSendPreviewRefresh: Bool = false
+    var discoveredUTXOAddressesByChain: [String: [String: [String]]] = [:]
+    var isLoadingMoreOnChainHistory: Bool = false
     let diagnostics = WalletDiagnosticsState()
-    @Published var chainOperationalEventsByChain: [String: [ChainOperationalEvent]] = [:] {
+    var chainOperationalEventsByChain: [String: [ChainOperationalEvent]] = [:] {
         didSet {
             persistChainOperationalEvents()
-        }}
-    @Published var selectedFeePriorityOptionRawByChain: [String: String] = [:] {
+        }
+    }
+    var selectedFeePriorityOptionRawByChain: [String: String] = [:] {
         didSet {
             guard selectedFeePriorityOptionRawByChain != oldValue else { return }
             persistSelectedFeePriorityOptions()
         }
     }
-    @Published var isRunningBitcoinRescan: Bool = false
-    @Published var bitcoinRescanLastRunAt: Date? = nil
-    @Published var isRunningBitcoinCashRescan: Bool = false
-    @Published var bitcoinCashRescanLastRunAt: Date? = nil
-    @Published var isRunningBitcoinSVRescan: Bool = false
-    @Published var bitcoinSVRescanLastRunAt: Date? = nil
-    @Published var isRunningLitecoinRescan: Bool = false
-    @Published var litecoinRescanLastRunAt: Date? = nil
-    @Published var isRunningDogecoinRescan: Bool = false
-    @Published var dogecoinRescanLastRunAt: Date? = nil
-    var suppressWalletSideEffects = false
-    var userInitiatedRefreshTask: Task<Void, Never>?
-    var importRefreshTask: Task<Void, Never>?
-    var walletSideEffectsTask: Task<Void, Never>?
-    var walletCollectionObservation: AnyCancellable?
-    var lastHistoryRefreshAtByChain: [String: Date] = [:]
-    var appIsActive = true
-    var maintenanceTask: Task<Void, Never>?
-    var lastObservedPortfolioTotalUSD: Double?
-    var lastObservedPortfolioCompositionSignature: String?
-#if canImport(Network)
-    let networkPathMonitor = NWPathMonitor()
-    let networkPathMonitorQueue = DispatchQueue(label: "spectra.network.monitor")
-#endif
+    var isRunningBitcoinRescan: Bool = false
+    var bitcoinRescanLastRunAt: Date? = nil
+    var isRunningBitcoinCashRescan: Bool = false
+    var bitcoinCashRescanLastRunAt: Date? = nil
+    var isRunningBitcoinSVRescan: Bool = false
+    var bitcoinSVRescanLastRunAt: Date? = nil
+    var isRunningLitecoinRescan: Bool = false
+    var litecoinRescanLastRunAt: Date? = nil
+    var isRunningDogecoinRescan: Bool = false
+    var dogecoinRescanLastRunAt: Date? = nil
+    @ObservationIgnored var suppressWalletSideEffects = false
+    @ObservationIgnored var userInitiatedRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var importRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var walletSideEffectsTask: Task<Void, Never>?
+    @ObservationIgnored var lastHistoryRefreshAtByChain: [String: Date] = [:]
+    @ObservationIgnored var appIsActive = true
+    @ObservationIgnored var maintenanceTask: Task<Void, Never>?
+    @ObservationIgnored var lastObservedPortfolioTotalUSD: Double?
+    @ObservationIgnored var lastObservedPortfolioCompositionSignature: String?
+    @ObservationIgnored private var walletObservationTask: Task<Void, Never>?
+    #if canImport(Network)
+        let networkPathMonitor = NWPathMonitor()
+        let networkPathMonitorQueue = DispatchQueue(label: "spectra.network.monitor")
+    #endif
     static let pricingProviderDefaultsKey = "pricing.provider"
     static let selectedFiatCurrencyDefaultsKey = "pricing.selectedFiatCurrency"
     static let fiatRateProviderDefaultsKey = "pricing.fiatRateProvider"
@@ -629,9 +691,15 @@ class AppState: ObservableObject {
     static func seedPhraseAccount(for walletID: String) -> String { "wallet.seed.\(walletID)" }
     static func seedPhrasePasswordAccount(for walletID: String) -> String { "wallet.seed.password.\(walletID)" }
     static func privateKeyAccount(for walletID: String) -> String { "wallet.privatekey.\(walletID)" }
-    func resolvedSeedPhraseAccount(for walletID: String) -> String { cachedSecretDescriptorsByWalletID[walletID]?.seedPhraseStoreKey ?? Self.seedPhraseAccount(for: walletID) }
-    func resolvedSeedPhrasePasswordAccount(for walletID: String) -> String { cachedSecretDescriptorsByWalletID[walletID]?.passwordStoreKey ?? Self.seedPhrasePasswordAccount(for: walletID) }
-    func resolvedPrivateKeyAccount(for walletID: String) -> String { cachedSecretDescriptorsByWalletID[walletID]?.privateKeyStoreKey ?? Self.privateKeyAccount(for: walletID) }
+    func resolvedSeedPhraseAccount(for walletID: String) -> String {
+        cachedSecretDescriptorsByWalletID[walletID]?.seedPhraseStoreKey ?? Self.seedPhraseAccount(for: walletID)
+    }
+    func resolvedSeedPhrasePasswordAccount(for walletID: String) -> String {
+        cachedSecretDescriptorsByWalletID[walletID]?.passwordStoreKey ?? Self.seedPhrasePasswordAccount(for: walletID)
+    }
+    func resolvedPrivateKeyAccount(for walletID: String) -> String {
+        cachedSecretDescriptorsByWalletID[walletID]?.privateKeyStoreKey ?? Self.privateKeyAccount(for: walletID)
+    }
     func clearWalletSecretIndex() {
         cachedSigningMaterialWalletIDs = []
         cachedPrivateKeyBackedWalletIDs = []
@@ -743,31 +811,32 @@ class AppState: ObservableObject {
     func runPostSendRefreshActions(for chainName: String, verificationStatus: SendBroadcastVerificationStatus) async {
         applySendVerificationStatus(verificationStatus, chainName: chainName)
         noteSendBroadcastVerification(
-            chainName: chainName, verificationStatus: verificationStatus, transactionHash: lastSentTransaction?.chainName == chainName ? lastSentTransaction?.transactionHash : nil
+            chainName: chainName, verificationStatus: verificationStatus,
+            transactionHash: lastSentTransaction?.chainName == chainName ? lastSentTransaction?.transactionHash : nil
         )
         async let balanceRefresh: () = refreshBalances()
         async let chainRefresh: () = {
             switch AppEndpointDirectory.appChain(for: chainName)?.id {
-            case .bitcoin:          await self.refreshPendingBitcoinTransactions()
-            case .bitcoinCash:      await self.refreshPendingBitcoinCashTransactions()
-            case .bitcoinSV:        await self.refreshPendingBitcoinSVTransactions()
-            case .litecoin:         await self.refreshPendingLitecoinTransactions()
-            case .dogecoin:         await self.refreshPendingDogecoinTransactions()
+            case .bitcoin: await self.refreshPendingBitcoinTransactions()
+            case .bitcoinCash: await self.refreshPendingBitcoinCashTransactions()
+            case .bitcoinSV: await self.refreshPendingBitcoinSVTransactions()
+            case .litecoin: await self.refreshPendingLitecoinTransactions()
+            case .dogecoin: await self.refreshPendingDogecoinTransactions()
             case .ethereum, .ethereumClassic, .arbitrum, .optimism, .bnb, .avalanche, .hyperliquid:
-                                    await self.refreshPendingEVMTransactions(chainName: chainName)
-            case .tron:             await self.refreshTronTransactions(loadMore: false)
-            case .solana:           await self.refreshSolanaTransactions(loadMore: false)
-            case .cardano:          await self.refreshCardanoTransactions(loadMore: false)
-            case .xrp:              await self.refreshXRPTransactions(loadMore: false)
-            case .stellar:          await self.refreshStellarTransactions(loadMore: false)
-            case .monero:           await self.refreshMoneroTransactions(loadMore: false)
-            case .sui:              await self.refreshSuiTransactions(loadMore: false)
-            case .aptos:            await self.refreshAptosTransactions(loadMore: false)
-            case .ton:              await self.refreshTONTransactions(loadMore: false)
-            case .icp:              await self.refreshICPTransactions(loadMore: false)
-            case .near:             await self.refreshNearTransactions(loadMore: false)
-            case .polkadot:         await self.refreshPolkadotTransactions(loadMore: false)
-            case .none:             break
+                await self.refreshPendingEVMTransactions(chainName: chainName)
+            case .tron: await self.refreshTronTransactions(loadMore: false)
+            case .solana: await self.refreshSolanaTransactions(loadMore: false)
+            case .cardano: await self.refreshCardanoTransactions(loadMore: false)
+            case .xrp: await self.refreshXRPTransactions(loadMore: false)
+            case .stellar: await self.refreshStellarTransactions(loadMore: false)
+            case .monero: await self.refreshMoneroTransactions(loadMore: false)
+            case .sui: await self.refreshSuiTransactions(loadMore: false)
+            case .aptos: await self.refreshAptosTransactions(loadMore: false)
+            case .ton: await self.refreshTONTransactions(loadMore: false)
+            case .icp: await self.refreshICPTransactions(loadMore: false)
+            case .near: await self.refreshNearTransactions(loadMore: false)
+            case .polkadot: await self.refreshPolkadotTransactions(loadMore: false)
+            case .none: break
             }
         }()
         _ = await (balanceRefresh, chainRefresh)
@@ -787,18 +856,12 @@ class AppState: ObservableObject {
             ), at: 0
         )
         if recentPerformanceSamples.count > 120 { recentPerformanceSamples = Array(recentPerformanceSamples.prefix(120)) }
-        balanceTelemetryLogger.info("perf \(operation, privacy: .public) \(durationMS, format: .fixed(precision: 2))ms \(metadata ?? "", privacy: .public)")
+        balanceTelemetryLogger.info(
+            "perf \(operation, privacy: .public) \(durationMS, format: .fixed(precision: 2))ms \(metadata ?? "", privacy: .public)")
     }
     init() {
         clearPersistedSecureDataOnFreshInstallIfNeeded()
-        walletCollectionObservation = $wallets.dropFirst()
-            .debounce(for: .milliseconds(30), scheduler: RunLoop.main)
-            .sink { [weak self] _ in
-                guard let self else { return }
-                guard !self.suppressWalletSideEffects else { return }
-                self.applyWalletCollectionSideEffects()
-            }
-
+        startWalletCollectionObservation()
         restorePersistedRuntimeConfigurationAndState()
         Task { @MainActor in
             rebuildTransactionDerivedState()
@@ -809,15 +872,40 @@ class AppState: ObservableObject {
             async let sqliteReload: () = reloadPersistedStateFromSQLite()
             async let fiatRefresh: () = refreshFiatExchangeRates()
             _ = await (sqliteReload, fiatRefresh)
-        }}
+        }
+    }
     deinit {
         maintenanceTask?.cancel()
         userInitiatedRefreshTask?.cancel()
         importRefreshTask?.cancel()
         walletSideEffectsTask?.cancel()
-#if canImport(Network)
-        networkPathMonitor.cancel()
-#endif
+        walletObservationTask?.cancel()
+        #if canImport(Network)
+            networkPathMonitor.cancel()
+        #endif
+    }
+    private func startWalletCollectionObservation() {
+        walletObservationTask?.cancel()
+        walletObservationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    var didResume = false
+                    withObservationTracking {
+                        _ = self.wallets
+                    } onChange: {
+                        guard !didResume else { return }
+                        didResume = true
+                        continuation.resume()
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 30_000_000)
+                if Task.isCancelled { return }
+                if !self.suppressWalletSideEffects {
+                    self.applyWalletCollectionSideEffects()
+                }
+            }
+        }
     }
     func withSuspendedTransactionSideEffects(_ body: () -> Void) {
         let previous = suppressSideEffects
@@ -827,8 +915,8 @@ class AppState: ObservableObject {
         suppressSideEffects = previous
     }
     var canImportWallet: Bool {
-    importDraft.canImportWallet
-}
+        importDraft.canImportWallet
+    }
     var resolvedTokenPreferences: [TokenPreferenceEntry] { cachedResolvedTokenPreferences }
     var tokenPreferencesByChain: [TokenTrackingChain: [TokenPreferenceEntry]] { cachedTokenPreferencesByChain }
     var enabledTrackedTokenPreferences: [TokenPreferenceEntry] { cachedEnabledTrackedTokenPreferences }
@@ -838,14 +926,21 @@ class AppState: ObservableObject {
     }
     func setTokenPreferencesEnabled(ids: [String], isEnabled: Bool) {
         let targetIDs = Set(ids)
-        for index in tokenPreferences.indices where targetIDs.contains(tokenPreferences[index].id) { tokenPreferences[index].isEnabled = isEnabled }}
+        for index in tokenPreferences.indices where targetIDs.contains(tokenPreferences[index].id) {
+            tokenPreferences[index].isEnabled = isEnabled
+        }
+    }
     func removeCustomTokenPreference(id: String) {
         guard let entry = tokenPreferences.first(where: { $0.id == id }), !entry.isBuiltIn else { return }
-        tokenPreferences.removeAll { $0.id == id }}
+        tokenPreferences.removeAll { $0.id == id }
+    }
     func updateCustomTokenPreferenceDecimals(id: String, decimals: Int) {
         guard let index = tokenPreferences.firstIndex(where: { $0.id == id && !$0.isBuiltIn }) else { return }
         tokenPreferences[index].decimals = Int32(min(max(decimals, 0), 30))
-        if let displayDecimals = tokenPreferences[index].displayDecimals { tokenPreferences[index].displayDecimals = min(displayDecimals, tokenPreferences[index].decimals) }}
+        if let displayDecimals = tokenPreferences[index].displayDecimals {
+            tokenPreferences[index].displayDecimals = min(displayDecimals, tokenPreferences[index].decimals)
+        }
+    }
     func updateTokenPreferenceDisplayDecimals(id: String, decimals: Int) {
         guard let index = tokenPreferences.firstIndex(where: { $0.id == id }) else { return }
         let supportedDecimals = max(tokenPreferences[index].decimals, 0)
@@ -854,9 +949,13 @@ class AppState: ObservableObject {
     func resetNativeAssetDisplayDecimals() { assetDisplayDecimalsByChain = defaultAssetDisplayDecimalsByChain() }
     func resetTrackedTokenDisplayDecimals() {
         guard !tokenPreferences.isEmpty else { return }
-        for index in tokenPreferences.indices { tokenPreferences[index].displayDecimals = nil }}
+        for index in tokenPreferences.indices { tokenPreferences[index].displayDecimals = nil }
+    }
     @discardableResult
-    func addCustomTokenPreference(chain: TokenTrackingChain, symbol: String, name: String, contractAddress: String, marketDataId: String = "0", coinGeckoId: String = "", decimals: Int) -> String? {
+    func addCustomTokenPreference(
+        chain: TokenTrackingChain, symbol: String, name: String, contractAddress: String, marketDataId: String = "0",
+        coinGeckoId: String = "", decimals: Int
+    ) -> String? {
         let normalizedSymbol = symbol.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         guard !normalizedSymbol.isEmpty else { return localizedStoreString("Symbol is required.") }
         guard normalizedSymbol.count <= 12 else { return localizedStoreString("Symbol is too long.") }
@@ -865,20 +964,48 @@ class AppState: ObservableObject {
         let normalizedContract = contractAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedContract.isEmpty else { return localizedStoreString("Contract address is required.") }
         switch chain {
-        case .ethereum, .arbitrum, .optimism, .bnb, .avalanche, .hyperliquid: guard AddressValidation.isValid(normalizedContract, kind: "evm") else { return localizedStoreString("Enter a valid \(chain.rawValue) token contract address.") }
-        case .solana: guard AddressValidation.isValid(normalizedContract, kind: "solana") else { return localizedStoreString("Enter a valid Solana token mint address.") }
-        case .sui: let isLikelySuiIdentifier = normalizedContract.hasPrefix("0x")
+        case .ethereum, .arbitrum, .optimism, .bnb, .avalanche, .hyperliquid:
+            guard AddressValidation.isValid(normalizedContract, kind: "evm") else {
+                return localizedStoreString("Enter a valid \(chain.rawValue) token contract address.")
+            }
+        case .solana:
+            guard AddressValidation.isValid(normalizedContract, kind: "solana") else {
+                return localizedStoreString("Enter a valid Solana token mint address.")
+            }
+        case .sui:
+            let isLikelySuiIdentifier =
+                normalizedContract.hasPrefix("0x")
                 && (normalizedContract.contains("::") || normalizedContract.count > 2)
             guard isLikelySuiIdentifier else { return localizedStoreString("Enter a valid Sui coin type or package address.") }
-        case .aptos: guard AddressValidation.isValidAptosTokenType(normalizedContract) else { return localizedStoreString("Enter a valid Aptos coin type.") }
-        case .ton: guard AddressValidation.isValid(normalizedContract, kind: "ton") else { return localizedStoreString("Enter a valid TON jetton master address.") }
-        case .near: guard AddressValidation.isValid(normalizedContract, kind: "near") else { return localizedStoreString("Enter a valid NEAR token contract account ID.") }
-        case .tron: guard AddressValidation.isValid(normalizedContract, kind: "tron") else { return localizedStoreString("Enter a valid Tron TRC-20 contract address.") }}
-        let duplicateExists = tokenPreferences.contains { entry in entry.chain == chain && normalizedTrackedTokenIdentifier(for: entry.chain, contractAddress: entry.contractAddress) == normalizedTrackedTokenIdentifier(for: chain, contractAddress: normalizedContract) }
+        case .aptos:
+            guard AddressValidation.isValidAptosTokenType(normalizedContract) else {
+                return localizedStoreString("Enter a valid Aptos coin type.")
+            }
+        case .ton:
+            guard AddressValidation.isValid(normalizedContract, kind: "ton") else {
+                return localizedStoreString("Enter a valid TON jetton master address.")
+            }
+        case .near:
+            guard AddressValidation.isValid(normalizedContract, kind: "near") else {
+                return localizedStoreString("Enter a valid NEAR token contract account ID.")
+            }
+        case .tron:
+            guard AddressValidation.isValid(normalizedContract, kind: "tron") else {
+                return localizedStoreString("Enter a valid Tron TRC-20 contract address.")
+            }
+        }
+        let duplicateExists = tokenPreferences.contains { entry in
+            entry.chain == chain
+                && normalizedTrackedTokenIdentifier(for: entry.chain, contractAddress: entry.contractAddress)
+                    == normalizedTrackedTokenIdentifier(for: chain, contractAddress: normalizedContract)
+        }
         guard !duplicateExists else { return localizedStoreFormat("This token is already tracked for %@.", chain.rawValue) }
         tokenPreferences.append(
             TokenPreferenceEntry(
-                chain: chain, name: normalizedName, symbol: normalizedSymbol, tokenStandard: chain.tokenStandard, contractAddress: normalizedContract, marketDataId: marketDataId.trimmingCharacters(in: .whitespacesAndNewlines), coinGeckoId: coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines), decimals: min(max(decimals, 0), 30), category: .custom, isBuiltIn: false, isEnabled: true
+                chain: chain, name: normalizedName, symbol: normalizedSymbol, tokenStandard: chain.tokenStandard,
+                contractAddress: normalizedContract, marketDataId: marketDataId.trimmingCharacters(in: .whitespacesAndNewlines),
+                coinGeckoId: coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines), decimals: min(max(decimals, 0), 30),
+                category: .custom, isBuiltIn: false, isEnabled: true
             )
         )
         tokenPreferences.sort { lhs, rhs in
@@ -889,7 +1016,8 @@ class AppState: ObservableObject {
         return nil
     }
     func enabledTokenPreferences(for chain: TokenTrackingChain) -> [TokenPreferenceEntry] {
-        enabledTrackedTokenPreferences.filter { $0.chain == chain }}
+        enabledTrackedTokenPreferences.filter { $0.chain == chain }
+    }
     func normalizedTrackedTokenIdentifier(for chain: TokenTrackingChain, contractAddress: String) -> String {
         let trimmed = contractAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         switch chain {
@@ -898,7 +1026,8 @@ class AppState: ObservableObject {
         case .sui: return normalizeSuiTokenIdentifier(trimmed)
         case .ton: return TONBalanceService.normalizeJettonMasterAddress(trimmed)
         default: return trimmed.lowercased()
-        }}
+        }
+    }
     // Normalizers (Aptos / Sui) now live in Rust: `core/src/app_state/token_helpers.rs`.
     // Kept as instance-method forwarders so existing call sites (`self.foo(x)`) compile
     // without churn.
@@ -909,27 +1038,33 @@ class AppState: ObservableObject {
     // 6 identical EVM-chain tracked-token builders collapsed to a single helper.
     private func enabledEVMTrackedTokens(for chain: TokenTrackingChain) -> [ChainTokenRegistryEntry] {
         enabledTokenPreferences(for: chain).map { e in
-            ChainTokenRegistryEntry(chain: e.chain, name: e.name, symbol: e.symbol, tokenStandard: e.tokenStandard, contractAddress: normalizeEVMAddress(e.contractAddress), marketDataId: e.marketDataId, coinGeckoId: e.coinGeckoId, decimals: Int(e.decimals), displayDecimals: e.displayDecimals.map(Int.init), category: e.category, isBuiltIn: e.isBuiltIn, isEnabledByDefault: e.isEnabled)
+            ChainTokenRegistryEntry(
+                chain: e.chain, name: e.name, symbol: e.symbol, tokenStandard: e.tokenStandard,
+                contractAddress: normalizeEVMAddress(e.contractAddress), marketDataId: e.marketDataId, coinGeckoId: e.coinGeckoId,
+                decimals: Int(e.decimals), displayDecimals: e.displayDecimals.map(Int.init), category: e.category, isBuiltIn: e.isBuiltIn,
+                isEnabledByDefault: e.isEnabled)
         }
     }
-    func enabledEthereumTrackedTokens()   -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .ethereum) }
-    func enabledBNBTrackedTokens()        -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .bnb) }
-    func enabledArbitrumTrackedTokens()   -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .arbitrum) }
-    func enabledOptimismTrackedTokens()   -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .optimism) }
-    func enabledAvalancheTrackedTokens()  -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .avalanche) }
-    func enabledHyperliquidTrackedTokens()-> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .hyperliquid) }
+    func enabledEthereumTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .ethereum) }
+    func enabledBNBTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .bnb) }
+    func enabledArbitrumTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .arbitrum) }
+    func enabledOptimismTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .optimism) }
+    func enabledAvalancheTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .avalanche) }
+    func enabledHyperliquidTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .hyperliquid) }
     func enabledTronTrackedTokens() -> [TronBalanceService.TrackedTRC20Token] {
         enabledTokenPreferences(for: .tron).map { entry in
             TronBalanceService.TrackedTRC20Token(
                 symbol: entry.symbol, contractAddress: entry.contractAddress, decimals: Int(entry.decimals)
             )
-        }}
+        }
+    }
     func solanaTrackedTokens(includeDisabled: Bool = false) -> [String: SolanaBalanceService.KnownTokenMetadata] {
         var result: [String: SolanaBalanceService.KnownTokenMetadata] = [:]
         let entries = includeDisabled ? tokenPreferences.filter { $0.chain == .solana } : enabledTokenPreferences(for: .solana)
         for entry in entries {
             result[entry.contractAddress] = SolanaBalanceService.KnownTokenMetadata(
-                symbol: entry.symbol, name: entry.name, decimals: Int(entry.decimals), marketDataId: entry.marketDataId, coinGeckoId: entry.coinGeckoId
+                symbol: entry.symbol, name: entry.name, decimals: Int(entry.decimals), marketDataId: entry.marketDataId,
+                coinGeckoId: entry.coinGeckoId
             )
         }
         return result
@@ -943,8 +1078,10 @@ class AppState: ObservableObject {
         Dictionary(
             uniqueKeysWithValues: enabledTokenPreferences(for: .sui).map { entry in
                 (
-                    entry.contractAddress, SuiBalanceService.KnownTokenMetadata(
-                        symbol: entry.symbol, name: entry.name, tokenStandard: entry.tokenStandard, decimals: Int(entry.decimals), marketDataId: entry.marketDataId, coinGeckoId: entry.coinGeckoId
+                    entry.contractAddress,
+                    SuiBalanceService.KnownTokenMetadata(
+                        symbol: entry.symbol, name: entry.name, tokenStandard: entry.tokenStandard, decimals: Int(entry.decimals),
+                        marketDataId: entry.marketDataId, coinGeckoId: entry.coinGeckoId
                     )
                 )
             }
@@ -954,8 +1091,10 @@ class AppState: ObservableObject {
         Dictionary(
             uniqueKeysWithValues: enabledTokenPreferences(for: .aptos).map { entry in
                 (
-                    normalizeAptosTokenIdentifier(entry.contractAddress), AptosBalanceService.KnownTokenMetadata(
-                        symbol: entry.symbol, name: entry.name, tokenStandard: entry.tokenStandard, decimals: Int(entry.decimals), marketDataId: entry.marketDataId, coinGeckoId: entry.coinGeckoId
+                    normalizeAptosTokenIdentifier(entry.contractAddress),
+                    AptosBalanceService.KnownTokenMetadata(
+                        symbol: entry.symbol, name: entry.name, tokenStandard: entry.tokenStandard, decimals: Int(entry.decimals),
+                        marketDataId: entry.marketDataId, coinGeckoId: entry.coinGeckoId
                     )
                 )
             }
@@ -966,8 +1105,10 @@ class AppState: ObservableObject {
         Dictionary(
             uniqueKeysWithValues: enabledTokenPreferences(for: .near).map { entry in
                 (
-                    entry.contractAddress, NearBalanceService.KnownTokenMetadata(
-                        symbol: entry.symbol, name: entry.name, tokenStandard: entry.tokenStandard, decimals: Int(entry.decimals), marketDataId: entry.marketDataId, coinGeckoId: entry.coinGeckoId
+                    entry.contractAddress,
+                    NearBalanceService.KnownTokenMetadata(
+                        symbol: entry.symbol, name: entry.name, tokenStandard: entry.tokenStandard, decimals: Int(entry.decimals),
+                        marketDataId: entry.marketDataId, coinGeckoId: entry.coinGeckoId
                     )
                 )
             }
@@ -977,8 +1118,10 @@ class AppState: ObservableObject {
         Dictionary(
             uniqueKeysWithValues: enabledTokenPreferences(for: .ton).map { entry in
                 (
-                    TONBalanceService.normalizeJettonMasterAddress(entry.contractAddress), TONBalanceService.KnownTokenMetadata(
-                        symbol: entry.symbol, name: entry.name, tokenStandard: entry.tokenStandard, decimals: Int(entry.decimals), marketDataId: entry.marketDataId, coinGeckoId: entry.coinGeckoId
+                    TONBalanceService.normalizeJettonMasterAddress(entry.contractAddress),
+                    TONBalanceService.KnownTokenMetadata(
+                        symbol: entry.symbol, name: entry.name, tokenStandard: entry.tokenStandard, decimals: Int(entry.decimals),
+                        marketDataId: entry.marketDataId, coinGeckoId: entry.coinGeckoId
                     )
                 )
             }

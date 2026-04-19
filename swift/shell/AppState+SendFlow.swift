@@ -3,7 +3,7 @@ import SwiftUI
 import LocalAuthentication
 import os
 #if canImport(Network)
-import Network
+    import Network
 #endif
 @MainActor
 extension AppState {
@@ -28,14 +28,24 @@ extension AppState {
         Binding(get: { self.isShowingSendSheet }, set: { self.isShowingSendSheet = $0 })
     }
     private func clearAllChainSendState() {
-        bitcoinSendPreview = nil; bitcoinCashSendPreview = nil; bitcoinSVSendPreview = nil; litecoinSendPreview = nil; dogecoinSendPreview = nil; ethereumSendPreview = nil; tronSendPreview = nil; solanaSendPreview = nil; xrpSendPreview = nil; stellarSendPreview = nil; moneroSendPreview = nil; cardanoSendPreview = nil; suiSendPreview = nil; aptosSendPreview = nil; tonSendPreview = nil; icpSendPreview = nil; nearSendPreview = nil; polkadotSendPreview = nil
-        isSendingBitcoin = false; isSendingBitcoinCash = false; isSendingBitcoinSV = false; isSendingLitecoin = false; isSendingDogecoin = false; isSendingEthereum = false; isSendingTron = false; isSendingSolana = false; isSendingXRP = false; isSendingStellar = false; isSendingMonero = false; isSendingCardano = false; isSendingSui = false; isSendingAptos = false; isSendingTON = false; isSendingICP = false; isSendingNear = false; isSendingPolkadot = false
-        isPreparingEthereumSend = false; isPreparingDogecoinSend = false; isPreparingTronSend = false; isPreparingSolanaSend = false; isPreparingXRPSend = false; isPreparingStellarSend = false; isPreparingMoneroSend = false; isPreparingCardanoSend = false; isPreparingSuiSend = false; isPreparingAptosSend = false; isPreparingTONSend = false; isPreparingICPSend = false; isPreparingNearSend = false; isPreparingPolkadotSend = false
+        bitcoinSendPreview = nil; bitcoinCashSendPreview = nil; bitcoinSVSendPreview = nil; litecoinSendPreview = nil;
+        dogecoinSendPreview = nil; ethereumSendPreview = nil; tronSendPreview = nil; solanaSendPreview = nil; xrpSendPreview = nil;
+        stellarSendPreview = nil; moneroSendPreview = nil; cardanoSendPreview = nil; suiSendPreview = nil; aptosSendPreview = nil;
+        tonSendPreview = nil; icpSendPreview = nil; nearSendPreview = nil; polkadotSendPreview = nil
+        isSendingBitcoin = false; isSendingBitcoinCash = false; isSendingBitcoinSV = false; isSendingLitecoin = false;
+        isSendingDogecoin = false; isSendingEthereum = false; isSendingTron = false; isSendingSolana = false; isSendingXRP = false;
+        isSendingStellar = false; isSendingMonero = false; isSendingCardano = false; isSendingSui = false; isSendingAptos = false;
+        isSendingTON = false; isSendingICP = false; isSendingNear = false; isSendingPolkadot = false
+        isPreparingEthereumSend = false; isPreparingDogecoinSend = false; isPreparingTronSend = false; isPreparingSolanaSend = false;
+        isPreparingXRPSend = false; isPreparingStellarSend = false; isPreparingMoneroSend = false; isPreparingCardanoSend = false;
+        isPreparingSuiSend = false; isPreparingAptosSend = false; isPreparingTONSend = false; isPreparingICPSend = false;
+        isPreparingNearSend = false; isPreparingPolkadotSend = false
         pendingSelfSendConfirmation = nil
         clearHighRiskSendConfirmation()
     }
     private func resetSendComposerFields() {
-        sendAmount = ""; sendAddress = ""; sendError = nil; sendDestinationRiskWarning = nil; sendDestinationInfoMessage = nil; isCheckingSendDestinationBalance = false
+        sendAmount = ""; sendAddress = ""; sendError = nil; sendDestinationRiskWarning = nil; sendDestinationInfoMessage = nil;
+        isCheckingSendDestinationBalance = false
         clearSendVerificationNotice()
         useCustomEthereumFees = false; customEthereumMaxFeeGwei = ""; customEthereumPriorityFeeGwei = ""
         sendAdvancedMode = false; sendUTXOMaxInputCount = 0; sendEnableRBF = true; sendEnableCPFP = false
@@ -54,7 +64,10 @@ extension AppState {
     func syncSendAssetSelection() {
         let availableHoldingKeys = availableSendCoins(for: sendWalletID).map(\.holdingKey)
         if !availableHoldingKeys.contains(sendHoldingKey) { sendHoldingKey = availableHoldingKeys.first ?? "" }
-        if selectedSendCoin?.chainName != "Ethereum" { useCustomEthereumFees = false; customEthereumMaxFeeGwei = ""; customEthereumPriorityFeeGwei = ""; ethereumManualNonceEnabled = false; ethereumManualNonce = "" }
+        if selectedSendCoin?.chainName != "Ethereum" {
+            useCustomEthereumFees = false; customEthereumMaxFeeGwei = ""; customEthereumPriorityFeeGwei = "";
+            ethereumManualNonceEnabled = false; ethereumManualNonce = ""
+        }
         if selectedSendCoin?.chainName != "Litecoin" { sendLitecoinChangeStrategy = .derivedChange }
         lastSentTransaction = nil
         clearAllChainSendState()
@@ -65,30 +78,44 @@ extension AppState {
         availableSendCoins(for: sendWalletID).first(where: { $0.holdingKey == sendHoldingKey })
     }
     func sendPreviewDetails(for coin: Coin) -> SendPreviewDetails? {
-        let input = SendPreviewsInput(bitcoin: bitcoinSendPreview, bitcoinCash: bitcoinCashSendPreview, bitcoinSv: bitcoinSVSendPreview, litecoin: litecoinSendPreview, dogecoin: dogecoinSendPreview, ethereum: ethereumSendPreview, tron: tronSendPreview, solana: solanaSendPreview, xrp: xrpSendPreview, stellar: stellarSendPreview, monero: moneroSendPreview, cardano: cardanoSendPreview, sui: suiSendPreview, aptos: aptosSendPreview, ton: tonSendPreview, icp: icpSendPreview, near: nearSendPreview, polkadot: polkadotSendPreview)
+        let input = SendPreviewsInput(
+            bitcoin: bitcoinSendPreview, bitcoinCash: bitcoinCashSendPreview, bitcoinSv: bitcoinSVSendPreview,
+            litecoin: litecoinSendPreview, dogecoin: dogecoinSendPreview, ethereum: ethereumSendPreview, tron: tronSendPreview,
+            solana: solanaSendPreview, xrp: xrpSendPreview, stellar: stellarSendPreview, monero: moneroSendPreview,
+            cardano: cardanoSendPreview, sui: suiSendPreview, aptos: aptosSendPreview, ton: tonSendPreview, icp: icpSendPreview,
+            near: nearSendPreview, polkadot: polkadotSendPreview)
         guard let c = computeSendPreviewDetails(input: input, chainName: coin.chainName, coinAmount: coin.amount) else { return nil }
-        return SendPreviewDetails(spendableBalance: c.spendableBalance, feeRateDescription: c.feeRateDescription, estimatedTransactionBytes: c.estimatedTransactionBytes.map(Int.init), selectedInputCount: c.selectedInputCount.map(Int.init), usesChangeOutput: c.usesChangeOutput, maxSendable: c.maxSendable)
+        return SendPreviewDetails(
+            spendableBalance: c.spendableBalance, feeRateDescription: c.feeRateDescription,
+            estimatedTransactionBytes: c.estimatedTransactionBytes.map(Int.init), selectedInputCount: c.selectedInputCount.map(Int.init),
+            usesChangeOutput: c.usesChangeOutput, maxSendable: c.maxSendable)
     }
     var customEthereumFeeValidationError: String? {
         guard useCustomEthereumFees, selectedSendCoin?.chainName == "Ethereum" else { return nil }
         let trimmedMaxFee = customEthereumMaxFeeGwei.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPriorityFee = customEthereumPriorityFeeGwei.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let maxFee = Double(trimmedMaxFee), maxFee > 0 else { return localizedStoreString("Enter a valid Max Fee in gwei.") }
-        guard let priorityFee = Double(trimmedPriorityFee), priorityFee > 0 else { return localizedStoreString("Enter a valid Priority Fee in gwei.") }
+        guard let priorityFee = Double(trimmedPriorityFee), priorityFee > 0 else {
+            return localizedStoreString("Enter a valid Priority Fee in gwei.")
+        }
         guard maxFee >= priorityFee else { return localizedStoreString("Max Fee must be greater than or equal to Priority Fee.") }
         return nil
     }
     func customEthereumFeeConfiguration() -> EthereumCustomFeeConfiguration? {
         guard useCustomEthereumFees else { return nil }
         guard customEthereumFeeValidationError == nil else { return nil }
-        guard let maxFee = Double(customEthereumMaxFeeGwei.trimmingCharacters(in: .whitespacesAndNewlines)), let priorityFee = Double(customEthereumPriorityFeeGwei.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        guard let maxFee = Double(customEthereumMaxFeeGwei.trimmingCharacters(in: .whitespacesAndNewlines)),
+            let priorityFee = Double(customEthereumPriorityFeeGwei.trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return nil }
         return EthereumCustomFeeConfiguration(maxFeePerGasGwei: maxFee, maxPriorityFeePerGasGwei: priorityFee)
     }
     var customEthereumNonceValidationError: String? {
         guard ethereumManualNonceEnabled else { return nil }
         let trimmedNonce = ethereumManualNonce.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedNonce.isEmpty else { return localizedStoreString("Enter a nonce value for manual nonce mode.") }
-        guard let nonceValue = Int(trimmedNonce), nonceValue >= 0 else { return localizedStoreString("Nonce must be a non-negative integer.") }
+        guard let nonceValue = Int(trimmedNonce), nonceValue >= 0 else {
+            return localizedStoreString("Nonce must be a non-negative integer.")
+        }
         if nonceValue > Int(Int32.max) { return localizedStoreString("Nonce value is too large.") }
         return nil
     }
@@ -106,7 +133,8 @@ extension AppState {
                 && record.kind == .send
                 && record.status == .pending
                 && record.transactionHash != nil
-        }}
+        }
+    }
     func pendingEthereumSendTransaction(with transactionID: UUID) -> TransactionRecord? {
         transactions.first { record in
             record.id == transactionID
@@ -114,7 +142,8 @@ extension AppState {
                 && record.kind == .send
                 && record.status == .pending
                 && record.transactionHash != nil
-        }}
+        }
+    }
     func prepareEthereumReplacementContext(cancel: Bool) async {
         guard let pendingTransaction = selectedPendingEthereumSendTransaction() else {
             sendError = localizedStoreString("No pending Ethereum transaction found for this wallet.")
@@ -135,7 +164,8 @@ extension AppState {
         }
         sendWalletID = walletID
         if let ethereumHolding = availableSendCoins(for: sendWalletID).first(where: { $0.chainName == "Ethereum" && $0.symbol == "ETH" })
-            ?? availableSendCoins(for: sendWalletID).first(where: { $0.chainName == "Ethereum" }) {
+            ?? availableSendCoins(for: sendWalletID).first(where: { $0.chainName == "Ethereum" })
+        {
             sendHoldingKey = ethereumHolding.holdingKey
         }
         syncSendAssetSelection()
@@ -153,7 +183,9 @@ extension AppState {
         isPreparingEthereumReplacementContext = true; defer { isPreparingEthereumReplacementContext = false }
         do {
             let nonce = try await WalletServiceBridge.shared.fetchEVMTxNonce(chainId: SpectraChainID.ethereum, txHash: txHash)
-            guard let walletID = pendingTransaction.walletID, let wallet = wallets.first(where: { $0.id == walletID }) else { sendError = localizedStoreString("Select a wallet first."); return }
+            guard let walletID = pendingTransaction.walletID, let wallet = wallets.first(where: { $0.id == walletID }) else {
+                sendError = localizedStoreString("Select a wallet first."); return
+            }
             sendAddress = cancel ? (wallet.ethereumAddress ?? "") : pendingTransaction.address
             sendAmount = cancel ? "0" : String(format: "%.8f", pendingTransaction.amount)
             ethereumManualNonceEnabled = true; ethereumManualNonce = String(nonce); useCustomEthereumFees = true
@@ -164,7 +196,8 @@ extension AppState {
             )
             customEthereumMaxFeeGwei = bump.maxFeeGwei
             customEthereumPriorityFeeGwei = bump.priorityFeeGwei
-            sendError = localizedStoreString(cancel ? "Cancellation context loaded. Review fees and tap Send." : "Replacement context loaded. Review fees and tap Send.")
+            sendError = localizedStoreString(
+                cancel ? "Cancellation context loaded. Review fees and tap Send." : "Replacement context loaded. Review fees and tap Send.")
             await refreshSendPreview()
         } catch {
             sendError = localizedStoreFormat("Unable to prepare replacement context: %@", error.localizedDescription)
@@ -225,12 +258,26 @@ extension AppState {
         if coin.chainName == "Avalanche", coin.symbol == "AVAX" { return nil }
         if coin.chainName == "Hyperliquid", coin.symbol == "HYPE" { return nil }
         let chainTokens: [ChainTokenRegistryEntry]
-        if chain == .ethereum { chainTokens = enabledEthereumTrackedTokens() } else if chain == .bnb { chainTokens = enabledBNBTrackedTokens() } else if chain == .optimism { chainTokens = enabledOptimismTrackedTokens() } else if chain == .avalanche { chainTokens = enabledAvalancheTrackedTokens() } else { chainTokens = [] }
+        if chain == .ethereum {
+            chainTokens = enabledEthereumTrackedTokens()
+        } else if chain == .bnb {
+            chainTokens = enabledBNBTrackedTokens()
+        } else if chain == .optimism {
+            chainTokens = enabledOptimismTrackedTokens()
+        } else if chain == .avalanche {
+            chainTokens = enabledAvalancheTrackedTokens()
+        } else {
+            chainTokens = []
+        }
         if let contractAddress = coin.contractAddress {
             let normalizedContract = normalizeEVMAddress(contractAddress)
-            return chainTokens.first { $0.symbol == coin.symbol && $0.contractAddress == normalizedContract }}
-        return chainTokens.first { $0.symbol == coin.symbol }}
-    func isValidDogecoinAddressForPolicy(_ address: String, networkMode: DogecoinNetworkMode? = nil) -> Bool { AddressValidation.isValid(address, kind: "dogecoin", networkMode: (networkMode ?? dogecoinNetworkMode).rawValue) }
+            return chainTokens.first { $0.symbol == coin.symbol && $0.contractAddress == normalizedContract }
+        }
+        return chainTokens.first { $0.symbol == coin.symbol }
+    }
+    func isValidDogecoinAddressForPolicy(_ address: String, networkMode: DogecoinNetworkMode? = nil) -> Bool {
+        AddressValidation.isValid(address, kind: "dogecoin", networkMode: (networkMode ?? dogecoinNetworkMode).rawValue)
+    }
     func isValidAddress(_ address: String, for chainName: String) -> Bool {
         let mode: String? = {
             switch chainName {
@@ -257,7 +304,9 @@ extension AppState {
         guard chainName == "Ethereum", isENSNameCandidate(trimmed) else { throw EthereumWalletEngineError.invalidAddress }
         let cacheKey = trimmed.lowercased()
         if let cached = cachedResolvedENSAddresses[cacheKey] { return (cached, true) }
-        guard let resolved = try await WalletServiceBridge.shared.resolveENSName(trimmed) else { throw EthereumWalletEngineError.rpcFailure("Unable to resolve ENS name '\(trimmed)'.") }
+        guard let resolved = try await WalletServiceBridge.shared.resolveENSName(trimmed) else {
+            throw EthereumWalletEngineError.rpcFailure("Unable to resolve ENS name '\(trimmed)'.")
+        }
         cachedResolvedENSAddresses[cacheKey] = resolved
         return (resolved, true)
     }
@@ -281,15 +330,21 @@ extension AppState {
         var reasons: [String] = []
         if let code = recipientCode {
             if coreEvmHasContractCode(code: code) {
-                reasons.append(localizedStoreFormat("Recipient is a smart contract on %@. Confirm it can receive %@ safely.", holding.chainName, holding.symbol))
+                reasons.append(
+                    localizedStoreFormat(
+                        "Recipient is a smart contract on %@. Confirm it can receive %@ safely.", holding.chainName, holding.symbol))
             }
         } else {
-            reasons.append(localizedStoreFormat("Could not verify recipient contract state on %@. Review destination carefully.", holding.chainName))
+            reasons.append(
+                localizedStoreFormat("Could not verify recipient contract state on %@. Review destination carefully.", holding.chainName))
         }
         if tokenProbed, let tokenSym = token?.symbol {
             if let code = tokenCode {
                 if !coreEvmHasContractCode(code: code) {
-                    reasons.append(localizedStoreFormat("Token contract %@ appears missing on %@. This may be a wrong-network token selection.", tokenSym, holding.chainName))
+                    reasons.append(
+                        localizedStoreFormat(
+                            "Token contract %@ appears missing on %@. This may be a wrong-network token selection.", tokenSym,
+                            holding.chainName))
                 }
             } else {
                 reasons.append(localizedStoreFormat("Could not verify %@ contract bytecode on %@.", tokenSym, holding.chainName))
@@ -297,27 +352,37 @@ extension AppState {
         }
         return reasons
     }
-    func evaluateHighRiskSendReasons(wallet: ImportedWallet, holding: Coin, amount: Double, destinationAddress: String, destinationInput: String, usedENSResolution: Bool = false) -> [String] {
+    func evaluateHighRiskSendReasons(
+        wallet: ImportedWallet, holding: Coin, amount: Double, destinationAddress: String, destinationInput: String,
+        usedENSResolution: Bool = false
+    ) -> [String] {
         let txAddrs = Set(transactions.compactMap { $0.chainName == holding.chainName ? $0.address : nil })
-        let warnings = coreEvaluateHighRiskSendReasons(request: HighRiskSendRequest(
-            chainName: holding.chainName, symbol: holding.symbol,
-            amount: amount, holdingAmount: holding.amount,
-            destinationAddress: destinationAddress, destinationInput: destinationInput,
-            usedEnsResolution: usedENSResolution, walletSelectedChain: wallet.selectedChain,
-            addressBookEntries: addressBook.map { HighRiskChainAddress(chainName: $0.chainName, address: $0.address) },
-            txAddresses: txAddrs.map { HighRiskChainAddress(chainName: holding.chainName, address: $0) }
-        ))
+        let warnings = coreEvaluateHighRiskSendReasons(
+            request: HighRiskSendRequest(
+                chainName: holding.chainName, symbol: holding.symbol,
+                amount: amount, holdingAmount: holding.amount,
+                destinationAddress: destinationAddress, destinationInput: destinationInput,
+                usedEnsResolution: usedENSResolution, walletSelectedChain: wallet.selectedChain,
+                addressBookEntries: addressBook.map { HighRiskChainAddress(chainName: $0.chainName, address: $0.address) },
+                txAddresses: txAddrs.map { HighRiskChainAddress(chainName: holding.chainName, address: $0) }
+            ))
         return warnings.compactMap { w -> String? in
             switch w.code {
             case "invalid_format": return localizedStoreFormat("The destination address format does not match %@.", w.chain ?? "")
             case "new_address": return localizedStoreString("This is a new destination address with no prior history in this wallet.")
-            case "ens_resolved": return localizedStoreFormat("ENS name '%@' resolved to %@. Confirm this resolved address before sending.", w.name ?? "", w.address ?? "")
+            case "ens_resolved":
+                return localizedStoreFormat(
+                    "ENS name '%@' resolved to %@. Confirm this resolved address before sending.", w.name ?? "", w.address ?? "")
             case "large_send":
                 let formatted = (Double(w.percent ?? 0) / 100.0).formatted(.percent.precision(.fractionLength(0)))
                 return localizedStoreFormat("This send is %@ of your %@ balance.", formatted, w.symbol ?? "")
-            case "non_evm_on_evm": return localizedStoreFormat("Destination appears to be a non-EVM address while sending on %@.", w.chain ?? "")
-            case "ens_on_l2": return localizedStoreFormat("ENS names are Ethereum-specific. For %@, verify the resolved EVM address very carefully.", w.chain ?? "")
-            case "eth_on_utxo": return localizedStoreFormat("Destination appears to be an Ethereum-style address while sending on %@.", w.chain ?? "")
+            case "non_evm_on_evm":
+                return localizedStoreFormat("Destination appears to be a non-EVM address while sending on %@.", w.chain ?? "")
+            case "ens_on_l2":
+                return localizedStoreFormat(
+                    "ENS names are Ethereum-specific. For %@, verify the resolved EVM address very carefully.", w.chain ?? "")
+            case "eth_on_utxo":
+                return localizedStoreFormat("Destination appears to be an Ethereum-style address while sending on %@.", w.chain ?? "")
             case "non_tron": return localizedStoreString("Destination appears to be non-Tron format while sending on Tron.")
             case "non_solana": return localizedStoreString("Destination appears to be non-Solana format while sending on Solana.")
             case "non_xrp": return localizedStoreString("Destination appears to be non-XRP format while sending on XRP Ledger.")
@@ -328,7 +393,9 @@ extension AppState {
         }
     }
     func clearHighRiskSendConfirmation() { pendingHighRiskSendReasons = []; isShowingHighRiskSendConfirmation = false }
-    func confirmHighRiskSendAndSubmit() async { bypassHighRiskSendConfirmation = true; isShowingHighRiskSendConfirmation = false; await submitSend() }
+    func confirmHighRiskSendAndSubmit() async {
+        bypassHighRiskSendConfirmation = true; isShowingHighRiskSendConfirmation = false; await submitSend()
+    }
     func addressBookAddressValidationMessage(for address: String, chainName: String) -> String {
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         let isEmpty = trimmed.isEmpty
@@ -377,15 +444,21 @@ extension AppState {
     func isDuplicateAddressBookAddress(_ address: String, chainName: String, excluding entryID: UUID? = nil) -> Bool {
         let normalized = normalizedAddress(address, for: chainName)
         guard !normalized.isEmpty else { return false }
-        return addressBook.contains { $0.id != entryID && $0.chainName == chainName && $0.address.caseInsensitiveCompare(normalized) == .orderedSame }
+        return addressBook.contains {
+            $0.id != entryID && $0.chainName == chainName && $0.address.caseInsensitiveCompare(normalized) == .orderedSame
+        }
     }
     func canSaveAddressBookEntry(name: String, address: String, chainName: String) -> Bool {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmedName.isEmpty && isValidAddress(address, for: chainName) && !isDuplicateAddressBookAddress(address, chainName: chainName)
+        return !trimmedName.isEmpty && isValidAddress(address, for: chainName)
+            && !isDuplicateAddressBookAddress(address, chainName: chainName)
     }
     func addAddressBookEntry(name: String, address: String, chainName: String, note: String = "") {
         guard canSaveAddressBookEntry(name: name, address: address, chainName: chainName) else { return }
-        prependAddressBookEntry(AddressBookEntry(name: name.trimmingCharacters(in: .whitespacesAndNewlines), chainName: chainName, address: normalizedAddress(address, for: chainName), note: note.trimmingCharacters(in: .whitespacesAndNewlines)))
+        prependAddressBookEntry(
+            AddressBookEntry(
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines), chainName: chainName,
+                address: normalizedAddress(address, for: chainName), note: note.trimmingCharacters(in: .whitespacesAndNewlines)))
     }
     func canSaveLastSentRecipientToAddressBook() -> Bool {
         guard let tx = lastSentTransaction, tx.kind == .send else { return false }
@@ -405,7 +478,8 @@ extension AppState {
     }
     func removeAddressBookEntry(id: UUID) { removeAddressBookEntry(byID: id) }
     private func runSyncSelfTests(
-        running: ReferenceWritableKeyPath<AppState, Bool>, results: ReferenceWritableKeyPath<AppState, [ChainSelfTestResult]>, lastRun: ReferenceWritableKeyPath<AppState, Date?>, suite: () -> [ChainSelfTestResult], chainName: String, abbrev: String
+        running: ReferenceWritableKeyPath<AppState, Bool>, results: ReferenceWritableKeyPath<AppState, [ChainSelfTestResult]>,
+        lastRun: ReferenceWritableKeyPath<AppState, Date?>, suite: () -> [ChainSelfTestResult], chainName: String, abbrev: String
     ) {
         guard !self[keyPath: running] else { return }
         self[keyPath: running] = true
@@ -414,13 +488,36 @@ extension AppState {
         self[keyPath: running] = false
         let r = self[keyPath: results]
         let failedCount = r.filter { !$0.passed }.count
-        appendChainOperationalEvent(failedCount == 0 ? .info : .warning, chainName: chainName, message: failedCount == 0 ? "\(abbrev) self-tests passed (\(r.count) checks)." : "\(abbrev) self-tests completed with \(failedCount) failure(s).")
+        appendChainOperationalEvent(
+            failedCount == 0 ? .info : .warning, chainName: chainName,
+            message: failedCount == 0
+                ? "\(abbrev) self-tests passed (\(r.count) checks)." : "\(abbrev) self-tests completed with \(failedCount) failure(s).")
     }
-    func runBitcoinSelfTests() { runSyncSelfTests(running: \.isRunningBitcoinSelfTests, results: \.bitcoinSelfTestResults, lastRun: \.bitcoinSelfTestsLastRunAt, suite: { ChainSelfTests.run("Bitcoin") }, chainName: "Bitcoin", abbrev: "BTC") }
-    func runBitcoinCashSelfTests() { runSyncSelfTests(running: \.isRunningBitcoinCashSelfTests, results: \.bitcoinCashSelfTestResults, lastRun: \.bitcoinCashSelfTestsLastRunAt, suite: { ChainSelfTests.run("Bitcoin Cash") }, chainName: "Bitcoin Cash", abbrev: "BCH") }
-    func runBitcoinSVSelfTests() { runSyncSelfTests(running: \.isRunningBitcoinSVSelfTests, results: \.bitcoinSVSelfTestResults, lastRun: \.bitcoinSVSelfTestsLastRunAt, suite: { ChainSelfTests.run("Bitcoin SV") }, chainName: "Bitcoin SV", abbrev: "BSV") }
-    func runLitecoinSelfTests() { runSyncSelfTests(running: \.isRunningLitecoinSelfTests, results: \.litecoinSelfTestResults, lastRun: \.litecoinSelfTestsLastRunAt, suite: { ChainSelfTests.run("Litecoin") }, chainName: "Litecoin", abbrev: "LTC") }
-    func runDogecoinSelfTests() { runSyncSelfTests(running: \.isRunningDogecoinSelfTests, results: \.dogecoinSelfTestResults, lastRun: \.dogecoinSelfTestsLastRunAt, suite: { ChainSelfTests.run("Dogecoin") }, chainName: "Dogecoin", abbrev: "DOGE") }
+    func runBitcoinSelfTests() {
+        runSyncSelfTests(
+            running: \.isRunningBitcoinSelfTests, results: \.bitcoinSelfTestResults, lastRun: \.bitcoinSelfTestsLastRunAt,
+            suite: { ChainSelfTests.run("Bitcoin") }, chainName: "Bitcoin", abbrev: "BTC")
+    }
+    func runBitcoinCashSelfTests() {
+        runSyncSelfTests(
+            running: \.isRunningBitcoinCashSelfTests, results: \.bitcoinCashSelfTestResults, lastRun: \.bitcoinCashSelfTestsLastRunAt,
+            suite: { ChainSelfTests.run("Bitcoin Cash") }, chainName: "Bitcoin Cash", abbrev: "BCH")
+    }
+    func runBitcoinSVSelfTests() {
+        runSyncSelfTests(
+            running: \.isRunningBitcoinSVSelfTests, results: \.bitcoinSVSelfTestResults, lastRun: \.bitcoinSVSelfTestsLastRunAt,
+            suite: { ChainSelfTests.run("Bitcoin SV") }, chainName: "Bitcoin SV", abbrev: "BSV")
+    }
+    func runLitecoinSelfTests() {
+        runSyncSelfTests(
+            running: \.isRunningLitecoinSelfTests, results: \.litecoinSelfTestResults, lastRun: \.litecoinSelfTestsLastRunAt,
+            suite: { ChainSelfTests.run("Litecoin") }, chainName: "Litecoin", abbrev: "LTC")
+    }
+    func runDogecoinSelfTests() {
+        runSyncSelfTests(
+            running: \.isRunningDogecoinSelfTests, results: \.dogecoinSelfTestResults, lastRun: \.dogecoinSelfTestsLastRunAt,
+            suite: { ChainSelfTests.run("Dogecoin") }, chainName: "Dogecoin", abbrev: "DOGE")
+    }
     func runEthereumSelfTests() async {
         guard !isRunningEthereumSelfTests else { return }
         isRunningEthereumSelfTests = true; defer { isRunningEthereumSelfTests = false }
@@ -428,20 +525,45 @@ extension AppState {
         let rpcURL = configuredEthereumRPCEndpointURL()?.absoluteString ?? "https://ethereum.publicnode.com"
         let rpcLabel = configuredEthereumRPCEndpointURL()?.absoluteString ?? "default RPC pool"
         results.append(contentsOf: await selfTestsRunEthereumRpc(rpcUrl: rpcURL, rpcLabel: rpcLabel))
-        if let firstEthereumWallet = wallets.first(where: { $0.selectedChain == "Ethereum" }), let ethereumAddress = resolvedEthereumAddress(for: firstEthereumWallet) {
-            do { _ = try await fetchEthereumPortfolio(for: ethereumAddress)
-                results.append(ChainSelfTestResult(name: "ETH Portfolio Probe", passed: true, chainLabel: "Ethereum", outcome: .custom(text: "Successfully fetched ETH/ERC-20 portfolio for \(firstEthereumWallet.name).")))
-            } catch { results.append(ChainSelfTestResult(name: "ETH Portfolio Probe", passed: false, chainLabel: "Ethereum", outcome: .custom(text: "Portfolio probe failed for \(firstEthereumWallet.name): \(error.localizedDescription)"))) }
-        } else { results.append(ChainSelfTestResult(name: "ETH Portfolio Probe", passed: true, chainLabel: "Ethereum", outcome: .custom(text: "Skipped: no imported wallet with Ethereum enabled."))) }
+        if let firstEthereumWallet = wallets.first(where: { $0.selectedChain == "Ethereum" }),
+            let ethereumAddress = resolvedEthereumAddress(for: firstEthereumWallet)
+        {
+            do {
+                _ = try await fetchEthereumPortfolio(for: ethereumAddress)
+                results.append(
+                    ChainSelfTestResult(
+                        name: "ETH Portfolio Probe", passed: true, chainLabel: "Ethereum",
+                        outcome: .custom(text: "Successfully fetched ETH/ERC-20 portfolio for \(firstEthereumWallet.name).")))
+            } catch {
+                results.append(
+                    ChainSelfTestResult(
+                        name: "ETH Portfolio Probe", passed: false, chainLabel: "Ethereum",
+                        outcome: .custom(text: "Portfolio probe failed for \(firstEthereumWallet.name): \(error.localizedDescription)")))
+            }
+        } else {
+            results.append(
+                ChainSelfTestResult(
+                    name: "ETH Portfolio Probe", passed: true, chainLabel: "Ethereum",
+                    outcome: .custom(text: "Skipped: no imported wallet with Ethereum enabled.")))
+        }
         let diagnosticsOK: Bool = {
             guard let json = ethereumDiagnosticsJSON() else { return false }
             return RustBalanceDecoder.hasField("history", in: json) && RustBalanceDecoder.hasField("endpoints", in: json)
         }()
-        results.append(ChainSelfTestResult(name: "ETH Diagnostics JSON Shape", passed: diagnosticsOK, chainLabel: "Ethereum", outcome: .custom(text: diagnosticsOK ? "Diagnostics JSON contains expected top-level keys." : "Diagnostics JSON missing expected keys (history/endpoints).")))
+        results.append(
+            ChainSelfTestResult(
+                name: "ETH Diagnostics JSON Shape", passed: diagnosticsOK, chainLabel: "Ethereum",
+                outcome: .custom(
+                    text: diagnosticsOK
+                        ? "Diagnostics JSON contains expected top-level keys."
+                        : "Diagnostics JSON missing expected keys (history/endpoints).")))
         ethereumSelfTestResults = results
         ethereumSelfTestsLastRunAt = Date()
         let failedCount = results.filter { !$0.passed }.count
-        appendChainOperationalEvent(failedCount == 0 ? .info : .warning, chainName: "Ethereum", message: failedCount == 0 ? "ETH diagnostics passed (\(results.count) checks)." : "ETH diagnostics completed with \(failedCount) failure(s).")
+        appendChainOperationalEvent(
+            failedCount == 0 ? .info : .warning, chainName: "Ethereum",
+            message: failedCount == 0
+                ? "ETH diagnostics passed (\(results.count) checks)." : "ETH diagnostics completed with \(failedCount) failure(s).")
     }
     func operationalEvents(for chainName: String) -> [ChainOperationalEvent] { chainOperationalEventsByChain[chainName] ?? [] }
     func feePriorityOption(for chainName: String) -> ChainFeePriorityOption {
@@ -454,13 +576,28 @@ extension AppState {
         if chainName == "Dogecoin" { dogecoinFeePriority = mapChainOptionToDogecoinFeePriority(option); return }
         selectedFeePriorityOptionRawByChain[chainName] = option.rawValue
     }
-    func bitcoinFeePriority(for chainName: String) -> BitcoinFeePriority { mapChainOptionToBitcoinFeePriority(feePriorityOption(for: chainName)) }
-    func mapBitcoinFeePriorityToChainOption(_ priority: BitcoinFeePriority) -> ChainFeePriorityOption { ChainFeePriorityOption(rawValue: priority.rawValue) ?? .normal }
-    func mapChainOptionToBitcoinFeePriority(_ option: ChainFeePriorityOption) -> BitcoinFeePriority { BitcoinFeePriority(rawValue: option.rawValue) ?? .normal }
-    func mapDogecoinFeePriorityToChainOption(_ priority: DogecoinFeePriority) -> ChainFeePriorityOption { ChainFeePriorityOption(rawValue: priority.rawValue) ?? .normal }
-    func mapChainOptionToDogecoinFeePriority(_ option: ChainFeePriorityOption) -> DogecoinFeePriority { DogecoinFeePriority(rawValue: option.rawValue) ?? .normal }
-    func persistSelectedFeePriorityOptions() { persistCodableToSQLite(selectedFeePriorityOptionRawByChain, key: Self.selectedFeePriorityOptionsByChainDefaultsKey) }
-    private func runUTXORescan(running: ReferenceWritableKeyPath<AppState, Bool>, lastRun: ReferenceWritableKeyPath<AppState, Date?>, chainName: String, abbrev: String, preWork: (() async -> Void)? = nil, refreshHistory: () async -> Void, refreshPending: () async -> Void) async {
+    func bitcoinFeePriority(for chainName: String) -> BitcoinFeePriority {
+        mapChainOptionToBitcoinFeePriority(feePriorityOption(for: chainName))
+    }
+    func mapBitcoinFeePriorityToChainOption(_ priority: BitcoinFeePriority) -> ChainFeePriorityOption {
+        ChainFeePriorityOption(rawValue: priority.rawValue) ?? .normal
+    }
+    func mapChainOptionToBitcoinFeePriority(_ option: ChainFeePriorityOption) -> BitcoinFeePriority {
+        BitcoinFeePriority(rawValue: option.rawValue) ?? .normal
+    }
+    func mapDogecoinFeePriorityToChainOption(_ priority: DogecoinFeePriority) -> ChainFeePriorityOption {
+        ChainFeePriorityOption(rawValue: priority.rawValue) ?? .normal
+    }
+    func mapChainOptionToDogecoinFeePriority(_ option: ChainFeePriorityOption) -> DogecoinFeePriority {
+        DogecoinFeePriority(rawValue: option.rawValue) ?? .normal
+    }
+    func persistSelectedFeePriorityOptions() {
+        persistCodableToSQLite(selectedFeePriorityOptionRawByChain, key: Self.selectedFeePriorityOptionsByChainDefaultsKey)
+    }
+    private func runUTXORescan(
+        running: ReferenceWritableKeyPath<AppState, Bool>, lastRun: ReferenceWritableKeyPath<AppState, Date?>, chainName: String,
+        abbrev: String, preWork: (() async -> Void)? = nil, refreshHistory: () async -> Void, refreshPending: () async -> Void
+    ) async {
         guard !self[keyPath: running] else { return }
         self[keyPath: running] = true; defer { self[keyPath: running] = false }
         appendChainOperationalEvent(.info, chainName: chainName, message: "\(abbrev) rescan started.")
@@ -484,10 +621,30 @@ extension AppState {
             refreshPending: { await self.refreshPendingDogecoinTransactions() }
         )
     }
-    func runBitcoinRescan() async { await runUTXORescan(running: \.isRunningBitcoinRescan, lastRun: \.bitcoinRescanLastRunAt, chainName: "Bitcoin", abbrev: "BTC", refreshHistory: { await self.refreshBitcoinTransactions(limit: HistoryPaging.endpointBatchSize) }, refreshPending: { await self.refreshPendingBitcoinTransactions() }) }
-    func runBitcoinCashRescan() async { await runUTXORescan(running: \.isRunningBitcoinCashRescan, lastRun: \.bitcoinCashRescanLastRunAt, chainName: "Bitcoin Cash", abbrev: "BCH", refreshHistory: { await self.refreshBitcoinCashTransactions(limit: HistoryPaging.endpointBatchSize) }, refreshPending: { await self.refreshPendingBitcoinCashTransactions() }) }
-    func runBitcoinSVRescan() async { await runUTXORescan(running: \.isRunningBitcoinSVRescan, lastRun: \.bitcoinSVRescanLastRunAt, chainName: "Bitcoin SV", abbrev: "BSV", refreshHistory: { await self.refreshBitcoinSVTransactions(limit: HistoryPaging.endpointBatchSize) }, refreshPending: { await self.refreshPendingBitcoinSVTransactions() }) }
-    func runLitecoinRescan() async { await runUTXORescan(running: \.isRunningLitecoinRescan, lastRun: \.litecoinRescanLastRunAt, chainName: "Litecoin", abbrev: "LTC", refreshHistory: { await self.refreshLitecoinTransactions(limit: HistoryPaging.endpointBatchSize) }, refreshPending: { await self.refreshPendingLitecoinTransactions() }) }
+    func runBitcoinRescan() async {
+        await runUTXORescan(
+            running: \.isRunningBitcoinRescan, lastRun: \.bitcoinRescanLastRunAt, chainName: "Bitcoin", abbrev: "BTC",
+            refreshHistory: { await self.refreshBitcoinTransactions(limit: HistoryPaging.endpointBatchSize) },
+            refreshPending: { await self.refreshPendingBitcoinTransactions() })
+    }
+    func runBitcoinCashRescan() async {
+        await runUTXORescan(
+            running: \.isRunningBitcoinCashRescan, lastRun: \.bitcoinCashRescanLastRunAt, chainName: "Bitcoin Cash", abbrev: "BCH",
+            refreshHistory: { await self.refreshBitcoinCashTransactions(limit: HistoryPaging.endpointBatchSize) },
+            refreshPending: { await self.refreshPendingBitcoinCashTransactions() })
+    }
+    func runBitcoinSVRescan() async {
+        await runUTXORescan(
+            running: \.isRunningBitcoinSVRescan, lastRun: \.bitcoinSVRescanLastRunAt, chainName: "Bitcoin SV", abbrev: "BSV",
+            refreshHistory: { await self.refreshBitcoinSVTransactions(limit: HistoryPaging.endpointBatchSize) },
+            refreshPending: { await self.refreshPendingBitcoinSVTransactions() })
+    }
+    func runLitecoinRescan() async {
+        await runUTXORescan(
+            running: \.isRunningLitecoinRescan, lastRun: \.litecoinRescanLastRunAt, chainName: "Litecoin", abbrev: "LTC",
+            refreshHistory: { await self.refreshLitecoinTransactions(limit: HistoryPaging.endpointBatchSize) },
+            refreshPending: { await self.refreshPendingLitecoinTransactions() })
+    }
     func runDogecoinHistoryDiagnostics() async {
         guard !isRunningDogecoinHistoryDiagnostics else { return }
         isRunningDogecoinHistoryDiagnostics = true; defer { isRunningDogecoinHistoryDiagnostics = false }
@@ -498,27 +655,39 @@ extension AppState {
         guard !walletsToRefresh.isEmpty else { dogecoinHistoryDiagnosticsLastUpdatedAt = Date(); return }
         for (wallet, address) in walletsToRefresh {
             do {
-                let json = try await withTimeout(seconds: 20) { try await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.dogecoin, address: address) }
-                dogecoinHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(walletId: wallet.id, identifier: address, sourceUsed: "rust", transactionCount: Int32(decodeRustHistoryJSON(json: json).count), nextCursor: nil, error: nil)
-            } catch { dogecoinHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(walletId: wallet.id, identifier: address, sourceUsed: "none", transactionCount: 0, nextCursor: nil, error: error.localizedDescription) }
+                let json = try await withTimeout(seconds: 20) {
+                    try await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.dogecoin, address: address)
+                }
+                dogecoinHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
+                    walletId: wallet.id, identifier: address, sourceUsed: "rust",
+                    transactionCount: Int32(decodeRustHistoryJSON(json: json).count), nextCursor: nil, error: nil)
+            } catch {
+                dogecoinHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
+                    walletId: wallet.id, identifier: address, sourceUsed: "none", transactionCount: 0, nextCursor: nil,
+                    error: error.localizedDescription)
+            }
             dogecoinHistoryDiagnosticsLastUpdatedAt = Date()
         }
     }
     func runDogecoinEndpointReachabilityDiagnostics() async {
         guard !isCheckingDogecoinEndpointHealth else { return }
         isCheckingDogecoinEndpointHealth = true; defer { isCheckingDogecoinEndpointHealth = false }
-        await runSimpleEndpointReachabilityDiagnostics(checks: DogecoinBalanceService.diagnosticsChecks(), profile: .diagnostics, setResults: { [weak self] in self?.dogecoinEndpointHealthResults = $0 }, markUpdated: { [weak self] in self?.dogecoinEndpointHealthLastUpdatedAt = Date() })
+        await runSimpleEndpointReachabilityDiagnostics(
+            checks: DogecoinBalanceService.diagnosticsChecks(), profile: .diagnostics,
+            setResults: { [weak self] in self?.dogecoinEndpointHealthResults = $0 },
+            markUpdated: { [weak self] in self?.dogecoinEndpointHealthLastUpdatedAt = Date() })
     }
     func startNetworkPathMonitorIfNeeded() {
-#if canImport(Network)
-        networkPathMonitor.pathUpdateHandler = { [weak self] path in
-            let reachable = path.status == .satisfied; let constrained = path.isConstrained; let expensive = path.isExpensive
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.isNetworkReachable = reachable; self.isConstrainedNetwork = constrained; self.isExpensiveNetwork = expensive
-            }}
-        networkPathMonitor.start(queue: networkPathMonitorQueue)
-#endif
+        #if canImport(Network)
+            networkPathMonitor.pathUpdateHandler = { [weak self] path in
+                let reachable = path.status == .satisfied; let constrained = path.isConstrained; let expensive = path.isExpensive
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.isNetworkReachable = reachable; self.isConstrainedNetwork = constrained; self.isExpensiveNetwork = expensive
+                }
+            }
+            networkPathMonitor.start(queue: networkPathMonitorQueue)
+        #endif
     }
     func setAppIsActive(_ isActive: Bool) {
         appIsActive = isActive
@@ -538,11 +707,17 @@ extension AppState {
                 await self.runScheduledMaintenanceOnce()
                 let pollSeconds = self.appIsActive ? Self.activeMaintenancePollSeconds : Self.inactiveMaintenancePollSeconds
                 try? await Task.sleep(nanoseconds: pollSeconds * 1_000_000_000)
-            }}}
+            }
+        }
+    }
     func runScheduledMaintenanceOnce(now: Date = Date()) async {
         if appIsActive { await runActiveScheduledMaintenance(now: now); return }
         let interval = backgroundMaintenanceInterval(now: now)
-        guard WalletRefreshPlanner.shouldRunBackgroundMaintenance(now: now, isNetworkReachable: isNetworkReachable, lastBackgroundMaintenanceAt: lastBackgroundMaintenanceAt, interval: interval) else { return }
+        guard
+            WalletRefreshPlanner.shouldRunBackgroundMaintenance(
+                now: now, isNetworkReachable: isNetworkReachable, lastBackgroundMaintenanceAt: lastBackgroundMaintenanceAt,
+                interval: interval)
+        else { return }
         lastBackgroundMaintenanceAt = now
         await performBackgroundMaintenanceTick()
     }
@@ -558,12 +733,17 @@ extension AppState {
         return await withCheckedContinuation { continuation in
             context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, error in
                 Task { @MainActor in
-                    if success { self.appLockError = nil } else {
+                    if success {
+                        self.appLockError = nil
+                    } else {
                         let message = error?.localizedDescription ?? "Authentication cancelled."
                         self.sendError = message; self.appLockError = message
                     }
                     continuation.resume(returning: success)
-                }}}}
+                }
+            }
+        }
+    }
     func authenticateForSeedPhraseReveal(reason: String) async -> Bool {
         let context = LAContext()
         var authError: NSError?
@@ -571,10 +751,13 @@ extension AppState {
         return await withCheckedContinuation { continuation in
             context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, _ in
                 continuation.resume(returning: success)
-            }}}
+            }
+        }
+    }
     func retryUTXOTransactionStatus(for transactionID: UUID) async -> String {
         guard let transaction = transactions.first(where: { $0.id == transactionID }) else { return "Transaction not found." }
-        guard ["Bitcoin", "Bitcoin Cash", "Bitcoin SV", "Litecoin", "Dogecoin"].contains(transaction.chainName), transaction.kind == .send else { return "Status recheck is only supported for UTXO send transactions." }
+        guard ["Bitcoin", "Bitcoin Cash", "Bitcoin SV", "Litecoin", "Dogecoin"].contains(transaction.chainName), transaction.kind == .send
+        else { return "Status recheck is only supported for UTXO send transactions." }
         guard transaction.transactionHash != nil else { return "This transaction has no hash to recheck." }
         if transaction.chainName == "Dogecoin" {
             var tracker = statusTrackingByTransactionID[transactionID] ?? DogecoinStatusTrackingState.initial(now: Date())
@@ -599,10 +782,17 @@ extension AppState {
     }
     func rebroadcastDogecoinTransaction(for transactionID: UUID) async -> String {
         guard let transaction = transactions.first(where: { $0.id == transactionID }) else { return "Transaction not found." }
-        guard transaction.chainName == "Dogecoin", transaction.kind == .send else { return "Rebroadcast is only supported for Dogecoin send transactions." }
-        guard await authenticateForSensitiveAction(reason: "Authorize Dogecoin rebroadcast") else { return sendError ?? "Authentication failed." }
-        guard let rawTransactionHex = transaction.dogecoinRawTransactionHex, !rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "This transaction cannot be rebroadcast because raw signed data was not saved." }
-        appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE rebroadcast requested.", transactionHash: transaction.transactionHash)
+        guard transaction.chainName == "Dogecoin", transaction.kind == .send else {
+            return "Rebroadcast is only supported for Dogecoin send transactions."
+        }
+        guard await authenticateForSensitiveAction(reason: "Authorize Dogecoin rebroadcast") else {
+            return sendError ?? "Authentication failed."
+        }
+        guard let rawTransactionHex = transaction.dogecoinRawTransactionHex,
+            !rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return "This transaction cannot be rebroadcast because raw signed data was not saved." }
+        appendChainOperationalEvent(
+            .info, chainName: "Dogecoin", message: "DOGE rebroadcast requested.", transactionHash: transaction.transactionHash)
         do {
             let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.dogecoin, payload: rawTransactionHex)
             let txidFromJSON = rustField("txid", from: resultJSON)
@@ -613,17 +803,37 @@ extension AppState {
             }
             await refreshPendingDogecoinTransactions()
             switch result.verificationStatus {
-            case .verified: appendChainOperationalEvent(.info, chainName: "Dogecoin", message: "DOGE rebroadcast verified by provider.", transactionHash: result.transactionHash); return "Transaction rebroadcasted and observed on network providers."
-            case .deferred: appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE rebroadcast accepted; verification deferred.", transactionHash: result.transactionHash); return "Transaction rebroadcasted. Network indexers may take a moment to reflect it."
-            case .failed(let message): appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE rebroadcast verification warning: \(message)", transactionHash: result.transactionHash); return "Rebroadcast sent, but verification warning: \(message)"
+            case .verified:
+                appendChainOperationalEvent(
+                    .info, chainName: "Dogecoin", message: "DOGE rebroadcast verified by provider.", transactionHash: result.transactionHash
+                ); return "Transaction rebroadcasted and observed on network providers."
+            case .deferred:
+                appendChainOperationalEvent(
+                    .warning, chainName: "Dogecoin", message: "DOGE rebroadcast accepted; verification deferred.",
+                    transactionHash: result.transactionHash);
+                return "Transaction rebroadcasted. Network indexers may take a moment to reflect it."
+            case .failed(let message):
+                appendChainOperationalEvent(
+                    .warning, chainName: "Dogecoin", message: "DOGE rebroadcast verification warning: \(message)",
+                    transactionHash: result.transactionHash);
+                return "Rebroadcast sent, but verification warning: \(message)"
             }
-        } catch { appendChainOperationalEvent(.error, chainName: "Dogecoin", message: "DOGE rebroadcast failed: \(error.localizedDescription)", transactionHash: transaction.transactionHash); return error.localizedDescription }
+        } catch {
+            appendChainOperationalEvent(
+                .error, chainName: "Dogecoin", message: "DOGE rebroadcast failed: \(error.localizedDescription)",
+                transactionHash: transaction.transactionHash);
+            return error.localizedDescription
+        }
     }
     func rebroadcastSignedTransaction(for transactionID: UUID) async -> String {
         guard let transaction = transactions.first(where: { $0.id == transactionID }) else { return "Transaction not found." }
         guard transaction.kind == .send else { return "Rebroadcast is only supported for send transactions." }
-        guard let payload = transaction.rebroadcastPayload, let format = transaction.rebroadcastPayloadFormat else { return "This transaction cannot be rebroadcast because signed payload data was not saved." }
-        guard await authenticateForSensitiveAction(reason: "Authorize transaction rebroadcast") else { return sendError ?? "Authentication failed." }
+        guard let payload = transaction.rebroadcastPayload, let format = transaction.rebroadcastPayloadFormat else {
+            return "This transaction cannot be rebroadcast because signed payload data was not saved."
+        }
+        guard await authenticateForSensitiveAction(reason: "Authorize transaction rebroadcast") else {
+            return sendError ?? "Authentication failed."
+        }
         do {
             let (transactionHash, verificationStatus) = try await rebroadcastSignedTransaction(
                 transaction: transaction, payload: payload, format: format
@@ -639,34 +849,59 @@ extension AppState {
             }
         } catch {
             return error.localizedDescription
-        }}
-    func rebroadcastSignedTransaction(transaction: TransactionRecord, payload: String, format: String) async throws -> (transactionHash: String, verificationStatus: SendBroadcastVerificationStatus) {
+        }
+    }
+    func rebroadcastSignedTransaction(transaction: TransactionRecord, payload: String, format: String) async throws -> (
+        transactionHash: String, verificationStatus: SendBroadcastVerificationStatus
+    ) {
         let existing = transaction.transactionHash ?? ""
         if format == "icp.signed_hex" || format == "icp.rust_json" || format == "monero.rust_json" { return (existing, .deferred) }
         if format == "evm.raw_hex" || format == "evm.rust_json" {
-            guard let chainId = SpectraChainID.id(for: transaction.chainName) else { throw NSError(domain: "Spectra", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unsupported EVM chain for rebroadcast."]) }
+            guard let chainId = SpectraChainID.id(for: transaction.chainName) else {
+                throw NSError(domain: "Spectra", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unsupported EVM chain for rebroadcast."])
+            }
             let txid = rustField("txid", from: try await WalletServiceBridge.shared.broadcastRaw(chainId: chainId, payload: payload))
             return (txid.isEmpty ? existing : txid, .deferred)
         }
         if format == "sui.signed_json" {
             let suiPayload: String = {
-                if let d = payload.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: d) as? [String: String], let tx = obj["txBytesBase64"], let sig = obj["signatureBase64"], let remapped = (try? JSONSerialization.data(withJSONObject: ["tx_bytes_b64": tx, "sig_b64": sig])).flatMap({ String(data: $0, encoding: .utf8) }) { return remapped }
+                if let d = payload.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: d) as? [String: String],
+                    let tx = obj["txBytesBase64"], let sig = obj["signatureBase64"],
+                    let remapped = (try? JSONSerialization.data(withJSONObject: ["tx_bytes_b64": tx, "sig_b64": sig])).flatMap({
+                        String(data: $0, encoding: .utf8)
+                    })
+                {
+                    return remapped
+                }
                 return payload
             }()
-            let digest = rustField("digest", from: try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.sui, payload: suiPayload))
+            let digest = rustField(
+                "digest", from: try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.sui, payload: suiPayload))
             return (digest.isEmpty ? existing : digest, .deferred)
         }
         let entry = try coreRebroadcastDispatchForFormat(format: format)
         let broadcastPayload: String
-        if let extractField = entry.extractField { broadcastPayload = rustField(extractField, from: payload) } else if let wrapKey = entry.wrapKey {
-            broadcastPayload = (try? JSONSerialization.data(withJSONObject: [wrapKey: payload])).flatMap { String(data: $0, encoding: .utf8) } ?? payload
-        } else { broadcastPayload = payload }
-        let resultValue = rustField(entry.resultField, from: try await WalletServiceBridge.shared.broadcastRaw(chainId: entry.chainId, payload: broadcastPayload))
+        if let extractField = entry.extractField {
+            broadcastPayload = rustField(extractField, from: payload)
+        } else if let wrapKey = entry.wrapKey {
+            broadcastPayload =
+                (try? JSONSerialization.data(withJSONObject: [wrapKey: payload])).flatMap { String(data: $0, encoding: .utf8) } ?? payload
+        } else {
+            broadcastPayload = payload
+        }
+        let resultValue = rustField(
+            entry.resultField, from: try await WalletServiceBridge.shared.broadcastRaw(chainId: entry.chainId, payload: broadcastPayload))
         return (resultValue.isEmpty ? existing : resultValue, .deferred)
     }
-    func walletDerivationPath(for wallet: ImportedWallet, chain: SeedDerivationChain) -> String { derivationResolution(for: wallet, chain: chain).normalizedPath }
-    func derivationAccount(for wallet: ImportedWallet, chain: SeedDerivationChain) -> UInt32 { derivationResolution(for: wallet, chain: chain).accountIndex }
-    func derivationResolution(for wallet: ImportedWallet, chain: SeedDerivationChain) -> SeedDerivationResolution { chain.resolve(path: wallet.seedDerivationPaths.path(for: chain)) }
+    func walletDerivationPath(for wallet: ImportedWallet, chain: SeedDerivationChain) -> String {
+        derivationResolution(for: wallet, chain: chain).normalizedPath
+    }
+    func derivationAccount(for wallet: ImportedWallet, chain: SeedDerivationChain) -> UInt32 {
+        derivationResolution(for: wallet, chain: chain).accountIndex
+    }
+    func derivationResolution(for wallet: ImportedWallet, chain: SeedDerivationChain) -> SeedDerivationResolution {
+        chain.resolve(path: wallet.seedDerivationPaths.path(for: chain))
+    }
     func bitcoinNetworkMode(for wallet: ImportedWallet) -> BitcoinNetworkMode { wallet.bitcoinNetworkMode }
     func dogecoinNetworkMode(for wallet: ImportedWallet) -> DogecoinNetworkMode { wallet.dogecoinNetworkMode }
     func displayNetworkName(for chainName: String) -> String {
@@ -692,11 +927,19 @@ extension AppState {
         return (network == chain || network == "Mainnet") ? chain : "\(chain) \(network)"
     }
     func displayNetworkName(for transaction: TransactionRecord) -> String {
-        if (transaction.chainName == "Bitcoin" || transaction.chainName == "Dogecoin"), let walletID = transaction.walletID, let wallet = cachedWalletByID[walletID] { return displayNetworkName(for: wallet) }
+        if (transaction.chainName == "Bitcoin" || transaction.chainName == "Dogecoin"), let walletID = transaction.walletID,
+            let wallet = cachedWalletByID[walletID]
+        {
+            return displayNetworkName(for: wallet)
+        }
         return displayNetworkName(for: transaction.chainName)
     }
     func displayChainTitle(for transaction: TransactionRecord) -> String {
-        if (transaction.chainName == "Bitcoin" || transaction.chainName == "Dogecoin"), let walletID = transaction.walletID, let wallet = cachedWalletByID[walletID] { return displayChainTitle(for: wallet) }
+        if (transaction.chainName == "Bitcoin" || transaction.chainName == "Dogecoin"), let walletID = transaction.walletID,
+            let wallet = cachedWalletByID[walletID]
+        {
+            return displayChainTitle(for: wallet)
+        }
         return displayChainTitle(for: transaction.chainName)
     }
     func supportsDeepUTXODiscovery(chainName: String) -> Bool { coreSupportsDeepUtxoDiscovery(chainName: chainName) }
@@ -708,15 +951,21 @@ extension AppState {
         case "Litecoin": return AddressValidation.isValid(address, kind: "litecoin")
         case "Dogecoin": return AddressValidation.isValid(address, kind: "dogecoin", networkMode: dogecoinNetworkMode.rawValue)
         default: return false
-        }}
+        }
+    }
     func utxoDiscoveryDerivationPath(for wallet: ImportedWallet, chainName: String, branch: WalletDerivationBranch, index: Int) -> String? {
         guard let derivationChain = seedDerivationChain(for: chainName) else { return nil }
         let rawPath = walletDerivationPath(for: wallet, chain: derivationChain)
         guard let segments = coreParseDerivationPath(rawPath: rawPath), segments.count >= 5 else { return nil }
-        return coreDerivationPathReplacingLastTwo(rawPath: rawPath, branch: UInt32(branch.rawValue), index: UInt32(max(0, index)), fallback: rawPath)
+        return coreDerivationPathReplacingLastTwo(
+            rawPath: rawPath, branch: UInt32(branch.rawValue), index: UInt32(max(0, index)), fallback: rawPath)
     }
     func parseUTXODiscoveryIndex(path: String?, chainName: String, branch: WalletDerivationBranch) -> Int? {
-        guard let path, let derivationChain = seedDerivationChain(for: chainName), let pathSegments = coreParseDerivationPath(rawPath: path), var walletSegments = coreParseDerivationPath(rawPath: derivationChain.defaultPath), pathSegments.count == walletSegments.count, pathSegments.count >= 5 else { return nil }
+        guard let path, let derivationChain = seedDerivationChain(for: chainName),
+            let pathSegments = coreParseDerivationPath(rawPath: path),
+            var walletSegments = coreParseDerivationPath(rawPath: derivationChain.defaultPath), pathSegments.count == walletSegments.count,
+            pathSegments.count >= 5
+        else { return nil }
         walletSegments[walletSegments.count - 2] = DerivationPathSegment(value: UInt32(branch.rawValue), isHardened: false)
         walletSegments[walletSegments.count - 1] = DerivationPathSegment(value: pathSegments.last?.value ?? 0, isHardened: false)
         let candidatePrefix = coreDerivationPathString(segments: Array(walletSegments.dropLast()))
@@ -725,25 +974,49 @@ extension AppState {
         return Int(pathSegments.last?.value ?? 0)
     }
     func deriveUTXOAddress(for wallet: ImportedWallet, chainName: String, branch: WalletDerivationBranch, index: Int) -> String? {
-        guard let seedPhrase = storedSeedPhrase(for: wallet.id), supportsDeepUTXODiscovery(chainName: chainName), let derivationPath = utxoDiscoveryDerivationPath(for: wallet, chainName: chainName, branch: branch, index: index), let derivationChain = utxoDiscoveryDerivationChain(for: chainName), let address = try? deriveSeedPhraseAddress(
-                seedPhrase: seedPhrase, chain: derivationChain, network: derivationNetwork(for: derivationChain, wallet: wallet), derivationPath: derivationPath
-              ), isValidUTXOAddressForPolicy(address, chainName: chainName) else {
+        guard let seedPhrase = storedSeedPhrase(for: wallet.id), supportsDeepUTXODiscovery(chainName: chainName),
+            let derivationPath = utxoDiscoveryDerivationPath(for: wallet, chainName: chainName, branch: branch, index: index),
+            let derivationChain = utxoDiscoveryDerivationChain(for: chainName),
+            let address = try? deriveSeedPhraseAddress(
+                seedPhrase: seedPhrase, chain: derivationChain, network: derivationNetwork(for: derivationChain, wallet: wallet),
+                derivationPath: derivationPath
+            ), isValidUTXOAddressForPolicy(address, chainName: chainName)
+        else {
             return nil
         }
         return address
     }
     func hasUTXOOnChainActivity(address: String, chainName: String) async -> Bool {
         switch chainName {
-        case "Bitcoin": if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.bitcoin, address: address) {
+        case "Bitcoin":
+            if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.bitcoin, address: address) {
                 let confirmedSats = RustBalanceDecoder.uint64Field("confirmed_sats", from: json) ?? 0
                 let txCount = RustBalanceDecoder.uint64Field("utxo_count", from: json) ?? 0
-                if txCount > 0 || confirmedSats > 0 { return true }}
-        case "Bitcoin Cash", "Bitcoin SV", "Litecoin": guard let chainId = SpectraChainID.id(for: chainName) else { return false }
-            if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address), let sat = RustBalanceDecoder.uint64Field("balance_sat", from: json), sat > 0 { return true }
-            if let histJSON = try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: chainId, address: address), RustBalanceDecoder.jsonArrayIsNonEmpty(histJSON) { return true }
+                if txCount > 0 || confirmedSats > 0 { return true }
+            }
+        case "Bitcoin Cash", "Bitcoin SV", "Litecoin":
+            guard let chainId = SpectraChainID.id(for: chainName) else { return false }
+            if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address),
+                let sat = RustBalanceDecoder.uint64Field("balance_sat", from: json), sat > 0
+            {
+                return true
+            }
+            if let histJSON = try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: chainId, address: address),
+                RustBalanceDecoder.jsonArrayIsNonEmpty(histJSON)
+            {
+                return true
+            }
         case "Dogecoin":
-            if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.dogecoin, address: address), let koin = RustBalanceDecoder.uint64Field("balance_koin", from: json), koin > 0 { return true }
-            if let histJSON = try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.dogecoin, address: address), RustBalanceDecoder.jsonArrayIsNonEmpty(histJSON) { return true }
+            if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.dogecoin, address: address),
+                let koin = RustBalanceDecoder.uint64Field("balance_koin", from: json), koin > 0
+            {
+                return true
+            }
+            if let histJSON = try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.dogecoin, address: address),
+                RustBalanceDecoder.jsonArrayIsNonEmpty(histJSON)
+            {
+                return true
+            }
         default: return false
         }
         return false
@@ -779,14 +1052,20 @@ extension AppState {
         var seen = Set(ordered.map { $0.lowercased() })
         guard supportsDeepUTXODiscovery(chainName: chainName), storedSeedPhrase(for: wallet.id) != nil else { return ordered }
         let state = keypoolState(for: wallet, chainName: chainName)
-        let highestOwnedExternal = (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "external" }.map(\.index).compactMap { $0 }.max() ?? 0
+        let highestOwnedExternal =
+            (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "external" }.map(
+                \.index
+            ).compactMap { $0 }.max() ?? 0
         let reserved = state.reservedReceiveIndex ?? 0
         let scanUpperBound = min(
-            Self.utxoDiscoveryMaxIndex, max(state.nextExternalIndex, max(highestOwnedExternal + 1, reserved + 1)) + Self.utxoDiscoveryGapLimit
+            Self.utxoDiscoveryMaxIndex,
+            max(state.nextExternalIndex, max(highestOwnedExternal + 1, reserved + 1)) + Self.utxoDiscoveryGapLimit
         )
         guard scanUpperBound >= 0 else { return ordered }
-        for index in 0 ... scanUpperBound {
-            guard let derivedAddress = deriveUTXOAddress(for: wallet, chainName: chainName, branch: .external, index: index) else { continue }
+        for index in 0...scanUpperBound {
+            guard let derivedAddress = deriveUTXOAddress(for: wallet, chainName: chainName, branch: .external, index: index) else {
+                continue
+            }
             let normalized = derivedAddress.lowercased()
             if !seen.contains(normalized) {
                 seen.insert(normalized)
@@ -794,11 +1073,13 @@ extension AppState {
             }
             if await hasUTXOOnChainActivity(address: derivedAddress, chainName: chainName) {
                 registerOwnedAddress(
-                    chainName: chainName, address: derivedAddress, walletID: wallet.id, derivationPath: utxoDiscoveryDerivationPath(
+                    chainName: chainName, address: derivedAddress, walletID: wallet.id,
+                    derivationPath: utxoDiscoveryDerivationPath(
                         for: wallet, chainName: chainName, branch: .external, index: index
                     ), index: index, branch: "external"
                 )
-            }}
+            }
+        }
         return ordered
     }
     func refreshUTXOAddressDiscovery(chainName: String) async {
@@ -816,7 +1097,8 @@ extension AppState {
                 group.addTask { [wallet] in
                     let addresses = await self.discoverUTXOAddresses(for: wallet, chainName: chainName)
                     return (wallet.id, addresses)
-                }}
+                }
+            }
             var mapping: [String: [String]] = [:]
             for await (walletID, addresses) in group { mapping[walletID] = addresses }
             return mapping
@@ -831,13 +1113,16 @@ extension AppState {
             guard storedSeedPhrase(for: wallet.id) != nil else { continue }
             _ = reserveReceiveIndex(for: wallet, chainName: chainName)
             var state = keypoolState(for: wallet, chainName: chainName)
-            guard let reservedIndex = state.reservedReceiveIndex, let reservedAddress = deriveUTXOAddress(
+            guard let reservedIndex = state.reservedReceiveIndex,
+                let reservedAddress = deriveUTXOAddress(
                     for: wallet, chainName: chainName, branch: .external, index: reservedIndex
-                  ) else {
+                )
+            else {
                 continue
             }
             registerOwnedAddress(
-                chainName: chainName, address: reservedAddress, walletID: wallet.id, derivationPath: utxoDiscoveryDerivationPath(
+                chainName: chainName, address: reservedAddress, walletID: wallet.id,
+                derivationPath: utxoDiscoveryDerivationPath(
                     for: wallet, chainName: chainName, branch: .external, index: reservedIndex
                 ), index: reservedIndex, branch: "external"
             )
@@ -847,18 +1132,26 @@ extension AppState {
             storeChainKeypoolState(state, chainName: chainName, walletID: wallet.id)
             if let nextAddress = deriveUTXOAddress(for: wallet, chainName: chainName, branch: .external, index: nextReserved) {
                 registerOwnedAddress(
-                    chainName: chainName, address: nextAddress, walletID: wallet.id, derivationPath: utxoDiscoveryDerivationPath(
+                    chainName: chainName, address: nextAddress, walletID: wallet.id,
+                    derivationPath: utxoDiscoveryDerivationPath(
                         for: wallet, chainName: chainName, branch: .external, index: nextReserved
                     ), index: nextReserved, branch: "external"
                 )
-            }}}
+            }
+        }
+    }
     func seedDerivationChain(for chainName: String) -> SeedDerivationChain? {
         coreSeedDerivationChainRaw(chainName: chainName).flatMap(SeedDerivationChain.init(rawValue:))
     }
-    func walletHasAddress(for wallet: ImportedWallet, chainName: String) -> Bool { resolvedAddress(for: wallet, chainName: chainName) != nil }
-    func normalizedOwnedAddressKey(chainName: String, address: String) -> String { address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+    func walletHasAddress(for wallet: ImportedWallet, chainName: String) -> Bool {
+        resolvedAddress(for: wallet, chainName: chainName) != nil
+    }
+    func normalizedOwnedAddressKey(chainName: String, address: String) -> String {
+        address.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
     func registerOwnedAddress(
-        chainName: String, address: String?, walletID: String?, derivationPath: String?, index: Int?, branch: String? ) {
+        chainName: String, address: String?, walletID: String?, derivationPath: String?, index: Int?, branch: String?
+    ) {
         guard let address, let walletID else { return }
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -873,20 +1166,28 @@ extension AppState {
         (chainOwnedAddressMapByChain[chainName] ?? [:]).compactMap { key, value in
             guard value.walletID == walletID else { return nil }
             return value.address ?? key
-        }}
+        }
+    }
     func baselineChainKeypoolState(for wallet: ImportedWallet, chainName: String) -> ChainKeypoolState {
         if supportsDeepUTXODiscovery(chainName: chainName) {
             let chainTransactions = transactions.filter { $0.walletID == wallet.id && $0.chainName == chainName }
-            let maxExternalIndex = chainTransactions.compactMap {
+            let maxExternalIndex =
+                chainTransactions.compactMap {
                     parseUTXODiscoveryIndex(path: $0.sourceDerivationPath, chainName: chainName, branch: .external)
                 }.max() ?? -1
-            let maxChangeIndex = chainTransactions.compactMap {
+            let maxChangeIndex =
+                chainTransactions.compactMap {
                     parseUTXODiscoveryIndex(path: $0.changeDerivationPath, chainName: chainName, branch: .change)
                 }.max() ?? -1
-            let maxOwnedExternalIndex = (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "external" }.compactMap(\.index).max() ?? 0
-            let maxOwnedChangeIndex = (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "change" }.compactMap(\.index).max() ?? -1
+            let maxOwnedExternalIndex =
+                (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "external" }
+                .compactMap(\.index).max() ?? 0
+            let maxOwnedChangeIndex =
+                (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "change" }
+                .compactMap(\.index).max() ?? -1
             return ChainKeypoolState(
-                nextExternalIndex: max(max(maxExternalIndex, maxOwnedExternalIndex) + 1, 1), nextChangeIndex: max(max(maxChangeIndex, maxOwnedChangeIndex) + 1, 0), reservedReceiveIndex: nil
+                nextExternalIndex: max(max(maxExternalIndex, maxOwnedExternalIndex) + 1, 1),
+                nextChangeIndex: max(max(maxChangeIndex, maxOwnedChangeIndex) + 1, 0), reservedReceiveIndex: nil
             )
         }
         let hasResolvedAddress = resolvedAddress(for: wallet, chainName: chainName) != nil
@@ -928,7 +1229,8 @@ extension AppState {
             return utxoDiscoveryDerivationPath(for: wallet, chainName: chainName, branch: .external, index: index)
         }
         guard seedDerivationChain(for: chainName) != nil else { return nil }
-        return seedDerivationChain(for: chainName).map { walletDerivationPath(for: wallet, chain: $0) }}
+        return seedDerivationChain(for: chainName).map { walletDerivationPath(for: wallet, chain: $0) }
+    }
     func reservedReceiveAddress(for wallet: ImportedWallet, chainName: String, reserveIfMissing: Bool) -> String? {
         if supportsDeepUTXODiscovery(chainName: chainName) {
             var state = keypoolState(for: wallet, chainName: chainName)
@@ -937,9 +1239,12 @@ extension AppState {
                 state.reservedReceiveIndex = reserved; state.nextExternalIndex = max(state.nextExternalIndex, reserved + 1)
                 storeChainKeypoolState(state, chainName: chainName, walletID: wallet.id)
             }
-            guard let reservedIndex = state.reservedReceiveIndex, let address = deriveUTXOAddress(for: wallet, chainName: chainName, branch: .external, index: reservedIndex) else { return resolvedAddress(for: wallet, chainName: chainName) }
+            guard let reservedIndex = state.reservedReceiveIndex,
+                let address = deriveUTXOAddress(for: wallet, chainName: chainName, branch: .external, index: reservedIndex)
+            else { return resolvedAddress(for: wallet, chainName: chainName) }
             registerOwnedAddress(
-                chainName: chainName, address: address, walletID: wallet.id, derivationPath: utxoDiscoveryDerivationPath(
+                chainName: chainName, address: address, walletID: wallet.id,
+                derivationPath: utxoDiscoveryDerivationPath(
                     for: wallet, chainName: chainName, branch: .external, index: reservedIndex
                 ), index: reservedIndex, branch: "external"
             )
@@ -949,17 +1254,23 @@ extension AppState {
         guard let address = resolvedAddress(for: wallet, chainName: chainName) else { return nil }
         let reservedIndex = keypoolState(for: wallet, chainName: chainName).reservedReceiveIndex
         registerOwnedAddress(
-            chainName: chainName, address: address, walletID: wallet.id, derivationPath: reservedReceiveDerivationPath(for: wallet, chainName: chainName, index: reservedIndex), index: reservedIndex, branch: "external"
+            chainName: chainName, address: address, walletID: wallet.id,
+            derivationPath: reservedReceiveDerivationPath(for: wallet, chainName: chainName, index: reservedIndex), index: reservedIndex,
+            branch: "external"
         )
         return address
     }
-    func activateLiveReceiveAddress(_ address: String?, for wallet: ImportedWallet, chainName: String, derivationPath: String? = nil) -> String {
+    func activateLiveReceiveAddress(_ address: String?, for wallet: ImportedWallet, chainName: String, derivationPath: String? = nil)
+        -> String
+    {
         guard let address else { return "" }
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
         let reservedIndex = reserveReceiveIndex(for: wallet, chainName: chainName)
         registerOwnedAddress(
-            chainName: chainName, address: trimmed, walletID: wallet.id, derivationPath: derivationPath ?? reservedReceiveDerivationPath(for: wallet, chainName: chainName, index: reservedIndex), index: reservedIndex, branch: "external"
+            chainName: chainName, address: trimmed, walletID: wallet.id,
+            derivationPath: derivationPath ?? reservedReceiveDerivationPath(for: wallet, chainName: chainName, index: reservedIndex),
+            index: reservedIndex, branch: "external"
         )
         return trimmed
     }
@@ -969,9 +1280,13 @@ extension AppState {
                 guard let address = resolvedAddress(for: wallet, chainName: chainName) else { continue }
                 let reservedIndex = reserveReceiveIndex(for: wallet, chainName: chainName)
                 registerOwnedAddress(
-                    chainName: chainName, address: address, walletID: wallet.id, derivationPath: reservedReceiveDerivationPath(for: wallet, chainName: chainName, index: reservedIndex), index: reservedIndex, branch: "external"
+                    chainName: chainName, address: address, walletID: wallet.id,
+                    derivationPath: reservedReceiveDerivationPath(for: wallet, chainName: chainName, index: reservedIndex),
+                    index: reservedIndex, branch: "external"
                 )
-            }}}
+            }
+        }
+    }
     private func storeChainKeypoolState(_ state: ChainKeypoolState, chainName: String, walletID: String) {
         var perWallet = chainKeypoolByChain[chainName] ?? [:]
         perWallet[walletID] = state
@@ -985,18 +1300,28 @@ extension AppState {
         var destinationForProbe = trimmedDestination
         var ensResolutionInfo: String?
         if !isValidAddress(trimmedDestination, for: coin.chainName) {
-            if (coin.chainName == "Ethereum" || coin.chainName == "Arbitrum" || coin.chainName == "Optimism" || coin.chainName == "BNB Chain" || coin.chainName == "Avalanche" || coin.chainName == "Hyperliquid"), isENSNameCandidate(trimmedDestination) {
+            if (coin.chainName == "Ethereum" || coin.chainName == "Arbitrum" || coin.chainName == "Optimism"
+                || coin.chainName == "BNB Chain" || coin.chainName == "Avalanche" || coin.chainName == "Hyperliquid"),
+                isENSNameCandidate(trimmedDestination)
+            {
                 do {
                     let resolved = try await resolveEVMRecipientAddress(input: trimmedDestination, for: coin.chainName)
                     destinationForProbe = resolved.address
                     ensResolutionInfo = resolved.usedENS ? "Resolved ENS \(trimmedDestination) to \(resolved.address)." : nil
                 } catch { clearProbe(); return }
-            } else { clearProbe(); return }
+            } else {
+                clearProbe(); return
+            }
         }
         let addressProbeKey = "\(coin.chainName)|\(coin.symbol)|\(destinationForProbe.lowercased())"
         if lastSendDestinationProbeKey == addressProbeKey {
             sendDestinationRiskWarning = lastSendDestinationProbeWarning
-            if let ensResolutionInfo { sendDestinationInfoMessage = [lastSendDestinationProbeInfoMessage, ensResolutionInfo].compactMap { $0 }.joined(separator: " ") } else { sendDestinationInfoMessage = lastSendDestinationProbeInfoMessage }
+            if let ensResolutionInfo {
+                sendDestinationInfoMessage = [lastSendDestinationProbeInfoMessage, ensResolutionInfo].compactMap { $0 }.joined(
+                    separator: " ")
+            } else {
+                sendDestinationInfoMessage = lastSendDestinationProbeInfoMessage
+            }
             isCheckingSendDestinationBalance = false
             return
         }
@@ -1006,12 +1331,16 @@ extension AppState {
             let warning: String?
             let infoMessage: String?
             switch coin.chainName {
-            case "Bitcoin": let btcJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.bitcoin, address: destinationForProbe)
+            case "Bitcoin":
+                let btcJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(
+                    chainId: SpectraChainID.bitcoin, address: destinationForProbe)
                 let btcBalance = RustBalanceDecoder.uint64Field("confirmed_sats", from: btcJSON) ?? 0
                 let utxoCount = RustBalanceDecoder.uint64Field("utxo_count", from: btcJSON) ?? 0
-                let m = chainRiskProbeMessages(chainName: "Bitcoin", balanceLabel: "balance", balanceNonPositive: btcBalance <= 0, hasHistory: utxoCount > 0)
+                let m = chainRiskProbeMessages(
+                    chainName: "Bitcoin", balanceLabel: "balance", balanceNonPositive: btcBalance <= 0, hasHistory: utxoCount > 0)
                 warning = m.warning; infoMessage = m.info
-            case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid": guard let chainId = SpectraChainID.id(for: coin.chainName) else {
+            case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid":
+                guard let chainId = SpectraChainID.id(for: coin.chainName) else {
                     warning = nil
                     infoMessage = nil
                     break
@@ -1023,38 +1352,79 @@ extension AppState {
                 let nonce = RustBalanceDecoder.int64Field("nonce", from: previewJSON) ?? 0
                 let hasHistory = nonce > 0
                 if coin.symbol == "ETH" || coin.symbol == "BNB" || coin.symbol == "AVAX" || coin.symbol == "ARB" || coin.symbol == "OP" {
-                    let m = chainRiskProbeMessages(chainName: coin.chainName, balanceLabel: "\(coin.symbol) balance", balanceNonPositive: (RustBalanceDecoder.f64Field("balance_eth", from: previewJSON) ?? 0) <= 0, hasHistory: hasHistory)
+                    let m = chainRiskProbeMessages(
+                        chainName: coin.chainName, balanceLabel: "\(coin.symbol) balance",
+                        balanceNonPositive: (RustBalanceDecoder.f64Field("balance_eth", from: previewJSON) ?? 0) <= 0,
+                        hasHistory: hasHistory)
                     warning = m.warning; infoMessage = m.info
                 } else if let token = supportedEVMToken(for: coin) {
-                    let tokenBalances = try await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(chainId: chainId, address: normalizedAddress, tokens: [(contract: token.contractAddress, symbol: token.symbol, decimals: token.decimals)])
+                    let tokenBalances = try await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(
+                        chainId: chainId, address: normalizedAddress,
+                        tokens: [(contract: token.contractAddress, symbol: token.symbol, decimals: token.decimals)])
                     let tokenBalance = Decimal(string: tokenBalances.first?.balanceDisplay ?? "0") ?? .zero
-                    warning = (tokenBalance <= .zero && !hasHistory) ? "Warning: this address has zero \(coin.symbol) balance and no transaction history on \(coin.chainName). Double-check recipient details." : nil
-                    infoMessage = (tokenBalance <= .zero && hasHistory) ? "Note: this address has transaction history but currently zero \(coin.symbol) balance on \(coin.chainName)." : nil
-                } else { warning = nil; infoMessage = nil }
-            case "Tron": if coin.symbol == "TRX" || coin.symbol == "USDT" {
-                    let tronNativeJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.tron, address: destinationForProbe)
+                    warning =
+                        (tokenBalance <= .zero && !hasHistory)
+                        ? "Warning: this address has zero \(coin.symbol) balance and no transaction history on \(coin.chainName). Double-check recipient details."
+                        : nil
+                    infoMessage =
+                        (tokenBalance <= .zero && hasHistory)
+                        ? "Note: this address has transaction history but currently zero \(coin.symbol) balance on \(coin.chainName)." : nil
+                } else {
+                    warning = nil; infoMessage = nil
+                }
+            case "Tron":
+                if coin.symbol == "TRX" || coin.symbol == "USDT" {
+                    let tronNativeJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(
+                        chainId: SpectraChainID.tron, address: destinationForProbe)
                     let tronSun = RustBalanceDecoder.uint64Field("sun", from: tronNativeJSON) ?? 0
-                    let tronHistJSON = (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.tron, address: destinationForProbe)) ?? "[]"
+                    let tronHistJSON =
+                        (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.tron, address: destinationForProbe))
+                        ?? "[]"
                     let hasHistory = RustBalanceDecoder.jsonArrayIsNonEmpty(tronHistJSON)
                     let balance: Double
-                    if coin.symbol == "TRX" { balance = Double(tronSun) / 1e6 } else {
-                        let usdtTokenJSON = try await WalletServiceBridge.shared.fetchTokenBalancesJSON(chainId: SpectraChainID.tron, address: destinationForProbe, tokens: [(contract: TronBalanceService.usdtTronContract, symbol: "USDT", decimals: 6)])
-                        balance = RustBalanceDecoder.firstElementStringField("balance_display", from: usdtTokenJSON).flatMap { Double($0) } ?? 0
+                    if coin.symbol == "TRX" {
+                        balance = Double(tronSun) / 1e6
+                    } else {
+                        let usdtTokenJSON = try await WalletServiceBridge.shared.fetchTokenBalancesJSON(
+                            chainId: SpectraChainID.tron, address: destinationForProbe,
+                            tokens: [(contract: TronBalanceService.usdtTronContract, symbol: "USDT", decimals: 6)])
+                        balance =
+                            RustBalanceDecoder.firstElementStringField("balance_display", from: usdtTokenJSON).flatMap { Double($0) } ?? 0
                     }
                     let label = "\(coin.symbol) balance"
-                    warning = (balance <= 0 && !hasHistory) ? "Warning: this Tron address has zero \(coin.symbol) balance and no transaction history. Double-check recipient details." : nil
-                    infoMessage = (balance <= 0 && hasHistory) ? "Note: this Tron address has transaction history but currently zero \(label)." : nil
-                } else { warning = nil; infoMessage = nil }
-            case "Litecoin", "Dogecoin", "Solana", "XRP Ledger", "Monero", "Sui", "Aptos": if let cfg = coreSimpleChainRiskProbeConfig(chainName: coin.chainName, symbol: coin.symbol), let chainId = SpectraChainID.id(for: coin.chainName) {
-                    (warning, infoMessage) = await fetchChainRiskWarning(chainId: chainId, address: destinationForProbe, balanceField: cfg.balanceField, divisor: cfg.divisor, chainName: cfg.displayChainName, balanceLabel: cfg.balanceLabel)
-                } else { warning = nil; infoMessage = nil }
-            case "NEAR": let nearJson = (try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.near, address: destinationForProbe)) ?? "{}"
+                    warning =
+                        (balance <= 0 && !hasHistory)
+                        ? "Warning: this Tron address has zero \(coin.symbol) balance and no transaction history. Double-check recipient details."
+                        : nil
+                    infoMessage =
+                        (balance <= 0 && hasHistory) ? "Note: this Tron address has transaction history but currently zero \(label)." : nil
+                } else {
+                    warning = nil; infoMessage = nil
+                }
+            case "Litecoin", "Dogecoin", "Solana", "XRP Ledger", "Monero", "Sui", "Aptos":
+                if let cfg = coreSimpleChainRiskProbeConfig(chainName: coin.chainName, symbol: coin.symbol),
+                    let chainId = SpectraChainID.id(for: coin.chainName)
+                {
+                    (warning, infoMessage) = await fetchChainRiskWarning(
+                        chainId: chainId, address: destinationForProbe, balanceField: cfg.balanceField, divisor: cfg.divisor,
+                        chainName: cfg.displayChainName, balanceLabel: cfg.balanceLabel)
+                } else {
+                    warning = nil; infoMessage = nil
+                }
+            case "NEAR":
+                let nearJson =
+                    (try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.near, address: destinationForProbe))
+                    ?? "{}"
                 let nearBalance = RustBalanceDecoder.yoctoNearToDouble(from: nearJson) ?? 0
-                let nearHistJson = (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.near, address: destinationForProbe)) ?? "[]"
+                let nearHistJson =
+                    (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.near, address: destinationForProbe))
+                    ?? "[]"
                 let nearHasHistory = RustBalanceDecoder.jsonArrayIsNonEmpty(nearHistJson)
-                let m = chainRiskProbeMessages(chainName: "NEAR", balanceLabel: "NEAR balance", balanceNonPositive: nearBalance <= 0, hasHistory: nearHasHistory)
+                let m = chainRiskProbeMessages(
+                    chainName: "NEAR", balanceLabel: "NEAR balance", balanceNonPositive: nearBalance <= 0, hasHistory: nearHasHistory)
                 warning = m.warning; infoMessage = m.info
-            default: warning = nil
+            default:
+                warning = nil
                 infoMessage = nil
             }
             guard probeID == "\(sendWalletID)|\(sendHoldingKey)|\(sendAddress)" else { return }
@@ -1068,7 +1438,8 @@ extension AppState {
             guard probeID == "\(sendWalletID)|\(sendHoldingKey)|\(sendAddress)" else { return }
             sendDestinationRiskWarning = nil
             sendDestinationInfoMessage = nil
-        }}
+        }
+    }
     func userFacingTronSendError(_ error: Error, symbol: String) -> String {
         let message = error.localizedDescription
         let lower = message.lowercased()
@@ -1086,12 +1457,17 @@ extension AppState {
         tronLastSendErrorDetails = trimmed
         tronLastSendErrorAt = Date()
     }
-    private func fetchChainRiskWarning(chainId: UInt32, address: String, balanceField: String, divisor: Double, chainName: String, balanceLabel: String) async -> (warning: String?, info: String?) {
-        guard let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address) else { return (nil, nil) }
+    private func fetchChainRiskWarning(
+        chainId: UInt32, address: String, balanceField: String, divisor: Double, chainName: String, balanceLabel: String
+    ) async -> (warning: String?, info: String?) {
+        guard let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address) else {
+            return (nil, nil)
+        }
         let balance = Double(RustBalanceDecoder.uint64Field(balanceField, from: json) ?? 0) / divisor
         let histJSON = (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: chainId, address: address)) ?? "[]"
         let hasHistory = RustBalanceDecoder.jsonArrayIsNonEmpty(histJSON)
-        let m = chainRiskProbeMessages(chainName: chainName, balanceLabel: balanceLabel, balanceNonPositive: balance <= 0, hasHistory: hasHistory)
+        let m = chainRiskProbeMessages(
+            chainName: chainName, balanceLabel: balanceLabel, balanceNonPositive: balance <= 0, hasHistory: hasHistory)
         return (m.warning, m.info)
     }
     /// Validate that the wallet has sufficient balance for amount + fee.
@@ -1129,11 +1505,16 @@ extension AppState {
         }
         return nil
     }
-    func chainRiskProbeMessages(chainName: String, balanceLabel: String, balanceNonPositive: Bool, hasHistory: Bool) -> (warning: String?, info: String?) {
-        let warning: String? = (balanceNonPositive && !hasHistory)
-            ? localizedStoreFormat("Warning: this %@ address has zero balance and no transaction history. Double-check recipient details.", chainName)
+    func chainRiskProbeMessages(chainName: String, balanceLabel: String, balanceNonPositive: Bool, hasHistory: Bool) -> (
+        warning: String?, info: String?
+    ) {
+        let warning: String? =
+            (balanceNonPositive && !hasHistory)
+            ? localizedStoreFormat(
+                "Warning: this %@ address has zero balance and no transaction history. Double-check recipient details.", chainName)
             : nil
-        let info: String? = (balanceNonPositive && hasHistory)
+        let info: String? =
+            (balanceNonPositive && hasHistory)
             ? localizedStoreFormat("Note: this %@ address has transaction history but currently zero %@.", chainName, balanceLabel)
             : nil
         return (warning, info)

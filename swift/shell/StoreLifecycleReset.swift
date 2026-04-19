@@ -2,18 +2,54 @@ import Foundation
 import UIKit
 extension AppState {
     func restorePersistedRuntimeConfigurationAndState() {
-        if let storedProvider = UserDefaults.standard.string(forKey: Self.pricingProviderDefaultsKey), let pricingProvider = PricingProvider(rawValue: storedProvider) { self.pricingProvider = pricingProvider }
-        if let storedBitcoinNetworkMode = UserDefaults.standard.string(forKey: Self.bitcoinNetworkModeDefaultsKey), let bitcoinNetworkMode = BitcoinNetworkMode(rawValue: storedBitcoinNetworkMode) { self.bitcoinNetworkMode = bitcoinNetworkMode }
-        if let storedDogecoinNetworkMode = UserDefaults.standard.string(forKey: Self.dogecoinNetworkModeDefaultsKey), let dogecoinNetworkMode = DogecoinNetworkMode(rawValue: storedDogecoinNetworkMode) { self.dogecoinNetworkMode = dogecoinNetworkMode }
-        if let storedEthereumNetworkMode = UserDefaults.standard.string(forKey: Self.ethereumNetworkModeDefaultsKey), let ethereumNetworkMode = EthereumNetworkMode(rawValue: storedEthereumNetworkMode) { self.ethereumNetworkMode = ethereumNetworkMode }
-        if let storedBitcoinFeePriority = UserDefaults.standard.string(forKey: Self.bitcoinFeePriorityDefaultsKey), let bitcoinFeePriority = BitcoinFeePriority(rawValue: storedBitcoinFeePriority) { self.bitcoinFeePriority = bitcoinFeePriority }
-        if UserDefaults.standard.object(forKey: Self.bitcoinStopGapDefaultsKey) != nil { self.bitcoinStopGap = UserDefaults.standard.integer(forKey: Self.bitcoinStopGapDefaultsKey) }
+        if let storedProvider = UserDefaults.standard.string(forKey: Self.pricingProviderDefaultsKey),
+            let pricingProvider = PricingProvider(rawValue: storedProvider)
+        {
+            self.pricingProvider = pricingProvider
+        }
+        if let storedBitcoinNetworkMode = UserDefaults.standard.string(forKey: Self.bitcoinNetworkModeDefaultsKey),
+            let bitcoinNetworkMode = BitcoinNetworkMode(rawValue: storedBitcoinNetworkMode)
+        {
+            self.bitcoinNetworkMode = bitcoinNetworkMode
+        }
+        if let storedDogecoinNetworkMode = UserDefaults.standard.string(forKey: Self.dogecoinNetworkModeDefaultsKey),
+            let dogecoinNetworkMode = DogecoinNetworkMode(rawValue: storedDogecoinNetworkMode)
+        {
+            self.dogecoinNetworkMode = dogecoinNetworkMode
+        }
+        if let storedEthereumNetworkMode = UserDefaults.standard.string(forKey: Self.ethereumNetworkModeDefaultsKey),
+            let ethereumNetworkMode = EthereumNetworkMode(rawValue: storedEthereumNetworkMode)
+        {
+            self.ethereumNetworkMode = ethereumNetworkMode
+        }
+        if let storedBitcoinFeePriority = UserDefaults.standard.string(forKey: Self.bitcoinFeePriorityDefaultsKey),
+            let bitcoinFeePriority = BitcoinFeePriority(rawValue: storedBitcoinFeePriority)
+        {
+            self.bitcoinFeePriority = bitcoinFeePriority
+        }
+        if UserDefaults.standard.object(forKey: Self.bitcoinStopGapDefaultsKey) != nil {
+            self.bitcoinStopGap = UserDefaults.standard.integer(forKey: Self.bitcoinStopGapDefaultsKey)
+        }
         self.bitcoinEsploraEndpoints = UserDefaults.standard.string(forKey: Self.bitcoinEsploraEndpointsDefaultsKey) ?? ""
-        if let storedFiatCurrency = UserDefaults.standard.string(forKey: Self.selectedFiatCurrencyDefaultsKey), let selectedFiatCurrency = FiatCurrency(rawValue: storedFiatCurrency) { self.selectedFiatCurrency = selectedFiatCurrency }
-        if let storedFiatRateProvider = UserDefaults.standard.string(forKey: Self.fiatRateProviderDefaultsKey), let fiatRateProvider = FiatRateProvider(rawValue: storedFiatRateProvider) { self.fiatRateProvider = fiatRateProvider }
-        if let storedFiatRates = UserDefaults.standard.dictionary(forKey: Self.fiatRatesFromUSDDefaultsKey) as? [String: Double] { fiatRatesFromUSD = storedFiatRates }
+        if let storedFiatCurrency = UserDefaults.standard.string(forKey: Self.selectedFiatCurrencyDefaultsKey),
+            let selectedFiatCurrency = FiatCurrency(rawValue: storedFiatCurrency)
+        {
+            self.selectedFiatCurrency = selectedFiatCurrency
+        }
+        if let storedFiatRateProvider = UserDefaults.standard.string(forKey: Self.fiatRateProviderDefaultsKey),
+            let fiatRateProvider = FiatRateProvider(rawValue: storedFiatRateProvider)
+        {
+            self.fiatRateProvider = fiatRateProvider
+        }
+        if let storedFiatRates = UserDefaults.standard.dictionary(forKey: Self.fiatRatesFromUSDDefaultsKey) as? [String: Double] {
+            fiatRatesFromUSD = storedFiatRates
+        }
         fiatRatesFromUSD[FiatCurrency.usd.rawValue] = 1.0
-        if let storedDogecoinFeePriority = UserDefaults.standard.string(forKey: Self.dogecoinFeePriorityDefaultsKey), let dogecoinFeePriority = DogecoinFeePriority(rawValue: storedDogecoinFeePriority) { self.dogecoinFeePriority = dogecoinFeePriority }
+        if let storedDogecoinFeePriority = UserDefaults.standard.string(forKey: Self.dogecoinFeePriorityDefaultsKey),
+            let dogecoinFeePriority = DogecoinFeePriority(rawValue: storedDogecoinFeePriority)
+        {
+            self.dogecoinFeePriority = dogecoinFeePriority
+        }
         coinGeckoAPIKey = SecureStore.loadValue(for: Self.coinGeckoAPIKeyAccount)
         ethereumRPCEndpoint = UserDefaults.standard.string(forKey: Self.ethereumRPCEndpointDefaultsKey) ?? ""
         etherscanAPIKey = UserDefaults.standard.string(forKey: Self.etherscanAPIKeyDefaultsKey) ?? ""
@@ -30,29 +66,62 @@ extension AppState {
         chainOwnedAddressMapByChain = loadChainOwnedAddressMap()
         chainOperationalEventsByChain = loadChainOperationalEvents()
         syncChainOwnedAddressManagementState()
-        if UserDefaults.standard.object(forKey: Self.hideBalancesDefaultsKey) != nil { hideBalances = UserDefaults.standard.bool(forKey: Self.hideBalancesDefaultsKey) }
-        if let storedAssetDisplayDecimalsByChain = loadAssetDisplayDecimalsByChain() { assetDisplayDecimalsByChain = storedAssetDisplayDecimalsByChain }
-        if UserDefaults.standard.object(forKey: Self.useFaceIDDefaultsKey) != nil { useFaceID = UserDefaults.standard.bool(forKey: Self.useFaceIDDefaultsKey) }
-        if UserDefaults.standard.object(forKey: Self.useAutoLockDefaultsKey) != nil { useAutoLock = UserDefaults.standard.bool(forKey: Self.useAutoLockDefaultsKey) }
-        if UserDefaults.standard.object(forKey: Self.useStrictRPCOnlyDefaultsKey) != nil { useStrictRPCOnly = UserDefaults.standard.bool(forKey: Self.useStrictRPCOnlyDefaultsKey) }
-        if UserDefaults.standard.object(forKey: Self.requireBiometricForSendActionsDefaultsKey) != nil { requireBiometricForSendActions = UserDefaults.standard.bool(forKey: Self.requireBiometricForSendActionsDefaultsKey) }
-        if UserDefaults.standard.object(forKey: Self.usePriceAlertsDefaultsKey) != nil { usePriceAlerts = UserDefaults.standard.bool(forKey: Self.usePriceAlertsDefaultsKey) }
-        if UserDefaults.standard.object(forKey: Self.useTransactionStatusNotificationsDefaultsKey) != nil { useTransactionStatusNotifications = UserDefaults.standard.bool(forKey: Self.useTransactionStatusNotificationsDefaultsKey) }
-        if UserDefaults.standard.object(forKey: Self.useLargeMovementNotificationsDefaultsKey) != nil { useLargeMovementNotifications = UserDefaults.standard.bool(forKey: Self.useLargeMovementNotificationsDefaultsKey) }
-        if UserDefaults.standard.object(forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey) != nil { automaticRefreshFrequencyMinutes = UserDefaults.standard.integer(forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey) } else if let rawSyncProfile = UserDefaults.standard.string(forKey: Self.backgroundSyncProfileDefaultsKey), let profile = BackgroundSyncProfile(rawValue: rawSyncProfile) {
+        if UserDefaults.standard.object(forKey: Self.hideBalancesDefaultsKey) != nil {
+            hideBalances = UserDefaults.standard.bool(forKey: Self.hideBalancesDefaultsKey)
+        }
+        if let storedAssetDisplayDecimalsByChain = loadAssetDisplayDecimalsByChain() {
+            assetDisplayDecimalsByChain = storedAssetDisplayDecimalsByChain
+        }
+        if UserDefaults.standard.object(forKey: Self.useFaceIDDefaultsKey) != nil {
+            useFaceID = UserDefaults.standard.bool(forKey: Self.useFaceIDDefaultsKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.useAutoLockDefaultsKey) != nil {
+            useAutoLock = UserDefaults.standard.bool(forKey: Self.useAutoLockDefaultsKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.useStrictRPCOnlyDefaultsKey) != nil {
+            useStrictRPCOnly = UserDefaults.standard.bool(forKey: Self.useStrictRPCOnlyDefaultsKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.requireBiometricForSendActionsDefaultsKey) != nil {
+            requireBiometricForSendActions = UserDefaults.standard.bool(forKey: Self.requireBiometricForSendActionsDefaultsKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.usePriceAlertsDefaultsKey) != nil {
+            usePriceAlerts = UserDefaults.standard.bool(forKey: Self.usePriceAlertsDefaultsKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.useTransactionStatusNotificationsDefaultsKey) != nil {
+            useTransactionStatusNotifications = UserDefaults.standard.bool(forKey: Self.useTransactionStatusNotificationsDefaultsKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.useLargeMovementNotificationsDefaultsKey) != nil {
+            useLargeMovementNotifications = UserDefaults.standard.bool(forKey: Self.useLargeMovementNotificationsDefaultsKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey) != nil {
+            automaticRefreshFrequencyMinutes = UserDefaults.standard.integer(forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey)
+        } else if let rawSyncProfile = UserDefaults.standard.string(forKey: Self.backgroundSyncProfileDefaultsKey),
+            let profile = BackgroundSyncProfile(rawValue: rawSyncProfile)
+        {
             backgroundSyncProfile = profile
             switch profile {
             case .conservative: automaticRefreshFrequencyMinutes = 10
             case .balanced, .aggressive: automaticRefreshFrequencyMinutes = 5
-            }}
-        if UserDefaults.standard.object(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey) != nil { largeMovementAlertPercentThreshold = UserDefaults.standard.double(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey) }
-        if UserDefaults.standard.object(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey) != nil { largeMovementAlertUSDThreshold = UserDefaults.standard.double(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey) }
-        if let storedFeePrioritySelections = UserDefaults.standard.dictionary(forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey) as? [String: String] { selectedFeePriorityOptionRawByChain = storedFeePrioritySelections }
-        let storedPins = (UserDefaults.standard.stringArray(forKey: Self.pinnedDashboardAssetSymbolsDefaultsKey) ?? []).map { $0.uppercased() }.filter { !$0.isEmpty }
+            }
+        }
+        if UserDefaults.standard.object(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey) != nil {
+            largeMovementAlertPercentThreshold = UserDefaults.standard.double(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey) != nil {
+            largeMovementAlertUSDThreshold = UserDefaults.standard.double(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
+        }
+        if let storedFeePrioritySelections = UserDefaults.standard.dictionary(forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey)
+            as? [String: String]
+        {
+            selectedFeePriorityOptionRawByChain = storedFeePrioritySelections
+        }
+        let storedPins = (UserDefaults.standard.stringArray(forKey: Self.pinnedDashboardAssetSymbolsDefaultsKey) ?? []).map {
+            $0.uppercased()
+        }.filter { !$0.isEmpty }
         if !storedPins.isEmpty { cachedPinnedDashboardAssetSymbols = storedPins }
         suppressWalletSideEffects = false
         applyWalletCollectionSideEffects()
-        DispatchQueue.main.async {
+        Task { @MainActor in
             UIDevice.current.isBatteryMonitoringEnabled = true
         }
         startNetworkPathMonitorIfNeeded()
@@ -71,9 +140,11 @@ extension AppState {
     func resetWalletData() async { await resetSelectedData(scopes: Set(ResetScope.allCases)) }
     func resetSelectedData(scopes: Set<ResetScope>) async {
         guard !scopes.isEmpty else { return }
-        guard await authenticateForSensitiveAction(
-            reason: "Authenticate to reset wallet data", allowWhenAuthenticationUnavailable: true
-        ) else {
+        guard
+            await authenticateForSensitiveAction(
+                reason: "Authenticate to reset wallet data", allowWhenAuthenticationUnavailable: true
+            )
+        else {
             return
         }
         let plan = corePlanResetDispatch(scopes: scopes.map(\.rawValue))
@@ -421,5 +492,7 @@ extension AppState {
         HTTPCookieStorage.shared.removeCookies(since: .distantPast)
         let credentialStorage = URLCredentialStorage.shared
         for (protectionSpace, credentialsByUser) in credentialStorage.allCredentials {
-            for credential in credentialsByUser.values { credentialStorage.remove(credential, for: protectionSpace) }}}
+            for credential in credentialsByUser.values { credentialStorage.remove(credential, for: protectionSpace) }
+        }
+    }
 }

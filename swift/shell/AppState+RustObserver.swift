@@ -3,10 +3,9 @@
 // The wallet/transactions/address_book event bus has been removed; Swift now
 // owns those collections directly. Only the per-chain balance refresh
 // observer remains — it pushes balance updates from the Rust refresh engine
-// into AppState's `@Published` mirrors on the main actor.
+// into AppState's `@Observable` mirrors on the main actor.
 
 import Foundation
-import Combine
 
 final class WalletBalanceObserver: BalanceObserverImpl, @unchecked Sendable {
     weak var store: AppState?
@@ -19,7 +18,8 @@ final class WalletBalanceObserver: BalanceObserverImpl, @unchecked Sendable {
     nonisolated override func onBalanceUpdated(chainId: UInt32, walletId: String, balanceJson: String) {
         Task { @MainActor [weak self] in
             self?.store?.applyRustBalance(chainId: chainId, walletId: walletId, json: balanceJson)
-        }}
+        }
+    }
     nonisolated override func onRefreshCycleComplete(refreshed: UInt32, errors: UInt32) {
         _ = errors
         Task { @MainActor [weak self] in
@@ -28,5 +28,7 @@ final class WalletBalanceObserver: BalanceObserverImpl, @unchecked Sendable {
                 store.isRefreshingChainBalances = false
                 store.lastChainBalanceRefreshAt = Date()
                 store.applyWalletCollectionSideEffects()
-            }}}
+            }
+        }
+    }
 }

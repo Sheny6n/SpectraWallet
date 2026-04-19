@@ -11,8 +11,11 @@ extension AppState {
     func resolvedEVMAddress(for wallet: ImportedWallet, chainName: String) -> String? {
         guard isEVMChain(chainName), evmChainContext(for: chainName) != nil else { return nil }
         if let seedPhrase = storedSeedPhrase(for: wallet.id),
-           let derivationChain = WalletDerivationLayer.evmSeedDerivationChain(for: chainName),
-           let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: derivationChain, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: derivationChain)) {
+            let derivationChain = WalletDerivationLayer.evmSeedDerivationChain(for: chainName),
+            let derived = try? WalletDerivationLayer.deriveAddress(
+                seedPhrase: seedPhrase, chain: derivationChain, network: .mainnet,
+                derivationPath: walletDerivationPath(for: wallet, chain: derivationChain))
+        {
             return derived
         }
         if let addr = wallet.ethereumAddress, !addr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -114,8 +117,11 @@ extension AppState {
             return addr.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         if let seedPhrase = storedSeedPhrase(for: wallet.id),
-           let derived = try? WalletDerivationLayer.deriveAddress(seedPhrase: seedPhrase, chain: .cardano, network: .mainnet, derivationPath: walletDerivationPath(for: wallet, chain: .cardano)),
-           AddressValidation.isValid(derived, kind: "cardano") {
+            let derived = try? WalletDerivationLayer.deriveAddress(
+                seedPhrase: seedPhrase, chain: .cardano, network: .mainnet,
+                derivationPath: walletDerivationPath(for: wallet, chain: .cardano)),
+            AddressValidation.isValid(derived, kind: "cardano")
+        {
             return derived
         }
         return nil

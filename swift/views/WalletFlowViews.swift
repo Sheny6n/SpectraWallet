@@ -16,15 +16,20 @@ struct TransactionStatusBadge: View {
         case .pending: return .orange
         case .confirmed: return .mint
         case .failed: return .red
-        }}
+        }
+    }
     private var badgeScale: CGFloat {
         switch status {
         case .pending: return 1.0
         case .confirmed: return 1.05
         case .failed: return 0.97
-        }}
+        }
+    }
     var body: some View {
-        Text(statusText.uppercased()).font(.caption2.bold()).tracking(0.6).frame(minWidth: 86).padding(.horizontal, 10).padding(.vertical, 6).background(statusColor.opacity(0.16), in: Capsule()).foregroundStyle(statusColor).scaleEffect(badgeScale).animation(.spring(response: 0.35, dampingFraction: 0.74), value: status)
+        Text(statusText.uppercased()).font(.caption2.bold()).tracking(0.6).frame(minWidth: 86).padding(.horizontal, 10).padding(
+            .vertical, 6
+        ).background(statusColor.opacity(0.16), in: Capsule()).foregroundStyle(statusColor).scaleEffect(badgeScale).animation(
+            .spring(response: 0.35, dampingFraction: 0.74), value: status)
     }
 }
 struct SendQRScannerSheet: View {
@@ -35,25 +40,34 @@ struct SendQRScannerSheet: View {
             QRCodeScannerView { payload in
                 onScan(payload)
                 dismiss()
-            }.ignoresSafeArea(edges: .bottom).navigationTitle(localizedWalletFlowString("Scan QR Code")).navigationBarTitleDisplayMode(.inline).toolbar {
+            }.ignoresSafeArea(edges: .bottom).navigationTitle(localizedWalletFlowString("Scan QR Code")).navigationBarTitleDisplayMode(
+                .inline
+            ).toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(localizedWalletFlowString("Cancel")) {
                         dismiss()
-                    }}}}}
+                    }
+                }
+            }
+        }
+    }
 }
 struct QRCodeScannerView: UIViewControllerRepresentable {
     let onScan: (String) -> Void
     func makeCoordinator() -> Coordinator { Coordinator(onScan: onScan) }
     func makeUIViewController(context: Context) -> DataScannerViewController {
         let controller = DataScannerViewController(
-            recognizedDataTypes: [.barcode(symbologies: [.qr])], qualityLevel: .balanced, recognizesMultipleItems: false, isHighFrameRateTrackingEnabled: false, isPinchToZoomEnabled: true, isGuidanceEnabled: true, isHighlightingEnabled: true
+            recognizedDataTypes: [.barcode(symbologies: [.qr])], qualityLevel: .balanced, recognizesMultipleItems: false,
+            isHighFrameRateTrackingEnabled: false, isPinchToZoomEnabled: true, isGuidanceEnabled: true, isHighlightingEnabled: true
         )
         controller.delegate = context.coordinator
         try? controller.startScanning()
         return controller
     }
     func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {}
-    static func dismantleUIViewController(_ uiViewController: DataScannerViewController, coordinator: Coordinator) { uiViewController.stopScanning() }
+    static func dismantleUIViewController(_ uiViewController: DataScannerViewController, coordinator: Coordinator) {
+        uiViewController.stopScanning()
+    }
     final class Coordinator: NSObject, DataScannerViewControllerDelegate {
         private let onScan: (String) -> Void
         private var hasResolvedPayload = false
@@ -67,11 +81,14 @@ struct QRCodeScannerView: UIViewControllerRepresentable {
         }
         private func resolve(_ item: RecognizedItem, from dataScanner: DataScannerViewController) {
             guard !hasResolvedPayload else { return }
-            guard case let .barcode(barcode) = item, let payload = barcode.payloadStringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !payload.isEmpty else { return }
+            guard case .barcode(let barcode) = item,
+                let payload = barcode.payloadStringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !payload.isEmpty
+            else { return }
             hasResolvedPayload = true
             dataScanner.stopScanning()
             onScan(payload)
-        }}
+        }
+    }
 }
 struct WalletCardView: View, Equatable {
     struct Presentation: Equatable {
@@ -87,12 +104,15 @@ struct WalletCardView: View, Equatable {
     let presentation: Presentation
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.presentation == rhs.presentation }
     private var watchOnlyBadge: some View {
-        Image(systemName: "eye").font(.caption.weight(.semibold)).foregroundStyle(.orange).padding(.horizontal, 7).padding(.vertical, 5).background(Color.orange.opacity(0.15), in: Capsule())
+        Image(systemName: "eye").font(.caption.weight(.semibold)).foregroundStyle(.orange).padding(.horizontal, 7).padding(.vertical, 5)
+            .background(Color.orange.opacity(0.15), in: Capsule())
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 14) {
-                CoinBadge(assetIdentifier: presentation.badgeAssetIdentifier, fallbackText: presentation.badgeMark, color: presentation.badgeColor, size: 40)
+                CoinBadge(
+                    assetIdentifier: presentation.badgeAssetIdentifier, fallbackText: presentation.badgeMark,
+                    color: presentation.badgeColor, size: 40)
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         if presentation.isWatchOnly { watchOnlyBadge }
@@ -106,7 +126,8 @@ struct WalletCardView: View, Equatable {
                     Text(presentation.assetCountText).font(.caption2).foregroundStyle(Color.primary.opacity(0.68))
                 }
                 Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.42))
-            }}.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+            }
+        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
     }
 }
 struct QRCodeRenderer {
@@ -123,7 +144,9 @@ struct QRCodeRenderer {
 }
 struct ActivityItemSheet: UIViewControllerRepresentable {
     let activityItems: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController { UIActivityViewController(activityItems: activityItems, applicationActivities: nil) }
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 final class PhotoLibraryImageSaver: NSObject {
@@ -131,10 +154,13 @@ final class PhotoLibraryImageSaver: NSObject {
     init(completion: @escaping (Result<Void, Error>) -> Void) {
         self.completion = completion
     }
-    func save(_ image: UIImage) { UIImageWriteToSavedPhotosAlbum(image, self, #selector(saveCompleted(_:didFinishSavingWithError:contextInfo:)), nil) }
+    func save(_ image: UIImage) {
+        UIImageWriteToSavedPhotosAlbum(image, self, #selector(saveCompleted(_:didFinishSavingWithError:contextInfo:)), nil)
+    }
     @objc
     private func saveCompleted(_ image: UIImage, didFinishSavingWithError error: Error?, contextInfo: UnsafeRawPointer?) {
-        if let error { completion(.failure(error)) } else { completion(.success(())) }}
+        if let error { completion(.failure(error)) } else { completion(.success(())) }
+    }
 }
 struct DonationQRCodeView: View {
     let donation: DonationDestination
@@ -149,8 +175,11 @@ struct DonationQRCodeView: View {
                     )
                     Text(localizedWalletFlowString("Scan to Donate")).font(.title2.bold()).foregroundStyle(Color.primary)
                     Text(donation.title).font(.headline).foregroundStyle(Color.primary.opacity(0.76))
-                    QRCodeImage(address: donation.address).frame(width: 220, height: 220).padding(18).background(Color.white, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    Text(donation.address).font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.8)).multilineTextAlignment(.center).textSelection(.enabled).padding(.horizontal, 24)
+                    QRCodeImage(address: donation.address).frame(width: 220, height: 220).padding(18).background(
+                        Color.white, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    Text(donation.address).font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.8)).multilineTextAlignment(
+                        .center
+                    ).textSelection(.enabled).padding(.horizontal, 24)
                     Spacer()
                 }.padding(20)
             }.navigationTitle(localizedWalletFlowString("QR Code")).navigationBarTitleDisplayMode(.inline).toolbar {
@@ -158,13 +187,22 @@ struct DonationQRCodeView: View {
                     Button(localizedWalletFlowString("Done")) {
                         dismiss()
                     }.buttonStyle(.glass)
-                }}}}
+                }
+            }
+        }
+    }
 }
 struct QRCodeImage: View {
     let address: String
     var body: some View {
         Group {
-            if let image = qrUIImage { Image(uiImage: image).interpolation(.none).resizable().scaledToFit() } else { Image(systemName: "qrcode").resizable().scaledToFit().padding(28).foregroundStyle(.black) }}}
+            if let image = qrUIImage {
+                Image(uiImage: image).interpolation(.none).resizable().scaledToFit()
+            } else {
+                Image(systemName: "qrcode").resizable().scaledToFit().padding(28).foregroundStyle(.black)
+            }
+        }
+    }
     private var qrUIImage: UIImage? { QRCodeRenderer.makeImage(from: address) }
 }
 struct WalletDetailView: View {
@@ -189,7 +227,8 @@ struct WalletDetailView: View {
         let coin: Coin
         let amountText: String
         let valueText: String
-        var id: String { coin.id }}
+        var id: String { coin.id }
+    }
     private struct DetailPresentation {
         let wallet: ImportedWallet
         let nonZeroAssetCount: Int
@@ -212,7 +251,9 @@ struct WalletDetailView: View {
         store.wallets.first(where: { $0.id == wallet.id }) ?? wallet
     }
     private var firstActivityDateText: String {
-        guard let firstDate = store.cachedFirstActivityDateByWalletID[wallet.id] else { return localizedWalletFlowString("No activity yet") }
+        guard let firstDate = store.cachedFirstActivityDateByWalletID[wallet.id] else {
+            return localizedWalletFlowString("No activity yet")
+        }
         return Self.firstActivityFormatter.string(from: firstDate)
     }
     private var detailPresentation: DetailPresentation {
@@ -225,29 +266,52 @@ struct WalletDetailView: View {
             }
         let holdingPresentations = visibleHoldings.map { entry in
             HoldingPresentation(
-                coin: entry.coin, amountText: store.formattedAssetAmount(entry.coin.amount, symbol: entry.coin.symbol, chainName: entry.coin.chainName), valueText: store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: entry.quotedValue >= 0 ? entry.quotedValue : nil)
+                coin: entry.coin,
+                amountText: store.formattedAssetAmount(entry.coin.amount, symbol: entry.coin.symbol, chainName: entry.coin.chainName),
+                valueText: store.hideBalances
+                    ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: entry.quotedValue >= 0 ? entry.quotedValue : nil)
             )
         }
         return DetailPresentation(
-            wallet: wallet, nonZeroAssetCount: visibleHoldings.count, walletAddress: [
-                wallet.bitcoinAddress, wallet.bitcoinCashAddress, wallet.litecoinAddress, wallet.dogecoinAddress, wallet.ethereumAddress, wallet.tronAddress, wallet.solanaAddress, wallet.xrpAddress, wallet.moneroAddress, wallet.cardanoAddress, wallet.suiAddress, wallet.aptosAddress, wallet.tonAddress, wallet.nearAddress, wallet.polkadotAddress, wallet.stellarAddress, ]
+            wallet: wallet, nonZeroAssetCount: visibleHoldings.count,
+            walletAddress: [
+                wallet.bitcoinAddress, wallet.bitcoinCashAddress, wallet.litecoinAddress, wallet.dogecoinAddress, wallet.ethereumAddress,
+                wallet.tronAddress, wallet.solanaAddress, wallet.xrpAddress, wallet.moneroAddress, wallet.cardanoAddress, wallet.suiAddress,
+                wallet.aptosAddress, wallet.tonAddress, wallet.nearAddress, wallet.polkadotAddress, wallet.stellarAddress,
+            ]
             .compactMap { $0 }
-            .first, derivationPathsText: derivationPathsText(for: wallet), walletBadge: Coin.nativeChainBadge(chainName: wallet.selectedChain) ?? (nil, "W", .mint), visibleHoldingPresentations: holdingPresentations, walletTotalValueText: store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.currentTotalIfAvailable(for: wallet))
+            .first, derivationPathsText: derivationPathsText(for: wallet),
+            walletBadge: Coin.nativeChainBadge(chainName: wallet.selectedChain) ?? (nil, "W", .mint),
+            visibleHoldingPresentations: holdingPresentations,
+            walletTotalValueText: store.hideBalances
+                ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.currentTotalIfAvailable(for: wallet))
         )
     }
     private func derivationPathsText(for wallet: ImportedWallet) -> String? {
         guard !isWatchOnly, !isPrivateKeyWallet else { return nil }
         let chainMappings: [String: SeedDerivationChain] = [
-            "Bitcoin": .bitcoin, "Bitcoin Cash": .bitcoinCash, "Bitcoin SV": .bitcoinSV, "Litecoin": .litecoin, "Dogecoin": .dogecoin, "Ethereum": .ethereum, "Ethereum Classic": .ethereumClassic, "Arbitrum": .arbitrum, "Optimism": .optimism, "BNB Chain": .ethereum, "Avalanche": .avalanche, "Hyperliquid": .hyperliquid, "Tron": .tron, "Solana": .solana, "Cardano": .cardano, "XRP Ledger": .xrp, "Sui": .sui, "Aptos": .aptos, "TON": .ton, "Internet Computer": .internetComputer, "NEAR": .near, "Polkadot": .polkadot, "Stellar": .stellar, ]
+            "Bitcoin": .bitcoin, "Bitcoin Cash": .bitcoinCash, "Bitcoin SV": .bitcoinSV, "Litecoin": .litecoin, "Dogecoin": .dogecoin,
+            "Ethereum": .ethereum, "Ethereum Classic": .ethereumClassic, "Arbitrum": .arbitrum, "Optimism": .optimism,
+            "BNB Chain": .ethereum, "Avalanche": .avalanche, "Hyperliquid": .hyperliquid, "Tron": .tron, "Solana": .solana,
+            "Cardano": .cardano, "XRP Ledger": .xrp, "Sui": .sui, "Aptos": .aptos, "TON": .ton, "Internet Computer": .internetComputer,
+            "NEAR": .near, "Polkadot": .polkadot, "Stellar": .stellar,
+        ]
         guard let derivationChain = chainMappings[wallet.selectedChain] else { return nil }
-        return walletFlowLocalizedFormat("wallet.detail.chainPath", wallet.selectedChain, wallet.seedDerivationPaths.path(for: derivationChain))
+        return walletFlowLocalizedFormat(
+            "wallet.detail.chainPath", wallet.selectedChain, wallet.seedDerivationPaths.path(for: derivationChain))
     }
     private var watchOnlyBadge: some View {
-        Label(localizedWalletFlowString("Watching"), systemImage: "eye").font(.caption.weight(.semibold)).foregroundStyle(.orange).padding(.horizontal, 10).padding(.vertical, 6).background(Color.orange.opacity(0.15), in: Capsule())
+        Label(localizedWalletFlowString("Watching"), systemImage: "eye").font(.caption.weight(.semibold)).foregroundStyle(.orange).padding(
+            .horizontal, 10
+        ).padding(.vertical, 6).background(Color.orange.opacity(0.15), in: Capsule())
     }
     private var deleteWalletMessage: String {
-        if isWatchOnly { return localizedWalletFlowString("You can't recover this wallet after deletion until you still have this address.") }
-        if isPrivateKeyWallet { return localizedWalletFlowString("Please keep this private key because you can't recover this wallet after deletion.") }
+        if isWatchOnly {
+            return localizedWalletFlowString("You can't recover this wallet after deletion until you still have this address.")
+        }
+        if isPrivateKeyWallet {
+            return localizedWalletFlowString("Please keep this private key because you can't recover this wallet after deletion.")
+        }
         return localizedWalletFlowString("Please take note of your seed phrase because you can't recover this wallet after deletion.")
     }
     private func clearSeedRevealState() {
@@ -272,17 +336,26 @@ struct WalletDetailView: View {
             LazyVStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 14) {
                     CoinBadge(
-                        assetIdentifier: detailPresentation.walletBadge.assetIdentifier, fallbackText: detailPresentation.walletBadge.mark, color: detailPresentation.walletBadge.color, size: 46
+                        assetIdentifier: detailPresentation.walletBadge.assetIdentifier, fallbackText: detailPresentation.walletBadge.mark,
+                        color: detailPresentation.walletBadge.color, size: 46
                     )
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
                             Text(detailPresentation.wallet.name).font(.title2.weight(.bold)).foregroundStyle(Color.primary)
                             Spacer(minLength: 0)
-                            if isWatchOnly { watchOnlyBadge }}
-                        Text(store.displayChainTitle(for: detailPresentation.wallet)).font(.subheadline).foregroundStyle(Color.primary.opacity(0.75))
-                    }}.frame(maxWidth: .infinity, alignment: .leading).padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                            if isWatchOnly { watchOnlyBadge }
+                        }
+                        Text(store.displayChainTitle(for: detailPresentation.wallet)).font(.subheadline).foregroundStyle(
+                            Color.primary.opacity(0.75))
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).spectraBubbleFill().glassEffect(
+                    .regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 VStack(alignment: .leading, spacing: 12) {
-                    detailRow(label: "Mode", value: isWatchOnly ? localizedWalletFlowString("Watch Addresses") : (isPrivateKeyWallet ? localizedWalletFlowString("Private Key") : localizedWalletFlowString("Seed-Based")))
+                    detailRow(
+                        label: "Mode",
+                        value: isWatchOnly
+                            ? localizedWalletFlowString("Watch Addresses")
+                            : (isPrivateKeyWallet ? localizedWalletFlowString("Private Key") : localizedWalletFlowString("Seed-Based")))
                     detailRow(label: "Current Value", value: detailPresentation.walletTotalValueText)
                     detailRow(label: "Asset Count", value: "\(detailPresentation.nonZeroAssetCount)")
                     detailRow(label: "First Activity", value: firstActivityDateText)
@@ -291,12 +364,18 @@ struct WalletDetailView: View {
                     HStack {
                         Text(localizedWalletFlowString("Holdings")).font(.headline).foregroundStyle(Color.primary)
                         Spacer()
-                        Text("\(detailPresentation.visibleHoldingPresentations.count)").font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.68))
+                        Text("\(detailPresentation.visibleHoldingPresentations.count)").font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.primary.opacity(0.68))
                     }
-                    if detailPresentation.visibleHoldingPresentations.isEmpty { Text(localizedWalletFlowString("No assets loaded for this wallet yet.")).font(.subheadline).foregroundStyle(Color.primary.opacity(0.72)) } else {
+                    if detailPresentation.visibleHoldingPresentations.isEmpty {
+                        Text(localizedWalletFlowString("No assets loaded for this wallet yet.")).font(.subheadline).foregroundStyle(
+                            Color.primary.opacity(0.72))
+                    } else {
                         ForEach(detailPresentation.visibleHoldingPresentations) { holding in
                             holdingRow(holding)
-                        }}}.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                        }
+                    }
+                }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 if let walletAddress = detailPresentation.walletAddress {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -306,7 +385,10 @@ struct WalletDetailView: View {
                                 UIPasteboard.general.string = walletAddress
                                 didCopyWalletAddress = true
                             } label: {
-                                Label(didCopyWalletAddress ? localizedWalletFlowString("Copied") : localizedWalletFlowString("Copy"), systemImage: didCopyWalletAddress ? "checkmark" : "doc.on.doc").font(.caption.weight(.semibold))
+                                Label(
+                                    didCopyWalletAddress ? localizedWalletFlowString("Copied") : localizedWalletFlowString("Copy"),
+                                    systemImage: didCopyWalletAddress ? "checkmark" : "doc.on.doc"
+                                ).font(.caption.weight(.semibold))
                             }.buttonStyle(.borderless).foregroundStyle(Color.primary)
                         }
                         Text(walletAddress).font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.8)).textSelection(.enabled)
@@ -316,8 +398,11 @@ struct WalletDetailView: View {
                     Button {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             store.beginEditingWallet(wallet)
-                        }} label: {
-                        Label(localizedWalletFlowString("Edit Name"), systemImage: "pencil").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                        }
+                    } label: {
+                        Label(localizedWalletFlowString("Edit Name"), systemImage: "pencil").font(.subheadline.weight(.semibold)).frame(
+                            maxWidth: .infinity
+                        ).padding(.vertical, 9)
                     }.buttonStyle(.glass)
                     if !isWatchOnly && !isPrivateKeyWallet {
                         Button {
@@ -327,50 +412,72 @@ struct WalletDetailView: View {
                             } else {
                                 Task {
                                     await revealSeedPhrase()
-                                }}} label: {
+                                }
+                            }
+                        } label: {
                             Label(
                                 isRevealingSeedPhrase
                                     ? localizedWalletFlowString("Checking Face ID...")
-                                    : (requiresSeedPhrasePassword ? localizedWalletFlowString("Show Seed Phrase (Password)") : localizedWalletFlowString("Show Seed Phrase")), systemImage: requiresSeedPhrasePassword ? "lock.shield" : "faceid"
+                                    : (requiresSeedPhrasePassword
+                                        ? localizedWalletFlowString("Show Seed Phrase (Password)")
+                                        : localizedWalletFlowString("Show Seed Phrase")),
+                                systemImage: requiresSeedPhrasePassword ? "lock.shield" : "faceid"
                             ).font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
                         }.buttonStyle(.glass).disabled(isRevealingSeedPhrase || !store.canRevealSeedPhrase(for: wallet.id))
                     }
                     Button(role: .destructive) {
                         isShowingDeleteWalletAlert = true
                     } label: {
-                        Label(localizedWalletFlowString("Delete Wallet"), systemImage: "trash").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                        Label(localizedWalletFlowString("Delete Wallet"), systemImage: "trash").font(.subheadline.weight(.semibold)).frame(
+                            maxWidth: .infinity
+                        ).padding(.vertical, 9)
                     }.buttonStyle(.glass)
-                }}.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
+                }
+            }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
         }.background(SpectraBackdrop()).refreshable {
             await store.refreshWalletBalance(wallet.id)
         }.navigationTitle(localizedWalletFlowString("Wallet Details")).navigationBarTitleDisplayMode(.inline).toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(localizedWalletFlowString("Advanced")) {
                     isShowingAdvancedPage = true
-                }}}.navigationDestination(isPresented: $isShowingAdvancedPage) {
+                }
+            }
+        }.navigationDestination(isPresented: $isShowingAdvancedPage) {
             WalletAdvancedDetailsView(
                 walletID: detailPresentation.wallet.id, derivationPathsText: detailPresentation.derivationPathsText
             )
-        }.navigationDestination(isPresented: Binding(
-            get: { store.isShowingWalletImporter && store.editingWalletID == wallet.id }, set: { isPresented in
-                if !isPresented { store.isShowingWalletImporter = false }}
-        )) {
+        }.navigationDestination(
+            isPresented: Binding(
+                get: { store.isShowingWalletImporter && store.editingWalletID == wallet.id },
+                set: { isPresented in
+                    if !isPresented { store.isShowingWalletImporter = false }
+                }
+            )
+        ) {
             SetupView(store: store, draft: store.importDraft)
         }.alert(localizedWalletFlowString("Delete Wallet?"), isPresented: $isShowingDeleteWalletAlert) {
             Button(localizedWalletFlowString("Delete"), role: .destructive) {
                 Task {
                     store.confirmDeleteWallet(wallet)
                     await store.deletePendingWallet()
-                }}
+                }
+            }
             Button(localizedWalletFlowString("Cancel"), role: .cancel) {
                 isShowingDeleteWalletAlert = false
-            }} message: {
+            }
+        } message: {
             Text(deleteWalletMessage)
-        }.alert(localizedWalletFlowString("Cannot Reveal Seed Phrase"), isPresented: Binding(
-            get: { seedPhraseErrorMessage != nil }, set: { isPresented in
-                if !isPresented { seedPhraseErrorMessage = nil }}
-        )) {
-            Button(localizedWalletFlowString("OK"), role: .cancel) {}} message: {
+        }.alert(
+            localizedWalletFlowString("Cannot Reveal Seed Phrase"),
+            isPresented: Binding(
+                get: { seedPhraseErrorMessage != nil },
+                set: { isPresented in
+                    if !isPresented { seedPhraseErrorMessage = nil }
+                }
+            )
+        ) {
+            Button(localizedWalletFlowString("OK"), role: .cancel) {}
+        } message: {
             Text(seedPhraseErrorMessage ?? "Unknown error")
         }.onChange(of: wallet.id) { _, _ in
             didCopyWalletAddress = false
@@ -378,44 +485,72 @@ struct WalletDetailView: View {
             handleWalletPresenceChange(walletStillExists: walletStillExists)
         }.onChange(of: scenePhase) { _, newPhase in
             handleScenePhaseChange(newPhase)
-        }.sheet(isPresented: $isShowingSeedPhrasePasswordPrompt, onDismiss: {
-            seedPhrasePasswordInput = ""
-        }) {
+        }.sheet(
+            isPresented: $isShowingSeedPhrasePasswordPrompt,
+            onDismiss: {
+                seedPhrasePasswordInput = ""
+            }
+        ) {
             NavigationStack {
                 ZStack {
                     SpectraBackdrop()
                     VStack(alignment: .leading, spacing: 16) {
-                        Text(localizedWalletFlowString("This wallet has an optional seed phrase password. Enter it after Face ID to reveal the recovery phrase.")).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
-                        SecureField(localizedWalletFlowString("Wallet Password"), text: $seedPhrasePasswordInput).textInputAutocapitalization(.never).autocorrectionDisabled().privacySensitive().padding(14).spectraInputFieldStyle().foregroundStyle(Color.primary)
+                        Text(
+                            localizedWalletFlowString(
+                                "This wallet has an optional seed phrase password. Enter it after Face ID to reveal the recovery phrase.")
+                        ).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
+                        SecureField(localizedWalletFlowString("Wallet Password"), text: $seedPhrasePasswordInput)
+                            .textInputAutocapitalization(.never).autocorrectionDisabled().privacySensitive().padding(14)
+                            .spectraInputFieldStyle().foregroundStyle(Color.primary)
                         Button {
                             isShowingSeedPhrasePasswordPrompt = false
                             Task {
                                 await revealSeedPhrase(password: seedPhrasePasswordInput)
-                            }} label: {
+                            }
+                        } label: {
                             Text(localizedWalletFlowString("Reveal Seed Phrase")).font(.headline).frame(maxWidth: .infinity)
-                        }.buttonStyle(.glassProminent).disabled(seedPhrasePasswordInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }.buttonStyle(.glassProminent).disabled(
+                            seedPhrasePasswordInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         Spacer()
                     }.padding(20)
                 }.navigationTitle(localizedWalletFlowString("Wallet Password")).navigationBarTitleDisplayMode(.inline).toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(localizedWalletFlowString("Cancel")) {
                             isShowingSeedPhrasePasswordPrompt = false
-                        }}}}}.sheet(isPresented: $isShowingSeedPhraseSheet, onDismiss: {
-            revealedSeedPhrase = ""
-        }) {
+                        }
+                    }
+                }
+            }
+        }.sheet(
+            isPresented: $isShowingSeedPhraseSheet,
+            onDismiss: {
+                revealedSeedPhrase = ""
+            }
+        ) {
             NavigationStack {
                 ZStack {
                     SpectraBackdrop()
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 16) {
-                            Text(localizedWalletFlowString("Write this down and keep it offline. Anyone with this phrase can control your funds.")).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
-                            Text(revealedSeedPhrase).font(.body.monospaced()).foregroundStyle(Color.primary).privacySensitive().padding(12).frame(maxWidth: .infinity, alignment: .leading).spectraInputFieldStyle(cornerRadius: 16)
-                        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 24)).padding(20)
-                    }}.navigationTitle(localizedWalletFlowString("Seed Phrase")).navigationBarTitleDisplayMode(.inline).toolbar {
+                            Text(
+                                localizedWalletFlowString(
+                                    "Write this down and keep it offline. Anyone with this phrase can control your funds.")
+                            ).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
+                            Text(revealedSeedPhrase).font(.body.monospaced()).foregroundStyle(Color.primary).privacySensitive().padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading).spectraInputFieldStyle(cornerRadius: 16)
+                        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 24))
+                            .padding(20)
+                    }
+                }.navigationTitle(localizedWalletFlowString("Seed Phrase")).navigationBarTitleDisplayMode(.inline).toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(localizedWalletFlowString("Done")) {
                             isShowingSeedPhraseSheet = false
-                        }}}}}}
+                        }
+                    }
+                }
+            }
+        }
+    }
     @ViewBuilder
     private func holdingRow(_ holding: HoldingPresentation) -> some View {
         HStack(spacing: 12) {
@@ -451,7 +586,8 @@ struct WalletDetailView: View {
             isShowingSeedPhraseSheet = true
         } catch {
             seedPhraseErrorMessage = error.localizedDescription
-        }}
+        }
+    }
 }
 private struct WalletAdvancedDetailsView: View {
     let walletID: String
@@ -463,9 +599,11 @@ private struct WalletAdvancedDetailsView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 12) {
                         walletDetailRow(label: "Wallet ID", value: walletID)
-                        if let derivationPathsText { walletDetailRow(label: "Derivation Paths", value: derivationPathsText) }}.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                        if let derivationPathsText { walletDetailRow(label: "Derivation Paths", value: derivationPathsText) }
+                    }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 }.padding(20)
-            }}.navigationTitle(localizedWalletFlowString("Advanced")).navigationBarTitleDisplayMode(.inline)
+            }
+        }.navigationTitle(localizedWalletFlowString("Advanced")).navigationBarTitleDisplayMode(.inline)
     }
 }
 private func walletDetailRow(label: String, value: String) -> some View {
@@ -483,7 +621,9 @@ struct SeedPathSlotEditor: View {
     @Binding var path: String
     let defaultPath: String
     let presetOptions: [SeedDerivationPathPreset]
-    private var segments: [DerivationPathSegment] { coreParseDerivationPath(rawPath: path) ?? coreParseDerivationPath(rawPath: defaultPath) ?? [] }
+    private var segments: [DerivationPathSegment] {
+        coreParseDerivationPath(rawPath: path) ?? coreParseDerivationPath(rawPath: defaultPath) ?? []
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -500,14 +640,23 @@ struct SeedPathSlotEditor: View {
                         HStack(spacing: 4) {
                             Text(verbatim: "/").font(.caption.monospaced()).foregroundStyle(Color.primary.opacity(0.52))
                             TextField(
-                                "0", text: Binding(
+                                "0",
+                                text: Binding(
                                     get: { String(segment.value) }, set: { updateSegment(at: index, value: $0) }
                                 )
-                            ).keyboardType(.numberPad).font(.caption.monospaced()).foregroundStyle(Color.primary).padding(.horizontal, 10).padding(.vertical, 8).spectraInputFieldStyle(cornerRadius: 12)
-                            if segment.isHardened { Text(verbatim: "'").font(.caption.monospaced().weight(.bold)).foregroundStyle(Color.primary.opacity(0.72)) }}}}}
+                            ).keyboardType(.numberPad).font(.caption.monospaced()).foregroundStyle(Color.primary).padding(.horizontal, 10)
+                                .padding(.vertical, 8).spectraInputFieldStyle(cornerRadius: 12)
+                            if segment.isHardened {
+                                Text(verbatim: "'").font(.caption.monospaced().weight(.bold)).foregroundStyle(Color.primary.opacity(0.72))
+                            }
+                        }
+                    }
+                }
+            }
             if !presetOptions.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(localizedWalletFlowString("Derivation Paths")).font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.72))
+                    Text(localizedWalletFlowString("Derivation Paths")).font(.caption.weight(.semibold)).foregroundStyle(
+                        Color.primary.opacity(0.72))
                     VStack(spacing: 8) {
                         ForEach(presetOptions) { preset in
                             Button {
@@ -516,18 +665,29 @@ struct SeedPathSlotEditor: View {
                                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                                     Text(preset.title).font(.caption.weight(.semibold)).foregroundStyle(Color.primary).lineLimit(1)
                                     Spacer(minLength: 0)
-                                    Text(preset.detail).font(.caption2.monospaced()).foregroundStyle(Color.primary.opacity(0.68)).lineLimit(1).truncationMode(.middle)
-                                }.padding(.horizontal, 12).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading).background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous).fill(preset.path == path ? Color.orange.opacity(0.16) : Color.white.opacity(0.04))
-                                ).overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(
+                                    Text(preset.detail).font(.caption2.monospaced()).foregroundStyle(Color.primary.opacity(0.68)).lineLimit(
+                                        1
+                                    ).truncationMode(.middle)
+                                }.padding(.horizontal, 12).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous).fill(
+                                            preset.path == path ? Color.orange.opacity(0.16) : Color.white.opacity(0.04))
+                                    ).overlay(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(
                                             preset.path == path ? Color.orange.opacity(0.65) : Color.white.opacity(0.08), lineWidth: 1
                                         )
-                                )
+                                    )
                             }.buttonStyle(.plain)
-                        }}}}}}
+                        }
+                    }
+                }
+            }
+        }
+    }
     private func updateSegment(at index: Int, value: String) {
-        guard var resolvedSegments = coreParseDerivationPath(rawPath: path) ?? coreParseDerivationPath(rawPath: defaultPath), resolvedSegments.indices.contains(index), let numericValue = UInt32(value.filter(\.isNumber)) else { return }
+        guard var resolvedSegments = coreParseDerivationPath(rawPath: path) ?? coreParseDerivationPath(rawPath: defaultPath),
+            resolvedSegments.indices.contains(index), let numericValue = UInt32(value.filter(\.isNumber))
+        else { return }
         resolvedSegments[index].value = numericValue
         path = coreDerivationPathString(segments: resolvedSegments)
     }

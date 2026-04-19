@@ -5569,6 +5569,132 @@ nonisolated public func FfiConverterTypeAppCoreDiagnosticsCheck_lower(_ value: A
 }
 
 
+nonisolated public struct AppCoreEndpointRecord {
+    public var id: String
+    public var chainName: String
+    public var groupTitle: String
+    public var providerId: String
+    public var endpoint: String
+    public var roles: [String]
+    public var probeUrl: String?
+    public var settingsVisible: Bool
+    public var explorerLabel: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(id: String, chainName: String, groupTitle: String, providerId: String, endpoint: String, roles: [String], probeUrl: String?, settingsVisible: Bool, explorerLabel: String?) {
+        self.id = id
+        self.chainName = chainName
+        self.groupTitle = groupTitle
+        self.providerId = providerId
+        self.endpoint = endpoint
+        self.roles = roles
+        self.probeUrl = probeUrl
+        self.settingsVisible = settingsVisible
+        self.explorerLabel = explorerLabel
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension AppCoreEndpointRecord: Sendable {}
+#endif
+
+
+nonisolated extension AppCoreEndpointRecord: Equatable, Hashable {
+    public static func ==(lhs: AppCoreEndpointRecord, rhs: AppCoreEndpointRecord) -> Bool {
+        if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.chainName != rhs.chainName {
+            return false
+        }
+        if lhs.groupTitle != rhs.groupTitle {
+            return false
+        }
+        if lhs.providerId != rhs.providerId {
+            return false
+        }
+        if lhs.endpoint != rhs.endpoint {
+            return false
+        }
+        if lhs.roles != rhs.roles {
+            return false
+        }
+        if lhs.probeUrl != rhs.probeUrl {
+            return false
+        }
+        if lhs.settingsVisible != rhs.settingsVisible {
+            return false
+        }
+        if lhs.explorerLabel != rhs.explorerLabel {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(chainName)
+        hasher.combine(groupTitle)
+        hasher.combine(providerId)
+        hasher.combine(endpoint)
+        hasher.combine(roles)
+        hasher.combine(probeUrl)
+        hasher.combine(settingsVisible)
+        hasher.combine(explorerLabel)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeAppCoreEndpointRecord: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AppCoreEndpointRecord {
+        return
+            try AppCoreEndpointRecord(
+                id: FfiConverterString.read(from: &buf), 
+                chainName: FfiConverterString.read(from: &buf), 
+                groupTitle: FfiConverterString.read(from: &buf), 
+                providerId: FfiConverterString.read(from: &buf), 
+                endpoint: FfiConverterString.read(from: &buf), 
+                roles: FfiConverterSequenceString.read(from: &buf), 
+                probeUrl: FfiConverterOptionString.read(from: &buf), 
+                settingsVisible: FfiConverterBool.read(from: &buf), 
+                explorerLabel: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AppCoreEndpointRecord, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.chainName, into: &buf)
+        FfiConverterString.write(value.groupTitle, into: &buf)
+        FfiConverterString.write(value.providerId, into: &buf)
+        FfiConverterString.write(value.endpoint, into: &buf)
+        FfiConverterSequenceString.write(value.roles, into: &buf)
+        FfiConverterOptionString.write(value.probeUrl, into: &buf)
+        FfiConverterBool.write(value.settingsVisible, into: &buf)
+        FfiConverterOptionString.write(value.explorerLabel, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreEndpointRecord_lift(_ buf: RustBuffer) throws -> AppCoreEndpointRecord {
+    return try FfiConverterTypeAppCoreEndpointRecord.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreEndpointRecord_lower(_ value: AppCoreEndpointRecord) -> RustBuffer {
+    return FfiConverterTypeAppCoreEndpointRecord.lower(value)
+}
+
+
 nonisolated public struct AppCoreExplorerEntry {
     public var endpoint: String
     public var label: String
@@ -11603,92 +11729,6 @@ nonisolated public func FfiConverterTypeDogecoinSendPreviewDecoded_lower(_ value
 }
 
 
-nonisolated public struct EndpointAttemptRequest {
-    public var counters: [String: ReliabilityCounter]
-    public var endpoint: String
-    public var success: Bool
-    public var observedAt: Int64
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    nonisolated public init(counters: [String: ReliabilityCounter], endpoint: String, success: Bool, observedAt: Int64) {
-        self.counters = counters
-        self.endpoint = endpoint
-        self.success = success
-        self.observedAt = observedAt
-    }
-}
-
-#if compiler(>=6)
-nonisolated extension EndpointAttemptRequest: Sendable {}
-#endif
-
-
-nonisolated extension EndpointAttemptRequest: Equatable, Hashable {
-    public static func ==(lhs: EndpointAttemptRequest, rhs: EndpointAttemptRequest) -> Bool {
-        if lhs.counters != rhs.counters {
-            return false
-        }
-        if lhs.endpoint != rhs.endpoint {
-            return false
-        }
-        if lhs.success != rhs.success {
-            return false
-        }
-        if lhs.observedAt != rhs.observedAt {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(counters)
-        hasher.combine(endpoint)
-        hasher.combine(success)
-        hasher.combine(observedAt)
-    }
-}
-
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public struct FfiConverterTypeEndpointAttemptRequest: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EndpointAttemptRequest {
-        return
-            try EndpointAttemptRequest(
-                counters: FfiConverterDictionaryStringTypeReliabilityCounter.read(from: &buf), 
-                endpoint: FfiConverterString.read(from: &buf), 
-                success: FfiConverterBool.read(from: &buf), 
-                observedAt: FfiConverterInt64.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: EndpointAttemptRequest, into buf: inout [UInt8]) {
-        FfiConverterDictionaryStringTypeReliabilityCounter.write(value.counters, into: &buf)
-        FfiConverterString.write(value.endpoint, into: &buf)
-        FfiConverterBool.write(value.success, into: &buf)
-        FfiConverterInt64.write(value.observedAt, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeEndpointAttemptRequest_lift(_ buf: RustBuffer) throws -> EndpointAttemptRequest {
-    return try FfiConverterTypeEndpointAttemptRequest.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeEndpointAttemptRequest_lower(_ value: EndpointAttemptRequest) -> RustBuffer {
-    return FfiConverterTypeEndpointAttemptRequest.lower(value)
-}
-
-
 /**
  * Generic endpoint-health row (matches Swift `BitcoinEndpointHealthResult`
  * and the UTXO/non-EVM chains that reuse its shape).
@@ -11776,76 +11816,6 @@ nonisolated public func FfiConverterTypeEndpointHealthRow_lift(_ buf: RustBuffer
 #endif
 nonisolated public func FfiConverterTypeEndpointHealthRow_lower(_ value: EndpointHealthRow) -> RustBuffer {
     return FfiConverterTypeEndpointHealthRow.lower(value)
-}
-
-
-nonisolated public struct EndpointOrderingRequest {
-    public var candidates: [String]
-    public var counters: [String: ReliabilityCounter]
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    nonisolated public init(candidates: [String], counters: [String: ReliabilityCounter]) {
-        self.candidates = candidates
-        self.counters = counters
-    }
-}
-
-#if compiler(>=6)
-nonisolated extension EndpointOrderingRequest: Sendable {}
-#endif
-
-
-nonisolated extension EndpointOrderingRequest: Equatable, Hashable {
-    public static func ==(lhs: EndpointOrderingRequest, rhs: EndpointOrderingRequest) -> Bool {
-        if lhs.candidates != rhs.candidates {
-            return false
-        }
-        if lhs.counters != rhs.counters {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(candidates)
-        hasher.combine(counters)
-    }
-}
-
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public struct FfiConverterTypeEndpointOrderingRequest: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EndpointOrderingRequest {
-        return
-            try EndpointOrderingRequest(
-                candidates: FfiConverterSequenceString.read(from: &buf), 
-                counters: FfiConverterDictionaryStringTypeReliabilityCounter.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: EndpointOrderingRequest, into buf: inout [UInt8]) {
-        FfiConverterSequenceString.write(value.candidates, into: &buf)
-        FfiConverterDictionaryStringTypeReliabilityCounter.write(value.counters, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeEndpointOrderingRequest_lift(_ buf: RustBuffer) throws -> EndpointOrderingRequest {
-    return try FfiConverterTypeEndpointOrderingRequest.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeEndpointOrderingRequest_lower(_ value: EndpointOrderingRequest) -> RustBuffer {
-    return FfiConverterTypeEndpointOrderingRequest.lower(value)
 }
 
 
@@ -19335,84 +19305,6 @@ nonisolated public func FfiConverterTypeRefreshEntry_lift(_ buf: RustBuffer) thr
 #endif
 nonisolated public func FfiConverterTypeRefreshEntry_lower(_ value: RefreshEntry) -> RustBuffer {
     return FfiConverterTypeRefreshEntry.lower(value)
-}
-
-
-nonisolated public struct ReliabilityCounter {
-    public var successCount: UInt32
-    public var failureCount: UInt32
-    public var lastUpdatedAt: Int64
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    nonisolated public init(successCount: UInt32, failureCount: UInt32, lastUpdatedAt: Int64) {
-        self.successCount = successCount
-        self.failureCount = failureCount
-        self.lastUpdatedAt = lastUpdatedAt
-    }
-}
-
-#if compiler(>=6)
-nonisolated extension ReliabilityCounter: Sendable {}
-#endif
-
-
-nonisolated extension ReliabilityCounter: Equatable, Hashable {
-    public static func ==(lhs: ReliabilityCounter, rhs: ReliabilityCounter) -> Bool {
-        if lhs.successCount != rhs.successCount {
-            return false
-        }
-        if lhs.failureCount != rhs.failureCount {
-            return false
-        }
-        if lhs.lastUpdatedAt != rhs.lastUpdatedAt {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(successCount)
-        hasher.combine(failureCount)
-        hasher.combine(lastUpdatedAt)
-    }
-}
-
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public struct FfiConverterTypeReliabilityCounter: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ReliabilityCounter {
-        return
-            try ReliabilityCounter(
-                successCount: FfiConverterUInt32.read(from: &buf), 
-                failureCount: FfiConverterUInt32.read(from: &buf), 
-                lastUpdatedAt: FfiConverterInt64.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: ReliabilityCounter, into buf: inout [UInt8]) {
-        FfiConverterUInt32.write(value.successCount, into: &buf)
-        FfiConverterUInt32.write(value.failureCount, into: &buf)
-        FfiConverterInt64.write(value.lastUpdatedAt, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeReliabilityCounter_lift(_ buf: RustBuffer) throws -> ReliabilityCounter {
-    return try FfiConverterTypeReliabilityCounter.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeReliabilityCounter_lower(_ value: ReliabilityCounter) -> RustBuffer {
-    return FfiConverterTypeReliabilityCounter.lower(value)
 }
 
 
@@ -31917,6 +31809,31 @@ fileprivate struct FfiConverterSequenceTypeAppCoreDiagnosticsCheck: FfiConverter
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeAppCoreEndpointRecord: FfiConverterRustBuffer {
+    typealias SwiftType = [AppCoreEndpointRecord]
+
+    public static func write(_ value: [AppCoreEndpointRecord], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeAppCoreEndpointRecord.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [AppCoreEndpointRecord] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [AppCoreEndpointRecord]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAppCoreEndpointRecord.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeAppCoreGroupedSettingsEntry: FfiConverterRustBuffer {
     typealias SwiftType = [AppCoreGroupedSettingsEntry]
 
@@ -34079,32 +33996,6 @@ fileprivate struct FfiConverterDictionaryStringTypePolkadotHistoryDiagnostics: F
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterDictionaryStringTypeReliabilityCounter: FfiConverterRustBuffer {
-    public static func write(_ value: [String: ReliabilityCounter], into buf: inout [UInt8]) {
-        let len = Int32(value.count)
-        writeInt(&buf, len)
-        for (key, value) in value {
-            FfiConverterString.write(key, into: &buf)
-            FfiConverterTypeReliabilityCounter.write(value, into: &buf)
-        }
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String: ReliabilityCounter] {
-        let len: Int32 = try readInt(&buf)
-        var dict = [String: ReliabilityCounter]()
-        dict.reserveCapacity(Int(len))
-        for _ in 0..<len {
-            let key = try FfiConverterString.read(from: &buf)
-            let value = try FfiConverterTypeReliabilityCounter.read(from: &buf)
-            dict[key] = value
-        }
-        return dict
-    }
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
 fileprivate struct FfiConverterDictionaryStringTypeSolanaHistoryDiagnostics: FfiConverterRustBuffer {
     public static func write(_ value: [String: SolanaHistoryDiagnostics], into buf: inout [UInt8]) {
         let len = Int32(value.count)
@@ -34495,9 +34386,9 @@ nonisolated public func appCoreEndpointForIdJson(id: String)throws  -> String  {
     )
 })
 }
-nonisolated public func appCoreEndpointRecordsForChainJson(chainName: String, roleMask: UInt32, settingsVisibleOnly: Bool)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_endpoint_records_for_chain_json(
+nonisolated public func appCoreEndpointRecordsForChain(chainName: String, roleMask: UInt32, settingsVisibleOnly: Bool)throws  -> [AppCoreEndpointRecord]  {
+    return try  FfiConverterSequenceTypeAppCoreEndpointRecord.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
+    uniffi_spectra_core_fn_func_app_core_endpoint_records_for_chain(
         FfiConverterString.lower(chainName),
         FfiConverterUInt32.lower(roleMask),
         FfiConverterBool.lower(settingsVisibleOnly),$0
@@ -35101,6 +34992,14 @@ nonisolated public func coreChainRefreshPlans(request: ChainRefreshPlanRequest) 
     )
 })
 }
+nonisolated public func coreCompileScriptType(preset: AppCoreRequestCompilationPreset, derivationPath: String?)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
+    uniffi_spectra_core_fn_func_core_compile_script_type(
+        FfiConverterTypeAppCoreRequestCompilationPreset_lower(preset),
+        FfiConverterOptionString.lower(derivationPath),$0
+    )
+})
+}
 nonisolated public func coreDerivationPathReplacingLastTwo(rawPath: String, branch: UInt32, index: UInt32, fallback: String) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_core_derivation_path_replacing_last_two(
@@ -35225,13 +35124,6 @@ nonisolated public func coreNormalizeHistory(request: NormalizeHistoryRequest) -
     return try!  FfiConverterSequenceTypeCoreNormalizedHistoryEntry.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_core_normalize_history(
         FfiConverterTypeNormalizeHistoryRequest_lower(request),$0
-    )
-})
-}
-nonisolated public func coreOrderEndpointsByReliability(request: EndpointOrderingRequest) -> [String]  {
-    return try!  FfiConverterSequenceString.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_core_order_endpoints_by_reliability(
-        FfiConverterTypeEndpointOrderingRequest_lower(request),$0
     )
 })
 }
@@ -35466,13 +35358,6 @@ nonisolated public func coreRebroadcastDispatchForFormat(format: String)throws  
     return try  FfiConverterTypeRebroadcastDispatch_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_core_rebroadcast_dispatch_for_format(
         FfiConverterString.lower(format),$0
-    )
-})
-}
-nonisolated public func coreRecordEndpointAttempt(request: EndpointAttemptRequest) -> [String: ReliabilityCounter]  {
-    return try!  FfiConverterDictionaryStringTypeReliabilityCounter.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_core_record_endpoint_attempt(
-        FfiConverterTypeEndpointAttemptRequest_lower(request),$0
     )
 })
 }
@@ -37430,7 +37315,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_app_core_endpoint_for_id_json() != 28856) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_endpoint_records_for_chain_json() != 2228) {
+    if (uniffi_spectra_core_checksum_func_app_core_endpoint_records_for_chain() != 28044) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_app_core_endpoint_records_json() != 50633) {
@@ -37637,6 +37522,9 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_core_chain_refresh_plans() != 25588) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_func_core_compile_script_type() != 55844) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_func_core_derivation_path_replacing_last_two() != 34351) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -37683,9 +37571,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_normalize_history() != 40717) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_core_order_endpoints_by_reliability() != 41716) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_parse_derivation_path() != 34150) {
@@ -37779,9 +37664,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_rebroadcast_dispatch_for_format() != 30671) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_core_record_endpoint_attempt() != 11407) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_route_send_asset() != 39821) {

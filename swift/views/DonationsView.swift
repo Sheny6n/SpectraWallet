@@ -19,17 +19,30 @@ struct DonationsView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(copy.heroTitle).font(.title2.bold()).foregroundStyle(Color.primary)
                                     Text(copy.heroSubtitle).foregroundStyle(Color.primary.opacity(0.76))
-                                }}}.padding(20).frame(maxWidth: .infinity, alignment: .leading).glassEffect(.regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 28))
+                                }
+                            }
+                        }.padding(20).frame(maxWidth: .infinity, alignment: .leading).glassEffect(
+                            .regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 28))
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(copy.destinations, id: \.address) { destination in
                                 donationRow(
                                     chainName: destination.chainName, title: destination.title, address: destination.address
                                 )
-                            }}}.padding(20)
-                }}.navigationTitle(copy.navigationTitle).navigationBarTitleDisplayMode(.inline).sheet(item: $selectedDonation) { donation in DonationQRCodeView(donation: donation) }}}
+                            }
+                        }
+                    }.padding(20)
+                }
+            }.navigationTitle(copy.navigationTitle).navigationBarTitleDisplayMode(.inline).sheet(item: $selectedDonation) { donation in
+                DonationQRCodeView(donation: donation)
+            }
+        }
+    }
     @ViewBuilder
     private func donationRow(chainName: String, title: String, address: String) -> some View {
-        let badge = Coin.nativeChainBadge(chainName: chainName) ?? (assetIdentifier: nil, mark: String(title.prefix(2)).uppercased(), color: Color.mint)
+        let badge =
+            Coin.nativeChainBadge(chainName: chainName) ?? (
+                assetIdentifier: nil, mark: String(title.prefix(2)).uppercased(), color: Color.mint
+            )
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 CoinBadge(assetIdentifier: badge.assetIdentifier, fallbackText: badge.mark, color: badge.color, size: 30)
@@ -40,15 +53,22 @@ struct DonationsView: View {
                         UIPasteboard.general.string = address
                         copiedAddress = address
                     } label: {
-                        Image(systemName: copiedAddress == address ? "checkmark" : "doc.on.doc").font(.caption.weight(.semibold)).foregroundStyle(Color.primary).frame(width: 28, height: 28).background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Image(systemName: copiedAddress == address ? "checkmark" : "doc.on.doc").font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.primary).frame(width: 28, height: 28).background(
+                                Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }.buttonStyle(.plain)
                     Button {
-                        selectedDonation = DonationDestination(title: title, address: address, mark: badge.mark, assetIdentifier: badge.assetIdentifier, color: badge.color)
+                        selectedDonation = DonationDestination(
+                            title: title, address: address, mark: badge.mark, assetIdentifier: badge.assetIdentifier, color: badge.color)
                     } label: {
-                        Image(systemName: "qrcode").font(.caption.weight(.semibold)).foregroundStyle(Color.primary).frame(width: 28, height: 28).background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Image(systemName: "qrcode").font(.caption.weight(.semibold)).foregroundStyle(Color.primary).frame(
+                            width: 28, height: 28
+                        ).background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }.buttonStyle(.plain)
-                }}
+                }
+            }
             Text(address).font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.72)).textSelection(.enabled)
-        }.padding().frame(maxWidth: .infinity, alignment: .leading).glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 22))
+        }.padding().frame(maxWidth: .infinity, alignment: .leading).glassEffect(
+            .regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 22))
     }
 }

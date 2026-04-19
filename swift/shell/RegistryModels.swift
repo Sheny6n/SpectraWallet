@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 struct WalletChainID: Hashable, Codable, Identifiable, Comparable {
     let rawValue: String
@@ -11,14 +11,22 @@ struct WalletChainID: Hashable, Codable, Identifiable, Comparable {
     nonisolated init?(_ chainNameOrID: String) {
         let normalized = chainNameOrID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return nil }
-        if let resolved = Self.lookupByNormalizedAlias[normalized.lowercased()] { self.init(rawValue: resolved) } else { self.init(rawValue: Self.fallbackRawValue(for: normalized)) }}
-    nonisolated static func < (lhs: WalletChainID, rhs: WalletChainID) -> Bool { lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending }
+        if let resolved = Self.lookupByNormalizedAlias[normalized.lowercased()] {
+            self.init(rawValue: resolved)
+        } else {
+            self.init(rawValue: Self.fallbackRawValue(for: normalized))
+        }
+    }
+    nonisolated static func < (lhs: WalletChainID, rhs: WalletChainID) -> Bool {
+        lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+    }
     nonisolated private static func fallbackRawValue(for chainNameOrID: String) -> String {
         let normalized = chainNameOrID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let collapsed = normalized.replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
         return collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
-    nonisolated private static let chainWikiEntries: [ChainWikiEntry] = StaticContentCatalog.loadResource("ChainWikiEntries", as: [ChainWikiEntry].self) ?? []
+    nonisolated private static let chainWikiEntries: [ChainWikiEntry] =
+        StaticContentCatalog.loadResource("ChainWikiEntries", as: [ChainWikiEntry].self) ?? []
     nonisolated private static let displayNameByID: [String: String] = Dictionary(
         uniqueKeysWithValues: chainWikiEntries.map { ($0.id.lowercased(), $0.name) }
     )
@@ -95,13 +103,15 @@ extension CoreTokenTrackingChain: RawRepresentable, CaseIterable, Codable, Ident
         case .ton: return "Jetton"
         case .near: return "NEP-141"
         case .tron: return "TRC-20"
-        }}
+        }
+    }
     var filterDisplayName: String { "\(rawValue) (\(tokenStandard))" }
     var slug: String {
         switch self {
         case .bnb: return "bnb"
         default: return rawValue.lowercased()
-        }}
+        }
+    }
     var contractAddressPrompt: String {
         switch self {
         case .solana: return "Mint Address"
@@ -110,7 +120,8 @@ extension CoreTokenTrackingChain: RawRepresentable, CaseIterable, Codable, Ident
         case .ton: return "Jetton Master Address"
         case .near: return "Contract Account ID"
         default: return "Contract Address"
-        }}
+        }
+    }
     static func forChainName(_ chainName: String) -> TokenTrackingChain? {
         let normalized = chainName.trimmingCharacters(in: .whitespacesAndNewlines)
         return byNormalizedName[normalized.lowercased()]
@@ -123,7 +134,9 @@ private struct ChainRegistryVisualMetadata {
     let mark: String
     let color: Color
     let assetName: String
-    static let byID: [String: ChainRegistryVisualMetadata] = ChainVisualRegistryCatalog.loadEntries().mapValues { ChainRegistryVisualMetadata(mark: $0.mark, color: $0.color, assetName: $0.assetName) }
+    static let byID: [String: ChainRegistryVisualMetadata] = ChainVisualRegistryCatalog.loadEntries().mapValues {
+        ChainRegistryVisualMetadata(mark: $0.mark, color: $0.color, assetName: $0.assetName)
+    }
 }
 struct ChainRegistryEntry: Identifiable {
     let id: String
@@ -155,7 +168,11 @@ struct ChainRegistryEntry: Identifiable {
         let entries: [ChainRegistryEntry] = ChainWikiEntry.all.compactMap { wiki in
             guard let visual = ChainRegistryVisualMetadata.byID[wiki.id] else { return nil }
             return ChainRegistryEntry(
-                id: wiki.id, name: wiki.name, symbol: wiki.symbol, mark: visual.mark, color: visual.color, assetName: visual.assetName, family: wiki.family, consensus: wiki.consensus, stateModel: wiki.stateModel, primaryUse: wiki.primaryUse, slip44CoinType: wiki.slip44CoinType, derivationPath: wiki.derivationPath, alternateDerivationPath: wiki.alternateDerivationPath, totalCirculationModel: wiki.totalCirculationModel, notableDetails: wiki.notableDetails
+                id: wiki.id, name: wiki.name, symbol: wiki.symbol, mark: visual.mark, color: visual.color, assetName: visual.assetName,
+                family: wiki.family, consensus: wiki.consensus, stateModel: wiki.stateModel, primaryUse: wiki.primaryUse,
+                slip44CoinType: wiki.slip44CoinType, derivationPath: wiki.derivationPath,
+                alternateDerivationPath: wiki.alternateDerivationPath, totalCirculationModel: wiki.totalCirculationModel,
+                notableDetails: wiki.notableDetails
             )
         }
         cachedAllByLocalization[cacheKey] = entries
@@ -168,7 +185,9 @@ struct ChainRegistryEntry: Identifiable {
         _ = all
         return cachedEntriesByLowercasedID[cacheKey] ?? [:]
     }
-    static func entry(id: String) -> ChainRegistryEntry? { entriesByLowercasedID[id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()] }
+    static func entry(id: String) -> ChainRegistryEntry? {
+        entriesByLowercasedID[id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()]
+    }
 }
 struct TokenVisualRegistryEntry: Identifiable {
     let title: String
@@ -178,12 +197,16 @@ struct TokenVisualRegistryEntry: Identifiable {
     let color: Color
     let assetName: String
     var id: String { symbol }
-    var assetIdentifier: String { Coin.iconIdentifier(symbol: symbol, chainName: referenceChain.rawValue, tokenStandard: referenceChain.tokenStandard) }
+    var assetIdentifier: String {
+        Coin.iconIdentifier(symbol: symbol, chainName: referenceChain.rawValue, tokenStandard: referenceChain.tokenStandard)
+    }
     static let all: [TokenVisualRegistryEntry] = TokenVisualRegistryCatalog.loadEntries()
     private static let entriesByLowercasedSymbol: [String: TokenVisualRegistryEntry] = Dictionary(
         uniqueKeysWithValues: all.map { ($0.symbol.lowercased(), $0) }
     )
-    private static let assetIdentifierFragments: [(fragment: String, entry: TokenVisualRegistryEntry)] = all.map { (":\($0.symbol.lowercased())", $0) }
+    private static let assetIdentifierFragments: [(fragment: String, entry: TokenVisualRegistryEntry)] = all.map {
+        (":\($0.symbol.lowercased())", $0)
+    }
     static func entry(symbol: String) -> TokenVisualRegistryEntry? {
         let normalized = symbol.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return entriesByLowercasedSymbol[normalized]
@@ -205,7 +228,11 @@ extension CoreTokenPreferenceCategory: RawRepresentable, CaseIterable, Codable, 
         }
     }
     public var rawValue: String {
-        switch self { case .stablecoin: return "stablecoin"; case .meme: return "meme"; case .custom: return "custom" }
+        switch self {
+        case .stablecoin: return "stablecoin";
+        case .meme: return "meme";
+        case .custom: return "custom"
+        }
     }
     public static var allCases: [CoreTokenPreferenceCategory] { [.stablecoin, .meme, .custom] }
     public init(from decoder: Decoder) throws {
@@ -226,7 +253,9 @@ typealias TokenPreferenceEntry = CoreTokenPreferenceEntry
 nonisolated extension CoreTokenPreferenceEntry: Identifiable, Codable {
     // Legacy UUID-style id initializer & convenience matching Swift-era struct.
     init(
-        id: UUID = UUID(), chain: TokenTrackingChain, name: String, symbol: String, tokenStandard: String, contractAddress: String, marketDataId: String, coinGeckoId: String, decimals: Int, displayDecimals: Int? = nil, category: TokenPreferenceCategory, isBuiltIn: Bool, isEnabled: Bool
+        id: UUID = UUID(), chain: TokenTrackingChain, name: String, symbol: String, tokenStandard: String, contractAddress: String,
+        marketDataId: String, coinGeckoId: String, decimals: Int, displayDecimals: Int? = nil, category: TokenPreferenceCategory,
+        isBuiltIn: Bool, isEnabled: Bool
     ) {
         self.init(
             id: id.uuidString, chain: chain, name: name, symbol: symbol, tokenStandard: tokenStandard,
@@ -236,7 +265,8 @@ nonisolated extension CoreTokenPreferenceEntry: Identifiable, Codable {
         )
     }
     private enum CodingKeys: String, CodingKey {
-        case id, chain, name, symbol, tokenStandard, contractAddress, marketDataId, coinGeckoId, decimals, displayDecimals, category, isBuiltIn, isEnabled
+        case id, chain, name, symbol, tokenStandard, contractAddress, marketDataId, coinGeckoId, decimals, displayDecimals, category,
+            isBuiltIn, isEnabled
     }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -293,7 +323,9 @@ struct ChainTokenRegistryEntry: Identifiable, Equatable {
         )
     }
     init(
-        chain: TokenTrackingChain, name: String, symbol: String, tokenStandard: String, contractAddress: String, marketDataId: String, coinGeckoId: String, decimals: Int, displayDecimals: Int? = nil, category: TokenPreferenceCategory, isBuiltIn: Bool, isEnabledByDefault: Bool
+        chain: TokenTrackingChain, name: String, symbol: String, tokenStandard: String, contractAddress: String, marketDataId: String,
+        coinGeckoId: String, decimals: Int, displayDecimals: Int? = nil, category: TokenPreferenceCategory, isBuiltIn: Bool,
+        isEnabledByDefault: Bool
     ) {
         self.chain = chain
         self.name = name
@@ -324,7 +356,9 @@ struct ChainTokenRegistryEntry: Identifiable, Equatable {
     }
     var tokenPreferenceEntry: TokenPreferenceEntry {
         TokenPreferenceEntry(
-            chain: chain, name: name, symbol: symbol, tokenStandard: tokenStandard, contractAddress: contractAddress, marketDataId: marketDataId, coinGeckoId: coinGeckoId, decimals: decimals, displayDecimals: displayDecimals, category: category, isBuiltIn: isBuiltIn, isEnabled: isEnabledByDefault
+            chain: chain, name: name, symbol: symbol, tokenStandard: tokenStandard, contractAddress: contractAddress,
+            marketDataId: marketDataId, coinGeckoId: coinGeckoId, decimals: decimals, displayDecimals: displayDecimals, category: category,
+            isBuiltIn: isBuiltIn, isEnabled: isEnabledByDefault
         )
     }
 }
@@ -342,7 +376,8 @@ struct NativeChainIconDescriptor: Identifiable {
 extension Coin {
     static let nativeChainIconDescriptors: [NativeChainIconDescriptor] = ChainRegistryEntry.all.map(\.nativeIconDescriptor)
     static func nativeChainIconDescriptor(forAssetIdentifier assetIdentifier: String) -> NativeChainIconDescriptor? {
-        nativeChainIconDescriptors.first { $0.assetIdentifier == assetIdentifier }}
+        nativeChainIconDescriptors.first { $0.assetIdentifier == assetIdentifier }
+    }
     static func nativeChainIconDescriptor(chainName: String) -> NativeChainIconDescriptor? {
         let normalizedChainName = chainName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedChainName.isEmpty else { return nil }
@@ -351,7 +386,8 @@ extension Coin {
             descriptor.registryID.caseInsensitiveCompare(canonicalChainName) == .orderedSame
                 || descriptor.chainName.caseInsensitiveCompare(normalizedChainName) == .orderedSame
                 || descriptor.title.caseInsensitiveCompare(normalizedChainName) == .orderedSame
-        }}
+        }
+    }
     static func nativeChainIconDescriptor(symbol: String, chainName: String? = nil) -> NativeChainIconDescriptor? {
         let normalizedSymbol = symbol.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedChainName = chainName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -361,12 +397,15 @@ extension Coin {
             if normalizedChainName.isEmpty { return true }
             return descriptor.chainName.caseInsensitiveCompare(normalizedChainName) == .orderedSame
                 || descriptor.title.caseInsensitiveCompare(normalizedChainName) == .orderedSame
-        }}
+        }
+    }
     static func nativeChainBadge(chainName: String) -> (assetIdentifier: String?, mark: String, color: Color)? {
         guard let descriptor = nativeChainIconDescriptor(chainName: chainName) else { return nil }
         return (descriptor.assetIdentifier, descriptor.mark, descriptor.color)
     }
-    static func iconIdentifier(symbol: String, chainName: String, contractAddress: String? = nil, tokenStandard: String = "Native") -> String {
+    static func iconIdentifier(symbol: String, chainName: String, contractAddress: String? = nil, tokenStandard: String = "Native")
+        -> String
+    {
         corePlanIconIdentifier(symbol: symbol, chainName: chainName, contractAddress: contractAddress, tokenStandard: tokenStandard)
     }
     static func normalizedIconIdentifier(_ identifier: String) -> String {
@@ -390,18 +429,25 @@ extension Coin {
         case "TRX": return .red
         case "ARB": return .cyan
         case "USDT": return .green
-        default: if let tokenEntry = TokenVisualRegistryEntry.entry(symbol: symbol) { return tokenEntry.color }
+        default:
+            if let tokenEntry = TokenVisualRegistryEntry.entry(symbol: symbol) { return tokenEntry.color }
             return .gray
-        }}
-    var iconIdentifier: String { Self.iconIdentifier(symbol: symbol, chainName: chainName, contractAddress: contractAddress, tokenStandard: tokenStandard) }
+        }
+    }
+    var iconIdentifier: String {
+        Self.iconIdentifier(symbol: symbol, chainName: chainName, contractAddress: contractAddress, tokenStandard: tokenStandard)
+    }
     @MainActor init(snapshot: PersistedCoin) {
         self = Coin.makeCustom(
-            name: snapshot.name, symbol: snapshot.symbol, marketDataId: snapshot.marketDataId, coinGeckoId: snapshot.coinGeckoId, chainName: snapshot.chainName, tokenStandard: snapshot.tokenStandard, contractAddress: snapshot.contractAddress, amount: snapshot.amount, priceUsd: snapshot.priceUsd, mark: Self.displayMark(for: snapshot.symbol), color: Self.displayColor(for: snapshot.symbol)
+            name: snapshot.name, symbol: snapshot.symbol, marketDataId: snapshot.marketDataId, coinGeckoId: snapshot.coinGeckoId,
+            chainName: snapshot.chainName, tokenStandard: snapshot.tokenStandard, contractAddress: snapshot.contractAddress,
+            amount: snapshot.amount, priceUsd: snapshot.priceUsd, mark: Self.displayMark(for: snapshot.symbol)
         )
     }
     var persistedSnapshot: PersistedCoin {
         PersistedCoin(
-            name: name, symbol: symbol, marketDataId: marketDataId, coinGeckoId: coinGeckoId, chainName: chainName, tokenStandard: tokenStandard, contractAddress: contractAddress, amount: amount, priceUsd: priceUsd
+            name: name, symbol: symbol, marketDataId: marketDataId, coinGeckoId: coinGeckoId, chainName: chainName,
+            tokenStandard: tokenStandard, contractAddress: contractAddress, amount: amount, priceUsd: priceUsd
         )
     }
 }

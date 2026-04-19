@@ -11,15 +11,24 @@ extension AppState {
             "Network: %@, %@, %@ • Auto refresh: %d min", reachability, constrained, expensive, automaticRefreshFrequencyMinutes
         )
     }
-    func exportOperationalLogsText(events: [OperationalLogEvent]? = nil) -> String { diagnostics.exportOperationalLogsText(networkSyncStatusText: networkSyncStatusText, events: events) }
-    func appendOperationalLog(_ level: OperationalLogEvent.Level, category: String, message: String, chainName: String? = nil, walletID: String? = nil, transactionHash: String? = nil, source: String? = nil, metadata: String? = nil) {
+    func exportOperationalLogsText(events: [OperationalLogEvent]? = nil) -> String {
+        diagnostics.exportOperationalLogsText(networkSyncStatusText: networkSyncStatusText, events: events)
+    }
+    func appendOperationalLog(
+        _ level: OperationalLogEvent.Level, category: String, message: String, chainName: String? = nil, walletID: String? = nil,
+        transactionHash: String? = nil, source: String? = nil, metadata: String? = nil
+    ) {
         diagnostics.appendOperationalLog(
-            level, category: category, message: message, chainName: chainName, walletID: walletID, transactionHash: transactionHash, source: source, metadata: metadata
+            level, category: category, message: message, chainName: chainName, walletID: walletID, transactionHash: transactionHash,
+            source: source, metadata: metadata
         )
     }
-    func appendChainOperationalEvent(_ level: ChainOperationalEvent.Level, chainName: String, message: String, transactionHash: String? = nil) {
+    func appendChainOperationalEvent(
+        _ level: ChainOperationalEvent.Level, chainName: String, message: String, transactionHash: String? = nil
+    ) {
         let event = ChainOperationalEvent(
-            id: UUID(), timestamp: Date(), chainName: chainName, level: level, message: message, transactionHash: transactionHash?.trimmingCharacters(in: .whitespacesAndNewlines)
+            id: UUID(), timestamp: Date(), chainName: chainName, level: level, message: message,
+            transactionHash: transactionHash?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         var events = chainOperationalEventsByChain[chainName] ?? []
         events.insert(event, at: 0)
@@ -36,7 +45,9 @@ extension AppState {
         )
     }
     func loadChainOperationalEvents() -> [String: [ChainOperationalEvent]] {
-        guard let data = UserDefaults.standard.data(forKey: Self.chainOperationalEventsDefaultsKey), let decoded = try? JSONDecoder().decode([String: [ChainOperationalEvent]].self, from: data) else { return [:] }
+        guard let data = UserDefaults.standard.data(forKey: Self.chainOperationalEventsDefaultsKey),
+            let decoded = try? JSONDecoder().decode([String: [ChainOperationalEvent]].self, from: data)
+        else { return [:] }
         return decoded
     }
     func persistChainOperationalEvents() {
@@ -44,37 +55,69 @@ extension AppState {
     }
     func noteSendBroadcastQueued(for transaction: TransactionRecord) {
         appendChainOperationalEvent(
-            .info, chainName: transaction.chainName, message: "\(transaction.symbol) send broadcast accepted.", transactionHash: transaction.transactionHash
+            .info, chainName: transaction.chainName, message: "\(transaction.symbol) send broadcast accepted.",
+            transactionHash: transaction.transactionHash
         )
     }
     func noteSendBroadcastVerification(
-        chainName: String, verificationStatus: SendBroadcastVerificationStatus, transactionHash: String? ) {
+        chainName: String, verificationStatus: SendBroadcastVerificationStatus, transactionHash: String?
+    ) {
         switch verificationStatus {
-        case .verified: appendChainOperationalEvent(
+        case .verified:
+            appendChainOperationalEvent(
                 .info, chainName: chainName, message: "Broadcast verified by provider.", transactionHash: transactionHash
             )
-        case .deferred: appendChainOperationalEvent(
+        case .deferred:
+            appendChainOperationalEvent(
                 .warning, chainName: chainName, message: "Broadcast accepted; verification deferred.", transactionHash: transactionHash
             )
-        case .failed(let message): appendChainOperationalEvent(
+        case .failed(let message):
+            appendChainOperationalEvent(
                 .warning, chainName: chainName, message: "Broadcast verification warning: \(message)", transactionHash: transactionHash
             )
-        }}
-    func noteSendBroadcastFailure(for chainName: String, message: String) { appendChainOperationalEvent(.error, chainName: chainName, message: "Send failed: \(message)") }
+        }
+    }
+    func noteSendBroadcastFailure(for chainName: String, message: String) {
+        appendChainOperationalEvent(.error, chainName: chainName, message: "Send failed: \(message)")
+    }
     func decoratePendingSendTransaction(_ transaction: TransactionRecord, holding: Coin, confirmationCount: Int? = 0) -> TransactionRecord {
         let previewDetails = sendPreviewDetails(for: holding)
         return TransactionRecord(
-            id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: transaction.status, walletName: transaction.walletName, assetName: transaction.assetName, symbol: transaction.symbol, chainName: transaction.chainName, amount: transaction.amount, address: transaction.address, transactionHash: transaction.transactionHash, ethereumNonce: transaction.ethereumNonce, receiptBlockNumber: transaction.receiptBlockNumber, receiptGasUsed: transaction.receiptGasUsed, receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei, receiptNetworkFeeEth: transaction.receiptNetworkFeeEth, feePriorityRaw: transaction.feePriorityRaw ?? feePriorityOption(for: holding.chainName).rawValue, feeRateDescription: transaction.feeRateDescription ?? previewDetails?.feeRateDescription, confirmationCount: transaction.confirmationCount ?? confirmationCount, dogecoinConfirmedNetworkFeeDoge: transaction.dogecoinConfirmedNetworkFeeDoge, dogecoinConfirmations: transaction.dogecoinConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw, dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb, usedChangeOutput: transaction.usedChangeOutput ?? previewDetails?.usesChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput, sourceDerivationPath: transaction.sourceDerivationPath, changeDerivationPath: transaction.changeDerivationPath, sourceAddress: transaction.sourceAddress, changeAddress: transaction.changeAddress, dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex, signedTransactionPayload: transaction.signedTransactionPayload, signedTransactionPayloadFormat: transaction.signedTransactionPayloadFormat, failureReason: transaction.failureReason, transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt
+            id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: transaction.status,
+            walletName: transaction.walletName, assetName: transaction.assetName, symbol: transaction.symbol,
+            chainName: transaction.chainName, amount: transaction.amount, address: transaction.address,
+            transactionHash: transaction.transactionHash, ethereumNonce: transaction.ethereumNonce,
+            receiptBlockNumber: transaction.receiptBlockNumber, receiptGasUsed: transaction.receiptGasUsed,
+            receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei, receiptNetworkFeeEth: transaction.receiptNetworkFeeEth,
+            feePriorityRaw: transaction.feePriorityRaw ?? feePriorityOption(for: holding.chainName).rawValue,
+            feeRateDescription: transaction.feeRateDescription ?? previewDetails?.feeRateDescription,
+            confirmationCount: transaction.confirmationCount ?? confirmationCount,
+            dogecoinConfirmedNetworkFeeDoge: transaction.dogecoinConfirmedNetworkFeeDoge,
+            dogecoinConfirmations: transaction.dogecoinConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw,
+            dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb,
+            usedChangeOutput: transaction.usedChangeOutput ?? previewDetails?.usesChangeOutput,
+            dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput, sourceDerivationPath: transaction.sourceDerivationPath,
+            changeDerivationPath: transaction.changeDerivationPath, sourceAddress: transaction.sourceAddress,
+            changeAddress: transaction.changeAddress, dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex,
+            signedTransactionPayload: transaction.signedTransactionPayload,
+            signedTransactionPayloadFormat: transaction.signedTransactionPayloadFormat, failureReason: transaction.failureReason,
+            transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt
         )
     }
-    func registerPendingSelfSendConfirmation(walletID: String, chainName: String, symbol: String, destinationAddress: String, amount: Double) {
+    func registerPendingSelfSendConfirmation(
+        walletID: String, chainName: String, symbol: String, destinationAddress: String, amount: Double
+    ) {
         pendingSelfSendConfirmation = PendingSelfSendConfirmation(
-            walletID: walletID, chainName: chainName, symbol: symbol, destinationAddressLowercased: destinationAddress.lowercased(), amount: amount, createdAt: Date()
+            walletID: walletID, chainName: chainName, symbol: symbol, destinationAddressLowercased: destinationAddress.lowercased(),
+            amount: amount, createdAt: Date()
         )
     }
-    func consumePendingSelfSendConfirmation(walletID: String, chainName: String, symbol: String, destinationAddress: String, amount: Double) -> Bool {
+    func consumePendingSelfSendConfirmation(walletID: String, chainName: String, symbol: String, destinationAddress: String, amount: Double)
+        -> Bool
+    {
         if let plan = rustSelfSendConfirmationPlan(
-            walletID: walletID, chainName: chainName, symbol: symbol, destinationAddress: destinationAddress, amount: amount, ownedAddresses: []
+            walletID: walletID, chainName: chainName, symbol: symbol, destinationAddress: destinationAddress, amount: amount,
+            ownedAddresses: []
         ) {
             if plan.clearPendingConfirmation { pendingSelfSendConfirmation = nil }
             return plan.consumeExistingConfirmation
@@ -99,9 +142,14 @@ extension AppState {
     }
     func requiresSelfSendConfirmation(wallet: ImportedWallet, holding: Coin, destinationAddress: String, amount: Double) -> Bool {
         let ownAddresses: [String]
-        if holding.chainName == "Dogecoin" { ownAddresses = knownUTXOAddresses(for: wallet, chainName: "Dogecoin") } else { ownAddresses = knownOwnedAddresses(for: wallet.id) }
+        if holding.chainName == "Dogecoin" {
+            ownAddresses = knownUTXOAddresses(for: wallet, chainName: "Dogecoin")
+        } else {
+            ownAddresses = knownOwnedAddresses(for: wallet.id)
+        }
         if let plan = rustSelfSendConfirmationPlan(
-            walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress, amount: amount, ownedAddresses: ownAddresses
+            walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress,
+            amount: amount, ownedAddresses: ownAddresses
         ) {
             if plan.clearPendingConfirmation { pendingSelfSendConfirmation = nil }
             guard plan.requiresConfirmation else { return false }
@@ -110,40 +158,74 @@ extension AppState {
                 return false
             }
             registerPendingSelfSendConfirmation(
-                walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress, amount: amount
+                walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress,
+                amount: amount
             )
-            sendError = "This \(holding.symbol) destination belongs to your wallet. Tap Send again within \(Int(Self.selfSendConfirmationWindowSeconds))s to confirm intentional self-send."
-            if holding.chainName == "Dogecoin" { appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE self-send confirmation required.") }
+            sendError =
+                "This \(holding.symbol) destination belongs to your wallet. Tap Send again within \(Int(Self.selfSendConfirmationWindowSeconds))s to confirm intentional self-send."
+            if holding.chainName == "Dogecoin" {
+                appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE self-send confirmation required.")
+            }
             return true
         }
         let ownAddressSet = Set(ownAddresses.map { $0.lowercased() })
         guard ownAddressSet.contains(destinationAddress.lowercased()) else { return false }
         if consumePendingSelfSendConfirmation(
-            walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress, amount: amount
+            walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress,
+            amount: amount
         ) {
             return false
         }
         registerPendingSelfSendConfirmation(
-            walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress, amount: amount
+            walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress,
+            amount: amount
         )
-        sendError = "This \(holding.symbol) destination belongs to your wallet. Tap Send again within \(Int(Self.selfSendConfirmationWindowSeconds))s to confirm intentional self-send."
-        if holding.chainName == "Dogecoin" { appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE self-send confirmation required.") }
+        sendError =
+            "This \(holding.symbol) destination belongs to your wallet. Tap Send again within \(Int(Self.selfSendConfirmationWindowSeconds))s to confirm intentional self-send."
+        if holding.chainName == "Dogecoin" {
+            appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE self-send confirmation required.")
+        }
         return true
     }
-    private func rustSelfSendConfirmationPlan(walletID: String, chainName: String, symbol: String, destinationAddress: String, amount: Double, ownedAddresses: [String]) -> SelfSendConfirmationPlan? {
+    private func rustSelfSendConfirmationPlan(
+        walletID: String, chainName: String, symbol: String, destinationAddress: String, amount: Double, ownedAddresses: [String]
+    ) -> SelfSendConfirmationPlan? {
         let request = SelfSendConfirmationRequest(
             pendingConfirmation: pendingSelfSendConfirmation.map {
                 PendingSelfSendConfirmationInput(
-                    walletId: $0.walletID, chainName: $0.chainName, symbol: $0.symbol, destinationAddressLowercased: $0.destinationAddressLowercased, amount: $0.amount, createdAtUnix: $0.createdAt.timeIntervalSince1970
+                    walletId: $0.walletID, chainName: $0.chainName, symbol: $0.symbol,
+                    destinationAddressLowercased: $0.destinationAddressLowercased, amount: $0.amount,
+                    createdAtUnix: $0.createdAt.timeIntervalSince1970
                 )
-            }, walletId: walletID, chainName: chainName, symbol: symbol, destinationAddress: destinationAddress, amount: amount, nowUnix: Date().timeIntervalSince1970, windowSeconds: Self.selfSendConfirmationWindowSeconds, ownedAddresses: ownedAddresses
+            }, walletId: walletID, chainName: chainName, symbol: symbol, destinationAddress: destinationAddress, amount: amount,
+            nowUnix: Date().timeIntervalSince1970, windowSeconds: Self.selfSendConfirmationWindowSeconds, ownedAddresses: ownedAddresses
         )
         return corePlanSelfSendConfirmation(request: request)
     }
     func finalityConfirmations(for chainName: String) -> Int { Self.standardFinalityConfirmations }
-    func updatedTransaction(_ transaction: TransactionRecord, status: TransactionStatus, receiptBlockNumber: Int? = nil, failureReason: String? = nil, dogecoinConfirmations: Int? = nil, dogecoinConfirmedNetworkFeeDoge: Double? = nil) -> TransactionRecord {
+    func updatedTransaction(
+        _ transaction: TransactionRecord, status: TransactionStatus, receiptBlockNumber: Int? = nil, failureReason: String? = nil,
+        dogecoinConfirmations: Int? = nil, dogecoinConfirmedNetworkFeeDoge: Double? = nil
+    ) -> TransactionRecord {
         TransactionRecord(
-            id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: status, walletName: transaction.walletName, assetName: transaction.assetName, symbol: transaction.symbol, chainName: transaction.chainName, amount: transaction.amount, address: transaction.address, transactionHash: transaction.transactionHash, ethereumNonce: transaction.ethereumNonce, receiptBlockNumber: receiptBlockNumber ?? transaction.receiptBlockNumber, receiptGasUsed: transaction.receiptGasUsed, receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei, receiptNetworkFeeEth: transaction.receiptNetworkFeeEth, feePriorityRaw: transaction.feePriorityRaw, feeRateDescription: transaction.feeRateDescription, confirmationCount: dogecoinConfirmations ?? transaction.confirmationCount, dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge ?? transaction.dogecoinConfirmedNetworkFeeDoge, dogecoinConfirmations: dogecoinConfirmations ?? transaction.dogecoinConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw, dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb, usedChangeOutput: transaction.usedChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput, sourceDerivationPath: transaction.sourceDerivationPath, changeDerivationPath: transaction.changeDerivationPath, sourceAddress: transaction.sourceAddress, changeAddress: transaction.changeAddress, dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex, signedTransactionPayload: transaction.signedTransactionPayload, signedTransactionPayloadFormat: transaction.signedTransactionPayloadFormat, failureReason: failureReason, transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt
+            id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: status, walletName: transaction.walletName,
+            assetName: transaction.assetName, symbol: transaction.symbol, chainName: transaction.chainName, amount: transaction.amount,
+            address: transaction.address, transactionHash: transaction.transactionHash, ethereumNonce: transaction.ethereumNonce,
+            receiptBlockNumber: receiptBlockNumber ?? transaction.receiptBlockNumber, receiptGasUsed: transaction.receiptGasUsed,
+            receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei, receiptNetworkFeeEth: transaction.receiptNetworkFeeEth,
+            feePriorityRaw: transaction.feePriorityRaw, feeRateDescription: transaction.feeRateDescription,
+            confirmationCount: dogecoinConfirmations ?? transaction.confirmationCount,
+            dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge ?? transaction.dogecoinConfirmedNetworkFeeDoge,
+            dogecoinConfirmations: dogecoinConfirmations ?? transaction.dogecoinConfirmations,
+            dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw,
+            dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb,
+            usedChangeOutput: transaction.usedChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput,
+            sourceDerivationPath: transaction.sourceDerivationPath, changeDerivationPath: transaction.changeDerivationPath,
+            sourceAddress: transaction.sourceAddress, changeAddress: transaction.changeAddress,
+            dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex,
+            signedTransactionPayload: transaction.signedTransactionPayload,
+            signedTransactionPayloadFormat: transaction.signedTransactionPayloadFormat, failureReason: failureReason,
+            transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt
         )
     }
     func statusPollFailureMessage(for transaction: TransactionRecord) -> String {
@@ -156,16 +238,27 @@ extension AppState {
         if tracker.reachedFinality { return false }
         return now >= tracker.nextCheckAt
     }
-    func markTransactionStatusPollSuccess(for transaction: TransactionRecord, resolvedStatus: TransactionStatus, confirmations: Int? = nil, now: Date) {
+    func markTransactionStatusPollSuccess(
+        for transaction: TransactionRecord, resolvedStatus: TransactionStatus, confirmations: Int? = nil, now: Date
+    ) {
         var tracker = statusTrackingByTransactionID[transaction.id] ?? TransactionStatusTrackingState.initial(now: now)
         tracker.lastCheckedAt = now
         tracker.consecutiveFailures = 0
         let reachedFinality: Bool
-        if resolvedStatus == .pending { reachedFinality = false } else { reachedFinality = (confirmations ?? finalityConfirmations(for: transaction.chainName)) >= finalityConfirmations(for: transaction.chainName) }
+        if resolvedStatus == .pending {
+            reachedFinality = false
+        } else {
+            reachedFinality =
+                (confirmations ?? finalityConfirmations(for: transaction.chainName)) >= finalityConfirmations(for: transaction.chainName)
+        }
         if reachedFinality {
             tracker.reachedFinality = true
             tracker.nextCheckAt = now.addingTimeInterval(Self.statusPollBackoffMaxSeconds)
-        } else if resolvedStatus == .confirmed { tracker.nextCheckAt = now.addingTimeInterval(Self.confirmedStatusPollSeconds) } else { tracker.nextCheckAt = now.addingTimeInterval(Self.pendingStatusPollSeconds) }
+        } else if resolvedStatus == .confirmed {
+            tracker.nextCheckAt = now.addingTimeInterval(Self.confirmedStatusPollSeconds)
+        } else {
+            tracker.nextCheckAt = now.addingTimeInterval(Self.pendingStatusPollSeconds)
+        }
         statusTrackingByTransactionID[transaction.id] = tracker
     }
     func markTransactionStatusPollFailure(for transaction: TransactionRecord, now: Date) {
@@ -190,37 +283,50 @@ extension AppState {
             }
         )
     }
-    func applyResolvedPendingTransactionStatuses(_ resolvedStatuses: [UUID: PendingTransactionStatusResolution], staleFailureIDs: Set<UUID>, now: Date) {
+    func applyResolvedPendingTransactionStatuses(
+        _ resolvedStatuses: [UUID: PendingTransactionStatusResolution], staleFailureIDs: Set<UUID>, now: Date
+    ) {
         guard !resolvedStatuses.isEmpty || !staleFailureIDs.isEmpty else { return }
         let oldByID = Dictionary(uniqueKeysWithValues: transactions.map { ($0.id, $0) })
-        setTransactions(transactions.map { transaction in
-            if let resolution = resolvedStatuses[transaction.id] {
-                if resolution.status != .pending {
-                    var tracker = statusTrackingByTransactionID[transaction.id] ?? TransactionStatusTrackingState.initial(now: now)
-                    tracker.reachedFinality = (resolution.confirmations ?? finalityConfirmations(for: transaction.chainName)) >= finalityConfirmations(for: transaction.chainName)
-                    tracker.nextCheckAt = now.addingTimeInterval(Self.statusPollBackoffMaxSeconds)
-                    statusTrackingByTransactionID[transaction.id] = tracker
+        setTransactions(
+            transactions.map { transaction in
+                if let resolution = resolvedStatuses[transaction.id] {
+                    if resolution.status != .pending {
+                        var tracker = statusTrackingByTransactionID[transaction.id] ?? TransactionStatusTrackingState.initial(now: now)
+                        tracker.reachedFinality =
+                            (resolution.confirmations ?? finalityConfirmations(for: transaction.chainName))
+                            >= finalityConfirmations(for: transaction.chainName)
+                        tracker.nextCheckAt = now.addingTimeInterval(Self.statusPollBackoffMaxSeconds)
+                        statusTrackingByTransactionID[transaction.id] = tracker
+                    }
+                    return updatedTransaction(
+                        transaction, status: resolution.status, receiptBlockNumber: resolution.receiptBlockNumber,
+                        failureReason: resolution.status == .failed
+                            ? (transaction.failureReason ?? statusPollFailureMessage(for: transaction)) : nil,
+                        dogecoinConfirmations: resolution.confirmations, dogecoinConfirmedNetworkFeeDoge: resolution.dogecoinNetworkFeeDoge
+                    )
                 }
+                guard staleFailureIDs.contains(transaction.id) else { return transaction }
                 return updatedTransaction(
-                    transaction, status: resolution.status, receiptBlockNumber: resolution.receiptBlockNumber, failureReason: resolution.status == .failed ? (transaction.failureReason ?? statusPollFailureMessage(for: transaction)) : nil, dogecoinConfirmations: resolution.confirmations, dogecoinConfirmedNetworkFeeDoge: resolution.dogecoinNetworkFeeDoge
+                    transaction, status: .failed, failureReason: transaction.failureReason ?? statusPollFailureMessage(for: transaction)
                 )
-            }
-            guard staleFailureIDs.contains(transaction.id) else { return transaction }
-            return updatedTransaction(
-                transaction, status: .failed, failureReason: transaction.failureReason ?? statusPollFailureMessage(for: transaction)
-            )
-        })
+            })
         for (transactionID, resolution) in resolvedStatuses {
-            guard let oldTransaction = oldByID[transactionID], let newTransaction = transactions.first(where: { $0.id == transactionID }), oldTransaction.status != newTransaction.status else {
+            guard let oldTransaction = oldByID[transactionID], let newTransaction = transactions.first(where: { $0.id == transactionID }),
+                oldTransaction.status != newTransaction.status
+            else {
                 continue
             }
             if resolution.status == .confirmed {
                 appendChainOperationalEvent(
-                    .info, chainName: newTransaction.chainName, message: "Transaction confirmed on-chain.", transactionHash: newTransaction.transactionHash
+                    .info, chainName: newTransaction.chainName, message: "Transaction confirmed on-chain.",
+                    transactionHash: newTransaction.transactionHash
                 )
             } else if resolution.status == .failed {
                 appendChainOperationalEvent(
-                    .error, chainName: newTransaction.chainName, message: newTransaction.failureReason ?? statusPollFailureMessage(for: newTransaction), transactionHash: newTransaction.transactionHash
+                    .error, chainName: newTransaction.chainName,
+                    message: newTransaction.failureReason ?? statusPollFailureMessage(for: newTransaction),
+                    transactionHash: newTransaction.transactionHash
                 )
             }
             sendTransactionStatusNotification(for: oldTransaction, newStatus: resolution.status)
@@ -228,12 +334,16 @@ extension AppState {
         for failedID in staleFailureIDs {
             guard let oldTransaction = oldByID[failedID], oldTransaction.status != .failed else { continue }
             appendChainOperationalEvent(
-                .error, chainName: oldTransaction.chainName, message: oldTransaction.failureReason ?? statusPollFailureMessage(for: oldTransaction), transactionHash: oldTransaction.transactionHash
+                .error, chainName: oldTransaction.chainName,
+                message: oldTransaction.failureReason ?? statusPollFailureMessage(for: oldTransaction),
+                transactionHash: oldTransaction.transactionHash
             )
             sendTransactionStatusNotification(for: oldTransaction, newStatus: .failed)
-        }}
+        }
+    }
     func refreshPendingHistoryBackedTransactions(
-        chainName: String, addressResolver: (ImportedWallet) -> String?, fetchStatuses: @escaping (String) async -> ([String: TransactionStatus], Bool)
+        chainName: String, addressResolver: (ImportedWallet) -> String?,
+        fetchStatuses: @escaping (String) async -> ([String: TransactionStatus], Bool)
     ) async {
         let now = Date()
         let trackedTransactions = transactions.filter { transaction in
@@ -256,13 +366,16 @@ extension AppState {
                 continue
             }
             for transaction in group {
-                guard shouldPollTransactionStatus(for: transaction, now: now), let transactionHash = transaction.transactionHash?.lowercased() else { continue }
+                guard shouldPollTransactionStatus(for: transaction, now: now),
+                    let transactionHash = transaction.transactionHash?.lowercased()
+                else { continue }
                 let resolvedStatus = statusByHash[transactionHash] ?? .pending
                 markTransactionStatusPollSuccess(for: transaction, resolvedStatus: resolvedStatus, now: now)
                 resolvedStatuses[transaction.id] = PendingTransactionStatusResolution(
                     status: resolvedStatus, receiptBlockNumber: nil, confirmations: nil, dogecoinNetworkFeeDoge: nil
                 )
-            }}
+            }
+        }
         let staleFailureIDs = stalePendingFailureIDs(from: trackedTransactions, now: now)
         applyResolvedPendingTransactionStatuses(resolvedStatuses, staleFailureIDs: staleFailureIDs, now: now)
     }
@@ -277,19 +390,39 @@ extension AppState {
         }
         return statusByHash
     }
-    func shouldPollDogecoinStatus(for transaction: TransactionRecord, now: Date) -> Bool { shouldPollTransactionStatus(for: transaction, now: now) }
+    func shouldPollDogecoinStatus(for transaction: TransactionRecord, now: Date) -> Bool {
+        shouldPollTransactionStatus(for: transaction, now: now)
+    }
     func markDogecoinStatusPollSuccess(for transaction: TransactionRecord, status: DogecoinTransactionStatus, now: Date) {
         markTransactionStatusPollSuccess(
-            for: transaction, resolvedStatus: status.confirmed ? .confirmed : .pending, confirmations: status.confirmations ?? transaction.dogecoinConfirmations, now: now
+            for: transaction, resolvedStatus: status.confirmed ? .confirmed : .pending,
+            confirmations: status.confirmations ?? transaction.dogecoinConfirmations, now: now
         )
     }
-    func markDogecoinStatusPollFailure(for transaction: TransactionRecord, now: Date) { markTransactionStatusPollFailure(for: transaction, now: now) }
+    func markDogecoinStatusPollFailure(for transaction: TransactionRecord, now: Date) {
+        markTransactionStatusPollFailure(for: transaction, now: now)
+    }
     func updateTransactionStatus(id: UUID, to status: TransactionStatus) {
         guard let index = transactions.firstIndex(where: { $0.id == id }) else { return }
         let transaction = transactions[index]
         if transaction.chainName == "Dogecoin" { return }
         transactions[index] = TransactionRecord(
-            id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: status, walletName: transaction.walletName, assetName: transaction.assetName, symbol: transaction.symbol, chainName: transaction.chainName, amount: transaction.amount, address: transaction.address, transactionHash: transaction.transactionHash, receiptBlockNumber: transaction.receiptBlockNumber, receiptGasUsed: transaction.receiptGasUsed, receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei, receiptNetworkFeeEth: transaction.receiptNetworkFeeEth, feePriorityRaw: transaction.feePriorityRaw, feeRateDescription: transaction.feeRateDescription, confirmationCount: transaction.confirmationCount, dogecoinConfirmedNetworkFeeDoge: transaction.dogecoinConfirmedNetworkFeeDoge, dogecoinConfirmations: transaction.dogecoinConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw, dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb, usedChangeOutput: transaction.usedChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput, sourceDerivationPath: transaction.sourceDerivationPath, changeDerivationPath: transaction.changeDerivationPath, sourceAddress: transaction.sourceAddress, changeAddress: transaction.changeAddress, dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex, signedTransactionPayload: transaction.signedTransactionPayload, signedTransactionPayloadFormat: transaction.signedTransactionPayloadFormat, failureReason: transaction.failureReason, transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt
+            id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: status, walletName: transaction.walletName,
+            assetName: transaction.assetName, symbol: transaction.symbol, chainName: transaction.chainName, amount: transaction.amount,
+            address: transaction.address, transactionHash: transaction.transactionHash, receiptBlockNumber: transaction.receiptBlockNumber,
+            receiptGasUsed: transaction.receiptGasUsed, receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei,
+            receiptNetworkFeeEth: transaction.receiptNetworkFeeEth, feePriorityRaw: transaction.feePriorityRaw,
+            feeRateDescription: transaction.feeRateDescription, confirmationCount: transaction.confirmationCount,
+            dogecoinConfirmedNetworkFeeDoge: transaction.dogecoinConfirmedNetworkFeeDoge,
+            dogecoinConfirmations: transaction.dogecoinConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw,
+            dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb,
+            usedChangeOutput: transaction.usedChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput,
+            sourceDerivationPath: transaction.sourceDerivationPath, changeDerivationPath: transaction.changeDerivationPath,
+            sourceAddress: transaction.sourceAddress, changeAddress: transaction.changeAddress,
+            dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex,
+            signedTransactionPayload: transaction.signedTransactionPayload,
+            signedTransactionPayloadFormat: transaction.signedTransactionPayloadFormat, failureReason: transaction.failureReason,
+            transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt
         )
     }
     func addPriceAlert(for coin: Coin, targetPrice: Double, condition: PriceAlertCondition) {
@@ -301,7 +434,8 @@ extension AppState {
         }
         guard !isDuplicate else { return }
         let alert = PriceAlertRule(
-            holdingKey: coin.holdingKey, assetName: coin.name, symbol: coin.symbol, chainName: coin.chainName, targetPrice: normalizedTargetPrice, condition: condition
+            holdingKey: coin.holdingKey, assetName: coin.name, symbol: coin.symbol, chainName: coin.chainName,
+            targetPrice: normalizedTargetPrice, condition: condition
         )
         priceAlerts.insert(alert, at: 0)
         requestPriceAlertNotificationPermission()
@@ -309,7 +443,9 @@ extension AppState {
     func togglePriceAlertEnabled(id: UUID) {
         guard let index = priceAlerts.firstIndex(where: { $0.id == id }) else { return }
         priceAlerts[index].isEnabled.toggle()
-        if !priceAlerts[index].isEnabled { priceAlerts[index].hasTriggered = false }}
+        if !priceAlerts[index].isEnabled { priceAlerts[index].hasTriggered = false }
+    }
     func removePriceAlert(id: UUID) {
-        priceAlerts.removeAll { $0.id == id }}
+        priceAlerts.removeAll { $0.id == id }
+    }
 }

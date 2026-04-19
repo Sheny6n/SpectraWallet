@@ -1,5 +1,4 @@
 import Foundation
-import Combine
 import UIKit
 import UserNotifications
 import os
@@ -53,7 +52,8 @@ extension AppState {
         let ratio = evaluation.ratio
         let content = UNMutableNotificationContent()
         content.title = "Large portfolio movement detected"
-        content.body = "Your portfolio moved \(direction) by \(formattedFiatAmount(fromUSD: absoluteDelta)) (\(Int((ratio * 100).rounded()))%) since last sync."
+        content.body =
+            "Your portfolio moved \(direction) by \(formattedFiatAmount(fromUSD: absoluteDelta)) (\(Int((ratio * 100).rounded()))%) since last sync."
         content.sound = .default
         let request = UNNotificationRequest(
             identifier: "portfolio-movement-\(UUID().uuidString)", content: content, trigger: nil
@@ -117,36 +117,24 @@ extension AppState {
                 await refreshLivePrices()
                 await refreshFiatExchangeRatesIfNeeded()
                 lastFullRefreshAt = Date()
-            } else { await performBackgroundMaintenanceTick() }}
+            } else {
+                await performBackgroundMaintenanceTick()
+            }
+        }
         userInitiatedRefreshTask = refreshTask
         await refreshTask.value
         userInitiatedRefreshTask = nil
     }
     func runActiveScheduledMaintenance(now: Date) async {
         let plan = WalletRefreshPlanner.activeMaintenancePlan(
-            now: now, lastPendingTransactionRefreshAt: lastPendingTransactionRefreshAt, lastLivePriceRefreshAt: lastLivePriceRefreshAt, hasPendingTransactionMaintenanceWork: hasPendingTransactionMaintenanceWork, shouldRunScheduledPriceRefresh: shouldRunScheduledPriceRefresh, pendingRefreshInterval: activePendingRefreshIntervalForProfile(), priceRefreshInterval: activePriceRefreshIntervalForProfile()
+            now: now, lastPendingTransactionRefreshAt: lastPendingTransactionRefreshAt, lastLivePriceRefreshAt: lastLivePriceRefreshAt,
+            hasPendingTransactionMaintenanceWork: hasPendingTransactionMaintenanceWork,
+            shouldRunScheduledPriceRefresh: shouldRunScheduledPriceRefresh,
+            pendingRefreshInterval: activePendingRefreshIntervalForProfile(), priceRefreshInterval: activePriceRefreshIntervalForProfile()
         )
         if plan.refreshPendingTransactions { await refreshPendingTransactions(includeHistoryRefreshes: false) }
         if plan.refreshLivePrices { await refreshLivePrices() }
         await refreshFiatExchangeRatesIfNeeded()
-    }
-}
-
-@MainActor
-final class ViewRefreshSignal: ObservableObject {
-    @Published private(set) var revision: UInt64 = 0
-    private var cancellables: Set<AnyCancellable> = []
-    init(_ publishers: [AnyPublisher<Void, Never>]) {
-        for publisher in publishers {
-            publisher.receive(on: RunLoop.main).sink { [weak self] in
-                    self?.revision &+= 1
-                }.store(in: &cancellables)
-        }}
-}
-
-extension Publisher where Failure == Never {
-    func asVoidSignal() -> AnyPublisher<Void, Never> {
-        map { _ in () }.eraseToAnyPublisher()
     }
 }
 
@@ -160,25 +148,50 @@ struct WalletActiveMaintenancePlan {
     let refreshLivePrices: Bool
 }
 struct WalletRefreshPlanner {
-    static func activeMaintenancePlan(now: Date, lastPendingTransactionRefreshAt: Date?, lastLivePriceRefreshAt: Date?, hasPendingTransactionMaintenanceWork: Bool, shouldRunScheduledPriceRefresh: Bool, pendingRefreshInterval: TimeInterval, priceRefreshInterval: TimeInterval) -> WalletActiveMaintenancePlan {
+    static func activeMaintenancePlan(
+        now: Date, lastPendingTransactionRefreshAt: Date?, lastLivePriceRefreshAt: Date?, hasPendingTransactionMaintenanceWork: Bool,
+        shouldRunScheduledPriceRefresh: Bool, pendingRefreshInterval: TimeInterval, priceRefreshInterval: TimeInterval
+    ) -> WalletActiveMaintenancePlan {
         let plan = coreActiveMaintenancePlan(
             request: ActiveMaintenancePlanRequest(
-                nowUnix: now.timeIntervalSince1970, lastPendingTransactionRefreshAtUnix: lastPendingTransactionRefreshAt?.timeIntervalSince1970, lastLivePriceRefreshAtUnix: lastLivePriceRefreshAt?.timeIntervalSince1970, hasPendingTransactionMaintenanceWork: hasPendingTransactionMaintenanceWork, shouldRunScheduledPriceRefresh: shouldRunScheduledPriceRefresh, pendingRefreshInterval: pendingRefreshInterval, priceRefreshInterval: priceRefreshInterval
+                nowUnix: now.timeIntervalSince1970,
+                lastPendingTransactionRefreshAtUnix: lastPendingTransactionRefreshAt?.timeIntervalSince1970,
+                lastLivePriceRefreshAtUnix: lastLivePriceRefreshAt?.timeIntervalSince1970,
+                hasPendingTransactionMaintenanceWork: hasPendingTransactionMaintenanceWork,
+                shouldRunScheduledPriceRefresh: shouldRunScheduledPriceRefresh, pendingRefreshInterval: pendingRefreshInterval,
+                priceRefreshInterval: priceRefreshInterval
             )
         )
-        return WalletActiveMaintenancePlan(refreshPendingTransactions: plan.refreshPendingTransactions, refreshLivePrices: plan.refreshLivePrices)
+        return WalletActiveMaintenancePlan(
+            refreshPendingTransactions: plan.refreshPendingTransactions, refreshLivePrices: plan.refreshLivePrices)
     }
-    static func shouldRunBackgroundMaintenance(now: Date, isNetworkReachable: Bool, lastBackgroundMaintenanceAt: Date?, interval: TimeInterval) -> Bool {
+    static func shouldRunBackgroundMaintenance(
+        now: Date, isNetworkReachable: Bool, lastBackgroundMaintenanceAt: Date?, interval: TimeInterval
+    ) -> Bool {
         coreShouldRunBackgroundMaintenance(
             request: BackgroundMaintenanceRequest(
-                nowUnix: now.timeIntervalSince1970, isNetworkReachable: isNetworkReachable, lastBackgroundMaintenanceAtUnix: lastBackgroundMaintenanceAt?.timeIntervalSince1970, interval: interval
+                nowUnix: now.timeIntervalSince1970, isNetworkReachable: isNetworkReachable,
+                lastBackgroundMaintenanceAtUnix: lastBackgroundMaintenanceAt?.timeIntervalSince1970, interval: interval
             )
         )
     }
-    static func chainPlans(for chainIDs: Set<WalletChainID>, now: Date, forceChainRefresh: Bool, includeHistoryRefreshes: Bool, historyRefreshInterval: TimeInterval, pendingTransactionMaintenanceChains: Set<WalletChainID>, degradedChains: Set<WalletChainID>, lastGoodChainSyncByID: [WalletChainID: Date], lastHistoryRefreshAtByChainID: [WalletChainID: Date], automaticChainRefreshStalenessInterval: TimeInterval) -> [WalletRefreshChainPlan] {
+    static func chainPlans(
+        for chainIDs: Set<WalletChainID>, now: Date, forceChainRefresh: Bool, includeHistoryRefreshes: Bool,
+        historyRefreshInterval: TimeInterval, pendingTransactionMaintenanceChains: Set<WalletChainID>, degradedChains: Set<WalletChainID>,
+        lastGoodChainSyncByID: [WalletChainID: Date], lastHistoryRefreshAtByChainID: [WalletChainID: Date],
+        automaticChainRefreshStalenessInterval: TimeInterval
+    ) -> [WalletRefreshChainPlan] {
         let plans = coreChainRefreshPlans(
             request: ChainRefreshPlanRequest(
-                chainIds: chainIDs.map(\.rawValue), nowUnix: now.timeIntervalSince1970, forceChainRefresh: forceChainRefresh, includeHistoryRefreshes: includeHistoryRefreshes, historyRefreshInterval: historyRefreshInterval, pendingTransactionMaintenanceChainIds: pendingTransactionMaintenanceChains.map(\.rawValue), degradedChainIds: degradedChains.map(\.rawValue), lastGoodChainSyncById: Dictionary(uniqueKeysWithValues: lastGoodChainSyncByID.map { ($0.key.rawValue, $0.value.timeIntervalSince1970) }), lastHistoryRefreshAtByChainId: Dictionary(uniqueKeysWithValues: lastHistoryRefreshAtByChainID.map { ($0.key.rawValue, $0.value.timeIntervalSince1970) }), automaticChainRefreshStalenessInterval: automaticChainRefreshStalenessInterval
+                chainIds: chainIDs.map(\.rawValue), nowUnix: now.timeIntervalSince1970, forceChainRefresh: forceChainRefresh,
+                includeHistoryRefreshes: includeHistoryRefreshes, historyRefreshInterval: historyRefreshInterval,
+                pendingTransactionMaintenanceChainIds: pendingTransactionMaintenanceChains.map(\.rawValue),
+                degradedChainIds: degradedChains.map(\.rawValue),
+                lastGoodChainSyncById: Dictionary(
+                    uniqueKeysWithValues: lastGoodChainSyncByID.map { ($0.key.rawValue, $0.value.timeIntervalSince1970) }),
+                lastHistoryRefreshAtByChainId: Dictionary(
+                    uniqueKeysWithValues: lastHistoryRefreshAtByChainID.map { ($0.key.rawValue, $0.value.timeIntervalSince1970) }),
+                automaticChainRefreshStalenessInterval: automaticChainRefreshStalenessInterval
             )
         )
         return plans.compactMap { plan in
@@ -186,10 +199,14 @@ struct WalletRefreshPlanner {
             return WalletRefreshChainPlan(chainID: chainID, refreshHistory: plan.refreshHistory)
         }
     }
-    static func historyPlans(for chainIDs: Set<WalletChainID>, now: Date, interval: TimeInterval, lastHistoryRefreshAtByChainID: [WalletChainID: Date]) -> [WalletChainID] {
+    static func historyPlans(
+        for chainIDs: Set<WalletChainID>, now: Date, interval: TimeInterval, lastHistoryRefreshAtByChainID: [WalletChainID: Date]
+    ) -> [WalletChainID] {
         let ids = coreHistoryRefreshPlans(
             request: HistoryRefreshPlanRequest(
-                chainIds: chainIDs.map(\.rawValue), nowUnix: now.timeIntervalSince1970, interval: interval, lastHistoryRefreshAtByChainId: Dictionary(uniqueKeysWithValues: lastHistoryRefreshAtByChainID.map { ($0.key.rawValue, $0.value.timeIntervalSince1970) })
+                chainIds: chainIDs.map(\.rawValue), nowUnix: now.timeIntervalSince1970, interval: interval,
+                lastHistoryRefreshAtByChainId: Dictionary(
+                    uniqueKeysWithValues: lastHistoryRefreshAtByChainID.map { ($0.key.rawValue, $0.value.timeIntervalSince1970) })
             )
         )
         return ids.compactMap(WalletChainID.init)

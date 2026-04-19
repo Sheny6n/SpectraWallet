@@ -42,16 +42,33 @@ enum StaticContentCatalog {
             for localeIdentifier in localeIdentifiers {
                 if localeIdentifier == "Base" {
                     append(resourceURL.appendingPathComponent("\(baseName).json", isDirectory: false))
-                    append(resourceURL .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("strings", isDirectory: true).appendingPathComponent("base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
-                    append(resourceURL .appendingPathComponent("strings", isDirectory: true).appendingPathComponent("base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
+                    append(
+                        resourceURL.appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(
+                            "strings", isDirectory: true
+                        ).appendingPathComponent("base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
+                    append(
+                        resourceURL.appendingPathComponent("strings", isDirectory: true).appendingPathComponent("base", isDirectory: true)
+                            .appendingPathComponent("\(baseName).json", isDirectory: false))
                 } else {
                     append(resourceURL.appendingPathComponent("\(baseName).\(localeIdentifier).json", isDirectory: false))
-                    append(resourceURL .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("strings", isDirectory: true).appendingPathComponent(localeIdentifier, isDirectory: true).appendingPathComponent("\(baseName).\(localeIdentifier).json", isDirectory: false))
-                    append(resourceURL .appendingPathComponent("strings", isDirectory: true).appendingPathComponent(localeIdentifier, isDirectory: true).appendingPathComponent("\(baseName).\(localeIdentifier).json", isDirectory: false))
-                }}
+                    append(
+                        resourceURL.appendingPathComponent("Resources", isDirectory: true).appendingPathComponent(
+                            "strings", isDirectory: true
+                        ).appendingPathComponent(localeIdentifier, isDirectory: true).appendingPathComponent(
+                            "\(baseName).\(localeIdentifier).json", isDirectory: false))
+                    append(
+                        resourceURL.appendingPathComponent("strings", isDirectory: true).appendingPathComponent(
+                            localeIdentifier, isDirectory: true
+                        ).appendingPathComponent("\(baseName).\(localeIdentifier).json", isDirectory: false))
+                }
+            }
             append(resourceURL.appendingPathComponent("\(baseName).json", isDirectory: false))
-            append(resourceURL .appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("strings", isDirectory: true).appendingPathComponent("base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
-            append(resourceURL .appendingPathComponent("strings", isDirectory: true).appendingPathComponent("base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
+            append(
+                resourceURL.appendingPathComponent("Resources", isDirectory: true).appendingPathComponent("strings", isDirectory: true)
+                    .appendingPathComponent("base", isDirectory: true).appendingPathComponent("\(baseName).json", isDirectory: false))
+            append(
+                resourceURL.appendingPathComponent("strings", isDirectory: true).appendingPathComponent("base", isDirectory: true)
+                    .appendingPathComponent("\(baseName).json", isDirectory: false))
         }
         return candidates
     }
@@ -60,7 +77,8 @@ enum StaticContentCatalog {
         return ([Bundle.main, Bundle(for: BundleMarker.self)] + Bundle.allBundles + Bundle.allFrameworks).filter { bundle in
             guard let bundleURL = bundle.bundleURL.standardizedFileURL as URL? else { return false }
             return seen.insert(bundleURL).inserted
-        }}()
+        }
+    }()
 }
 struct SettingsContentCopy: Decodable {
     let pricingIntro: String
@@ -104,7 +122,9 @@ struct DiagnosticsContentCopy: Decodable {
     let endpointReachabilitySectionTitleFormat: String
     let degradedLastGoodSyncFormat: String
     let degradedNoPriorSuccessfulSyncYet: String
-    static var current: DiagnosticsContentCopy { StaticContentCatalog.loadRequiredResource("DiagnosticsContent", as: DiagnosticsContentCopy.self) }
+    static var current: DiagnosticsContentCopy {
+        StaticContentCatalog.loadRequiredResource("DiagnosticsContent", as: DiagnosticsContentCopy.self)
+    }
 }
 struct ImportFlowContent: Decodable {
     let backupVerificationTitle: String
@@ -173,25 +193,59 @@ struct CommonLocalizationContent: Decodable {
     let sendErrorTitle: String
     let securityNoticeTitle: String
     let tronSendDiagnosticTitle: String
-    static var current: CommonLocalizationContent { StaticContentCatalog.loadRequiredResource("CommonContent", as: CommonLocalizationContent.self) }
+    static var current: CommonLocalizationContent {
+        StaticContentCatalog.loadRequiredResource("CommonContent", as: CommonLocalizationContent.self)
+    }
 }
 enum CommonLocalization {
-    static func invalidAddress(_ chainName: String) -> String { String(format: CommonLocalizationContent.current.invalidAddressFormat, chainName) }
-    static func invalidAmount(_ chainName: String) -> String { String(format: CommonLocalizationContent.current.invalidAmountFormat, chainName) }
-    static func invalidDestinationAddressPrompt(_ chainName: String) -> String { String(format: CommonLocalizationContent.current.invalidDestinationAddressPromptFormat, chainName) }
-    static func invalidAssetAmountPrompt(_ symbol: String) -> String { String(format: CommonLocalizationContent.current.invalidAssetAmountPromptFormat, symbol) }
-    static func invalidSeedPhrase(_ chainName: String) -> String { String(format: CommonLocalizationContent.current.invalidSeedPhraseFormat, chainName) }
-    static func invalidProviderResponse(_ chainName: String) -> String { String(format: CommonLocalizationContent.current.invalidProviderResponseFormat, chainName) }
-    static func invalidTransferAmount(_ chainName: String) -> String { String(format: CommonLocalizationContent.current.invalidTransferAmountFormat, chainName) }
-    static func signingTransactionFailed(_ chainName: String) -> String { String(format: CommonLocalizationContent.current.signingTransactionFailedFormat, chainName) }
-    static func insufficientBalanceForAmountPlusNetworkFee(_ symbolOrChain: String) -> String { String(format: CommonLocalizationContent.current.insufficientBalanceForAmountPlusNetworkFeeFormat, symbolOrChain) }
-    static func invalidUTXOData(_ chainName: String) -> String { String(format: CommonLocalizationContent.current.invalidUTXODataFormat, chainName) }
-    static func sourceAddressDoesNotMatchSeed(_ chainName: String) -> String { String(format: CommonLocalizationContent.current.sourceAddressDoesNotMatchSeedFormat, chainName) }
-    static func networkError(_ chainName: String, message: String) -> String { String(format: CommonLocalizationContent.current.networkErrorFormat, chainName, AppLocalization.string(message)) }
-    static func signingFailed(_ chainName: String, message: String) -> String { String(format: CommonLocalizationContent.current.signingFailedFormat, chainName, AppLocalization.string(message)) }
-    static func networkRequestFailed(_ chainName: String, message: String) -> String { String(format: CommonLocalizationContent.current.networkRequestFailedFormat, chainName, AppLocalization.string(message)) }
-    static func broadcastFailed(_ chainName: String, message: String) -> String { String(format: CommonLocalizationContent.current.broadcastFailedFormat, chainName, AppLocalization.string(message)) }
-    static func rpcError(_ chainName: String, message: String) -> String { String(format: CommonLocalizationContent.current.rpcErrorFormat, chainName, AppLocalization.string(message)) }
+    static func invalidAddress(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidAddressFormat, chainName)
+    }
+    static func invalidAmount(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidAmountFormat, chainName)
+    }
+    static func invalidDestinationAddressPrompt(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidDestinationAddressPromptFormat, chainName)
+    }
+    static func invalidAssetAmountPrompt(_ symbol: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidAssetAmountPromptFormat, symbol)
+    }
+    static func invalidSeedPhrase(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidSeedPhraseFormat, chainName)
+    }
+    static func invalidProviderResponse(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidProviderResponseFormat, chainName)
+    }
+    static func invalidTransferAmount(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidTransferAmountFormat, chainName)
+    }
+    static func signingTransactionFailed(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.signingTransactionFailedFormat, chainName)
+    }
+    static func insufficientBalanceForAmountPlusNetworkFee(_ symbolOrChain: String) -> String {
+        String(format: CommonLocalizationContent.current.insufficientBalanceForAmountPlusNetworkFeeFormat, symbolOrChain)
+    }
+    static func invalidUTXOData(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.invalidUTXODataFormat, chainName)
+    }
+    static func sourceAddressDoesNotMatchSeed(_ chainName: String) -> String {
+        String(format: CommonLocalizationContent.current.sourceAddressDoesNotMatchSeedFormat, chainName)
+    }
+    static func networkError(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.networkErrorFormat, chainName, AppLocalization.string(message))
+    }
+    static func signingFailed(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.signingFailedFormat, chainName, AppLocalization.string(message))
+    }
+    static func networkRequestFailed(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.networkRequestFailedFormat, chainName, AppLocalization.string(message))
+    }
+    static func broadcastFailed(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.broadcastFailedFormat, chainName, AppLocalization.string(message))
+    }
+    static func rpcError(_ chainName: String, message: String) -> String {
+        String(format: CommonLocalizationContent.current.rpcErrorFormat, chainName, AppLocalization.string(message))
+    }
 }
 struct TokenVisualRegistrySeed: Decodable {
     let title: String
@@ -207,9 +261,11 @@ enum TokenVisualRegistryCatalog {
         return seeds.compactMap { seed in
             guard let referenceChain = TokenTrackingChain(rawValue: seed.referenceChain) else { return nil }
             return TokenVisualRegistryEntry(
-                title: seed.title, symbol: seed.symbol, referenceChain: referenceChain, mark: seed.mark, color: color(named: seed.colorName), assetName: seed.assetName
+                title: seed.title, symbol: seed.symbol, referenceChain: referenceChain, mark: seed.mark,
+                color: color(named: seed.colorName), assetName: seed.assetName
             )
-        }}
+        }
+    }
     private static func color(named name: String) -> Color {
         switch name.lowercased() {
         case "green": return .green
@@ -223,7 +279,8 @@ enum TokenVisualRegistryCatalog {
         case "gray": return .gray
         case "red": return .red
         default: return .accentColor
-        }}
+        }
+    }
 }
 struct BuyCryptoProviderSeed: Decodable {
     let name: String
@@ -232,7 +289,9 @@ struct BuyCryptoProviderSeed: Decodable {
     let urlLabel: String
 }
 enum BuyCryptoProviderCatalog {
-    static func loadEntries() -> [BuyCryptoProviderSeed] { StaticContentCatalog.loadRequiredResource("BuyCryptoProviders", as: [BuyCryptoProviderSeed].self) }
+    static func loadEntries() -> [BuyCryptoProviderSeed] {
+        StaticContentCatalog.loadRequiredResource("BuyCryptoProviders", as: [BuyCryptoProviderSeed].self)
+    }
 }
 struct DonationDestinationSeed: Decodable {
     let chainName: String
@@ -244,7 +303,9 @@ struct DonationsContentCopy: Decodable {
     let heroTitle: String
     let heroSubtitle: String
     let destinations: [DonationDestinationSeed]
-    static var current: DonationsContentCopy { StaticContentCatalog.loadRequiredResource("DonationsContent", as: DonationsContentCopy.self) }
+    static var current: DonationsContentCopy {
+        StaticContentCatalog.loadRequiredResource("DonationsContent", as: DonationsContentCopy.self)
+    }
 }
 struct EndpointsContentCopy: Decodable {
     let navigationTitle: String
@@ -255,7 +316,9 @@ struct EndpointsContentCopy: Decodable {
     let clearCustomBitcoinEndpointsTitle: String
     let customEthereumRPCURLPlaceholder: String
     let customMoneroBackendURLPlaceholder: String
-    static var current: EndpointsContentCopy { StaticContentCatalog.loadRequiredResource("EndpointsContent", as: EndpointsContentCopy.self) }
+    static var current: EndpointsContentCopy {
+        StaticContentCatalog.loadRequiredResource("EndpointsContent", as: EndpointsContentCopy.self)
+    }
 }
 struct ChainVisualRegistrySeed: Decodable {
     let id: String
@@ -272,13 +335,15 @@ struct ChainVisualRegistryEntry {
 enum ChainVisualRegistryCatalog {
     static func loadEntries() -> [String: ChainVisualRegistryEntry] {
         let seeds = StaticContentCatalog.loadRequiredResource("ChainVisualRegistry", as: [ChainVisualRegistrySeed].self)
-        return Dictionary(uniqueKeysWithValues: seeds.map {
-            (
-                $0.id, ChainVisualRegistryEntry(
-                    id: $0.id, mark: $0.mark, color: color(named: $0.colorName), assetName: $0.assetName
+        return Dictionary(
+            uniqueKeysWithValues: seeds.map {
+                (
+                    $0.id,
+                    ChainVisualRegistryEntry(
+                        id: $0.id, mark: $0.mark, color: color(named: $0.colorName), assetName: $0.assetName
+                    )
                 )
-            )
-        })
+            })
     }
     private static func color(named name: String) -> Color {
         switch name.lowercased() {
@@ -295,37 +360,50 @@ enum ChainVisualRegistryCatalog {
         case "purple": return .purple
         case "mint": return .mint
         default: return .accentColor
-        }}
+        }
+    }
 }
 private func tokenTrackingChainFor(_ value: String) -> TokenTrackingChain? {
     let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     switch normalized {
-    case "ethereum":  return .ethereum
-    case "arbitrum":  return .arbitrum
-    case "optimism":  return .optimism
+    case "ethereum": return .ethereum
+    case "arbitrum": return .arbitrum
+    case "optimism": return .optimism
     case "bnb", "bnb chain": return .bnb
     case "avalanche": return .avalanche
     case "hyperliquid": return .hyperliquid
-    case "solana":    return .solana
-    case "sui":       return .sui
-    case "aptos":     return .aptos
-    case "ton":       return .ton
-    case "near":      return .near
-    case "tron":      return .tron
-    default: return TokenTrackingChain.allCases.first { $0.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalized }}
+    case "solana": return .solana
+    case "sui": return .sui
+    case "aptos": return .aptos
+    case "ton": return .ton
+    case "near": return .near
+    case "tron": return .tron
+    default:
+        return TokenTrackingChain.allCases.first { $0.rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalized }
+    }
 }
 extension ChainTokenRegistryEntry {
     static let builtIn: [ChainTokenRegistryEntry] = {
         let json = listBuiltinTokensJson(chainId: UInt32.max)
-        guard let data = json.data(using: .utf8), let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        guard let data = json.data(using: .utf8), let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
         return entries.compactMap { obj -> ChainTokenRegistryEntry? in
-            guard let chainName = obj["chain"] as? String, let chain = tokenTrackingChainFor(chainName), let name = obj["name"] as? String, let symbol = obj["symbol"] as? String, let tokenStandard = obj["token_standard"] as? String, let contract = obj["contract"] as? String, let marketId = obj["market_id"] as? String, let coingeckoId = obj["coingecko_id"] as? String, let decimals = obj["decimals"] as? Int, let categoryRaw = obj["category"] as? String, let category = TokenPreferenceCategory(rawValue: categoryRaw) else { return nil }
+            guard let chainName = obj["chain"] as? String, let chain = tokenTrackingChainFor(chainName), let name = obj["name"] as? String,
+                let symbol = obj["symbol"] as? String, let tokenStandard = obj["token_standard"] as? String,
+                let contract = obj["contract"] as? String, let marketId = obj["market_id"] as? String,
+                let coingeckoId = obj["coingecko_id"] as? String, let decimals = obj["decimals"] as? Int,
+                let categoryRaw = obj["category"] as? String, let category = TokenPreferenceCategory(rawValue: categoryRaw)
+            else { return nil }
             let displayDecimals = obj["display_decimals"] as? Int
             let enabled = obj["enabled"] as? Bool ?? true
             return ChainTokenRegistryEntry(
-                chain: chain, name: name, symbol: symbol, tokenStandard: tokenStandard, contractAddress: contract, marketDataId: marketId, coinGeckoId: coingeckoId, decimals: decimals, displayDecimals: displayDecimals, category: category, isBuiltIn: true, isEnabledByDefault: enabled
+                chain: chain, name: name, symbol: symbol, tokenStandard: tokenStandard, contractAddress: contract, marketDataId: marketId,
+                coinGeckoId: coingeckoId, decimals: decimals, displayDecimals: displayDecimals, category: category, isBuiltIn: true,
+                isEnabledByDefault: enabled
             )
-        }}()
+        }
+    }()
 }
 enum BIP39EnglishWordList {
     static let words: Set<String> = {
@@ -353,7 +431,8 @@ enum AppLocalization {
         return ([Bundle.main, Bundle(for: BundleMarker.self)] + Bundle.allBundles + Bundle.allFrameworks).filter { bundle in
             guard let bundleURL = bundle.bundleURL.standardizedFileURL as URL? else { return false }
             return seen.insert(bundleURL).inserted
-        }}()
+        }
+    }()
     private static var localizedStringCache: [String: String] = [:]
     private static var cachedState: LocalizationState?
     private static var runtimeManifest: RuntimeStringManifest?
@@ -375,9 +454,16 @@ enum AppLocalization {
             if value != key {
                 localizedStringCache[cacheKey] = value
                 return value
-            }}
+            }
+        }
         let fallbackValue: String
-        if let developmentPath = Bundle.main.path(forResource: Bundle.main.developmentLocalization ?? "en", ofType: "lproj"), let developmentBundle = Bundle(path: developmentPath) { fallbackValue = developmentBundle.localizedString(forKey: key, value: key, table: table) } else { fallbackValue = Bundle.main.localizedString(forKey: key, value: key, table: table) }
+        if let developmentPath = Bundle.main.path(forResource: Bundle.main.developmentLocalization ?? "en", ofType: "lproj"),
+            let developmentBundle = Bundle(path: developmentPath)
+        {
+            fallbackValue = developmentBundle.localizedString(forKey: key, value: key, table: table)
+        } else {
+            fallbackValue = Bundle.main.localizedString(forKey: key, value: key, table: table)
+        }
         localizedStringCache[cacheKey] = fallbackValue
         return fallbackValue
     }
@@ -401,18 +487,23 @@ enum AppLocalization {
         for localization in resolved where seen.insert(localization).inserted { ordered.append(localization) }
         if seen.insert(development).inserted { ordered.append(development) }
         if seen.insert("Base").inserted { ordered.append("Base") }
-        let bundles = ordered.compactMap { identifier in
-            guard identifier != "Base" else { return Bundle.main }
-            guard let path = Bundle.main.path(forResource: identifier, ofType: "lproj"), let bundle = Bundle(path: path) else { return nil }
-            return bundle
-        } + [Bundle.main]
+        let bundles =
+            ordered.compactMap { identifier in
+                guard identifier != "Base" else { return Bundle.main }
+                guard let path = Bundle.main.path(forResource: identifier, ofType: "lproj"), let bundle = Bundle(path: path) else {
+                    return nil
+                }
+                return bundle
+            } + [Bundle.main]
         let state = LocalizationState(
             signature: signature, identifiers: ordered, locale: Locale(identifier: ordered.first ?? development), bundles: bundles
         )
         cachedState = state
         return state
     }
-    private static func preferenceSignature() -> String { (Locale.preferredLanguages + Bundle.main.preferredLocalizations).joined(separator: "|") }
+    private static func preferenceSignature() -> String {
+        (Locale.preferredLanguages + Bundle.main.preferredLocalizations).joined(separator: "|")
+    }
     private static func supportedLocalizationIdentifiers() -> [String] {
         var supported = Set(Bundle.main.localizations.filter { $0 != "Base" })
         if let manifest = loadManifest() {
@@ -425,11 +516,14 @@ enum AppLocalization {
         var candidates: [String] = []
         var seen = Set<String>()
         for identifier in Locale.preferredLanguages + Bundle.main.preferredLocalizations {
-            for fallback in localizationFallbacks(for: identifier) where seen.insert(fallback).inserted { candidates.append(fallback) }}
+            for fallback in localizationFallbacks(for: identifier) where seen.insert(fallback).inserted { candidates.append(fallback) }
+        }
         if candidates.isEmpty {
             let fallbackIdentifiers = [loadManifest()?.sourceLanguage ?? Bundle.main.developmentLocalization ?? "en"]
             for identifier in fallbackIdentifiers {
-                for fallback in localizationFallbacks(for: identifier) where seen.insert(fallback).inserted { candidates.append(fallback) }}}
+                for fallback in localizationFallbacks(for: identifier) where seen.insert(fallback).inserted { candidates.append(fallback) }
+            }
+        }
         return candidates
     }
     private static func preferredLocalization(for identifier: String, supported: [String]) -> String? {
@@ -446,14 +540,18 @@ enum AppLocalization {
         let components = normalized.split(separator: "-").map(String.init)
         guard !components.isEmpty else { return [] }
         var fallbacks: [String] = []
-        for index in stride(from: components.count, through: 1, by: -1) { fallbacks.append(components.prefix(index).joined(separator: "-")) }
+        for index in stride(from: components.count, through: 1, by: -1) {
+            fallbacks.append(components.prefix(index).joined(separator: "-"))
+        }
         return fallbacks
     }
     private static func runtimeString(for key: String, localizationIdentifiers: [String]) -> String? {
         guard loadManifest() != nil else { return nil }
         for identifier in localizationIdentifiers {
             for fallback in localizationFallbacks(for: identifier) {
-                if let dict = loadLocaleDict(fallback), let value = dict[key] { return value }}}
+                if let dict = loadLocaleDict(fallback), let value = dict[key] { return value }
+            }
+        }
         if let sourceLanguage = runtimeManifest?.sourceLanguage, let dict = loadLocaleDict(sourceLanguage) { return dict[key] }
         return nil
     }
@@ -470,18 +568,22 @@ enum AppLocalization {
             ]
             for dir in candidateDirs {
                 let url = dir.appendingPathComponent("RuntimeStrings.manifest.json")
-                guard let data = try? Data(contentsOf: url), let manifest = try? decoder.decode(RuntimeStringManifest.self, from: data) else { continue }
+                guard let data = try? Data(contentsOf: url), let manifest = try? decoder.decode(RuntimeStringManifest.self, from: data)
+                else { continue }
                 runtimeManifest = manifest
                 runtimeStringsBaseURL = dir
                 return manifest
-            }}
+            }
+        }
         return nil
     }
     private static func loadLocaleDict(_ locale: String) -> [String: String]? {
         if let cached = loadedLocaleDicts[locale] { return cached }
         guard let baseURL = runtimeStringsBaseURL else { return nil }
         let url = baseURL.appendingPathComponent("RuntimeStrings.\(locale).json")
-        guard let data = try? Data(contentsOf: url), let dict = try? JSONDecoder().decode([String: String].self, from: data) else { return nil }
+        guard let data = try? Data(contentsOf: url), let dict = try? JSONDecoder().decode([String: String].self, from: data) else {
+            return nil
+        }
         loadedLocaleDicts[locale] = dict
         return dict
     }

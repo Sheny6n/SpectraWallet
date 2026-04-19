@@ -22,21 +22,6 @@ extension AppCorePathPreset {
     }
 }
 
-extension WalletDerivationRequestedOutputs {
-    init(jsonValues: [String]) {
-        var values: WalletDerivationRequestedOutputs = []
-        for value in jsonValues {
-            switch value {
-            case "address": values.insert(.address)
-            case "publicKey": values.insert(.publicKey)
-            case "privateKey": values.insert(.privateKey)
-            default: break
-            }
-        }
-        self = values
-    }
-}
-
 enum WalletDerivationPresetCatalog {
     nonisolated static let all: [WalletDerivationChainPreset] = load()
     nonisolated static let requestCompilationAll: [WalletDerivationRequestCompilationPreset] = loadRequestCompilation()

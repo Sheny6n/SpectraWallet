@@ -1,24 +1,24 @@
 import Foundation
-import Combine
 
 @MainActor
-final class SendPreviewStore: ObservableObject {
-    @Published var ethereumSendPreview: EthereumSendPreview?
-    @Published var bitcoinSendPreview: BitcoinSendPreview?
-    @Published var bitcoinCashSendPreview: BitcoinSendPreview?
-    @Published var bitcoinSVSendPreview: BitcoinSendPreview?
-    @Published var litecoinSendPreview: BitcoinSendPreview?
-    @Published var dogecoinSendPreview: DogecoinSendPreview?
-    @Published var tronSendPreview: TronSendPreview?
-    @Published var solanaSendPreview: SolanaSendPreview?
-    @Published var xrpSendPreview: XrpSendPreview?
-    @Published var stellarSendPreview: StellarSendPreview?
-    @Published var moneroSendPreview: MoneroSendPreview?
-    @Published var cardanoSendPreview: CardanoSendPreview?
-    @Published var suiSendPreview: SuiSendPreview?
-    @Published var aptosSendPreview: AptosSendPreview?
-    @Published var tonSendPreview: TonSendPreview?
-    @Published var icpSendPreview: IcpSendPreview?
-    @Published var nearSendPreview: NearSendPreview?
-    @Published var polkadotSendPreview: PolkadotSendPreview?
+@Observable
+final class SendPreviewStore {
+    var ethereumSendPreview: EthereumSendPreview?
+    var bitcoinSendPreview: BitcoinSendPreview?
+    var bitcoinCashSendPreview: BitcoinSendPreview?
+    var bitcoinSVSendPreview: BitcoinSendPreview?
+    var litecoinSendPreview: BitcoinSendPreview?
+    var dogecoinSendPreview: DogecoinSendPreview?
+    var tronSendPreview: TronSendPreview?
+    var solanaSendPreview: SolanaSendPreview?
+    var xrpSendPreview: XrpSendPreview?
+    var stellarSendPreview: StellarSendPreview?
+    var moneroSendPreview: MoneroSendPreview?
+    var cardanoSendPreview: CardanoSendPreview?
+    var suiSendPreview: SuiSendPreview?
+    var aptosSendPreview: AptosSendPreview?
+    var tonSendPreview: TonSendPreview?
+    var icpSendPreview: IcpSendPreview?
+    var nearSendPreview: NearSendPreview?
+    var polkadotSendPreview: PolkadotSendPreview?
 }

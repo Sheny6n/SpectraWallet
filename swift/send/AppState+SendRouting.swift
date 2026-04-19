@@ -51,7 +51,8 @@ extension AppState {
         case .near: await refreshNearSendPreview()
         case .polkadot: await refreshPolkadotSendPreview()
         case nil: break
-        }}
+        }
+    }
     private func plannedPreviewKind(for coin: Coin) -> SendPreviewKind? {
         let request = SendPreviewRoutingRequest(
             asset: rustSendAssetRoutingInput(for: coin)
@@ -62,7 +63,8 @@ extension AppState {
     }
     private func rustSendAssetRoutingInput(for coin: Coin) -> SendAssetRoutingInput {
         SendAssetRoutingInput(
-            chainName: coin.chainName, symbol: coin.symbol, isEvmChain: isEVMChain(coin.chainName), supportsSolanaSendCoin: isSupportedSolanaSendCoin(coin), supportsNearTokenSend: isSupportedNearTokenSend(coin)
+            chainName: coin.chainName, symbol: coin.symbol, isEvmChain: isEVMChain(coin.chainName),
+            supportsSolanaSendCoin: isSupportedSolanaSendCoin(coin), supportsNearTokenSend: isSupportedNearTokenSend(coin)
         )
     }
     private func resetAllSendPreviews() {
@@ -159,5 +161,6 @@ extension AppState {
         if activePreview != .polkadot {
             polkadotSendPreview = nil
             isPreparingPolkadotSend = false
-        }}
+        }
+    }
 }

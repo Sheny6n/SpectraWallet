@@ -15,19 +15,28 @@ final class SendTransactionLiveActivityManager {
         let startedAt = Date()
         let content = ActivityContent<SendTransactionLiveActivityAttributes.ContentState>(
             state: SendTransactionLiveActivityAttributes.ContentState(
-                phase: .sending, walletName: walletName, chainName: chainName, symbol: symbol, amountText: amountText, statusText: "Broadcasting", detailText: "Sending to \(previewText(for: destinationAddress))", destinationPreview: previewText(for: destinationAddress), transactionHashPreview: nil, startedAt: startedAt
+                phase: .sending, walletName: walletName, chainName: chainName, symbol: symbol, amountText: amountText,
+                statusText: "Broadcasting", detailText: "Sending to \(previewText(for: destinationAddress))",
+                destinationPreview: previewText(for: destinationAddress), transactionHashPreview: nil, startedAt: startedAt
             ), staleDate: Date().addingTimeInterval(300), relevanceScore: 100
         )
         do {
             currentActivity = try Activity.request(attributes: attributes, content: content, pushType: nil, style: .standard)
         } catch {
             currentActivity = nil
-        }}
-    func complete(walletName: String, transactionHash: String?, chainName: String, symbol: String, amountText: String, destinationAddress: String) async {
+        }
+    }
+    func complete(
+        walletName: String, transactionHash: String?, chainName: String, symbol: String, amountText: String, destinationAddress: String
+    ) async {
         guard let currentActivity else { return }
         let content = ActivityContent<SendTransactionLiveActivityAttributes.ContentState>(
             state: SendTransactionLiveActivityAttributes.ContentState(
-                phase: .complete, walletName: walletName, chainName: chainName, symbol: symbol, amountText: amountText, statusText: "Broadcast Sent", detailText: transactionHash.flatMap { "Hash \(previewText(for: $0))" } ?? "Waiting for network indexing", destinationPreview: previewText(for: destinationAddress), transactionHashPreview: previewText(for: transactionHash), startedAt: currentActivity.content.state.startedAt
+                phase: .complete, walletName: walletName, chainName: chainName, symbol: symbol, amountText: amountText,
+                statusText: "Broadcast Sent",
+                detailText: transactionHash.flatMap { "Hash \(previewText(for: $0))" } ?? "Waiting for network indexing",
+                destinationPreview: previewText(for: destinationAddress), transactionHashPreview: previewText(for: transactionHash),
+                startedAt: currentActivity.content.state.startedAt
             ), staleDate: Date().addingTimeInterval(90), relevanceScore: 100
         )
         await currentActivity.update(content)
@@ -38,10 +47,15 @@ final class SendTransactionLiveActivityManager {
         guard let currentActivity else { return }
         let currentState = currentActivity.content.state
         let trimmedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let detailText = trimmedMessage.isEmpty ? "The send flow was cancelled before broadcast finished." : previewText(for: trimmedMessage, maxLength: 54)
+        let detailText =
+            trimmedMessage.isEmpty
+            ? "The send flow was cancelled before broadcast finished." : previewText(for: trimmedMessage, maxLength: 54)
         let content = ActivityContent<SendTransactionLiveActivityAttributes.ContentState>(
             state: SendTransactionLiveActivityAttributes.ContentState(
-                phase: .failed, walletName: currentState.walletName, chainName: currentState.chainName, symbol: currentState.symbol, amountText: currentState.amountText, statusText: trimmedMessage.isEmpty ? "Send Cancelled" : "Send Failed", detailText: detailText, destinationPreview: currentState.destinationPreview, transactionHashPreview: nil, startedAt: currentState.startedAt
+                phase: .failed, walletName: currentState.walletName, chainName: currentState.chainName, symbol: currentState.symbol,
+                amountText: currentState.amountText, statusText: trimmedMessage.isEmpty ? "Send Cancelled" : "Send Failed",
+                detailText: detailText, destinationPreview: currentState.destinationPreview, transactionHashPreview: nil,
+                startedAt: currentState.startedAt
             ), staleDate: Date().addingTimeInterval(20), relevanceScore: 1
         )
         await currentActivity.update(content)

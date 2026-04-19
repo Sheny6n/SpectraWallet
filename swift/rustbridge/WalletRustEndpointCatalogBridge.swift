@@ -10,42 +10,26 @@ enum WalletRustEndpointCatalogBridgeError: LocalizedError {
         case .invalidPayload(let message): return message
         }}
 }
-struct AppEndpointGroupedSettingsEntry: Sendable {
-    let title: String
-    let endpoints: [String]
-}
-struct AppEndpointDiagnosticsCheck: Sendable {
-    let endpoint: String
-    let probeURL: String
-}
-struct AppEndpointExplorerEntry: Sendable {
-    let endpoint: String
-    let label: String
-}
+typealias AppEndpointGroupedSettingsEntry = AppCoreGroupedSettingsEntry
+typealias AppEndpointDiagnosticsCheck = AppCoreDiagnosticsCheck
+typealias AppEndpointExplorerEntry = AppCoreExplorerEntry
+typealias AppEndpointRecord = AppCoreEndpointRecord
 enum WalletRustEndpointCatalogBridge {
     nonisolated static func endpoint(_ id: String) throws -> String { try appCoreEndpointForId(id: id) }
     nonisolated static func endpoints(for ids: [String]) throws -> [String] { try appCoreEndpointsForIds(ids: ids) }
     nonisolated static func endpointRecords(for chainName: String, roles: Set<AppEndpointRole>, settingsVisibleOnly: Bool) throws -> [AppEndpointRecord] {
-        try decodePayload(
-            [AppEndpointRecord].self, json: try appCoreEndpointRecordsForChainJson(
-                chainName: chainName, roleMask: roleMask(for: roles), settingsVisibleOnly: settingsVisibleOnly
-            )
+        try appCoreEndpointRecordsForChain(
+            chainName: chainName, roleMask: roleMask(for: roles), settingsVisibleOnly: settingsVisibleOnly
         )
     }
     nonisolated static func groupedSettingsEntries(for chainName: String) throws -> [AppEndpointGroupedSettingsEntry] {
-        try appCoreGroupedSettingsEntries(chainName: chainName).map {
-            AppEndpointGroupedSettingsEntry(title: $0.title, endpoints: $0.endpoints)
-        }
+        try appCoreGroupedSettingsEntries(chainName: chainName)
     }
     nonisolated static func diagnosticsChecks(for chainName: String) throws -> [AppEndpointDiagnosticsCheck] {
-        try appCoreDiagnosticsChecks(chainName: chainName).map {
-            AppEndpointDiagnosticsCheck(endpoint: $0.endpoint, probeURL: $0.probeUrl)
-        }
+        try appCoreDiagnosticsChecks(chainName: chainName)
     }
     nonisolated static func transactionExplorerEntry(for chainName: String) throws -> AppEndpointExplorerEntry? {
-        try appCoreTransactionExplorerEntry(chainName: chainName).map {
-            AppEndpointExplorerEntry(endpoint: $0.endpoint, label: $0.label)
-        }
+        try appCoreTransactionExplorerEntry(chainName: chainName)
     }
     nonisolated static func bitcoinEsploraBaseURLs(for networkMode: BitcoinNetworkMode) throws -> [String] { try appCoreBitcoinEsploraBaseUrls(network: networkMode.rawValue) }
     nonisolated static func bitcoinWalletStoreDefaultBaseURLs(for networkMode: BitcoinNetworkMode) throws -> [String] { try appCoreBitcoinWalletStoreDefaultBaseUrls(network: networkMode.rawValue) }
@@ -71,13 +55,6 @@ enum WalletRustEndpointCatalogBridge {
             return AppChainDescriptor(id: chainID, chainName: $0.chainName, shortLabel: $0.shortLabel, nativeSymbol: $0.nativeSymbol, searchKeywords: $0.searchKeywords, supportsDiagnostics: $0.supportsDiagnostics, supportsEndpointCatalog: $0.supportsEndpointCatalog, isEVM: $0.isEvm)
         }
     }
-    nonisolated private static func decodePayload<T: Decodable>(_ type: T.Type, json: String) throws -> T {
-        guard let payload = json.data(using: .utf8), !payload.isEmpty else { throw WalletRustEndpointCatalogBridgeError.invalidPayload("Rust endpoint catalog returned an empty payload.") }
-        do {
-            return try JSONDecoder().decode(type, from: payload)
-        } catch {
-            throw WalletRustEndpointCatalogBridgeError.invalidPayload(error.localizedDescription)
-        }}
     nonisolated private static func roleMask(for roles: Set<AppEndpointRole>) -> UInt32 {
         coreEndpointRoleMask(roles: roles.map(\.rawValue))
     }
@@ -93,48 +70,6 @@ enum AppEndpointRole: String, Hashable, CaseIterable, Decodable {
     case rpc
     case explorer
     case backend
-}
-struct AppEndpointRecord: Hashable, Decodable {
-    let id: String
-    let chainName: String
-    let groupTitle: String
-    let providerID: String
-    let endpoint: String
-    let roles: Set<AppEndpointRole>
-    let probeURL: String?
-    let settingsVisible: Bool
-    let explorerLabel: String?
-    init(
-        id: String, chainName: String, groupTitle: String? = nil, providerID: String, endpoint: String, roles: Set<AppEndpointRole>, probeURL: String? = nil, settingsVisible: Bool = true, explorerLabel: String? = nil
-    ) {
-        self.id = id
-        self.chainName = chainName
-        self.groupTitle = groupTitle ?? chainName
-        self.providerID = providerID
-        self.endpoint = endpoint
-        self.roles = roles
-        self.probeURL = probeURL
-        self.settingsVisible = settingsVisible
-        self.explorerLabel = explorerLabel
-    }
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case chainName
-        case groupTitle
-        case providerID
-        case endpoint
-        case roles
-        case probeURL
-        case settingsVisible
-        case explorerLabel
-    }
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let chainName = try container.decode(String.self, forKey: .chainName)
-        self.init(
-            id: try container.decode(String.self, forKey: .id), chainName: chainName, groupTitle: try container.decodeIfPresent(String.self, forKey: .groupTitle) ?? chainName, providerID: try container.decode(String.self, forKey: .providerID), endpoint: try container.decode(String.self, forKey: .endpoint), roles: try container.decode(Set<AppEndpointRole>.self, forKey: .roles), probeURL: try container.decodeIfPresent(String.self, forKey: .probeURL), settingsVisible: try container.decode(Bool.self, forKey: .settingsVisible), explorerLabel: try container.decodeIfPresent(String.self, forKey: .explorerLabel)
-        )
-    }
 }
 nonisolated enum AppEndpointDirectory {
     static func endpoint(_ id: String) -> String {
@@ -166,7 +101,7 @@ nonisolated enum AppEndpointDirectory {
     static func settingsEndpoints(for chainName: String) -> [String] { groupedSettingsEntries(for: chainName).flatMap(\.endpoints) }
     static func diagnosticsChecks(for chainName: String) -> [(endpoint: String, probeURL: String)] {
         do {
-            return try WalletRustEndpointCatalogBridge.diagnosticsChecks(for: chainName).map { (endpoint: $0.endpoint, probeURL: $0.probeURL) }
+            return try WalletRustEndpointCatalogBridge.diagnosticsChecks(for: chainName).map { (endpoint: $0.endpoint, probeURL: $0.probeUrl) }
         } catch {
             preconditionFailure("Rust diagnostics checks failed for \(chainName): \(error.localizedDescription)")
         }}

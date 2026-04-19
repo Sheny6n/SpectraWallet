@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 enum ChainFeePriorityOption: String, CaseIterable, Codable, Identifiable {
     case economy
@@ -13,7 +13,8 @@ enum ChainFeePriorityOption: String, CaseIterable, Codable, Identifiable {
         case .economy: return "Economy"
         case .normal: return "Normal"
         case .priority: return "Priority"
-        }}
+        }
+    }
 }
 struct SendPreviewDetails: Equatable {
     let spendableBalance: Double?
@@ -33,38 +34,15 @@ struct SendPreviewDetails: Equatable {
 }
 typealias Coin = CoreCoin
 extension CoreCoin: Identifiable {
-    nonisolated(unsafe) fileprivate static var colorOverrides: [String: Color] = [:]
-    var color: Color {
-        get { displayColor }
-        set { Self.colorOverrides[holdingKey] = newValue }
-    }
-    var displayColor: Color {
-        Self.colorOverrides[holdingKey] ?? Self.defaultColor(forSymbol: symbol)
-    }
-    private static func defaultColor(forSymbol symbol: String) -> Color {
-        switch symbol {
-        case "BTC", "BCH", "BSV": return .orange
-        case "LTC": return .gray
-        case "ETH": return .blue
-        case "ETC": return .green
-        case "ARB": return .cyan
-        case "OP", "AVAX": return .red
-        case "SOL", "XMR", "ICP", "NEAR", "ADA": return .indigo
-        case "BNB": return .yellow
-        case "HYPE", "SUI": return .mint
-        case "XLM", "TRX": return .teal
-        case "DOGE": return .brown
-        case "XRP", "APT": return .cyan
-        case "TON": return .blue
-        case "DOT": return .pink
-        default: return .gray
-        }
-    }
+    var color: Color { Coin.displayColor(for: symbol) }
     nonisolated var valueUSD: Double { amount * priceUsd }
-    static func makeCustom(name: String, symbol: String, marketDataId: String, coinGeckoId: String, chainName: String, tokenStandard: String, contractAddress: String?, amount: Double, priceUsd: Double, mark: String, color: Color) -> Coin {
-        let coin = CoreCoin(id: UUID().uuidString, name: name, symbol: symbol, marketDataId: marketDataId, coinGeckoId: coinGeckoId, chainName: chainName, tokenStandard: tokenStandard, contractAddress: contractAddress, amount: amount, priceUsd: priceUsd, mark: mark)
-        Self.colorOverrides["\(chainName)|\(symbol)"] = color
-        return coin
+    static func makeCustom(
+        name: String, symbol: String, marketDataId: String, coinGeckoId: String, chainName: String, tokenStandard: String,
+        contractAddress: String?, amount: Double, priceUsd: Double, mark: String
+    ) -> Coin {
+        CoreCoin(
+            id: UUID().uuidString, name: name, symbol: symbol, marketDataId: marketDataId, coinGeckoId: coinGeckoId, chainName: chainName,
+            tokenStandard: tokenStandard, contractAddress: contractAddress, amount: amount, priceUsd: priceUsd, mark: mark)
     }
     var hasVisibleBalance: Bool { amount > 0 }
     nonisolated var holdingKey: String { "\(chainName)|\(symbol)" }
@@ -92,7 +70,7 @@ extension CoreCoin: Identifiable {
     }
 }
 typealias ImportedWallet = CoreImportedWallet
-extension CoreImportedWallet: Identifiable { }
+extension CoreImportedWallet: Identifiable {}
 extension CoreImportedWallet {
     nonisolated var totalBalance: Double { holdings.reduce(0) { $0 + $1.valueUSD } }
     var walletSummary: WalletSummary {
@@ -112,8 +90,13 @@ extension CoreImportedWallet {
             return seedDerivationPaths.path(for: sdChain)
         }()
         return WalletSummary(
-            id: id, name: name, isWatchOnly: false, chainName: chain, includeInPortfolioTotal: includeInPortfolioTotal, networkMode: networkMode, xpub: bitcoinXpub, derivationPreset: seedDerivationPreset.rawValue, derivationPath: derivationPath, holdings: holdings.map { coin in
-                AssetHolding(name: coin.name, symbol: coin.symbol, marketDataId: coin.marketDataId, coinGeckoId: coin.coinGeckoId, chainName: coin.chainName, tokenStandard: coin.tokenStandard, contractAddress: coin.contractAddress, amount: coin.amount, priceUsd: coin.priceUsd)
+            id: id, name: name, isWatchOnly: false, chainName: chain, includeInPortfolioTotal: includeInPortfolioTotal,
+            networkMode: networkMode, xpub: bitcoinXpub, derivationPreset: seedDerivationPreset.rawValue, derivationPath: derivationPath,
+            holdings: holdings.map { coin in
+                AssetHolding(
+                    name: coin.name, symbol: coin.symbol, marketDataId: coin.marketDataId, coinGeckoId: coin.coinGeckoId,
+                    chainName: coin.chainName, tokenStandard: coin.tokenStandard, contractAddress: coin.contractAddress,
+                    amount: coin.amount, priceUsd: coin.priceUsd)
             }, addresses: []
         )
     }
@@ -234,7 +217,8 @@ extension SeedDerivationChain {
             )
         } catch {
             fatalError("Rust derivation path resolution failed for \(rawValue): \(error.localizedDescription)")
-        }}
+        }
+    }
 }
 typealias SeedDerivationPaths = CoreSeedDerivationPaths
 extension CoreSeedDerivationPaths {
@@ -244,8 +228,17 @@ extension CoreSeedDerivationPaths {
         set { bitcoinSv = newValue }
     }
     static var defaults: CoreSeedDerivationPaths { loadRustDefaultPreset() }
-    init(isCustomEnabled: Bool, bitcoin: String, bitcoinCash: String, bitcoinSV: String, litecoin: String, dogecoin: String, ethereum: String, ethereumClassic: String, arbitrum: String, optimism: String, avalanche: String, hyperliquid: String, tron: String, solana: String, stellar: String, xrp: String, cardano: String, sui: String, aptos: String, ton: String, internetComputer: String, near: String, polkadot: String) {
-        self.init(isCustomEnabled: isCustomEnabled, bitcoin: bitcoin, bitcoinCash: bitcoinCash, bitcoinSv: bitcoinSV, litecoin: litecoin, dogecoin: dogecoin, ethereum: ethereum, ethereumClassic: ethereumClassic, arbitrum: arbitrum, optimism: optimism, avalanche: avalanche, hyperliquid: hyperliquid, tron: tron, solana: solana, stellar: stellar, xrp: xrp, cardano: cardano, sui: sui, aptos: aptos, ton: ton, internetComputer: internetComputer, near: near, polkadot: polkadot)
+    init(
+        isCustomEnabled: Bool, bitcoin: String, bitcoinCash: String, bitcoinSV: String, litecoin: String, dogecoin: String,
+        ethereum: String, ethereumClassic: String, arbitrum: String, optimism: String, avalanche: String, hyperliquid: String, tron: String,
+        solana: String, stellar: String, xrp: String, cardano: String, sui: String, aptos: String, ton: String, internetComputer: String,
+        near: String, polkadot: String
+    ) {
+        self.init(
+            isCustomEnabled: isCustomEnabled, bitcoin: bitcoin, bitcoinCash: bitcoinCash, bitcoinSv: bitcoinSV, litecoin: litecoin,
+            dogecoin: dogecoin, ethereum: ethereum, ethereumClassic: ethereumClassic, arbitrum: arbitrum, optimism: optimism,
+            avalanche: avalanche, hyperliquid: hyperliquid, tron: tron, solana: solana, stellar: stellar, xrp: xrp, cardano: cardano,
+            sui: sui, aptos: aptos, ton: ton, internetComputer: internetComputer, near: near, polkadot: polkadot)
     }
     func path(for chain: SeedDerivationChain) -> String {
         switch chain {
@@ -321,7 +314,17 @@ extension CoreSeedDerivationPaths {
     private static func fallbackPaths(for preset: SeedDerivationPreset?) -> CoreSeedDerivationPaths {
         let accountIndex = preset?.accountIndex ?? 0
         return CoreSeedDerivationPaths(
-            isCustomEnabled: false, bitcoin: "m/84'/0'/\(accountIndex)'/0/0", bitcoinCash: "m/44'/145'/\(accountIndex)'/0/0", bitcoinSv: "m/44'/236'/\(accountIndex)'/0/0", litecoin: "m/44'/2'/\(accountIndex)'/0/0", dogecoin: "m/44'/3'/\(accountIndex)'/0/0", ethereum: "m/44'/60'/\(accountIndex)'/0/0", ethereumClassic: "m/44'/61'/\(accountIndex)'/0/0", arbitrum: "m/44'/60'/\(accountIndex)'/0/0", optimism: "m/44'/60'/\(accountIndex)'/0/0", avalanche: "m/44'/60'/\(accountIndex)'/0/0", hyperliquid: "m/44'/60'/\(accountIndex)'/0/0", tron: "m/44'/195'/\(accountIndex)'/0/0", solana: "m/44'/501'/\(accountIndex)'/0'", stellar: "m/44'/148'/\(accountIndex)'", xrp: "m/44'/144'/\(accountIndex)'/0/0", cardano: "m/1852'/1815'/\(accountIndex)'/0/0", sui: "m/44'/784'/\(accountIndex)'/0'/0'", aptos: "m/44'/637'/\(accountIndex)'/0'/0'", ton: "m/44'/607'/\(accountIndex)'/0/0", internetComputer: "m/44'/223'/\(accountIndex)'/0/0", near: "m/44'/397'/\(accountIndex)'", polkadot: "m/44'/354'/\(accountIndex)'"
+            isCustomEnabled: false, bitcoin: "m/84'/0'/\(accountIndex)'/0/0", bitcoinCash: "m/44'/145'/\(accountIndex)'/0/0",
+            bitcoinSv: "m/44'/236'/\(accountIndex)'/0/0", litecoin: "m/44'/2'/\(accountIndex)'/0/0",
+            dogecoin: "m/44'/3'/\(accountIndex)'/0/0", ethereum: "m/44'/60'/\(accountIndex)'/0/0",
+            ethereumClassic: "m/44'/61'/\(accountIndex)'/0/0", arbitrum: "m/44'/60'/\(accountIndex)'/0/0",
+            optimism: "m/44'/60'/\(accountIndex)'/0/0", avalanche: "m/44'/60'/\(accountIndex)'/0/0",
+            hyperliquid: "m/44'/60'/\(accountIndex)'/0/0", tron: "m/44'/195'/\(accountIndex)'/0/0",
+            solana: "m/44'/501'/\(accountIndex)'/0'", stellar: "m/44'/148'/\(accountIndex)'", xrp: "m/44'/144'/\(accountIndex)'/0/0",
+            cardano: "m/1852'/1815'/\(accountIndex)'/0/0", sui: "m/44'/784'/\(accountIndex)'/0'/0'",
+            aptos: "m/44'/637'/\(accountIndex)'/0'/0'", ton: "m/44'/607'/\(accountIndex)'/0/0",
+            internetComputer: "m/44'/223'/\(accountIndex)'/0/0", near: "m/44'/397'/\(accountIndex)'",
+            polkadot: "m/44'/354'/\(accountIndex)'"
         )
     }
     func toDictionary() -> [String: String] {
@@ -389,7 +392,8 @@ struct PriceAlertRule: Identifiable {
     var isEnabled: Bool
     var hasTriggered: Bool
     init(
-        id: UUID = UUID(), holdingKey: String, assetName: String, symbol: String, chainName: String, targetPrice: Double, condition: PriceAlertCondition, isEnabled: Bool = true, hasTriggered: Bool = false
+        id: UUID = UUID(), holdingKey: String, assetName: String, symbol: String, chainName: String, targetPrice: Double,
+        condition: PriceAlertCondition, isEnabled: Bool = true, hasTriggered: Bool = false
     ) {
         self.id = id
         self.holdingKey = holdingKey
@@ -473,7 +477,16 @@ nonisolated struct TransactionRecord: Identifiable, Equatable, Sendable {
     let transactionHistorySource: String?
     let createdAt: Date
     init(
-        id: UUID = UUID(), walletID: String? = nil, kind: TransactionKind, status: TransactionStatus, walletName: String, assetName: String, symbol: String, chainName: String, amount: Double, address: String, transactionHash: String? = nil, ethereumNonce: Int? = nil, receiptBlockNumber: Int? = nil, receiptGasUsed: String? = nil, receiptEffectiveGasPriceGwei: Double? = nil, receiptNetworkFeeEth: Double? = nil, feePriorityRaw: String? = nil, feeRateDescription: String? = nil, confirmationCount: Int? = nil, dogecoinConfirmedNetworkFeeDoge: Double? = nil, dogecoinConfirmations: Int? = nil, dogecoinFeePriorityRaw: String? = nil, dogecoinEstimatedFeeRateDogePerKb: Double? = nil, usedChangeOutput: Bool? = nil, dogecoinUsedChangeOutput: Bool? = nil, sourceDerivationPath: String? = nil, changeDerivationPath: String? = nil, sourceAddress: String? = nil, changeAddress: String? = nil, dogecoinRawTransactionHex: String? = nil, signedTransactionPayload: String? = nil, signedTransactionPayloadFormat: String? = nil, failureReason: String? = nil, transactionHistorySource: String? = nil, createdAt: Date = Date()
+        id: UUID = UUID(), walletID: String? = nil, kind: TransactionKind, status: TransactionStatus, walletName: String, assetName: String,
+        symbol: String, chainName: String, amount: Double, address: String, transactionHash: String? = nil, ethereumNonce: Int? = nil,
+        receiptBlockNumber: Int? = nil, receiptGasUsed: String? = nil, receiptEffectiveGasPriceGwei: Double? = nil,
+        receiptNetworkFeeEth: Double? = nil, feePriorityRaw: String? = nil, feeRateDescription: String? = nil,
+        confirmationCount: Int? = nil, dogecoinConfirmedNetworkFeeDoge: Double? = nil, dogecoinConfirmations: Int? = nil,
+        dogecoinFeePriorityRaw: String? = nil, dogecoinEstimatedFeeRateDogePerKb: Double? = nil, usedChangeOutput: Bool? = nil,
+        dogecoinUsedChangeOutput: Bool? = nil, sourceDerivationPath: String? = nil, changeDerivationPath: String? = nil,
+        sourceAddress: String? = nil, changeAddress: String? = nil, dogecoinRawTransactionHex: String? = nil,
+        signedTransactionPayload: String? = nil, signedTransactionPayloadFormat: String? = nil, failureReason: String? = nil,
+        transactionHistorySource: String? = nil, createdAt: Date = Date()
     ) {
         self.id = id
         self.walletID = walletID
@@ -513,7 +526,9 @@ nonisolated struct TransactionRecord: Identifiable, Equatable, Sendable {
     }
     @MainActor var assetIdentifier: String? {
         let normalizedSymbol = symbol.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if let nativeDescriptor = Coin.nativeChainIconDescriptor(symbol: symbol, chainName: chainName) { return nativeDescriptor.assetIdentifier }
+        if let nativeDescriptor = Coin.nativeChainIconDescriptor(symbol: symbol, chainName: chainName) {
+            return nativeDescriptor.assetIdentifier
+        }
         guard let chainSlug = transactionIconChainSlug else { return nil }
         guard !normalizedSymbol.isEmpty else { return nil }
         return "token:\(chainSlug):\(normalizedSymbol)"
@@ -527,7 +542,8 @@ nonisolated struct TransactionRecord: Identifiable, Equatable, Sendable {
         case "Tron": return "tron"
         case "Solana": return "solana"
         default: return nil
-        }}
+        }
+    }
 }
 enum SendBroadcastVerificationStatus: Equatable {
     case verified
@@ -538,18 +554,47 @@ enum SendBroadcastVerificationStatus: Equatable {
 extension ImportedWallet {
     @MainActor init(snapshot: PersistedWallet) {
         self.init(
-            id: snapshot.id, name: snapshot.name, bitcoinNetworkMode: snapshot.bitcoinNetworkMode, dogecoinNetworkMode: snapshot.dogecoinNetworkMode, bitcoinAddress: snapshot.bitcoinAddress, bitcoinXpub: snapshot.bitcoinXpub, bitcoinCashAddress: snapshot.bitcoinCashAddress, bitcoinSvAddress: snapshot.bitcoinSvAddress, litecoinAddress: snapshot.litecoinAddress, dogecoinAddress: snapshot.dogecoinAddress, ethereumAddress: snapshot.ethereumAddress, tronAddress: snapshot.tronAddress, solanaAddress: snapshot.solanaAddress, stellarAddress: snapshot.stellarAddress, xrpAddress: snapshot.xrpAddress, moneroAddress: snapshot.moneroAddress, cardanoAddress: snapshot.cardanoAddress, suiAddress: snapshot.suiAddress, aptosAddress: snapshot.aptosAddress, tonAddress: snapshot.tonAddress, icpAddress: snapshot.icpAddress, nearAddress: snapshot.nearAddress, polkadotAddress: snapshot.polkadotAddress, seedDerivationPreset: snapshot.seedDerivationPreset, seedDerivationPaths: snapshot.seedDerivationPaths, selectedChain: snapshot.selectedChain, holdings: snapshot.holdings.map(Coin.init(snapshot:)), includeInPortfolioTotal: snapshot.includeInPortfolioTotal
+            id: snapshot.id, name: snapshot.name, bitcoinNetworkMode: snapshot.bitcoinNetworkMode,
+            dogecoinNetworkMode: snapshot.dogecoinNetworkMode, bitcoinAddress: snapshot.bitcoinAddress, bitcoinXpub: snapshot.bitcoinXpub,
+            bitcoinCashAddress: snapshot.bitcoinCashAddress, bitcoinSvAddress: snapshot.bitcoinSvAddress,
+            litecoinAddress: snapshot.litecoinAddress, dogecoinAddress: snapshot.dogecoinAddress, ethereumAddress: snapshot.ethereumAddress,
+            tronAddress: snapshot.tronAddress, solanaAddress: snapshot.solanaAddress, stellarAddress: snapshot.stellarAddress,
+            xrpAddress: snapshot.xrpAddress, moneroAddress: snapshot.moneroAddress, cardanoAddress: snapshot.cardanoAddress,
+            suiAddress: snapshot.suiAddress, aptosAddress: snapshot.aptosAddress, tonAddress: snapshot.tonAddress,
+            icpAddress: snapshot.icpAddress, nearAddress: snapshot.nearAddress, polkadotAddress: snapshot.polkadotAddress,
+            seedDerivationPreset: snapshot.seedDerivationPreset, seedDerivationPaths: snapshot.seedDerivationPaths,
+            selectedChain: snapshot.selectedChain, holdings: snapshot.holdings.map(Coin.init(snapshot:)),
+            includeInPortfolioTotal: snapshot.includeInPortfolioTotal
         )
     }
     var persistedSnapshot: PersistedWallet {
         PersistedWallet(
-            id: id, name: name, bitcoinNetworkMode: bitcoinNetworkMode, dogecoinNetworkMode: dogecoinNetworkMode, bitcoinAddress: bitcoinAddress, bitcoinXpub: bitcoinXpub, bitcoinCashAddress: bitcoinCashAddress, bitcoinSvAddress: bitcoinSvAddress, litecoinAddress: litecoinAddress, dogecoinAddress: dogecoinAddress, ethereumAddress: ethereumAddress, tronAddress: tronAddress, solanaAddress: solanaAddress, stellarAddress: stellarAddress, xrpAddress: xrpAddress, moneroAddress: moneroAddress, cardanoAddress: cardanoAddress, suiAddress: suiAddress, aptosAddress: aptosAddress, tonAddress: tonAddress, icpAddress: icpAddress, nearAddress: nearAddress, polkadotAddress: polkadotAddress, seedDerivationPreset: seedDerivationPreset, seedDerivationPaths: seedDerivationPaths, selectedChain: selectedChain, holdings: holdings.map(\.persistedSnapshot), includeInPortfolioTotal: includeInPortfolioTotal
+            id: id, name: name, bitcoinNetworkMode: bitcoinNetworkMode, dogecoinNetworkMode: dogecoinNetworkMode,
+            bitcoinAddress: bitcoinAddress, bitcoinXpub: bitcoinXpub, bitcoinCashAddress: bitcoinCashAddress,
+            bitcoinSvAddress: bitcoinSvAddress, litecoinAddress: litecoinAddress, dogecoinAddress: dogecoinAddress,
+            ethereumAddress: ethereumAddress, tronAddress: tronAddress, solanaAddress: solanaAddress, stellarAddress: stellarAddress,
+            xrpAddress: xrpAddress, moneroAddress: moneroAddress, cardanoAddress: cardanoAddress, suiAddress: suiAddress,
+            aptosAddress: aptosAddress, tonAddress: tonAddress, icpAddress: icpAddress, nearAddress: nearAddress,
+            polkadotAddress: polkadotAddress, seedDerivationPreset: seedDerivationPreset, seedDerivationPaths: seedDerivationPaths,
+            selectedChain: selectedChain, holdings: holdings.map(\.persistedSnapshot), includeInPortfolioTotal: includeInPortfolioTotal
         )
     }
 }
 extension TransactionRecord {
     func withRebroadcastUpdate(status: TransactionStatus, transactionHash: String?, failureReason: String? = nil) -> TransactionRecord {
-        TransactionRecord(id: id, walletID: walletID, kind: kind, status: status, walletName: walletName, assetName: assetName, symbol: symbol, chainName: chainName, amount: amount, address: address, transactionHash: transactionHash, ethereumNonce: ethereumNonce, receiptBlockNumber: receiptBlockNumber, receiptGasUsed: receiptGasUsed, receiptEffectiveGasPriceGwei: receiptEffectiveGasPriceGwei, receiptNetworkFeeEth: receiptNetworkFeeEth, feePriorityRaw: feePriorityRaw, feeRateDescription: feeRateDescription, confirmationCount: confirmationCount, dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge, dogecoinConfirmations: dogecoinConfirmations, dogecoinFeePriorityRaw: dogecoinFeePriorityRaw, dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDogePerKb, usedChangeOutput: usedChangeOutput, dogecoinUsedChangeOutput: dogecoinUsedChangeOutput, sourceDerivationPath: sourceDerivationPath, changeDerivationPath: changeDerivationPath, sourceAddress: sourceAddress, changeAddress: changeAddress, dogecoinRawTransactionHex: dogecoinRawTransactionHex, signedTransactionPayload: signedTransactionPayload, signedTransactionPayloadFormat: signedTransactionPayloadFormat, failureReason: failureReason, transactionHistorySource: transactionHistorySource, createdAt: createdAt)
+        TransactionRecord(
+            id: id, walletID: walletID, kind: kind, status: status, walletName: walletName, assetName: assetName, symbol: symbol,
+            chainName: chainName, amount: amount, address: address, transactionHash: transactionHash, ethereumNonce: ethereumNonce,
+            receiptBlockNumber: receiptBlockNumber, receiptGasUsed: receiptGasUsed,
+            receiptEffectiveGasPriceGwei: receiptEffectiveGasPriceGwei, receiptNetworkFeeEth: receiptNetworkFeeEth,
+            feePriorityRaw: feePriorityRaw, feeRateDescription: feeRateDescription, confirmationCount: confirmationCount,
+            dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge, dogecoinConfirmations: dogecoinConfirmations,
+            dogecoinFeePriorityRaw: dogecoinFeePriorityRaw, dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDogePerKb,
+            usedChangeOutput: usedChangeOutput, dogecoinUsedChangeOutput: dogecoinUsedChangeOutput,
+            sourceDerivationPath: sourceDerivationPath, changeDerivationPath: changeDerivationPath, sourceAddress: sourceAddress,
+            changeAddress: changeAddress, dogecoinRawTransactionHex: dogecoinRawTransactionHex,
+            signedTransactionPayload: signedTransactionPayload, signedTransactionPayloadFormat: signedTransactionPayloadFormat,
+            failureReason: failureReason, transactionHistorySource: transactionHistorySource, createdAt: createdAt)
     }
     @MainActor init?(snapshot: CorePersistedTransactionRecord) {
         guard let resolvedID = UUID(uuidString: snapshot.id) else { return nil }
@@ -637,8 +682,11 @@ extension TransactionRecord {
         switch kind {
         case .send: return String(format: copy.transactionSentTitleFormat, symbol)
         case .receive: return String(format: copy.transactionReceivedTitleFormat, symbol)
-        }}
-    var subtitleText: String { String(format: CommonLocalizationContent.current.transactionSubtitleFormat, assetName, chainName, walletName) }
+        }
+    }
+    var subtitleText: String {
+        String(format: CommonLocalizationContent.current.transactionSubtitleFormat, assetName, chainName, walletName)
+    }
     var historySourceText: String? {
         guard let transactionHistorySource else { return nil }
         let trimmed = transactionHistorySource.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -651,24 +699,28 @@ extension TransactionRecord {
         case "dogecoin.providers": return "DOGE Providers"
         case "rpc": return "RPC"
         default: return trimmed
-        }}
+        }
+    }
     var statusText: String { status.localizedTitle }
     var badgeMark: String {
         switch kind {
         case .send: return "OUT"
         case .receive: return "IN"
-        }}
+        }
+    }
     var badgeColor: Color {
         switch kind {
         case .send: return .red
         case .receive: return .green
-        }}
+        }
+    }
     var statusColor: Color {
         switch status {
         case .pending: return .orange
         case .confirmed: return .mint
         case .failed: return .red
-        }}
+        }
+    }
     var amountText: String? {
         guard amount > 0 else { return nil }
         return String(format: "%.4f %@", amount, symbol)
@@ -689,16 +741,19 @@ extension TransactionRecord {
     var storedFeePriorityText: String? {
         if let feePriorityRaw {
             let trimmed = feePriorityRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed.capitalized }}
+            if !trimmed.isEmpty { return trimmed.capitalized }
+        }
         if let dogecoinFeePriorityRaw {
             let trimmed = dogecoinFeePriorityRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed.capitalized }}
+            if !trimmed.isEmpty { return trimmed.capitalized }
+        }
         return nil
     }
     var storedFeeRateText: String? {
         if let feeRateDescription {
             let trimmed = feeRateDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }}
+            if !trimmed.isEmpty { return trimmed }
+        }
         if let dogecoinEstimatedFeeRateDogePerKb { return String(format: "%.4f DOGE/KB", dogecoinEstimatedFeeRateDogePerKb) }
         return nil
     }
@@ -715,7 +770,8 @@ extension TransactionRecord {
     var rawTransactionHexText: String? {
         if let dogecoinRawTransactionHex {
             let trimmed = dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }}
+            if !trimmed.isEmpty { return trimmed }
+        }
         guard let signedTransactionPayload, let signedTransactionPayloadFormat else { return nil }
         guard signedTransactionPayloadFormat.lowercased().contains("hex") else { return nil }
         let trimmed = signedTransactionPayload.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -731,7 +787,9 @@ extension TransactionRecord {
         if let storedFeePriorityText { parts.append("Fee \(storedFeePriorityText)") }
         if let storedFeeRateText { parts.append(storedFeeRateText) }
         if let storedConfirmationCountText { parts.append(storedConfirmationCountText) }
-        if let usedChangeOutput = usedChangeOutput ?? dogecoinUsedChangeOutput, kind == .send { parts.append(usedChangeOutput ? "change output" : "no change output") }
+        if let usedChangeOutput = usedChangeOutput ?? dogecoinUsedChangeOutput, kind == .send {
+            parts.append(usedChangeOutput ? "change output" : "no change output")
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " • ")
     }
     var dogecoinConfirmationsText: String? {
@@ -750,17 +808,22 @@ extension TransactionRecord {
     var rebroadcastPayload: String? {
         if let signedTransactionPayload {
             let trimmed = signedTransactionPayload.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }}
+            if !trimmed.isEmpty { return trimmed }
+        }
         if let dogecoinRawTransactionHex {
             let trimmed = dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }}
+            if !trimmed.isEmpty { return trimmed }
+        }
         return nil
     }
     var rebroadcastPayloadFormat: String? {
         if let signedTransactionPayloadFormat {
             let trimmed = signedTransactionPayloadFormat.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }}
-        if let dogecoinRawTransactionHex, !dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "dogecoin.raw_hex" }
+            if !trimmed.isEmpty { return trimmed }
+        }
+        if let dogecoinRawTransactionHex, !dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "dogecoin.raw_hex"
+        }
         return nil
     }
     var supportsSignedRebroadcast: Bool { kind == .send && rebroadcastPayload != nil && rebroadcastPayloadFormat != nil }
@@ -769,12 +832,15 @@ extension PriceAlertRule {
     init?(snapshot: CorePersistedPriceAlertRule) {
         guard let resolvedID = UUID(uuidString: snapshot.id) else { return nil }
         self.init(
-            id: resolvedID, holdingKey: snapshot.holdingKey, assetName: snapshot.assetName, symbol: snapshot.symbol, chainName: snapshot.chainName, targetPrice: snapshot.targetPrice, condition: snapshot.condition, isEnabled: snapshot.isEnabled, hasTriggered: snapshot.hasTriggered
+            id: resolvedID, holdingKey: snapshot.holdingKey, assetName: snapshot.assetName, symbol: snapshot.symbol,
+            chainName: snapshot.chainName, targetPrice: snapshot.targetPrice, condition: snapshot.condition, isEnabled: snapshot.isEnabled,
+            hasTriggered: snapshot.hasTriggered
         )
     }
     var persistedSnapshot: CorePersistedPriceAlertRule {
         CorePersistedPriceAlertRule(
-            id: id.uuidString, holdingKey: holdingKey, assetName: assetName, symbol: symbol, chainName: chainName, targetPrice: targetPrice, condition: condition, isEnabled: isEnabled, hasTriggered: hasTriggered
+            id: id.uuidString, holdingKey: holdingKey, assetName: assetName, symbol: symbol, chainName: chainName, targetPrice: targetPrice,
+            condition: condition, isEnabled: isEnabled, hasTriggered: hasTriggered
         )
     }
 }

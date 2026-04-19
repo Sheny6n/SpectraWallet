@@ -62,7 +62,9 @@ nonisolated enum SecureSeedStore {
     private static let storage = KeychainBackedSecureStore(service: "com.spectra.seed")
     static func save(_ value: String, for account: String) throws { try storage.saveData(SeedMaterialEnvelope.encode(value), for: account) }
     static func loadValue(for account: String) throws -> String {
-        guard let data = try storage.loadData(for: account), let value = SeedMaterialEnvelope.decode(data) else { throw KeychainBackedSecureStore.StoreError.missingValue }
+        guard let data = try storage.loadData(for: account), let value = SeedMaterialEnvelope.decode(data) else {
+            throw KeychainBackedSecureStore.StoreError.missingValue
+        }
         return value
     }
     static func loadData(for account: String) throws -> Data? { try storage.loadData(for: account) }
@@ -135,8 +137,7 @@ final class SpectraSecretStoreAdapter: SecretStoreImpl, @unchecked Sendable {
     nonisolated override func saveSecret(kind: SecretClass, key: String, value: String) throws {
         switch kind {
         case .seed:
-            do { try SecureSeedStore.save(value, for: key) }
-            catch { throw SecretStoreError.Backend(message: String(describing: error)) }
+            do { try SecureSeedStore.save(value, for: key) } catch { throw SecretStoreError.Backend(message: String(describing: error)) }
         case .privateKey:
             SecurePrivateKeyStore.save(value, for: key)
         case .generic:
@@ -147,8 +148,7 @@ final class SpectraSecretStoreAdapter: SecretStoreImpl, @unchecked Sendable {
     nonisolated override func deleteSecret(kind: SecretClass, key: String) throws {
         switch kind {
         case .seed:
-            do { try SecureSeedStore.deleteValue(for: key) }
-            catch { throw SecretStoreError.Backend(message: String(describing: error)) }
+            do { try SecureSeedStore.deleteValue(for: key) } catch { throw SecretStoreError.Backend(message: String(describing: error)) }
         case .privateKey:
             SecurePrivateKeyStore.deleteValue(for: key)
         case .generic:

@@ -18,7 +18,9 @@ func settingsTokenAssetIdentifier(for entry: TokenPreferenceEntry) -> String? {
     case .tron: chainSlug = "tron"
     }
     let symbol = entry.symbol.lowercased()
-    if !entry.coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "\(chainSlug):\(entry.coinGeckoId.lowercased()):\(symbol)" }
+    if !entry.coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return "\(chainSlug):\(entry.coinGeckoId.lowercased()):\(symbol)"
+    }
     return "\(chainSlug):\(symbol)"
 }
 func settingsTokenFallbackMark(for entry: TokenPreferenceEntry) -> String {
@@ -56,7 +58,9 @@ struct TokenRegistryGroupRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             CoinBadge(
-                assetIdentifier: settingsTokenAssetIdentifier(for: group.representativeEntry), fallbackText: settingsTokenFallbackMark(for: group.representativeEntry), color: settingsTokenTint(for: group.representativeEntry.chain), size: 30
+                assetIdentifier: settingsTokenAssetIdentifier(for: group.representativeEntry),
+                fallbackText: settingsTokenFallbackMark(for: group.representativeEntry),
+                color: settingsTokenTint(for: group.representativeEntry.chain), size: 30
             )
             VStack(alignment: .leading, spacing: 4) {
                 Text(group.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
@@ -83,21 +87,30 @@ struct TokenRegistryEntryCardView: View {
                     settingsLocalizedString("Shown"), isOn: Binding(get: { entry.isEnabled }, set: setEnabled)
                 ).labelsHidden()
             }
-            settingsTokenDetailRow(title: settingsLocalizedString("Source"), value: entry.isBuiltIn ? settingsLocalizedString("Built-In") : settingsLocalizedString("Custom"))
+            settingsTokenDetailRow(
+                title: settingsLocalizedString("Source"),
+                value: entry.isBuiltIn ? settingsLocalizedString("Built-In") : settingsLocalizedString("Custom"))
             settingsTokenDetailRow(title: settingsLocalizedString("Supported Decimals"), value: "\(entry.decimals)")
             VStack(alignment: .leading, spacing: 6) {
                 Text(settingsLocalizedString("Contract / Mint")).font(.caption).foregroundStyle(.secondary)
                 Text(entry.contractAddress).font(.caption.monospaced()).textSelection(.enabled)
             }
-            if !entry.coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { settingsTokenDetailRow(title: settingsLocalizedString("CoinGecko ID"), value: entry.coinGeckoId) }
-            if !entry.marketDataId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, entry.marketDataId != "0" { settingsTokenDetailRow(title: settingsLocalizedString("Market Data ID"), value: entry.marketDataId) }
+            if !entry.coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                settingsTokenDetailRow(title: settingsLocalizedString("CoinGecko ID"), value: entry.coinGeckoId)
+            }
+            if !entry.marketDataId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, entry.marketDataId != "0" {
+                settingsTokenDetailRow(title: settingsLocalizedString("Market Data ID"), value: entry.marketDataId)
+            }
             if !entry.isBuiltIn {
                 Stepper(
-                    settingsLocalizedFormat("Supports: %lld decimals", Int(entry.decimals)), value: Binding(get: { Int(entry.decimals) }, set: updateDecimals), in: 0 ... 30, step: 1
+                    settingsLocalizedFormat("Supports: %lld decimals", Int(entry.decimals)),
+                    value: Binding(get: { Int(entry.decimals) }, set: updateDecimals), in: 0...30, step: 1
                 )
                 Button(role: .destructive, action: removeToken) {
                     Label(settingsLocalizedString("Remove Token"), systemImage: "trash")
-                }}}.padding(.vertical, 4)
+                }
+            }
+        }.padding(.vertical, 4)
     }
 }
 struct TokenIconSetting: Identifiable {
@@ -126,25 +139,37 @@ struct TokenIconCustomizationRow: View {
                 Spacer()
             }
             Picker(setting.title, selection: styleBinding) {
-                ForEach(TokenIconStyle.allCases) { style in Text(style.title).tag(style) }}.pickerStyle(.segmented).labelsHidden()
+                ForEach(TokenIconStyle.allCases) { style in Text(style.title).tag(style) }
+            }.pickerStyle(.segmented).labelsHidden()
             if selectedStyle == .customPhoto || hasCustomPhoto {
                 HStack(spacing: 12) {
                     PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                        Label(hasCustomPhoto ? settingsLocalizedString("Replace Photo") : settingsLocalizedString("Choose Photo"), systemImage: "photo")
+                        Label(
+                            hasCustomPhoto ? settingsLocalizedString("Replace Photo") : settingsLocalizedString("Choose Photo"),
+                            systemImage: "photo")
                     }
                     if hasCustomPhoto {
                         Button(settingsLocalizedString("Remove Photo"), role: .destructive) {
                             TokenIconImageStore.removeImage(for: setting.assetIdentifier)
                             tokenIconCustomImageRevision += 1
-                            if selectedStyle == .customPhoto { selectedStyle = .artwork }}}
+                            if selectedStyle == .customPhoto { selectedStyle = .artwork }
+                        }
+                    }
                     if isImportingPhoto {
                         Spacer()
                         ProgressView().scaleEffect(0.8)
-                    }}.font(.caption.weight(.semibold))
-                if !hasCustomPhoto { Text(settingsLocalizedString("Select a photo from your library to use as this token icon.")).font(.caption).foregroundStyle(.secondary) }}
-            if let photoImportError { Text(photoImportError).font(.caption).foregroundStyle(.red) }}.padding(.vertical, 4).task(id: selectedPhotoItem) {
+                    }
+                }.font(.caption.weight(.semibold))
+                if !hasCustomPhoto {
+                    Text(settingsLocalizedString("Select a photo from your library to use as this token icon.")).font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let photoImportError { Text(photoImportError).font(.caption).foregroundStyle(.red) }
+        }.padding(.vertical, 4).task(id: selectedPhotoItem) {
             await importSelectedPhotoIfNeeded()
-        }}
+        }
+    }
     private var styleBinding: Binding<TokenIconStyle> {
         Binding(
             get: { selectedStyle }, set: { newValue in selectedStyle = newValue }
@@ -158,7 +183,8 @@ struct TokenIconCustomizationRow: View {
             tokenIconPreferencesStorage = TokenIconPreferenceStore.updatePreference(
                 newValue, for: setting.assetIdentifier, storage: tokenIconPreferencesStorage
             )
-        }}
+        }
+    }
     private var hasCustomPhoto: Bool {
         _ = tokenIconCustomImageRevision
         return TokenIconImageStore.hasCustomImage(for: setting.assetIdentifier)
@@ -169,12 +195,15 @@ struct TokenIconCustomizationRow: View {
         isImportingPhoto = true
         photoImportError = nil
         do {
-            guard let imageData = try await selectedPhotoItem.loadTransferable(type: Data.self) else { throw TokenIconImageStore.IconError.unreadableImage }
+            guard let imageData = try await selectedPhotoItem.loadTransferable(type: Data.self) else {
+                throw TokenIconImageStore.IconError.unreadableImage
+            }
             try TokenIconImageStore.saveImageData(imageData, for: setting.assetIdentifier)
             tokenIconCustomImageRevision += 1
             self.selectedStyle = .customPhoto
         } catch {
-            photoImportError = (error as? LocalizedError)?.errorDescription ?? settingsLocalizedString("The selected photo could not be imported.")
+            photoImportError =
+                (error as? LocalizedError)?.errorDescription ?? settingsLocalizedString("The selected photo could not be imported.")
         }
         isImportingPhoto = false
         self.selectedPhotoItem = nil

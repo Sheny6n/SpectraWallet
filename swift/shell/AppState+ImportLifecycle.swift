@@ -2,9 +2,9 @@ import Foundation
 import SwiftUI
 @MainActor
 extension AppState {
-func resetImportForm() {
-    importDraft.configureForNewWallet()
-}
+    func resetImportForm() {
+        importDraft.configureForNewWallet()
+    }
     func beginWalletImport() {
         importDraft.configureForNewWallet()
         importError = nil
@@ -43,9 +43,11 @@ func resetImportForm() {
     func confirmDeleteWallet(_ wallet: ImportedWallet) { walletPendingDeletion = wallet }
     func deletePendingWallet() async {
         guard let walletPendingDeletion else { return }
-        guard await authenticateForSensitiveAction(
-            reason: "Authenticate to delete wallet", allowWhenAuthenticationUnavailable: true
-        ) else {
+        guard
+            await authenticateForSensitiveAction(
+                reason: "Authenticate to delete wallet", allowWhenAuthenticationUnavailable: true
+            )
+        else {
             return
         }
         let deletedWalletID = walletPendingDeletion.id
@@ -82,7 +84,8 @@ func resetImportForm() {
         }
         selectedMainTab = .home
         self.walletPendingDeletion = nil
-        if wallets.isEmpty { cancelWalletImport() }}
+        if wallets.isEmpty { cancelWalletImport() }
+    }
     func wallet(for walletID: String) -> ImportedWallet? { cachedWalletByIDString[walletID] }
     func knownOwnedAddresses(for walletID: String) -> [String] {
         guard let wallet = cachedWalletByID[walletID] else { return [] }
@@ -130,7 +133,8 @@ func resetImportForm() {
             appendAddress(transaction.changeAddress)
         }
         for addresses in chainOwnedAddressMapByChain.values {
-            for value in addresses.values where value.walletID == walletID { appendAddress(value.address) }}
+            for value in addresses.values where value.walletID == walletID { appendAddress(value.address) }
+        }
         let request = OwnedAddressAggregationRequest(candidateAddresses: candidateAddresses)
         return coreAggregateOwnedAddresses(request: request)
     }
@@ -145,9 +149,14 @@ func resetImportForm() {
         let authenticated = await authenticateForSeedPhraseReveal(reason: "Authenticate to view seed phrase for \(wallet.name)")
         guard authenticated else { throw SeedPhraseRevealError.authenticationRequired }
         if walletRequiresSeedPhrasePassword(wallet.id) {
-            guard let providedPassword = password?.trimmingCharacters(in: .whitespacesAndNewlines), !providedPassword.isEmpty else { throw SeedPhraseRevealError.passwordRequired }
-            guard verifySeedPhrasePassword(providedPassword, for: wallet.id) else { throw SeedPhraseRevealError.invalidPassword }}
-        guard let seedPhrase = storedSeedPhrase(for: wallet.id), !seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw SeedPhraseRevealError.unavailable }
+            guard let providedPassword = password?.trimmingCharacters(in: .whitespacesAndNewlines), !providedPassword.isEmpty else {
+                throw SeedPhraseRevealError.passwordRequired
+            }
+            guard verifySeedPhrasePassword(providedPassword, for: wallet.id) else { throw SeedPhraseRevealError.invalidPassword }
+        }
+        guard let seedPhrase = storedSeedPhrase(for: wallet.id), !seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw SeedPhraseRevealError.unavailable
+        }
         return seedPhrase
     }
     func availableSendCoins(for walletID: String) -> [Coin] { cachedAvailableSendCoinsByWalletID[walletID] ?? [] }
@@ -156,7 +165,9 @@ func resetImportForm() {
     func selectedReceiveCoin(for walletID: String) -> Coin? {
         let receiveCoins = availableReceiveCoins(for: walletID)
         if let plan = rustReceiveSelectionPlan(for: walletID, coins: receiveCoins) {
-            guard let selectedIndex = plan.selectedReceiveHoldingIndex.map(Int.init), receiveCoins.indices.contains(selectedIndex) else { return nil }
+            guard let selectedIndex = plan.selectedReceiveHoldingIndex.map(Int.init), receiveCoins.indices.contains(selectedIndex) else {
+                return nil
+            }
             return receiveCoins[selectedIndex]
         }
         let resolvedChainName = resolvedReceiveChainName(for: walletID)
@@ -164,7 +175,8 @@ func resetImportForm() {
         var firstMatchingCoin: Coin?
         for coin in receiveCoins where coin.chainName == resolvedChainName {
             if firstMatchingCoin == nil { firstMatchingCoin = coin }
-            if coin.contractAddress == nil { return coin }}
+            if coin.contractAddress == nil { return coin }
+        }
         return firstMatchingCoin
     }
     func resolvedReceiveChainName(for walletID: String) -> String {
@@ -181,7 +193,8 @@ func resetImportForm() {
         let receiveCoins = coins ?? availableReceiveCoins(for: walletID)
         let availableChains = chains ?? availableReceiveChains(for: walletID)
         let request = ReceiveSelectionRequest(
-            receiveChainName: receiveChainName, availableReceiveChains: availableChains, availableReceiveHoldings: receiveCoins.enumerated().map { offset, coin in
+            receiveChainName: receiveChainName, availableReceiveChains: availableChains,
+            availableReceiveHoldings: receiveCoins.enumerated().map { offset, coin in
                 ReceiveSelectionHoldingInput(
                     holdingIndex: UInt64(offset), chainName: coin.chainName, hasContractAddress: coin.contractAddress != nil
                 )
@@ -196,18 +209,27 @@ func resetImportForm() {
     var alertableCoins: [Coin] { portfolio }
     var sendAddressBookEntries: [AddressBookEntry] {
         guard let selectedSendCoin else { return [] }
-        return addressBook.filter { $0.chainName == selectedSendCoin.chainName }}
+        return addressBook.filter { $0.chainName == selectedSendCoin.chainName }
+    }
     var hasPendingEthereumSendForSelectedWallet: Bool { selectedPendingEthereumSendTransaction() != nil }
     var ethereumReplacementNonceStateMessage: String? {
         guard selectedSendCoin?.chainName == "Ethereum" else { return nil }
-        guard let pendingTransaction = selectedPendingEthereumSendTransaction() else { return localizedStoreString("No pending Ethereum send found for this wallet. Replacement and cancel are available only for pending transactions.") }
+        guard let pendingTransaction = selectedPendingEthereumSendTransaction() else {
+            return localizedStoreString(
+                "No pending Ethereum send found for this wallet. Replacement and cancel are available only for pending transactions.")
+        }
         var message = localizedStoreFormat("Pending %@ transaction detected", pendingTransaction.symbol)
-        if let nonce = pendingTransaction.ethereumNonce { message += localizedStoreFormat("send.replacement.pendingNonceSuffix", nonce) } else { message += "." }
+        if let nonce = pendingTransaction.ethereumNonce {
+            message += localizedStoreFormat("send.replacement.pendingNonceSuffix", nonce)
+        } else {
+            message += "."
+        }
         if let transactionHash = pendingTransaction.transactionHash {
             let shortHash = transactionHash.count > 14 ? "\(transactionHash.prefix(10))...\(transactionHash.suffix(4))" : transactionHash
             message += localizedStoreFormat("send.replacement.transactionSuffix", shortHash)
         }
-        message += localizedStoreString(" Use Speed Up to resend with higher fees or Cancel to submit a 0-value self-transfer using the same nonce.")
+        message += localizedStoreString(
+            " Use Speed Up to resend with higher fees or Cancel to submit a 0-value self-transfer using the same nonce.")
         return message
     }
 }

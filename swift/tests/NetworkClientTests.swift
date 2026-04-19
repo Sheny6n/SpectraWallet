@@ -8,11 +8,15 @@ private func makeSingleChainDraft(select: (WalletImportDraft) -> Void) -> Wallet
     return draft
 }
 private func chainWikiEntry(id: String) throws -> ChainWikiEntry {
-    try XCTUnwrap(ChainRegistryEntry.entry(id: id).map {
-        ChainWikiEntry(
-            id: $0.id, name: $0.name, symbol: $0.symbol, tags: [], family: $0.family, consensus: $0.consensus, stateModel: $0.stateModel, primaryUse: $0.primaryUse, slip44CoinType: $0.slip44CoinType, derivationPath: $0.derivationPath, alternateDerivationPath: $0.alternateDerivationPath, totalCirculationModel: $0.totalCirculationModel, notableDetails: $0.notableDetails
-        )
-    })
+    try XCTUnwrap(
+        ChainRegistryEntry.entry(id: id).map {
+            ChainWikiEntry(
+                id: $0.id, name: $0.name, symbol: $0.symbol, tags: [], family: $0.family, consensus: $0.consensus,
+                stateModel: $0.stateModel, primaryUse: $0.primaryUse, slip44CoinType: $0.slip44CoinType, derivationPath: $0.derivationPath,
+                alternateDerivationPath: $0.alternateDerivationPath, totalCirculationModel: $0.totalCirculationModel,
+                notableDetails: $0.notableDetails
+            )
+        })
 }
 @MainActor
 final class EthereumClassicSupportTests: XCTestCase {
@@ -121,22 +125,27 @@ final class NearHistoryParsingTests: XCTestCase {
         let payload: [String: Any] = [
             "txns": [
                 [
-                    "transaction_hash": "hash-send-1", "predecessor_account_id": owner, "receiver_account_id": "merchant.near", "receipt_block": [
+                    "transaction_hash": "hash-send-1", "predecessor_account_id": owner, "receiver_account_id": "merchant.near",
+                    "receipt_block": [
                         "block_timestamp": "1726000000000000000"
-                    ], "actions_agg": [
+                    ],
+                    "actions_agg": [
                         "deposit": "1500000000000000000000000"
-                    ]
-                ], [
-                    "transaction_hash": "hash-receive-1", "predecessor_account_id": "payer.near", "receiver_account_id": owner, "receipt_block": [
+                    ],
+                ],
+                [
+                    "transaction_hash": "hash-receive-1", "predecessor_account_id": "payer.near", "receiver_account_id": owner,
+                    "receipt_block": [
                         "block_timestamp": "1726000100000000000"
-                    ], "actions": [
+                    ],
+                    "actions": [
                         [
                             "args": [
                                 "deposit": "2500000000000000000000000"
                             ]
                         ]
-                    ]
-                ]
+                    ],
+                ],
             ]
         ]
         let data = try JSONSerialization.data(withJSONObject: payload, options: [])
@@ -232,7 +241,8 @@ final class WalletDerivationLayerTests: XCTestCase {
     private let mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
     func testBitcoinTestnet4ReturnsOnlyRequestedOutputs() throws {
         let result = try WalletDerivationLayer.derive(
-            seedPhrase: mnemonic, chain: .bitcoin, network: .testnet4, derivationPath: "m/84'/1'/0'/0/0", requestedOutputs: [.address, .publicKey]
+            seedPhrase: mnemonic, chain: .bitcoin, network: .testnet4, derivationPath: "m/84'/1'/0'/0/0",
+            requestedOutputs: [.address, .publicKey]
         )
         XCTAssertNotNil(result.address)
         XCTAssertTrue(result.address?.hasPrefix("tb1") == true)
@@ -241,34 +251,36 @@ final class WalletDerivationLayerTests: XCTestCase {
     }
     func testSolanaMainnetReturnsRequestedSigningMaterial() throws {
         let result = try WalletDerivationLayer.derive(
-            seedPhrase: mnemonic, chain: .solana, network: .mainnet, derivationPath: "m/44'/501'/0'/0'", requestedOutputs: [.address, .publicKey, .privateKey]
+            seedPhrase: mnemonic, chain: .solana, network: .mainnet, derivationPath: "m/44'/501'/0'/0'",
+            requestedOutputs: [.address, .publicKey, .privateKey]
         )
         XCTAssertFalse(result.address?.isEmpty ?? true)
         XCTAssertFalse(result.publicKeyHex?.isEmpty ?? true)
         XCTAssertFalse(result.privateKeyHex?.isEmpty ?? true)
     }
-    func testJSONAPIRequestSupportsCustomPathAndCurve() throws {
-        let request: [String: Any] = [
-            "chain": "Solana", "network": "mainnet", "seedPhrase": mnemonic, "derivationPath": "m/44'/501'/9'", "curve": "ed25519", "passphrase": "", "iterationCount": 2048, "hmacKeyString": "", "requestedOutputs": ["publicKey", "privateKey"], ]
-        let requestData = try JSONSerialization.data(withJSONObject: request, options: [])
-        let responseData = try WalletDerivationLayer.derive(jsonData: requestData)
-        struct DerivationJSONResponse: Decodable {
-            let address: String? let publicKeyHex: String? let privateKeyHex: String? }
-        let response = try JSONDecoder().decode(DerivationJSONResponse.self, from: responseData)
-        XCTAssertNil(response.address)
-        XCTAssertFalse(response.publicKeyHex?.isEmpty ?? true)
-        XCTAssertFalse(response.privateKeyHex?.isEmpty ?? true)
+    func testSolanaCustomPathWithoutAddressRequest() throws {
+        let result = try WalletDerivationLayer.derive(
+            seedPhrase: mnemonic, chain: .solana, network: .mainnet, derivationPath: "m/44'/501'/9'",
+            requestedOutputs: [.publicKey, .privateKey]
+        )
+        XCTAssertNil(result.address)
+        XCTAssertFalse(result.publicKeyHex?.isEmpty ?? true)
+        XCTAssertFalse(result.privateKeyHex?.isEmpty ?? true)
     }
     func testBitcoinAPIPresetsIncludeTestnet4NativeSegWit() {
         let hasPath = WalletDerivationPresetCatalog.pathPresets(for: .bitcoin).contains { $0.derivationPath == "m/84'/0'/0'/0/0" }
-        let hasNetwork = WalletDerivationPresetCatalog.networkPresets(for: .bitcoin).contains { $0.network == WalletDerivationNetwork.testnet4.rawValue }
+        let hasNetwork = WalletDerivationPresetCatalog.networkPresets(for: .bitcoin).contains {
+            $0.network == WalletDerivationNetwork.testnet4.rawValue
+        }
         XCTAssertTrue(hasPath)
         XCTAssertTrue(hasNetwork)
         XCTAssertEqual(WalletDerivationPresetCatalog.curve(for: .bitcoin), .secp256k1)
     }
     func testSolanaAPIPresetsIncludeLegacyCurveAndPath() {
         let hasPath = WalletDerivationPresetCatalog.pathPresets(for: .solana).contains { $0.derivationPath == "m/44'/501'/0'" }
-        let hasMainnet = WalletDerivationPresetCatalog.networkPresets(for: .solana).contains { $0.network == WalletDerivationNetwork.mainnet.rawValue }
+        let hasMainnet = WalletDerivationPresetCatalog.networkPresets(for: .solana).contains {
+            $0.network == WalletDerivationNetwork.mainnet.rawValue
+        }
         XCTAssertTrue(hasPath)
         XCTAssertTrue(hasMainnet)
         XCTAssertEqual(WalletDerivationPresetCatalog.curve(for: .solana), .ed25519)

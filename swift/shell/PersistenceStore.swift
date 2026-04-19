@@ -11,17 +11,29 @@ extension AppState {
         }
     }
     func loadCodableFromSQLite<T: Decodable>(_ type: T.Type, key: String) async -> T? {
-        guard let json = try? await WalletServiceBridge.shared.loadState(key: key), json != "{}", let data = json.data(using: .utf8) else { return nil }
+        guard let json = try? await WalletServiceBridge.shared.loadState(key: key), json != "{}", let data = json.data(using: .utf8) else {
+            return nil
+        }
         return try? JSONDecoder().decode(type, from: data)
     }
     func reloadPersistedStateFromSQLite() async {
         await diagnostics.loadFromSQLite()
-        if let prices = await loadCodableFromSQLite([String: Double].self, key: Self.livePricesDefaultsKey), !prices.isEmpty { livePrices = prices }
-        if let tokenPrefs = await loadCodableFromSQLite([TokenPreferenceEntry].self, key: Self.tokenPreferencesDefaultsKey), !tokenPrefs.isEmpty { tokenPreferences = mergeBuiltInTokenPreferences(with: tokenPrefs) }
-        if let alertsJSON = try? await WalletServiceBridge.shared.loadState(key: Self.priceAlertsDefaultsKey), alertsJSON != "{}", let alertsPayload = try? decodePersistedPriceAlertStoreJson(json: alertsJSON), alertsPayload.version == 1 {
+        if let prices = await loadCodableFromSQLite([String: Double].self, key: Self.livePricesDefaultsKey), !prices.isEmpty {
+            livePrices = prices
+        }
+        if let tokenPrefs = await loadCodableFromSQLite([TokenPreferenceEntry].self, key: Self.tokenPreferencesDefaultsKey),
+            !tokenPrefs.isEmpty
+        {
+            tokenPreferences = mergeBuiltInTokenPreferences(with: tokenPrefs)
+        }
+        if let alertsJSON = try? await WalletServiceBridge.shared.loadState(key: Self.priceAlertsDefaultsKey), alertsJSON != "{}",
+            let alertsPayload = try? decodePersistedPriceAlertStoreJson(json: alertsJSON), alertsPayload.version == 1
+        {
             priceAlerts = alertsPayload.alerts.compactMap(PriceAlertRule.init(snapshot:))
         }
-        if let abJSON = try? await WalletServiceBridge.shared.loadState(key: Self.addressBookDefaultsKey), abJSON != "{}", let abPayload = try? decodePersistedAddressBookStoreJson(json: abJSON), abPayload.version == 1 {
+        if let abJSON = try? await WalletServiceBridge.shared.loadState(key: Self.addressBookDefaultsKey), abJSON != "{}",
+            let abPayload = try? decodePersistedAddressBookStoreJson(json: abJSON), abPayload.version == 1
+        {
             setAddressBook(abPayload.entries.compactMap(AddressBookEntry.init(snapshot:)))
         }
         if let allKeypool = try? await WalletServiceBridge.shared.loadAllKeypoolStateTyped(), !allKeypool.isEmpty {
@@ -30,31 +42,49 @@ extension AppState {
                 var rebuilt: [String: ChainKeypoolState] = [:]
                 for (uuidStr, state) in walletMap {
                     rebuilt[uuidStr] = ChainKeypoolState(
-                        nextExternalIndex: Int(state.nextExternalIndex), nextChangeIndex: Int(state.nextChangeIndex), reservedReceiveIndex: state.reservedReceiveIndex.map { Int($0) }
+                        nextExternalIndex: Int(state.nextExternalIndex), nextChangeIndex: Int(state.nextChangeIndex),
+                        reservedReceiveIndex: state.reservedReceiveIndex.map { Int($0) }
                     )
                 }
-                if !rebuilt.isEmpty { rebuiltChains[chainName] = rebuilt }}
-            if !rebuiltChains.isEmpty { chainKeypoolByChain = rebuiltChains }}
+                if !rebuilt.isEmpty { rebuiltChains[chainName] = rebuilt }
+            }
+            if !rebuiltChains.isEmpty { chainKeypoolByChain = rebuiltChains }
+        }
         if let allRecords = try? await WalletServiceBridge.shared.loadAllOwnedAddressesTyped(), !allRecords.isEmpty {
             var chainMap: [String: [String: ChainOwnedAddressRecord]] = [:]
             for rec in allRecords {
                 guard !rec.address.isEmpty else { continue }
                 let chainRecord = ChainOwnedAddressRecord(
-                    chainName: rec.chainName, address: rec.address, walletID: rec.walletId, derivationPath: rec.derivationPath, index: rec.branchIndex.map { Int($0) }, branch: rec.branch
+                    chainName: rec.chainName, address: rec.address, walletID: rec.walletId, derivationPath: rec.derivationPath,
+                    index: rec.branchIndex.map { Int($0) }, branch: rec.branch
                 )
                 chainMap[rec.chainName, default: [:]][rec.address] = chainRecord
             }
-            if !chainMap.isEmpty { chainOwnedAddressMapByChain = chainMap }}
+            if !chainMap.isEmpty { chainOwnedAddressMapByChain = chainMap }
+        }
         if let rates = await loadCodableFromSQLite([String: Double].self, key: Self.fiatRatesFromUSDDefaultsKey), !rates.isEmpty {
             fiatRatesFromUSD = rates
             fiatRatesFromUSD[FiatCurrency.usd.rawValue] = 1.0
         }
-        if let decimals = await loadCodableFromSQLite([String: Int].self, key: Self.assetDisplayDecimalsByChainDefaultsKey), !decimals.isEmpty { assetDisplayDecimalsByChain = decimals }
-        if let events = await loadCodableFromSQLite([String: [ChainOperationalEvent]].self, key: Self.chainOperationalEventsDefaultsKey), !events.isEmpty { chainOperationalEventsByChain = events }
-        if let feePrios = await loadCodableFromSQLite([String: String].self, key: Self.selectedFeePriorityOptionsByChainDefaultsKey), !feePrios.isEmpty { selectedFeePriorityOptionRawByChain = feePrios }
+        if let decimals = await loadCodableFromSQLite([String: Int].self, key: Self.assetDisplayDecimalsByChainDefaultsKey),
+            !decimals.isEmpty
+        {
+            assetDisplayDecimalsByChain = decimals
+        }
+        if let events = await loadCodableFromSQLite([String: [ChainOperationalEvent]].self, key: Self.chainOperationalEventsDefaultsKey),
+            !events.isEmpty
+        {
+            chainOperationalEventsByChain = events
+        }
+        if let feePrios = await loadCodableFromSQLite([String: String].self, key: Self.selectedFeePriorityOptionsByChainDefaultsKey),
+            !feePrios.isEmpty
+        {
+            selectedFeePriorityOptionRawByChain = feePrios
+        }
         if !wallets.isEmpty {
             let summaries: [WalletSummary] = wallets.map { $0.walletSummary }
-            try? await WalletServiceBridge.shared.initWalletStateDirect(wallets: summaries) }
+            try? await WalletServiceBridge.shared.initWalletStateDirect(wallets: summaries)
+        }
         // ── Load app settings from Rust SQLite ────────────────────────────────
         if let settings = try? await WalletServiceBridge.shared.loadAppSettingsTyped() {
             if let v = PricingProvider(rawValue: settings.pricingProvider) { pricingProvider = v }
@@ -90,11 +120,12 @@ extension AppState {
         }
         // ── Load transaction history from Rust SQLite ─────────────────────────
         if let rustRecords = try? await WalletServiceBridge.shared.fetchAllHistoryRecordsTyped(),
-           !rustRecords.isEmpty {
+            !rustRecords.isEmpty
+        {
             let rustTransactions = rustRecords.compactMap { rec -> TransactionRecord? in
                 guard let payloadData = Data(base64Encoded: rec.payload),
-                      let payloadJSON = String(data: payloadData, encoding: .utf8),
-                      let persisted = try? decodePersistedTransactionRecordJson(json: payloadJSON)
+                    let payloadJSON = String(data: payloadData, encoding: .utf8),
+                    let persisted = try? decodePersistedTransactionRecordJson(json: payloadJSON)
                 else { return nil }
                 return TransactionRecord(snapshot: persisted)
             }
@@ -103,12 +134,17 @@ extension AppState {
                 pruneTransactionsForActiveWallets()
                 rebuildTransactionDerivedState()
             }
-        }}
+        }
+    }
     func persistLivePrices() {
         persistCodableToSQLite(livePrices, key: Self.livePricesDefaultsKey)
     }
-    func loadAssetDisplayDecimalsByChain() -> [String: Int]? { loadCodableFromUserDefaults([String: Int].self, key: Self.assetDisplayDecimalsByChainDefaultsKey) }
-    func loadPersistedLivePrices() -> [String: Double] { loadCodableFromUserDefaults([String: Double].self, key: Self.livePricesDefaultsKey) ?? [:] }
+    func loadAssetDisplayDecimalsByChain() -> [String: Int]? {
+        loadCodableFromUserDefaults([String: Int].self, key: Self.assetDisplayDecimalsByChainDefaultsKey)
+    }
+    func loadPersistedLivePrices() -> [String: Double] {
+        loadCodableFromUserDefaults([String: Double].self, key: Self.livePricesDefaultsKey) ?? [:]
+    }
     func persistWallets() {
         guard !wallets.isEmpty else {
             storedWalletIDs().forEach { walletID in deleteWalletSecrets(for: walletID) }
@@ -126,12 +162,14 @@ extension AppState {
             let filtered = entry.value.filter { _, value in
                 currentWalletIDs.contains(value.walletID)
             }
-            if !filtered.isEmpty { partialResult[entry.key] = filtered }}
+            if !filtered.isEmpty { partialResult[entry.key] = filtered }
+        }
         chainKeypoolByChain = chainKeypoolByChain.reduce(into: [:]) { partialResult, entry in
             let filtered = entry.value.filter { walletID, _ in
                 currentWalletIDs.contains(walletID)
             }
-            if !filtered.isEmpty { partialResult[entry.key] = filtered }}
+            if !filtered.isEmpty { partialResult[entry.key] = filtered }
+        }
         syncChainOwnedAddressManagementState()
         let snapshots = wallets.map(sanitizedWallet).map(\.persistedSnapshot)
         let payload = PersistedWalletStore(version: PersistedWalletStore.currentVersion, wallets: snapshots)
@@ -145,14 +183,26 @@ extension AppState {
     }
     func storedWalletIDs() -> [String] {
         guard let data = SecureStore.loadData(for: Self.walletsAccount) else { return [] }
-        if let payload = try? Self.persistenceDecoder.decode(PersistedWalletStore.self, from: data), payload.version == PersistedWalletStore.currentVersion {
-            return payload.wallets.map { $0.id }}
+        if let payload = try? Self.persistenceDecoder.decode(PersistedWalletStore.self, from: data),
+            payload.version == PersistedWalletStore.currentVersion
+        {
+            return payload.wallets.map { $0.id }
+        }
         return []
     }
     func sanitizedWallet(_ wallet: ImportedWallet) -> ImportedWallet {
         let supportedHoldings = wallet.holdings.filter { coin in AppEndpointDirectory.supportsBalanceRefresh(for: coin.chainName) }
         return ImportedWallet(
-            id: wallet.id, name: wallet.name, bitcoinNetworkMode: wallet.bitcoinNetworkMode, dogecoinNetworkMode: wallet.dogecoinNetworkMode, bitcoinAddress: wallet.bitcoinAddress, bitcoinXpub: wallet.bitcoinXpub, bitcoinCashAddress: wallet.bitcoinCashAddress, bitcoinSvAddress: wallet.bitcoinSvAddress, litecoinAddress: wallet.litecoinAddress, dogecoinAddress: wallet.dogecoinAddress, ethereumAddress: wallet.ethereumAddress, tronAddress: wallet.tronAddress, solanaAddress: wallet.solanaAddress, stellarAddress: wallet.stellarAddress, xrpAddress: wallet.xrpAddress, moneroAddress: wallet.moneroAddress, cardanoAddress: wallet.cardanoAddress, suiAddress: wallet.suiAddress, aptosAddress: wallet.aptosAddress, tonAddress: wallet.tonAddress, icpAddress: wallet.icpAddress, nearAddress: wallet.nearAddress, polkadotAddress: wallet.polkadotAddress, seedDerivationPreset: wallet.seedDerivationPreset, seedDerivationPaths: wallet.seedDerivationPaths, selectedChain: wallet.selectedChain, holdings: supportedHoldings, includeInPortfolioTotal: wallet.includeInPortfolioTotal
+            id: wallet.id, name: wallet.name, bitcoinNetworkMode: wallet.bitcoinNetworkMode,
+            dogecoinNetworkMode: wallet.dogecoinNetworkMode, bitcoinAddress: wallet.bitcoinAddress, bitcoinXpub: wallet.bitcoinXpub,
+            bitcoinCashAddress: wallet.bitcoinCashAddress, bitcoinSvAddress: wallet.bitcoinSvAddress,
+            litecoinAddress: wallet.litecoinAddress, dogecoinAddress: wallet.dogecoinAddress, ethereumAddress: wallet.ethereumAddress,
+            tronAddress: wallet.tronAddress, solanaAddress: wallet.solanaAddress, stellarAddress: wallet.stellarAddress,
+            xrpAddress: wallet.xrpAddress, moneroAddress: wallet.moneroAddress, cardanoAddress: wallet.cardanoAddress,
+            suiAddress: wallet.suiAddress, aptosAddress: wallet.aptosAddress, tonAddress: wallet.tonAddress, icpAddress: wallet.icpAddress,
+            nearAddress: wallet.nearAddress, polkadotAddress: wallet.polkadotAddress, seedDerivationPreset: wallet.seedDerivationPreset,
+            seedDerivationPaths: wallet.seedDerivationPaths, selectedChain: wallet.selectedChain, holdings: supportedHoldings,
+            includeInPortfolioTotal: wallet.includeInPortfolioTotal
         )
     }
     func persistPriceAlerts() {
@@ -171,9 +221,10 @@ extension AppState {
     }
     func loadPersistedAddressBook() -> [AddressBookEntry] {
         guard let data = UserDefaults.standard.data(forKey: Self.addressBookDefaultsKey),
-              let json = String(data: data, encoding: .utf8),
-              let payload = try? decodePersistedAddressBookStoreJson(json: json),
-              payload.version == 1 else { return [] }
+            let json = String(data: data, encoding: .utf8),
+            let payload = try? decodePersistedAddressBookStoreJson(json: json),
+            payload.version == 1
+        else { return [] }
         return payload.entries.compactMap(AddressBookEntry.init(snapshot:))
     }
     func persistTokenPreferences() {
@@ -185,7 +236,7 @@ extension AppState {
     func persistAppSettings() {
         appSettingsPersistTask?.cancel()
         appSettingsPersistTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 100_000_000) // 100ms debounce
+            try? await Task.sleep(nanoseconds: 100_000_000)  // 100ms debounce
             guard !Task.isCancelled, let self else { return }
             self.persistAppSettingsNow()
         }
@@ -223,35 +274,43 @@ extension AppState {
         Task { await WalletServiceBridge.shared.saveAppSettingsTyped(settings: settings) }
     }
     func loadPersistedTokenPreferences() -> [TokenPreferenceEntry] {
-        guard let decoded = loadCodableFromUserDefaults(
-            [TokenPreferenceEntry].self, key: Self.tokenPreferencesDefaultsKey
-        ) else {
+        guard
+            let decoded = loadCodableFromUserDefaults(
+                [TokenPreferenceEntry].self, key: Self.tokenPreferencesDefaultsKey
+            )
+        else {
             return ChainTokenRegistryEntry.builtIn.map(\.tokenPreferenceEntry)
         }
         return mergeBuiltInTokenPreferences(with: decoded)
     }
     func loadPersistedPriceAlerts() -> [PriceAlertRule] {
         guard let data = UserDefaults.standard.data(forKey: Self.priceAlertsDefaultsKey),
-              let json = String(data: data, encoding: .utf8),
-              let payload = try? decodePersistedPriceAlertStoreJson(json: json),
-              payload.version == 1 else { return [] }
+            let json = String(data: data, encoding: .utf8),
+            let payload = try? decodePersistedPriceAlertStoreJson(json: json),
+            payload.version == 1
+        else { return [] }
         return payload.alerts.compactMap(PriceAlertRule.init(snapshot:))
     }
     private func decodedWalletSnapshots(from data: Data) -> [ImportedWallet]? {
-        guard let payload = try? Self.persistenceDecoder.decode(PersistedWalletStore.self, from: data), payload.version == PersistedWalletStore.currentVersion else { return nil }
+        guard let payload = try? Self.persistenceDecoder.decode(PersistedWalletStore.self, from: data),
+            payload.version == PersistedWalletStore.currentVersion
+        else { return nil }
         return payload.wallets.compactMap { snapshot in
             let hasSeedPhrase = walletHasSigningMaterial(snapshot.id)
             let hasWatchOnlyAddress = [
-                snapshot.bitcoinAddress, snapshot.bitcoinXpub, snapshot.litecoinAddress, snapshot.dogecoinAddress, snapshot.ethereumAddress, snapshot.tronAddress, snapshot.solanaAddress, snapshot.xrpAddress, snapshot.stellarAddress, snapshot.moneroAddress, snapshot.cardanoAddress, snapshot.suiAddress, snapshot.nearAddress, snapshot.polkadotAddress
+                snapshot.bitcoinAddress, snapshot.bitcoinXpub, snapshot.litecoinAddress, snapshot.dogecoinAddress, snapshot.ethereumAddress,
+                snapshot.tronAddress, snapshot.solanaAddress, snapshot.xrpAddress, snapshot.stellarAddress, snapshot.moneroAddress,
+                snapshot.cardanoAddress, snapshot.suiAddress, snapshot.nearAddress, snapshot.polkadotAddress,
             ]
             .contains { ($0 ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
             guard hasSeedPhrase || hasWatchOnlyAddress else { return nil }
             let wallet = sanitizedWallet(ImportedWallet(snapshot: snapshot))
-#if DEBUG
-            logBalanceTelemetry(source: "local", chainName: "PersistedWalletStore", wallet: wallet, holdings: wallet.holdings)
-#endif
+            #if DEBUG
+                logBalanceTelemetry(source: "local", chainName: "PersistedWalletStore", wallet: wallet, holdings: wallet.holdings)
+            #endif
             return wallet
-        }}
+        }
+    }
 }
 struct PersistedCoin: Codable {
     let name: String
@@ -324,7 +383,13 @@ struct PersistedWallet: Codable {
         case includeInPortfolioTotal
     }
     init(
-        id: String, name: String, bitcoinNetworkMode: BitcoinNetworkMode = .mainnet, dogecoinNetworkMode: DogecoinNetworkMode = .mainnet, bitcoinAddress: String?, bitcoinXpub: String?, bitcoinCashAddress: String?, bitcoinSvAddress: String?, litecoinAddress: String?, dogecoinAddress: String?, ethereumAddress: String?, tronAddress: String?, solanaAddress: String?, stellarAddress: String?, xrpAddress: String?, moneroAddress: String?, cardanoAddress: String?, suiAddress: String?, aptosAddress: String?, tonAddress: String?, icpAddress: String?, nearAddress: String?, polkadotAddress: String?, seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths, selectedChain: String, holdings: [PersistedCoin], includeInPortfolioTotal: Bool
+        id: String, name: String, bitcoinNetworkMode: BitcoinNetworkMode = .mainnet, dogecoinNetworkMode: DogecoinNetworkMode = .mainnet,
+        bitcoinAddress: String?, bitcoinXpub: String?, bitcoinCashAddress: String?, bitcoinSvAddress: String?, litecoinAddress: String?,
+        dogecoinAddress: String?, ethereumAddress: String?, tronAddress: String?, solanaAddress: String?, stellarAddress: String?,
+        xrpAddress: String?, moneroAddress: String?, cardanoAddress: String?, suiAddress: String?, aptosAddress: String?,
+        tonAddress: String?, icpAddress: String?, nearAddress: String?, polkadotAddress: String?,
+        seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths, selectedChain: String,
+        holdings: [PersistedCoin], includeInPortfolioTotal: Bool
     ) {
         self.id = id
         self.name = name
@@ -428,7 +493,8 @@ extension SeedDerivationPaths: Codable {
         litecoin = try container.decodeIfPresent(String.self, forKey: .litecoin) ?? SeedDerivationChain.litecoin.defaultPath
         dogecoin = try container.decodeIfPresent(String.self, forKey: .dogecoin) ?? SeedDerivationChain.dogecoin.defaultPath
         ethereum = try container.decodeIfPresent(String.self, forKey: .ethereum) ?? SeedDerivationChain.ethereum.defaultPath
-        ethereumClassic = try container.decodeIfPresent(String.self, forKey: .ethereumClassic) ?? SeedDerivationChain.ethereumClassic.defaultPath
+        ethereumClassic =
+            try container.decodeIfPresent(String.self, forKey: .ethereumClassic) ?? SeedDerivationChain.ethereumClassic.defaultPath
         arbitrum = try container.decodeIfPresent(String.self, forKey: .arbitrum) ?? SeedDerivationChain.arbitrum.defaultPath
         optimism = try container.decodeIfPresent(String.self, forKey: .optimism) ?? SeedDerivationChain.optimism.defaultPath
         avalanche = try container.decodeIfPresent(String.self, forKey: .avalanche) ?? SeedDerivationChain.avalanche.defaultPath
@@ -441,7 +507,8 @@ extension SeedDerivationPaths: Codable {
         sui = try container.decodeIfPresent(String.self, forKey: .sui) ?? SeedDerivationChain.sui.defaultPath
         aptos = try container.decodeIfPresent(String.self, forKey: .aptos) ?? SeedDerivationChain.aptos.defaultPath
         ton = try container.decodeIfPresent(String.self, forKey: .ton) ?? SeedDerivationChain.ton.defaultPath
-        internetComputer = try container.decodeIfPresent(String.self, forKey: .internetComputer) ?? SeedDerivationChain.internetComputer.defaultPath
+        internetComputer =
+            try container.decodeIfPresent(String.self, forKey: .internetComputer) ?? SeedDerivationChain.internetComputer.defaultPath
         near = try container.decodeIfPresent(String.self, forKey: .near) ?? SeedDerivationChain.near.defaultPath
         polkadot = try container.decodeIfPresent(String.self, forKey: .polkadot) ?? SeedDerivationChain.polkadot.defaultPath
     }

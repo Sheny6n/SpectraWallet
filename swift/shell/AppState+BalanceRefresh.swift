@@ -21,7 +21,7 @@ extension AppState {
         Self.pendingBalanceUpdates.append(PendingBalanceUpdate(chainId: chainId, walletId: walletId, json: json))
         Self.balanceFlushTask?.cancel()
         Self.balanceFlushTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms debounce
+            try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms debounce
             guard !Task.isCancelled else { return }
             guard let self else { return }
             let batch = Self.pendingBalanceUpdates
@@ -37,8 +37,8 @@ extension AppState {
         var anyChanged = false
         for update in batch {
             guard let idx = walletIndexById[update.walletId],
-                  let summary = try? await WalletServiceBridge.shared.updateNativeBalanceTyped(
-                      walletId: update.walletId, chainId: update.chainId, balanceJson: update.json)
+                let summary = try? await WalletServiceBridge.shared.updateNativeBalanceTyped(
+                    walletId: update.walletId, chainId: update.chainId, balanceJson: update.json)
             else { continue }
             if let updated = holdingsAppliedFromSummary(summary, to: walletsCopy[idx]) {
                 walletsCopy[idx] = updated
@@ -67,14 +67,13 @@ extension AppState {
                     amount: h.amount, priceUsd: old.priceUsd, mark: old.mark)
             } else if h.amount > 0 {
                 let mark = String(h.symbol.prefix(2)).uppercased()
-                var newCoin = CoreCoin(
-                    id: UUID().uuidString,
-                    name: h.name, symbol: h.symbol, marketDataId: h.marketDataId,
-                    coinGeckoId: h.coinGeckoId, chainName: h.chainName,
-                    tokenStandard: h.tokenStandard, contractAddress: h.contractAddress,
-                    amount: h.amount, priceUsd: 0, mark: mark)
-                newCoin.color = .blue
-                merged.append(newCoin)
+                merged.append(
+                    CoreCoin(
+                        id: UUID().uuidString,
+                        name: h.name, symbol: h.symbol, marketDataId: h.marketDataId,
+                        coinGeckoId: h.coinGeckoId, chainName: h.chainName,
+                        tokenStandard: h.tokenStandard, contractAddress: h.contractAddress,
+                        amount: h.amount, priceUsd: 0, mark: mark))
             }
         }
         return walletByReplacingHoldings(wallet, with: merged)
@@ -91,7 +90,8 @@ extension AppState {
     func updateRefreshEngineEntries() {
         let entries: [RefreshEntry] = wallets.compactMap { wallet in
             guard let chainId = SpectraChainID.id(for: wallet.selectedChain),
-                  let address = resolvedRefreshAddress(for: wallet) else { return nil }
+                let address = resolvedRefreshAddress(for: wallet)
+            else { return nil }
             return RefreshEntry(chainId: chainId, walletId: wallet.id, address: address)
         }
         Task { try? await WalletServiceBridge.shared.setRefreshEntriesTyped(entries) }
@@ -114,23 +114,23 @@ extension AppState {
             return resolvedBitcoinAddress(for: wallet)
         case "Ethereum", "Arbitrum", "Optimism", "Avalanche", "BNB Chain", "Hyperliquid", "Ethereum Classic", "Base":
             return resolvedEVMAddress(for: wallet, chainName: wallet.selectedChain)
-        case "Solana":    return resolvedSolanaAddress(for: wallet)
-        case "Tron":      return resolvedTronAddress(for: wallet)
-        case "Sui":       return resolvedSuiAddress(for: wallet)
-        case "Aptos":     return resolvedAptosAddress(for: wallet)
-        case "TON":       return resolvedTONAddress(for: wallet)
-        case "ICP":       return resolvedICPAddress(for: wallet)
-        case "NEAR":      return resolvedNearAddress(for: wallet)
-        case "XRP Ledger":   return resolvedXRPAddress(for: wallet)
-        case "Stellar":      return resolvedStellarAddress(for: wallet)
-        case "Cardano":      return resolvedCardanoAddress(for: wallet)
-        case "Polkadot":     return resolvedPolkadotAddress(for: wallet)
-        case "Monero":       return resolvedMoneroAddress(for: wallet)
+        case "Solana": return resolvedSolanaAddress(for: wallet)
+        case "Tron": return resolvedTronAddress(for: wallet)
+        case "Sui": return resolvedSuiAddress(for: wallet)
+        case "Aptos": return resolvedAptosAddress(for: wallet)
+        case "TON": return resolvedTONAddress(for: wallet)
+        case "ICP": return resolvedICPAddress(for: wallet)
+        case "NEAR": return resolvedNearAddress(for: wallet)
+        case "XRP Ledger": return resolvedXRPAddress(for: wallet)
+        case "Stellar": return resolvedStellarAddress(for: wallet)
+        case "Cardano": return resolvedCardanoAddress(for: wallet)
+        case "Polkadot": return resolvedPolkadotAddress(for: wallet)
+        case "Monero": return resolvedMoneroAddress(for: wallet)
         case "Bitcoin Cash": return resolvedBitcoinCashAddress(for: wallet)
-        case "Bitcoin SV":   return resolvedBitcoinSVAddress(for: wallet)
-        case "Litecoin":     return resolvedLitecoinAddress(for: wallet)
-        case "Dogecoin":     return resolvedDogecoinAddress(for: wallet)
-        default:             return nil
+        case "Bitcoin SV": return resolvedBitcoinSVAddress(for: wallet)
+        case "Litecoin": return resolvedLitecoinAddress(for: wallet)
+        case "Dogecoin": return resolvedDogecoinAddress(for: wallet)
+        default: return nil
         }
     }
 
@@ -145,7 +145,8 @@ extension AppState {
         let ethereumContext = evmChainContext(for: "Ethereum") ?? .ethereum
         let balanceJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.ethereum, address: address)
         let nativeBalance = RustBalanceDecoder.evmNativeBalance(from: balanceJSON) ?? 0
-        let tokenBalances = ethereumContext.isEthereumMainnet
+        let tokenBalances =
+            ethereumContext.isEthereumMainnet
             ? ((try? await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(
                 chainId: SpectraChainID.ethereum, address: address,
                 tokens: enabledEthereumTrackedTokens().map { ($0.contractAddress, $0.symbol, $0.decimals) }
@@ -168,9 +169,11 @@ extension AppState {
             guard let transactionHash = transaction.transactionHash else { continue }
             guard shouldPollTransactionStatus(for: transaction, now: now) else { continue }
             do {
-                guard let receiptJSON = try await WalletServiceBridge.shared.fetchEVMReceiptJSON(
-                    chainId: chainId, txHash: transactionHash
-                ) else {
+                guard
+                    let receiptJSON = try await WalletServiceBridge.shared.fetchEVMReceiptJSON(
+                        chainId: chainId, txHash: transactionHash
+                    )
+                else {
                     markTransactionStatusPollSuccess(for: transaction, resolvedStatus: .pending, now: now)
                     continue
                 }
@@ -181,14 +184,18 @@ extension AppState {
                     let resolvedStatus: TransactionStatus = classified.isFailed ? .failed : .confirmed
                     markTransactionStatusPollSuccess(for: transaction, resolvedStatus: resolvedStatus, now: now)
                     resolvedClassifications[transaction.id] = (resolvedStatus, classified)
-                } else { markTransactionStatusPollSuccess(for: transaction, resolvedStatus: .pending, now: now) }
+                } else {
+                    markTransactionStatusPollSuccess(for: transaction, resolvedStatus: .pending, now: now)
+                }
             } catch {
                 markTransactionStatusPollFailure(for: transaction, now: now)
                 continue
-            }}
+            }
+        }
         let resolvedStatuses = resolvedClassifications.mapValues { resolvedStatus, classified in
             PendingTransactionStatusResolution(
-                status: resolvedStatus, receiptBlockNumber: classified.blockNumber.map(Int.init), confirmations: nil, dogecoinNetworkFeeDoge: nil
+                status: resolvedStatus, receiptBlockNumber: classified.blockNumber.map(Int.init), confirmations: nil,
+                dogecoinNetworkFeeDoge: nil
             )
         }
         let staleFailureIDs = stalePendingFailureIDs(from: pendingTransactions, now: now)

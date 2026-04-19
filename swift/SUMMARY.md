@@ -45,7 +45,7 @@ swift/
 - [shell/StorePersistenceNormalization.swift](shell/StorePersistenceNormalization.swift) — Rebuilds cached derived state (`cachedWalletByID`, `cachedIncludedPortfolioHoldings`, token-preference caches) using `rustStoreDerivedStatePlan` from Rust. Keeps all SwiftUI-observed caches coherent after mutations.
 - [shell/StoreLifecycleReset.swift](shell/StoreLifecycleReset.swift) — App-launch state restoration (`restorePersistedRuntimeConfigurationAndState`) and `ResetScope`-driven wipes.
 - [shell/StoreHistoryRefresh.swift](shell/StoreHistoryRefresh.swift) — Transaction-history pagination. Cursors/pages live in Rust (`wsb.historyNextCursor` etc.); Swift just notifies `objectWillChange`.
-- [shell/StoreDiagnosticsExport.swift](shell/StoreDiagnosticsExport.swift) — `DiagnosticsEnvironmentMetadata` envelope + typealiases to smooth UniFFI's acronym-casing (`XRPHistoryDiagnostics = XrpHistoryDiagnostics`).
+- [shell/StoreDiagnosticsExport.swift](shell/StoreDiagnosticsExport.swift) — `DiagnosticsEnvironmentMetadata` envelope + per-chain JSON builders that fan into `diagnosticsBuild*Json` Rust helpers.
 - [shell/Store+Formatting.swift](shell/Store+Formatting.swift) — `localizedStoreString`/`localizedStoreFormat` shortcuts and USD↔fiat conversions. Rate data is stored in Swift `@Published` (`fiatRatesFromUSD`) but the number formatting delegates to Rust helpers for the hot paths.
 - [shell/Store+Notifications.swift](shell/Store+Notifications.swift) — Token-preference merge + price-alert evaluation + `UNUserNotificationCenter` scheduling (iOS-only).
 - [shell/Platform.swift](shell/Platform.swift) — `PlatformSnapshotEnvelope` and the `makePlatformSnapshot()` implementations used for diagnostics bundle export. Pure value-type projections, no logic.
@@ -78,7 +78,7 @@ swift/
 These two files are the `AppState`-facing seam onto UniFFI. They are intentionally thin — add a Rust export, call it everywhere else. The former `WalletRustAppCoreBridge` pass-through wrapper was removed; call `corePlan*` / `coreActiveMaintenancePlan` / etc. directly.
 
 - [rustbridge/WalletServiceBridge.swift](rustbridge/WalletServiceBridge.swift) — `actor WalletServiceBridge` + `enum SpectraChainID`. Owns the singleton `WalletService` instance, surfaces `fetchBalanceJSON`, `fetchHistoryJSON`, `fetchEVMSendPreviewJSON`, `executeSend`, `signAndSend`, `resolveENSName`, `deriveBitcoinAccountXpub`, `saveState/loadState`, etc.
-- [rustbridge/WalletRustEndpointCatalogBridge.swift](rustbridge/WalletRustEndpointCatalogBridge.swift) — Calls `appCoreEndpointForId`, `appCoreEndpointRecordsForChainJson`, etc. Decodes the Rust `AppEndpointRecord` catalog stored in `core/embedded/AppEndpointDirectory.json`.
+- [rustbridge/WalletRustEndpointCatalogBridge.swift](rustbridge/WalletRustEndpointCatalogBridge.swift) — Thin wrapper over typed UniFFI exports (`appCoreEndpointForId`, `appCoreEndpointRecordsForChain`, etc.). `AppEndpointRecord` is a typealias for the generated `AppCoreEndpointRecord`; the catalog itself lives in `core/embedded/AppEndpointDirectory.json`.
 
 ## views/ — SwiftUI
 

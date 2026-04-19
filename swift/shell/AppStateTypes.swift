@@ -7,7 +7,6 @@
 // Nothing here owns runtime state — just value-type schemas, enums, and the
 // typealiases that went with them.
 
-import Combine
 import Foundation
 
 struct ChainOperationalEvent: Identifiable, Sendable {
@@ -52,14 +51,6 @@ enum MainAppTab: Hashable {
     case settings
 }
 
-/// Isolated observable for the main-tab selection. Keeping this off of
-/// `AppState`'s `@Published` surface means switching tabs does not invalidate
-/// every view that observes the store.
-@MainActor
-final class AppTabSelection: ObservableObject {
-    @Published var value: MainAppTab = .home
-}
-
 extension AppState {
     enum ResetScope: String, CaseIterable, Identifiable {
         case walletsAndSecrets
@@ -83,12 +74,17 @@ extension AppState {
         @MainActor
         var detail: String {
             switch self {
-            case .walletsAndSecrets: return localizedStoreString("Imported wallets, seed phrases, watched addresses, and local wallet access data.")
-            case .historyAndCache: return localizedStoreString("Transactions, history database, diagnostics snapshots, and cached chain state.")
+            case .walletsAndSecrets:
+                return localizedStoreString("Imported wallets, seed phrases, watched addresses, and local wallet access data.")
+            case .historyAndCache:
+                return localizedStoreString("Transactions, history database, diagnostics snapshots, and cached chain state.")
             case .alertsAndContacts: return localizedStoreString("Price alerts, notification rules, and saved address book recipients.")
-            case .settingsAndEndpoints: return localizedStoreString("Tracked tokens, pricing and RPC settings, preferences, and icon customizations.")
-            case .dashboardCustomization: return localizedStoreString("Pinned assets and other home page customization choices stored on this device.")
-            case .providerState: return localizedStoreString("Provider selections, reliability memory, transport caches, and low-level network heuristics.")
+            case .settingsAndEndpoints:
+                return localizedStoreString("Tracked tokens, pricing and RPC settings, preferences, and icon customizations.")
+            case .dashboardCustomization:
+                return localizedStoreString("Pinned assets and other home page customization choices stored on this device.")
+            case .providerState:
+                return localizedStoreString("Provider selections, reliability memory, transport caches, and low-level network heuristics.")
             }
         }
     }

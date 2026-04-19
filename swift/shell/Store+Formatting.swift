@@ -21,7 +21,9 @@ extension AppState {
         guard rate > 0 else { return amountInSelectedFiat }
         return amountInSelectedFiat / rate
     }
-    func formattedFiatAmount(fromUSD amountUSD: Double) -> String { formatFiatAmount(amount: convertUSDToSelectedFiat(amountUSD), currency: selectedFiatCurrency) }
+    func formattedFiatAmount(fromUSD amountUSD: Double) -> String {
+        formatFiatAmount(amount: convertUSDToSelectedFiat(amountUSD), currency: selectedFiatCurrency)
+    }
     func formattedFiatAmountIfAvailable(fromUSD amountUSD: Double) -> String? {
         if selectedFiatCurrency == .usd { return formatFiatAmount(amount: amountUSD, currency: .usd) }
         guard let converted = convertUSDToSelectedFiatIfAvailable(amountUSD) else { return nil }
@@ -59,7 +61,9 @@ extension AppState {
     private func formatFiatAmount(amount: Double, currency: FiatCurrency) -> String {
         let formatter = fiatFormatter(for: currency)
         let minimumVisibleAmount = formattingFiatAmountRules(currencyCode: currency.rawValue).minimumVisible
-        if amount > 0, amount < minimumVisibleAmount, let thresholdString = formatter.string(from: NSNumber(value: minimumVisibleAmount)) { return "<\(thresholdString)" }
+        if amount > 0, amount < minimumVisibleAmount, let thresholdString = formatter.string(from: NSNumber(value: minimumVisibleAmount)) {
+            return "<\(thresholdString)"
+        }
         return formatter.string(from: NSNumber(value: amount)) ?? "\(currency.rawValue) \(String(format: "%.2f", amount))"
     }
     func formattedFiatAmount(fromNative amount: Double, symbol: String) -> String? {
@@ -80,11 +84,14 @@ extension AppState {
                 let thresholdFormatter = decimalFormatter(
                     minimumFractionDigits: visibleDecimals, maximumFractionDigits: visibleDecimals, usesGroupingSeparator: false
                 )
-                let thresholdText = thresholdFormatter.string(from: NSNumber(value: threshold))
+                let thresholdText =
+                    thresholdFormatter.string(from: NSNumber(value: threshold))
                     ?? String(format: "%.\(visibleDecimals)f", threshold)
                 return "<\(thresholdText) \(symbol)"
-            }}
-        let formattedValue = formatter.string(from: NSNumber(value: amount))
+            }
+        }
+        let formattedValue =
+            formatter.string(from: NSNumber(value: amount))
             ?? String(format: "%.\(visibleDecimals)f", amount)
         return "\(formattedValue) \(symbol)"
     }
@@ -116,7 +123,8 @@ extension AppState {
         return coin.amount * price
     }
     func currentTotal(for wallet: ImportedWallet) -> Double {
-        wallet.holdings.reduce(0) { $0 + currentValue(for: $1) }}
+        wallet.holdings.reduce(0) { $0 + currentValue(for: $1) }
+    }
     func currentTotalIfAvailable(for wallet: ImportedWallet) -> Double? { sumLiveQuotedValues(for: wallet.holdings) }
     func sumLiveQuotedValues(for coins: [Coin]) -> Double? {
         var total: Double = 0
@@ -143,31 +151,40 @@ extension AppState {
         let walletByID = cachedWalletByID.isEmpty ? Dictionary(uniqueKeysWithValues: wallets.map { ($0.id, $0) }) : cachedWalletByID
         let signatureInputs = transactions.map { transaction in
             NormalizedHistorySignatureTransaction(
-                id: transaction.id.uuidString, walletId: transaction.walletID, kind: transaction.kind.rawValue, status: transaction.status.rawValue, chainName: transaction.chainName, symbol: transaction.symbol, transactionHash: transaction.transactionHash, createdAtUnix: transaction.createdAt.timeIntervalSince1970
+                id: transaction.id.uuidString, walletId: transaction.walletID, kind: transaction.kind.rawValue,
+                status: transaction.status.rawValue, chainName: transaction.chainName, symbol: transaction.symbol,
+                transactionHash: transaction.transactionHash, createdAtUnix: transaction.createdAt.timeIntervalSince1970
             )
         }
-        let inputSignature = Int(corePlanNormalizedHistorySignature(
-            transactions: signatureInputs, wallets: walletChainInputs(from: walletByID)
-        ))
+        let inputSignature = Int(
+            corePlanNormalizedHistorySignature(
+                transactions: signatureInputs, wallets: walletChainInputs(from: walletByID)
+            ))
         guard lastNormalizedHistorySignature != inputSignature else { return }
         let startedAt = CFAbsoluteTimeGetCurrent()
         let normalizedEntries = rebuildNormalizedHistoryIndexUsingRust(walletByID: walletByID)
         normalizedHistoryIndex = normalizedEntries
         lastNormalizedHistorySignature = inputSignature
         recordPerformanceSample(
-            "rebuild_normalized_history_index", startedAt: startedAt, metadata: "transactions=\(transactions.count) normalized=\(normalizedHistoryIndex.count)"
+            "rebuild_normalized_history_index", startedAt: startedAt,
+            metadata: "transactions=\(transactions.count) normalized=\(normalizedHistoryIndex.count)"
         )
     }
     func rebuildTransactionDerivedState() {
         cachedTransactionByID = Dictionary(uniqueKeysWithValues: transactions.map { ($0.id, $0) })
-        let earliestInputs = transactions.map { TransactionEarliestInput(walletId: $0.walletID, createdAtUnix: $0.createdAt.timeIntervalSince1970) }
+        let earliestInputs = transactions.map {
+            TransactionEarliestInput(walletId: $0.walletID, createdAtUnix: $0.createdAt.timeIntervalSince1970)
+        }
         let earliestPairs = corePlanEarliestTransactionDates(transactions: earliestInputs)
-        cachedFirstActivityDateByWalletID = Dictionary(uniqueKeysWithValues: earliestPairs.map { ($0.walletId, Date(timeIntervalSince1970: $0.earliestCreatedAtUnix)) })
+        cachedFirstActivityDateByWalletID = Dictionary(
+            uniqueKeysWithValues: earliestPairs.map { ($0.walletId, Date(timeIntervalSince1970: $0.earliestCreatedAtUnix)) })
         rebuildNormalizedHistoryIndex()
     }
     func pruneTransactionsForActiveWallets() {
         let walletByID = cachedWalletByID.isEmpty ? Dictionary(uniqueKeysWithValues: wallets.map { ($0.id, $0) }) : cachedWalletByID
-        let activityInputs = transactions.map { TransactionActivityInput(id: $0.id.uuidString, walletId: $0.walletID, chainName: $0.chainName) }
+        let activityInputs = transactions.map {
+            TransactionActivityInput(id: $0.id.uuidString, walletId: $0.walletID, chainName: $0.chainName)
+        }
         let keptIDStrings = Set(
             corePlanActiveWalletTransactionIds(
                 transactions: activityInputs, wallets: walletChainInputs(from: walletByID)
@@ -175,13 +192,15 @@ extension AppState {
         )
         let filtered = transactions.filter { keptIDStrings.contains($0.id.uuidString) }
         guard filtered.count != transactions.count else { return }
-        setTransactions(filtered.sorted { $0.createdAt > $1.createdAt })}
+        setTransactions(filtered.sorted { $0.createdAt > $1.createdAt })
+    }
     private func formattedTransactionDetailAssetAmount(_ amount: Double, symbol: String, chainName: String) -> String {
         let supportedDecimals = supportedDecimalPlaces(for: symbol, chainName: chainName)
         let formatter = decimalFormatter(
             minimumFractionDigits: 0, maximumFractionDigits: supportedDecimals, usesGroupingSeparator: false
         )
-        let formattedValue = formatter.string(from: NSNumber(value: amount))
+        let formattedValue =
+            formatter.string(from: NSNumber(value: amount))
             ?? String(format: "%.\(supportedDecimals)f", amount)
         return "\(formattedValue) \(symbol)"
     }
@@ -196,18 +215,20 @@ extension AppState {
     }
     private func rustAssetDecimalsResolution(symbol: String, chainName: String) -> (supported: UInt32, display: UInt32) {
         let assetDisplay = UInt32(min(max(assetDisplayDecimalPlaces(for: chainName), 0), 30))
-        let tokenOverride = cachedTokenPreferenceByChainAndSymbol[tokenPreferenceLookupKey(chainName: chainName, symbol: symbol)].map { entry in
+        let tokenOverride = cachedTokenPreferenceByChainAndSymbol[tokenPreferenceLookupKey(chainName: chainName, symbol: symbol)].map {
+            entry in
             TokenPreferenceOverride(
                 chainName: chainName, symbol: symbol,
                 decimals: UInt32(max(0, entry.decimals)),
                 displayDecimals: entry.displayDecimals.map { UInt32(max(0, $0)) }
             )
         }
-        let result = formattingResolveAssetDecimals(request: AssetDecimalsRequest(
-            chainName: chainName, symbol: symbol,
-            assetDisplayDecimals: assetDisplay,
-            tokenOverride: tokenOverride
-        ))
+        let result = formattingResolveAssetDecimals(
+            request: AssetDecimalsRequest(
+                chainName: chainName, symbol: symbol,
+                assetDisplayDecimals: assetDisplay,
+                tokenOverride: tokenOverride
+            ))
         return (result.supported, result.display)
     }
     func defaultAssetDisplayDecimalsByChain(defaultValue: Int = 3) -> [String: Int] {
@@ -223,17 +244,27 @@ extension AppState {
                 HistoryWallet(
                     walletId: $0.key.lowercased(), selectedChain: $0.value.selectedChain
                 )
-            }, transactions: transactions.map {
+            },
+            transactions: transactions.map {
                 HistoryTransaction(
-                    id: $0.id.uuidString.lowercased(), walletId: $0.walletID?.lowercased(), kind: $0.kind.rawValue, status: $0.status.rawValue, walletName: $0.walletName, assetName: $0.assetName, symbol: $0.symbol, chainName: $0.chainName, address: $0.address, transactionHash: $0.transactionHash, transactionHistorySource: $0.transactionHistorySource, createdAtUnix: $0.createdAt.timeIntervalSince1970
+                    id: $0.id.uuidString.lowercased(), walletId: $0.walletID?.lowercased(), kind: $0.kind.rawValue,
+                    status: $0.status.rawValue, walletName: $0.walletName, assetName: $0.assetName, symbol: $0.symbol,
+                    chainName: $0.chainName, address: $0.address, transactionHash: $0.transactionHash,
+                    transactionHistorySource: $0.transactionHistorySource, createdAtUnix: $0.createdAt.timeIntervalSince1970
                 )
             }, unknownLabel: localizedStoreString("Unknown")
         )
         let entries = coreNormalizeHistory(request: request)
         return entries.compactMap { entry in
-            guard let transactionID = UUID(uuidString: entry.transactionId), let kind = TransactionKind(rawValue: entry.kind), let status = TransactionStatus(rawValue: entry.status) else { return nil }
+            guard let transactionID = UUID(uuidString: entry.transactionId), let kind = TransactionKind(rawValue: entry.kind),
+                let status = TransactionStatus(rawValue: entry.status)
+            else { return nil }
             return NormalizedHistoryEntry(
-                id: entry.id, transactionID: transactionID, dedupeKey: entry.dedupeKey, createdAt: Date(timeIntervalSince1970: entry.createdAtUnix), kind: kind, status: status, walletName: entry.walletName, assetName: entry.assetName, symbol: entry.symbol, chainName: entry.chainName, address: entry.address, transactionHash: entry.transactionHash, sourceTag: entry.sourceTag, providerCount: Int(entry.providerCount), searchIndex: entry.searchIndex
+                id: entry.id, transactionID: transactionID, dedupeKey: entry.dedupeKey,
+                createdAt: Date(timeIntervalSince1970: entry.createdAtUnix), kind: kind, status: status, walletName: entry.walletName,
+                assetName: entry.assetName, symbol: entry.symbol, chainName: entry.chainName, address: entry.address,
+                transactionHash: entry.transactionHash, sourceTag: entry.sourceTag, providerCount: Int(entry.providerCount),
+                searchIndex: entry.searchIndex
             )
         }
     }
