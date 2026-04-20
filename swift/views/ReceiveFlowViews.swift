@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit
 struct ReceiveView: View {
-    let store: AppState
+    @Bindable var store: AppState
     @State private var didCopyReceiveAddress: Bool = false
     @State private var isShowingReceiveQRShareSheet: Bool = false
     @State private var receiveQRExportMessage: String?
@@ -40,8 +40,8 @@ struct ReceiveView: View {
             SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 18) {
-                    receiveDetailCard(title: "Wallet") {
-                        Picker("Wallet", selection: store.receiveWalletIDBinding) {
+                    spectraDetailCard(title: "Wallet") {
+                        Picker("Wallet", selection: $store.receiveWalletID) {
                             ForEach(presentation.receiveWallets) { wallet in Text(wallet.name).tag(wallet.id) }
                         }.onChange(of: store.receiveWalletID) { _, _ in
                             store.syncReceiveAssetSelection()
@@ -72,7 +72,7 @@ struct ReceiveView: View {
                     Button {
                         UIPasteboard.general.string = presentation.resolvedAddress
                         didCopyReceiveAddress = true
-                        Task { @MainActor in
+                        Task {
                             try? await Task.sleep(for: .seconds(1.6))
                             didCopyReceiveAddress = false
                         }
@@ -85,7 +85,7 @@ struct ReceiveView: View {
     }
     @ViewBuilder
     private var receiveAddressSections: some View {
-        receiveDetailCard(title: "QR Code") {
+        spectraDetailCard(title: "QR Code") {
             VStack(alignment: .center, spacing: 12) {
                 if presentation.canUseAddress {
                     QRCodeImage(address: presentation.resolvedAddress).frame(width: 184, height: 184).padding(14).background(
@@ -120,7 +120,7 @@ struct ReceiveView: View {
             }.frame(maxWidth: .infinity).padding(18).spectraBubbleFill().glassEffect(
                 .regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
         }
-        receiveDetailCard(title: "Address") {
+        spectraDetailCard(title: "Address") {
             Text(presentation.resolvedAddress).font(.body.monospaced()).textSelection(.enabled).padding(14).frame(
                 maxWidth: .infinity, alignment: .leading
             ).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 18))
@@ -130,7 +130,7 @@ struct ReceiveView: View {
             }
         }
         if let receiveCoin = presentation.selectedCoin {
-            receiveDetailCard(title: "Asset Details") {
+            spectraDetailCard(title: "Asset Details") {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
                         CoinBadge(
@@ -157,12 +157,5 @@ struct ReceiveView: View {
                 }
             }
         }
-    }
-    @ViewBuilder
-    private func receiveDetailCard(title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(localized(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary)
-            content()
-        }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }
 }

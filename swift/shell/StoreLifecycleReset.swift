@@ -449,8 +449,8 @@ extension AppState {
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
         UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.defaultsKey)
-        UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.customImageRevisionDefaultsKey)
         TokenIconImageStore.removeAllImages()
+        TokenIconImageRevision.shared.bump()
         tokenPreferences = ChainTokenRegistryEntry.builtIn.map(\.tokenPreferenceEntry)
         livePrices = [:]
         quoteRefreshError = nil

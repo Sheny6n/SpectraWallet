@@ -68,6 +68,18 @@ extension CoreCoin: Identifiable {
         default: return ["+", "+", "+"]
         }
     }
+    var chainID: AppChainID? { AppEndpointDirectory.appChain(for: chainName)?.id }
+    var isUTXOChain: Bool {
+        switch chainID {
+        case .bitcoin, .bitcoinCash, .bitcoinSV, .litecoin, .dogecoin: return true
+        default: return false
+        }
+    }
+    var isEVMChain: Bool { AppEndpointDirectory.appChain(for: chainName)?.isEVM ?? false }
+    var isNativeCoin: Bool {
+        guard let descriptor = AppEndpointDirectory.appChain(for: chainName) else { return false }
+        return symbol == descriptor.nativeSymbol
+    }
 }
 typealias ImportedWallet = CoreImportedWallet
 extension CoreImportedWallet: Identifiable {}

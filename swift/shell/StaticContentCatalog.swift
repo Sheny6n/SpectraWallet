@@ -384,23 +384,15 @@ private func tokenTrackingChainFor(_ value: String) -> TokenTrackingChain? {
 }
 extension ChainTokenRegistryEntry {
     static let builtIn: [ChainTokenRegistryEntry] = {
-        let json = listBuiltinTokensJson(chainId: UInt32.max)
-        guard let data = json.data(using: .utf8), let entries = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            return []
-        }
-        return entries.compactMap { obj -> ChainTokenRegistryEntry? in
-            guard let chainName = obj["chain"] as? String, let chain = tokenTrackingChainFor(chainName), let name = obj["name"] as? String,
-                let symbol = obj["symbol"] as? String, let tokenStandard = obj["token_standard"] as? String,
-                let contract = obj["contract"] as? String, let marketId = obj["market_id"] as? String,
-                let coingeckoId = obj["coingecko_id"] as? String, let decimals = obj["decimals"] as? Int,
-                let categoryRaw = obj["category"] as? String, let category = TokenPreferenceCategory(rawValue: categoryRaw)
+        listBuiltinTokens(chainId: UInt32.max).compactMap { entry -> ChainTokenRegistryEntry? in
+            guard let chain = tokenTrackingChainFor(entry.chain),
+                  let category = TokenPreferenceCategory(rawValue: entry.category)
             else { return nil }
-            let displayDecimals = obj["display_decimals"] as? Int
-            let enabled = obj["enabled"] as? Bool ?? true
             return ChainTokenRegistryEntry(
-                chain: chain, name: name, symbol: symbol, tokenStandard: tokenStandard, contractAddress: contract, marketDataId: marketId,
-                coinGeckoId: coingeckoId, decimals: decimals, displayDecimals: displayDecimals, category: category, isBuiltIn: true,
-                isEnabledByDefault: enabled
+                chain: chain, name: entry.name, symbol: entry.symbol, tokenStandard: entry.tokenStandard,
+                contractAddress: entry.contract, marketDataId: entry.marketId, coinGeckoId: entry.coingeckoId,
+                decimals: Int(entry.decimals), displayDecimals: entry.displayDecimals.map(Int.init),
+                category: category, isBuiltIn: true, isEnabledByDefault: entry.enabled
             )
         }
     }()

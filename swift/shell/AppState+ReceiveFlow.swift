@@ -2,12 +2,6 @@ import Foundation
 import SwiftUI
 @MainActor
 extension AppState {
-    var receiveWalletIDBinding: Binding<String> {
-        Binding(get: { self.receiveWalletID }, set: { self.receiveWalletID = $0 })
-    }
-    var isShowingReceiveSheetBinding: Binding<Bool> {
-        Binding(get: { self.isShowingReceiveSheet }, set: { self.isShowingReceiveSheet = $0 })
-    }
     func beginReceive() {
         guard let firstWallet = receiveEnabledWallets.first else { return }
         receiveWalletID = firstWallet.id

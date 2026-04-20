@@ -130,7 +130,6 @@ struct TokenIconSetting: Identifiable {
 struct TokenIconCustomizationRow: View {
     let setting: TokenIconSetting
     @AppStorage(TokenIconPreferenceStore.defaultsKey) private var tokenIconPreferencesStorage = ""
-    @AppStorage(TokenIconPreferenceStore.customImageRevisionDefaultsKey) private var tokenIconCustomImageRevision = 0
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isImportingPhoto = false
     @State private var photoImportError: String?
@@ -157,7 +156,7 @@ struct TokenIconCustomizationRow: View {
                     if hasCustomPhoto {
                         Button(AppLocalization.string("Remove Photo"), role: .destructive) {
                             TokenIconImageStore.removeImage(for: setting.assetIdentifier)
-                            tokenIconCustomImageRevision += 1
+                            TokenIconImageRevision.shared.bump()
                             if selectedStyle == .customPhoto { selectedStyle = .artwork }
                         }
                     }
@@ -192,7 +191,7 @@ struct TokenIconCustomizationRow: View {
         }
     }
     private var hasCustomPhoto: Bool {
-        _ = tokenIconCustomImageRevision
+        _ = TokenIconImageRevision.shared.tick
         return TokenIconImageStore.hasCustomImage(for: setting.assetIdentifier)
     }
     @MainActor
@@ -205,7 +204,7 @@ struct TokenIconCustomizationRow: View {
                 throw TokenIconImageStore.IconError.unreadableImage
             }
             try TokenIconImageStore.saveImageData(imageData, for: setting.assetIdentifier)
-            tokenIconCustomImageRevision += 1
+            TokenIconImageRevision.shared.bump()
             self.selectedStyle = .customPhoto
         } catch {
             photoImportError =

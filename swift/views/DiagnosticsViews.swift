@@ -531,7 +531,7 @@ struct StandardChainDiagnosticsView: View {
             rebuildCachedRows()
         }.onChange(of: copiedDiagnosticsNotice) { _, newValue in
             guard newValue != nil else { return }
-            Task { @MainActor in
+            Task {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 copiedDiagnosticsNotice = nil
             }
@@ -657,71 +657,68 @@ struct StandardChainDiagnosticsView: View {
     private func runHistoryDiagnostics() async { await chain.dispatch.runHistoryDiagnostics(store) }
     private func runEndpointDiagnostics() async { await chain.dispatch.runEndpointDiagnostics(store) }
     @ViewBuilder
+    private var bitcoinSettingsSection: some View {
+        Section(AppLocalization.string("Bitcoin Settings")) {
+            Picker(AppLocalization.string("Send Fee Priority"), selection: $store.bitcoinFeePriority) {
+                ForEach(BitcoinFeePriority.allCases) { priority in Text(priority.displayName).tag(priority) }
+            }.pickerStyle(.segmented)
+            TextField(
+                AppLocalization.string("Custom Esplora endpoints (comma-separated, optional)"),
+                text: $store.bitcoinEsploraEndpoints
+            ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+            if let bitcoinEsploraEndpointsValidationError = store.bitcoinEsploraEndpointsValidationError {
+                Text(bitcoinEsploraEndpointsValidationError).font(.caption).foregroundStyle(.red)
+            } else {
+                Text(copy.bitcoinEsploraHint).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+    @ViewBuilder
+    private var ethereumSettingsSections: some View {
+        Section(AppLocalization.string("Ethereum RPC")) {
+            TextField(AppLocalization.string("Ethereum RPC URL (Optional)"), text: $store.ethereumRPCEndpoint)
+                .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+            Text(copy.ethereumRPCNote).font(.caption).foregroundStyle(.secondary)
+            if let ethereumRPCEndpointValidationError = store.ethereumRPCEndpointValidationError {
+                Text(ethereumRPCEndpointValidationError).font(.caption).foregroundStyle(.red)
+            }
+        }
+        Section(AppLocalization.string("Etherscan (Optional)")) {
+            TextField(AppLocalization.string("Etherscan API Key"), text: $store.etherscanAPIKey)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            Text(copy.etherscanNote).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    @ViewBuilder
+    private var moneroSettingsSection: some View {
+        Section(AppLocalization.string("Monero Backend")) {
+            Picker(AppLocalization.string("Trusted Backend"), selection: $selectedMoneroBackendID) {
+                ForEach(moneroBackendChoices, id: \.id) { choice in Text(choice.title).tag(choice.id) }
+            }
+            if selectedMoneroBackendID == moneroCustomBackendID {
+                TextField(AppLocalization.string("Monero Backend URL (Optional)"), text: $store.moneroBackendBaseURL)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+            } else {
+                Text(selectedTrustedMoneroBackend?.baseURL ?? MoneroBalanceService.defaultPublicBackend.baseURL)
+                    .font(.caption.monospaced()).textSelection(.enabled)
+            }
+            if let moneroBackendBaseURLValidationError = store.moneroBackendBaseURLValidationError {
+                Text(moneroBackendBaseURLValidationError).font(.caption).foregroundStyle(.red)
+            } else {
+                Text(copy.moneroBackendNote).font(.caption).foregroundStyle(.secondary)
+            }
+            TextField(AppLocalization.string("Monero Backend API Key (Optional)"), text: $store.moneroBackendAPIKey)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            Text(copy.moneroAPIKeyNote).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    @ViewBuilder
     private var chainSpecificSections: some View {
-        if chain == .bitcoin {
-            Section(AppLocalization.string("Bitcoin Settings")) {
-                Picker(
-                    AppLocalization.string("Send Fee Priority"),
-                    selection: $store.bitcoinFeePriority
-                ) {
-                    ForEach(BitcoinFeePriority.allCases) { priority in Text(priority.displayName).tag(priority) }
-                }.pickerStyle(.segmented)
-                TextField(
-                    AppLocalization.string("Custom Esplora endpoints (comma-separated, optional)"),
-                    text: $store.bitcoinEsploraEndpoints
-                ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                if let bitcoinEsploraEndpointsValidationError = store.bitcoinEsploraEndpointsValidationError {
-                    Text(bitcoinEsploraEndpointsValidationError).font(.caption).foregroundStyle(.red)
-                } else {
-                    Text(copy.bitcoinEsploraHint).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
-        if chain == .ethereum {
-            Section(AppLocalization.string("Ethereum RPC")) {
-                TextField(
-                    AppLocalization.string("Ethereum RPC URL (Optional)"),
-                    text: $store.ethereumRPCEndpoint
-                ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                Text(copy.ethereumRPCNote).font(.caption).foregroundStyle(.secondary)
-                if let ethereumRPCEndpointValidationError = store.ethereumRPCEndpointValidationError {
-                    Text(ethereumRPCEndpointValidationError).font(.caption).foregroundStyle(.red)
-                }
-            }
-            Section(AppLocalization.string("Etherscan (Optional)")) {
-                TextField(
-                    AppLocalization.string("Etherscan API Key"),
-                    text: $store.etherscanAPIKey
-                ).textInputAutocapitalization(.never).autocorrectionDisabled()
-                Text(copy.etherscanNote).font(.caption).foregroundStyle(.secondary)
-            }
-        }
-        if chain == .monero {
-            Section(AppLocalization.string("Monero Backend")) {
-                Picker(AppLocalization.string("Trusted Backend"), selection: $selectedMoneroBackendID) {
-                    ForEach(moneroBackendChoices, id: \.id) { choice in Text(choice.title).tag(choice.id) }
-                }
-                if selectedMoneroBackendID == moneroCustomBackendID {
-                    TextField(
-                        AppLocalization.string("Monero Backend URL (Optional)"),
-                        text: $store.moneroBackendBaseURL
-                    ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                } else {
-                    Text(selectedTrustedMoneroBackend?.baseURL ?? MoneroBalanceService.defaultPublicBackend.baseURL).font(
-                        .caption.monospaced()
-                    ).textSelection(.enabled)
-                }
-                if let moneroBackendBaseURLValidationError = store.moneroBackendBaseURLValidationError {
-                    Text(moneroBackendBaseURLValidationError).font(.caption).foregroundStyle(.red)
-                } else {
-                    Text(copy.moneroBackendNote).font(.caption).foregroundStyle(.secondary)
-                }
-                TextField(
-                    AppLocalization.string("Monero Backend API Key (Optional)"),
-                    text: $store.moneroBackendAPIKey
-                ).textInputAutocapitalization(.never).autocorrectionDisabled()
-                Text(copy.moneroAPIKeyNote).font(.caption).foregroundStyle(.secondary)
-            }
+        switch chain {
+        case .bitcoin: bitcoinSettingsSection
+        case .ethereum: ethereumSettingsSections
+        case .monero: moneroSettingsSection
+        default: EmptyView()
         }
         if supportsUTXOChainActions {
             Section(AppLocalization.string("Chain Actions")) {

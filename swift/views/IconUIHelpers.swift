@@ -3,13 +3,20 @@ import SwiftUI
 #if canImport(UIKit)
     import UIKit
 #endif
+@Observable
+@MainActor
+final class TokenIconImageRevision {
+    static let shared = TokenIconImageRevision()
+    private(set) var tick: Int = 0
+    func bump() { tick += 1 }
+    private init() {}
+}
 struct CoinBadge: View {
     let assetIdentifier: String?
     let fallbackText: String
     let color: Color
     var size: CGFloat = 40
     @AppStorage(TokenIconPreferenceStore.defaultsKey) private var tokenIconPreferencesStorage = ""
-    @AppStorage(TokenIconPreferenceStore.customImageRevisionDefaultsKey) private var tokenIconCustomImageRevision = 0
     private var resolvedAssetIdentifier: String {
         if let assetIdentifier { return Coin.normalizedIconIdentifier(assetIdentifier) }
         return "generic:\(fallbackText.lowercased())"
@@ -47,7 +54,7 @@ struct CoinBadge: View {
     }
     private var customTokenImage: UIImage? {
         #if canImport(UIKit)
-            _ = tokenIconCustomImageRevision
+            _ = TokenIconImageRevision.shared.tick
             return TokenIconImageStore.image(for: resolvedAssetIdentifier)
         #else
             return nil
@@ -69,7 +76,6 @@ enum TokenIconStyle: String, CaseIterable, Identifiable {
 }
 enum TokenIconPreferenceStore {
     static let defaultsKey = "settings.tokenIconPreferences.v1"
-    static let customImageRevisionDefaultsKey = "settings.tokenIconCustomImageRevision.v1"
     static func preference(for identifier: String, storage: String) -> TokenIconStyle {
         let preferences = storedPreferences(from: storage)
         return preferences[identifier] ?? .artwork

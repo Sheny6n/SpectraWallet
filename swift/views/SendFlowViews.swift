@@ -47,17 +47,17 @@ struct SendView: View {
     @ViewBuilder
     private var sendStatusSections: some View {
         if let sendError = store.sendError {
-            sendDetailCard {
+            spectraDetailCard {
                 Text(sendError).font(.caption).foregroundStyle(.red)
             }
         }
         if let sendVerificationNotice = store.sendVerificationNotice {
-            sendDetailCard(title: "Verification") {
+            spectraDetailCard(title: "Verification") {
                 Text(sendVerificationNotice).font(.caption).foregroundStyle(store.sendVerificationNoticeIsWarning ? .red : .orange)
             }
         }
         if let lastSentTransaction = store.lastSentTransaction {
-            sendDetailCard(title: "Last Sent") {
+            spectraDetailCard(title: "Last Sent") {
                 Text("\(lastSentTransaction.symbol) sent to \(lastSentTransaction.addressPreviewText)").font(.subheadline)
                 HStack {
                     Text("Status").font(.caption).foregroundStyle(.secondary)
@@ -114,7 +114,7 @@ struct SendView: View {
         if isActive { sendingSection(message) }
     }
     private func sendingSection(_ title: String) -> some View {
-        sendDetailCard {
+        spectraDetailCard {
             HStack(spacing: 10) {
                 ProgressView()
                 Text(title).font(.caption)
@@ -135,9 +135,11 @@ struct SendView: View {
         )
     }
     private func utxoPreview(for coin: Coin) -> BitcoinSendPreview? {
-        if coin.chainName == "Litecoin" { return store.litecoinSendPreview }
-        if coin.chainName == "Bitcoin Cash" { return store.bitcoinCashSendPreview }
-        return store.bitcoinSendPreview
+        switch coin.chainID {
+        case .litecoin: return store.litecoinSendPreview
+        case .bitcoinCash: return store.bitcoinCashSendPreview
+        default: return store.bitcoinSendPreview
+        }
     }
     private func utxoAdvancedModeCaption(for chainName: String) -> String? {
         switch chainName {
@@ -187,10 +189,7 @@ struct SendView: View {
     }
     @ViewBuilder
     private func networkSendSections(selectedCoin: Coin?) -> some View {
-        if let selectedCoin,
-            selectedCoin.chainName == "Bitcoin" || selectedCoin.chainName == "Bitcoin Cash" || selectedCoin.chainName == "Bitcoin SV"
-                || selectedCoin.chainName == "Litecoin" || selectedCoin.chainName == "Dogecoin"
-        {
+        if let selectedCoin, selectedCoin.isUTXOChain {
             Section(AppLocalization.string("Advanced UTXO Mode")) {
                 Toggle(AppLocalization.string("Enable Advanced Controls"), isOn: $store.sendAdvancedMode)
                 if store.sendAdvancedMode {
@@ -198,7 +197,7 @@ struct SendView: View {
                         "Max Inputs: \(store.sendUTXOMaxInputCount == 0 ? "Auto" : "\(store.sendUTXOMaxInputCount)")",
                         value: $store.sendUTXOMaxInputCount, in: 0...50
                     )
-                    if selectedCoin.chainName == "Litecoin" {
+                    if selectedCoin.chainID == .litecoin {
                         Toggle(AppLocalization.string("Enable RBF Policy"), isOn: $store.sendEnableRBF)
                         Picker(AppLocalization.string("Change Strategy"), selection: $store.sendLitecoinChangeStrategy) {
                             ForEach(LitecoinChangeStrategy.allCases) { strategy in Text(strategy.displayName).tag(strategy) }
@@ -218,9 +217,7 @@ struct SendView: View {
                 }
             }
         }
-        if let selectedCoin, selectedCoin.chainName != "Bitcoin", selectedCoin.chainName != "Bitcoin Cash",
-            selectedCoin.chainName != "Bitcoin SV", selectedCoin.chainName != "Litecoin", selectedCoin.chainName != "Dogecoin"
-        {
+        if let selectedCoin, !selectedCoin.isUTXOChain {
             Section(AppLocalization.string("Fee Priority")) {
                 Picker(AppLocalization.string("Fee Priority"), selection: chainFeePriorityBinding(for: selectedCoin.chainName)) {
                     ForEach(ChainFeePriorityOption.allCases) { priority in Text(priority.displayName).tag(priority) }
@@ -231,13 +228,7 @@ struct SendView: View {
                 ).font(.caption).foregroundStyle(.secondary)
             }
         }
-        if let selectedCoin,
-            ((selectedCoin.chainName == "Bitcoin" && selectedCoin.symbol == "BTC")
-                || (selectedCoin.chainName == "Bitcoin Cash" && selectedCoin.symbol == "BCH")
-                || (selectedCoin.chainName == "Bitcoin SV" && selectedCoin.symbol == "BSV")
-                || (selectedCoin.chainName == "Litecoin" && selectedCoin.symbol == "LTC")
-                || (selectedCoin.chainName == "Dogecoin" && selectedCoin.symbol == "DOGE"))
-        {
+        if let selectedCoin, selectedCoin.isUTXOChain, selectedCoin.isNativeCoin {
             let feeSymbol = selectedCoin.symbol
             let utxoPreview = utxoPreview(for: selectedCoin)
             Section(AppLocalization.string("\(selectedCoin.chainName) Network")) {
@@ -249,12 +240,12 @@ struct SendView: View {
                         "Spectra stores fee priority separately for each UTXO chain and applies it to live send previews for supported chains."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
-                if selectedCoin.chainName == "Dogecoin", store.isPreparingDogecoinSend {
+                if selectedCoin.chainID == .dogecoin, store.isPreparingDogecoinSend {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text(AppLocalization.string("Loading UTXOs and fee estimate...")).font(.caption)
                     }
-                } else if selectedCoin.chainName == "Dogecoin", let dogecoinSendPreview = store.dogecoinSendPreview {
+                } else if selectedCoin.chainID == .dogecoin, let dogecoinSendPreview = store.dogecoinSendPreview {
                     if let fiatFee = store.formattedFiatAmount(fromNative: dogecoinSendPreview.estimatedNetworkFeeDoge, symbol: feeSymbol) {
                         Text(
                             "Estimated Network Fee: \(dogecoinSendPreview.estimatedNetworkFeeDoge, specifier: "%.6f") \(feeSymbol) (~\(fiatFee))"
@@ -276,11 +267,7 @@ struct SendView: View {
                 }
             }
         }
-        if let selectedCoin,
-            (selectedCoin.chainName == "Ethereum" || selectedCoin.chainName == "Ethereum Classic" || selectedCoin.chainName == "Arbitrum"
-                || selectedCoin.chainName == "Optimism" || selectedCoin.chainName == "BNB Chain" || selectedCoin.chainName == "Avalanche"
-                || selectedCoin.chainName == "Hyperliquid")
-        {
+        if let selectedCoin, selectedCoin.isEVMChain {
             Section(AppLocalization.string("\(selectedCoin.chainName) Network")) {
                 Toggle(AppLocalization.string("Use Custom Fees"), isOn: $store.useCustomEthereumFees)
                 if store.useCustomEthereumFees {
@@ -300,7 +287,7 @@ struct SendView: View {
                         Text(customEthereumNonceValidationError).font(.caption).foregroundStyle(.red)
                     }
                 }
-                if selectedCoin.chainName == "Ethereum" {
+                if selectedCoin.chainID == .ethereum {
                     if store.isPreparingEthereumReplacementContext {
                         HStack(spacing: 10) {
                             ProgressView()
@@ -490,7 +477,7 @@ struct SendView: View {
                         }
                     }.disabled(isSendBusy)
                 }
-            }.alert(AppLocalization.string("High-Risk Send"), isPresented: store.isShowingHighRiskSendConfirmationBinding) {
+            }.alert(AppLocalization.string("High-Risk Send"), isPresented: $store.isShowingHighRiskSendConfirmation) {
                 Button(AppLocalization.string("Cancel"), role: .cancel) {
                     store.clearHighRiskSendConfirmation()
                 }
@@ -506,13 +493,6 @@ struct SendView: View {
                         : "• " + store.pendingHighRiskSendReasons.joined(separator: "\n• "))
             }
         }
-    }
-    @ViewBuilder
-    private func sendDetailCard(title: String? = nil, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let title { Text(AppLocalization.string(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary) }
-            VStack(alignment: .leading, spacing: 12) { content() }
-        }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }
     private var qrScannerAlertBinding: Binding<Bool> {
         Binding(
@@ -542,9 +522,7 @@ struct SendView: View {
         guard let chainName else { return candidates.first }
         for candidate in candidates {
             if isValidScannedAddress(candidate, for: chainName) {
-                if chainName == "Ethereum" || chainName == "Ethereum Classic" || chainName == "Arbitrum" || chainName == "Optimism"
-                    || chainName == "BNB Chain" || chainName == "Avalanche" || chainName == "Hyperliquid"
-                {
+                if AppEndpointDirectory.appChain(for: chainName)?.isEVM == true {
                     return normalizeEVMAddress(candidate)
                 }
                 return candidate
@@ -605,184 +583,5 @@ struct SendView: View {
         case .normal: return "Normal (balanced)"
         case .priority: return "Priority (faster confirmation bias)"
         }
-    }
-}
-private struct SendPrimarySectionsView: View {
-    let store: AppState
-    @Binding var selectedAddressBookEntryID: String
-    @Binding var isShowingQRScanner: Bool
-    @Binding var qrScannerErrorMessage: String?
-    private struct Presentation {
-        let sendWallets: [ImportedWallet]
-        let selectedWallet: ImportedWallet?
-        let availableSendCoins: [Coin]
-        let selectedCoin: Coin?
-        let selectedCoinAmountText: String?
-        let selectedCoinApproximateFiatText: String?
-        let addressBookEntries: [AddressBookEntry]
-    }
-    private var presentation: Presentation {
-        let sendWallets = store.sendEnabledWallets
-        let selectedWallet = sendWallets.first(where: { $0.id == store.sendWalletID })
-        let availableSendCoins = store.availableSendCoins(for: store.sendWalletID)
-        let selectedCoin = availableSendCoins.first(where: { $0.holdingKey == store.sendHoldingKey })
-        let selectedCoinAmountText = selectedCoin.map { store.formattedAssetAmount($0.amount, symbol: $0.symbol, chainName: $0.chainName) }
-        let sendAmount = Double(store.sendAmount) ?? 0
-        let selectedCoinApproximateFiatText: String?
-        if let selectedCoin, !sendAmount.isZero {
-            selectedCoinApproximateFiatText = store.formattedFiatAmount(fromNative: sendAmount, symbol: selectedCoin.symbol)
-        } else {
-            selectedCoinApproximateFiatText = nil
-        }
-        return Presentation(
-            sendWallets: sendWallets, selectedWallet: selectedWallet, availableSendCoins: availableSendCoins, selectedCoin: selectedCoin,
-            selectedCoinAmountText: selectedCoinAmountText, selectedCoinApproximateFiatText: selectedCoinApproximateFiatText,
-            addressBookEntries: store.sendAddressBookEntries
-        )
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            sendSummarySection
-            walletAssetSection
-            recipientSection
-            amountSection
-        }
-    }
-    private var sendSummarySection: some View {
-        sendDetailCard {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
-                    if let selectedCoin = presentation.selectedCoin {
-                        CoinBadge(
-                            assetIdentifier: selectedCoin.iconIdentifier, fallbackText: selectedCoin.mark, color: selectedCoin.color,
-                            size: 42
-                        )
-                    } else {
-                        Image(systemName: "arrow.up.right.circle.fill").font(.system(size: 38)).foregroundStyle(.mint)
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(AppLocalization.string("Send")).font(.title3.weight(.bold))
-                        if let wallet = presentation.selectedWallet { Text(wallet.name).font(.subheadline).foregroundStyle(.secondary) }
-                    }
-                    Spacer()
-                    if let selectedCoin = presentation.selectedCoin {
-                        Text(selectedCoin.symbol).font(.caption.weight(.bold)).padding(.horizontal, 10).padding(.vertical, 6).background(
-                            selectedCoin.color.opacity(0.18), in: Capsule()
-                        ).foregroundStyle(selectedCoin.color)
-                    }
-                }
-                if let selectedCoin = presentation.selectedCoin {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(AppLocalization.string("Available")).font(.caption).foregroundStyle(.secondary)
-                            Text(presentation.selectedCoinAmountText ?? "").font(.headline.weight(.semibold)).spectraNumericTextLayout()
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text(AppLocalization.string("Network")).font(.caption).foregroundStyle(.secondary)
-                            Text(selectedCoin.chainName).font(.subheadline.weight(.semibold))
-                        }
-                    }
-                } else {
-                    Text(AppLocalization.string("Choose a wallet and asset to prepare a transfer with live fee previews and risk checks."))
-                        .font(.subheadline).foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-    private var walletAssetSection: some View {
-        sendDetailCard(title: "Wallet & Asset") {
-            VStack(alignment: .leading, spacing: 12) {
-                Picker(AppLocalization.string("Wallet"), selection: store.sendWalletIDBinding) {
-                    ForEach(presentation.sendWallets) { wallet in Text(wallet.name).tag(wallet.id) }
-                }.onChange(of: store.sendWalletID) { _, _ in
-                    store.syncSendAssetSelection()
-                }
-                Picker(AppLocalization.string("Asset"), selection: store.sendHoldingKeyBinding) {
-                    ForEach(presentation.availableSendCoins, id: \.holdingKey) { coin in
-                        Text("\(coin.name) on \(store.displayChainTitle(for: coin.chainName))").tag(coin.holdingKey)
-                    }
-                }
-            }
-        }
-    }
-    private var recipientSection: some View {
-        sendDetailCard(title: "Recipient") {
-            VStack(alignment: .leading, spacing: 12) {
-                if !presentation.addressBookEntries.isEmpty {
-                    Picker(AppLocalization.string("Saved Recipient"), selection: $selectedAddressBookEntryID) {
-                        Text(AppLocalization.string("None")).tag("")
-                        ForEach(presentation.addressBookEntries) { entry in
-                            Text("\(entry.name) • \(entry.chainName)").tag(entry.id.uuidString)
-                        }
-                    }.onChange(of: selectedAddressBookEntryID) { _, newValue in
-                        guard let selectedEntry = presentation.addressBookEntries.first(where: { $0.id.uuidString == newValue }) else {
-                            return
-                        }
-                        store.sendAddress = selectedEntry.address
-                    }
-                }
-                HStack(spacing: 10) {
-                    TextField(AppLocalization.string("Recipient address"), text: store.sendAddressBinding).textInputAutocapitalization(.never)
-                        .autocorrectionDisabled().padding(.horizontal, 12).padding(.vertical, 10).background(
-                            .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    Button {
-                        guard DataScannerViewController.isSupported else {
-                            qrScannerErrorMessage = AppLocalization.string("QR scanning is not supported on this device.")
-                            return
-                        }
-                        guard DataScannerViewController.isAvailable else {
-                            qrScannerErrorMessage = AppLocalization.string(
-                                "QR scanning is unavailable right now. Check camera permission and try again.")
-                            return
-                        }
-                        isShowingQRScanner = true
-                    } label: {
-                        Image(systemName: "qrcode.viewfinder").font(.title3.weight(.semibold)).frame(width: 40, height: 40)
-                    }.buttonStyle(.glass).accessibilityLabel(AppLocalization.string("Scan QR Code"))
-                }
-                if let qrScannerErrorMessage { Text(qrScannerErrorMessage).font(.caption).foregroundStyle(.orange) }
-                if store.isCheckingSendDestinationBalance {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                        Text(AppLocalization.string("Checking destination on-chain balance...")).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                if let sendDestinationRiskWarning = store.sendDestinationRiskWarning {
-                    Text(sendDestinationRiskWarning).font(.caption).foregroundStyle(.orange)
-                }
-                if let sendDestinationInfoMessage = store.sendDestinationInfoMessage {
-                    Text(sendDestinationInfoMessage).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-    private var amountSection: some View {
-        sendDetailCard(title: "Amount") {
-            VStack(alignment: .leading, spacing: 12) {
-                TextField(AppLocalization.string("Amount"), text: store.sendAmountBinding).keyboardType(.decimalPad).padding(.horizontal, 12)
-                    .padding(.vertical, 10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                if let selectedCoin = presentation.selectedCoin {
-                    HStack {
-                        Text(AppLocalization.string("Using")).foregroundStyle(.secondary)
-                        Spacer()
-                        Text(selectedCoin.symbol).font(.subheadline.weight(.semibold))
-                    }
-                    if let fiatAmount = presentation.selectedCoinApproximateFiatText {
-                        HStack {
-                            Text(AppLocalization.string("Approx. Value")).foregroundStyle(.secondary)
-                            Spacer()
-                            Text(fiatAmount).font(.subheadline.weight(.semibold)).spectraNumericTextLayout()
-                        }
-                    }
-                }
-            }
-        }
-    }
-    private func sendDetailCard(title: String? = nil, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let title { Text(AppLocalization.string(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary) }
-            VStack(alignment: .leading, spacing: 12) { content() }
-        }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }
 }
