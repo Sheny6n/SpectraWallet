@@ -52,38 +52,41 @@ extension AppState {
     /// are preserved from the existing Coin if found; new holdings get defaults.
     /// Returns `nil` if the JSON could not be parsed.
     private func holdingsAppliedFromSummary(_ summary: WalletSummary, to wallet: ImportedWallet) -> ImportedWallet? {
-        guard !summary.holdings.isEmpty else { return nil }
+        let existing = wallet.holdings.map {
+            HoldingMergeExistingInput(symbol: $0.symbol, chainName: $0.chainName, contractAddress: $0.contractAddress)
+        }
+        let incoming = summary.holdings.map {
+            HoldingMergeIncomingInput(
+                name: $0.name, symbol: $0.symbol, marketDataId: $0.marketDataId, coinGeckoId: $0.coinGeckoId,
+                chainName: $0.chainName, tokenStandard: $0.tokenStandard, contractAddress: $0.contractAddress,
+                amount: $0.amount
+            )
+        }
+        let actions = corePlanApplyHoldingsFromSummary(existing: existing, incoming: incoming)
+        guard !actions.isEmpty else { return nil }
         var merged = wallet.holdings
-        for h in summary.holdings {
-            let key = holdingLookupKeyFromParts(symbol: h.symbol, chainName: h.chainName, contract: h.contractAddress)
-            if let idx = merged.firstIndex(where: { holdingLookupKey($0) == key }) {
+        for action in actions {
+            switch action {
+            case .updateAmount(let existingIndex, let amount):
+                let idx = Int(existingIndex)
+                guard merged.indices.contains(idx) else { continue }
                 let old = merged[idx]
                 merged[idx] = CoreCoin(
-                    id: old.id,
-                    name: old.name, symbol: old.symbol, marketDataId: old.marketDataId,
+                    id: old.id, name: old.name, symbol: old.symbol, marketDataId: old.marketDataId,
                     coinGeckoId: old.coinGeckoId, chainName: old.chainName,
                     tokenStandard: old.tokenStandard, contractAddress: old.contractAddress,
-                    amount: h.amount, priceUsd: old.priceUsd, mark: old.mark)
-            } else if h.amount > 0 {
-                let mark = String(h.symbol.prefix(2)).uppercased()
+                    amount: amount, priceUsd: old.priceUsd, mark: old.mark)
+            case .append(let coin):
                 merged.append(
                     CoreCoin(
                         id: UUID().uuidString,
-                        name: h.name, symbol: h.symbol, marketDataId: h.marketDataId,
-                        coinGeckoId: h.coinGeckoId, chainName: h.chainName,
-                        tokenStandard: h.tokenStandard, contractAddress: h.contractAddress,
-                        amount: h.amount, priceUsd: 0, mark: mark))
+                        name: coin.name, symbol: coin.symbol, marketDataId: coin.marketDataId,
+                        coinGeckoId: coin.coinGeckoId, chainName: coin.chainName,
+                        tokenStandard: coin.tokenStandard, contractAddress: coin.contractAddress,
+                        amount: coin.amount, priceUsd: 0, mark: coin.mark))
             }
         }
         return walletByReplacingHoldings(wallet, with: merged)
-    }
-
-    private func holdingLookupKey(_ coin: Coin) -> String {
-        holdingLookupKeyFromParts(symbol: coin.symbol, chainName: coin.chainName, contract: coin.contractAddress)
-    }
-    private func holdingLookupKeyFromParts(symbol: String, chainName: String, contract: String?) -> String {
-        if let contract { return "\(chainName):\(contract.lowercased())" }
-        return "\(chainName):\(symbol)"
     }
 
     func updateRefreshEngineEntries() {

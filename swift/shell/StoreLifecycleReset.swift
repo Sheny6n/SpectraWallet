@@ -448,7 +448,7 @@ extension AppState {
         UserDefaults.standard.removeObject(forKey: Self.backgroundSyncProfileDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
-        UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.defaultsKey)
+        TokenIconPreferences.shared.resetAll()
         TokenIconImageStore.removeAllImages()
         TokenIconImageRevision.shared.bump()
         tokenPreferences = ChainTokenRegistryEntry.builtIn.map(\.tokenPreferenceEntry)

@@ -4,52 +4,38 @@ import UserNotifications
 extension AppState {
     func mergeBuiltInTokenPreferences(with persisted: [TokenPreferenceEntry]) -> [TokenPreferenceEntry] {
         let builtIns = ChainTokenRegistryEntry.builtIn.map(\.tokenPreferenceEntry)
-        let custom = persisted.filter { !$0.isBuiltIn }
-        var merged: [TokenPreferenceEntry] = []
-        for builtIn in builtIns {
-            if let existing = persisted.first(where: { entry in
-                entry.isBuiltIn
-                    && entry.chain == builtIn.chain
-                    && normalizedTrackedTokenIdentifier(for: entry.chain, contractAddress: entry.contractAddress)
-                        == normalizedTrackedTokenIdentifier(for: builtIn.chain, contractAddress: builtIn.contractAddress)
-            }) {
-                var updated = builtIn
-                updated.isEnabled = existing.isEnabled
-                updated.displayDecimals = existing.displayDecimals
-                merged.append(updated)
-            } else {
-                merged.append(builtIn)
-            }
-        }
-        merged.append(contentsOf: custom)
-        merged.sort { lhs, rhs in
-            if lhs.chain != rhs.chain { return lhs.chain.rawValue < rhs.chain.rawValue }
-            if lhs.isBuiltIn != rhs.isBuiltIn { return lhs.isBuiltIn && !rhs.isBuiltIn }
-            return lhs.symbol < rhs.symbol
-        }
-        return merged
+        return corePlanMergeBuiltInTokenPreferences(builtIns: builtIns, persisted: persisted)
     }
     func evaluatePriceAlerts() {
         guard usePriceAlerts, !priceAlerts.isEmpty else { return }
-        var updatedAlerts = priceAlerts
-        for index in updatedAlerts.indices {
-            let alert = updatedAlerts[index]
-            guard alert.isEnabled, let coin = portfolio.first(where: { $0.holdingKey == alert.holdingKey }),
-                let livePrice = currentPriceIfAvailable(for: coin)
-            else { continue }
-            let meetsTarget: Bool
-            switch alert.condition {
-            case .above: meetsTarget = livePrice >= alert.targetPrice
-            case .below: meetsTarget = livePrice <= alert.targetPrice
-            }
-            if meetsTarget && !alert.hasTriggered {
-                updatedAlerts[index].hasTriggered = true
-                sendPriceAlertNotification(for: alert, livePrice: livePrice)
-            } else if !meetsTarget && alert.hasTriggered {
-                updatedAlerts[index].hasTriggered = false
-            }
+        let alertsByID = Dictionary(uniqueKeysWithValues: priceAlerts.map { ($0.id.uuidString, $0) })
+        let ffiAlerts: [PriceAlertEvaluationAlert] = priceAlerts.map { alert in
+            PriceAlertEvaluationAlert(
+                id: alert.id.uuidString, holdingKey: alert.holdingKey, assetName: alert.assetName,
+                symbol: alert.symbol, chainName: alert.chainName, targetPrice: alert.targetPrice,
+                condition: alert.condition, isEnabled: alert.isEnabled, hasTriggered: alert.hasTriggered
+            )
         }
-        priceAlerts = updatedAlerts
+        let ffiPrices: [PriceAlertEvaluationPrice] = priceAlerts.compactMap { alert in
+            guard let coin = portfolio.first(where: { $0.holdingKey == alert.holdingKey }),
+                let livePrice = currentPriceIfAvailable(for: coin)
+            else { return nil }
+            return PriceAlertEvaluationPrice(holdingKey: alert.holdingKey, livePrice: livePrice)
+        }
+        let plan = corePlanPriceAlertEvaluation(alerts: ffiAlerts, prices: ffiPrices)
+        if !plan.updates.isEmpty {
+            var updated = priceAlerts
+            let idxByID = Dictionary(uniqueKeysWithValues: updated.enumerated().map { ($0.element.id.uuidString, $0.offset) })
+            for update in plan.updates {
+                guard let idx = idxByID[update.id] else { continue }
+                updated[idx].hasTriggered = update.hasTriggered
+            }
+            priceAlerts = updated
+        }
+        for notif in plan.notifications {
+            guard let alert = alertsByID[notif.id] else { continue }
+            sendPriceAlertNotification(for: alert, livePrice: notif.livePrice)
+        }
     }
     private func requestStandardNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in
@@ -70,17 +56,19 @@ extension AppState {
         requestNotificationPermissionIfNeeded()
     }
     func shouldRebuildDashboardForLivePriceChange(from oldPrices: [String: Double], to newPrices: [String: Double]) -> Bool {
-        guard oldPrices != newPrices else { return false }
-        guard !cachedDashboardRelevantPriceKeys.isEmpty else { return true }
-        let changedRelevantKey = cachedDashboardRelevantPriceKeys.contains { key in oldPrices[key] != newPrices[key] }
-        if changedRelevantKey { return true }
-        if selectedMainTab == .home {
-            let pinnedPrototypeKeys = Set(
-                dashboardPinnedAssetPricingPrototypes.filter(isPricedAsset).map(assetIdentityKey)
+        let pinnedPrototypeKeys =
+            selectedMainTab == .home
+            ? Array(Set(dashboardPinnedAssetPricingPrototypes.filter(isPricedAsset).map(assetIdentityKey)))
+            : []
+        return corePlanDashboardRebuildForLivePriceChange(
+            request: DashboardRebuildDecisionRequest(
+                oldPrices: oldPrices.map { PriceAlertEvaluationPrice(holdingKey: $0.key, livePrice: $0.value) },
+                newPrices: newPrices.map { PriceAlertEvaluationPrice(holdingKey: $0.key, livePrice: $0.value) },
+                cachedRelevantPriceKeys: Array(cachedDashboardRelevantPriceKeys),
+                pinnedPrototypeKeys: pinnedPrototypeKeys,
+                selectedMainTabIsHome: selectedMainTab == .home
             )
-            return pinnedPrototypeKeys.contains { key in oldPrices[key] != newPrices[key] }
-        }
-        return false
+        )
     }
     private func sendPriceAlertNotification(for alert: PriceAlertRule, livePrice: Double) {
         postNotification(

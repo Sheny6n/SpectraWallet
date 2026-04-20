@@ -15,7 +15,7 @@ struct TokenIconSettingsView: View {
                 title: $0.title, symbol: $0.symbol, assetIdentifier: $0.assetIdentifier, mark: $0.mark, color: $0.color
             )
         }
-    @AppStorage(TokenIconPreferenceStore.defaultsKey) private var tokenIconPreferencesStorage = ""
+    @Bindable private var preferences = TokenIconPreferences.shared
     @State private var searchText = ""
     private var filteredSettings: [TokenIconSetting] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -41,8 +41,9 @@ struct TokenIconSettingsView: View {
         ).toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(AppLocalization.string("Reset")) {
-                    tokenIconPreferencesStorage = ""
-                }.disabled(tokenIconPreferencesStorage.isEmpty)
+                    preferences.resetAll()
+                    TokenIconImageRevision.shared.bump()
+                }.disabled(preferences.isEmpty)
             }
         }
     }

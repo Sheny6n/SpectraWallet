@@ -115,11 +115,11 @@ struct SettingsView: View {
                     }
                 }
                 Section(AppLocalization.string("Reset")) {
-                    Button {
+                    Button(role: .destructive) {
                         isShowingResetWalletWarning = true
                     } label: {
                         Label(AppLocalization.string("Reset Wallet"), systemImage: "trash")
-                    }.foregroundColor(.red)
+                    }
                 }
             }.navigationTitle(AppLocalization.string("Settings")).navigationDestination(for: Route.self) { route in
                 switch route {

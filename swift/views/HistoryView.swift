@@ -55,9 +55,6 @@ struct HistoryView: View {
     @State private var searchText: String = ""
     @State private var currentPageIndex: Int = 0
     @State private var pendingScrollToTopToken = UUID()
-    @State private var visibleTransactions: [TransactionRecord] = []
-    @State private var visibleRows: [HistoryRowPresentation] = []
-    @State private var groupedSectionsCache: [HistoryPresentationSection] = []
     private let entriesPerPage = 10
     var body: some View {
         NavigationStack {
@@ -130,24 +127,15 @@ struct HistoryView: View {
                         proxy.scrollTo("history-top", anchor: .top)
                     }
                 }
-            }.navigationTitle(AppLocalization.string("History")).navigationBarTitleDisplayMode(.inline).onAppear {
-                rebuildVisibleTransactions(resetPaging: true)
-            }.onChange(of: store.transactionRevision) { _, _ in
-                rebuildVisibleTransactions()
-            }.onChange(of: store.normalizedHistoryRevision) { _, _ in
-                rebuildVisibleTransactions()
-            }.onChange(of: store.walletsRevision) { _, _ in
-                rebuildVisibleTransactions()
-            }.onChange(of: selectedFilter) { _, _ in
-                rebuildVisibleTransactions(resetPaging: true)
+            }.navigationTitle(AppLocalization.string("History")).navigationBarTitleDisplayMode(.inline).onChange(of: selectedFilter) { _, _ in
+                resetPaging()
             }.onChange(of: selectedSortOrder) { _, _ in
-                rebuildVisibleTransactions(resetPaging: true)
+                resetPaging()
             }.onChange(of: selectedWalletID) { _, _ in
-                rebuildVisibleTransactions(resetPaging: true)
+                resetPaging()
             }.onChange(of: searchText) { _, _ in
-                rebuildVisibleTransactions(resetPaging: true)
+                resetPaging()
             }.onChange(of: currentPageIndex) { _, _ in
-                rebuildGroupedSections()
                 prefetchHistoryIfNeeded()
             }
         }
@@ -221,8 +209,7 @@ struct HistoryView: View {
         let startIndex = clampedPageIndex * entriesPerPage
         return Array(visibleRows.dropFirst(startIndex).prefix(entriesPerPage))
     }
-    private var groupedSections: [HistoryPresentationSection] { groupedSectionsCache }
-    private func rebuildGroupedSections() {
+    private var groupedSections: [HistoryPresentationSection] {
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: pagedRows) { row in
             if calendar.isDateInToday(row.transaction.createdAt) { return AppLocalization.string("Today") }
@@ -240,44 +227,38 @@ struct HistoryView: View {
                 AppLocalization.string("Older"), AppLocalization.string("Yesterday"), AppLocalization.string("Today"),
             ]
         }
-        groupedSectionsCache = order.compactMap { title in
+        return order.compactMap { title in
             guard let rows = grouped[title], !rows.isEmpty else { return nil }
             return HistoryPresentationSection(title: title, rows: rows)
         }
     }
-    private func rebuildVisibleTransactions(resetPaging: Bool = false) {
+    private var visibleTransactions: [TransactionRecord] {
+        guard !store.wallets.isEmpty else { return [] }
         let trimmedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let rebuiltTransactions: [TransactionRecord]
-        if store.wallets.isEmpty {
-            rebuiltTransactions = []
-        } else {
-            let transactionByID = store.cachedTransactionByID
-            let filteredTransactions: [TransactionRecord] = store.normalizedHistoryIndex.compactMap { entry in
-                guard let transaction = transactionByID[entry.transactionID] else { return nil }
-                if let selectedWalletID, transaction.walletID != selectedWalletID { return nil }
-                switch selectedFilter {
-                case .all: break
-                case .sends: guard entry.kind == .send else { return nil }
-                case .receives: guard entry.kind == .receive else { return nil }
-                case .pending: guard entry.status == .pending else { return nil }
-                }
-                if !trimmedQuery.isEmpty && !entry.searchIndex.contains(trimmedQuery) { return nil }
-                return transaction
+        let transactionByID = store.cachedTransactionByID
+        let filteredTransactions: [TransactionRecord] = store.normalizedHistoryIndex.compactMap { entry in
+            guard let transaction = transactionByID[entry.transactionID] else { return nil }
+            if let selectedWalletID, transaction.walletID != selectedWalletID { return nil }
+            switch selectedFilter {
+            case .all: break
+            case .sends: guard entry.kind == .send else { return nil }
+            case .receives: guard entry.kind == .receive else { return nil }
+            case .pending: guard entry.status == .pending else { return nil }
             }
-            switch selectedSortOrder {
-            case .newest: rebuiltTransactions = filteredTransactions
-            case .oldest: rebuiltTransactions = Array(filteredTransactions.reversed())
-            }
+            if !trimmedQuery.isEmpty && !entry.searchIndex.contains(trimmedQuery) { return nil }
+            return transaction
         }
-        visibleTransactions = rebuiltTransactions
-        visibleRows = rebuiltTransactions.map(historyRowPresentation)
-        rebuildGroupedSections()
-        if resetPaging {
-            currentPageIndex = 0
-            pendingScrollToTopToken = UUID()
-        } else if currentPageIndex != clampedPageIndex {
-            currentPageIndex = clampedPageIndex
+        switch selectedSortOrder {
+        case .newest: return filteredTransactions
+        case .oldest: return Array(filteredTransactions.reversed())
         }
+    }
+    private var visibleRows: [HistoryRowPresentation] {
+        visibleTransactions.map(historyRowPresentation)
+    }
+    private func resetPaging() {
+        currentPageIndex = 0
+        pendingScrollToTopToken = UUID()
     }
     private func prefetchHistoryIfNeeded() {
         let candidateWalletIDs = historyPrefetchCandidateWalletIDs()

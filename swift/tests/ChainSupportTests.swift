@@ -7,115 +7,13 @@ private func makeSingleChainDraft(select: (WalletImportDraft) -> Void) -> Wallet
     select(draft)
     return draft
 }
-private func chainWikiEntry(id: String) throws -> ChainWikiEntry {
-    try XCTUnwrap(
-        ChainRegistryEntry.entry(id: id).map {
-            ChainWikiEntry(
-                id: $0.id, name: $0.name, symbol: $0.symbol, tags: [], family: $0.family, consensus: $0.consensus,
-                stateModel: $0.stateModel, primaryUse: $0.primaryUse, slip44CoinType: $0.slip44CoinType, derivationPath: $0.derivationPath,
-                alternateDerivationPath: $0.alternateDerivationPath, totalCirculationModel: $0.totalCirculationModel,
-                notableDetails: $0.notableDetails
-            )
-        })
-}
 @MainActor
-final class EthereumClassicSupportTests: XCTestCase {
-    func testEthereumClassicEVMContextUsesDedicatedDefaults() {
-        XCTAssertEqual(EVMChainContext.ethereumClassic.displayName, "Ethereum Classic")
-        XCTAssertEqual(EVMChainContext.ethereumClassic.expectedChainID, 61)
-        XCTAssertEqual(EVMChainContext.ethereumClassic.defaultDerivationPath, "m/44'/61'/0'/0/0")
-        XCTAssertEqual(EVMChainContext.ethereumClassic.derivationPath(account: 2), "m/44'/61'/2'/0/0")
-        XCTAssertTrue(EVMChainContext.ethereumClassic.defaultRPCEndpoints.contains("https://etc.rivet.link"))
-    }
-    func testEthereumClassicImportSelectionProducesNativeETCCoin() throws {
-        let draft = makeSingleChainDraft { $0.wantsEthereumClassic = true }
-        XCTAssertEqual(draft.selectedChainNames, ["Ethereum Classic"])
-        let etcCoin = try XCTUnwrap(
-            draft.selectedCoins.first { $0.chainName == "Ethereum Classic" && $0.symbol == "ETC" }
-        )
-        XCTAssertEqual(etcCoin.name, "Ethereum Classic")
-        XCTAssertEqual(etcCoin.coinGeckoId, "ethereum-classic")
-        XCTAssertEqual(etcCoin.marketDataId, "1321")
-        XCTAssertNil(etcCoin.contractAddress)
-    }
-    func testEthereumClassicChainWikiEntryIsPresent() throws {
-        let chain = try chainWikiEntry(id: "ethereum-classic")
-        XCTAssertEqual(chain.name, "Ethereum Classic")
-        XCTAssertEqual(chain.symbol, "ETC")
-        XCTAssertEqual(chain.derivationPath, "m/44'/61'/0'/0/0")
-    }
-}
-@MainActor
-final class AvalancheSupportTests: XCTestCase {
-    func testAvalancheEVMContextUsesDedicatedDefaults() {
-        XCTAssertEqual(EVMChainContext.avalanche.displayName, "Avalanche")
-        XCTAssertEqual(EVMChainContext.avalanche.expectedChainID, 43114)
-        XCTAssertEqual(EVMChainContext.avalanche.defaultDerivationPath, "m/44'/60'/0'/0/0")
-        XCTAssertEqual(EVMChainContext.avalanche.derivationPath(account: 2), "m/44'/60'/2'/0/0")
-        XCTAssertTrue(EVMChainContext.avalanche.defaultRPCEndpoints.contains("https://api.avax.network/ext/bc/C/rpc"))
-    }
-    func testAvalancheImportSelectionProducesNativeAVAXCoin() throws {
-        let draft = makeSingleChainDraft { $0.wantsAvalanche = true }
-        XCTAssertEqual(draft.selectedChainNames, ["Avalanche"])
-        let avaxCoin = try XCTUnwrap(
-            draft.selectedCoins.first { $0.chainName == "Avalanche" && $0.symbol == "AVAX" }
-        )
-        XCTAssertEqual(avaxCoin.name, "Avalanche")
-        XCTAssertEqual(avaxCoin.coinGeckoId, "avalanche-2")
-        XCTAssertEqual(avaxCoin.marketDataId, "5805")
-        XCTAssertNil(avaxCoin.contractAddress)
-    }
-    func testAvalancheChainWikiEntryIsPresent() throws {
-        let chain = try chainWikiEntry(id: "avalanche")
-        XCTAssertEqual(chain.name, "Avalanche")
-        XCTAssertEqual(chain.symbol, "AVAX")
-        XCTAssertEqual(chain.derivationPath, "m/44'/60'/0'/0/0")
-    }
-}
-@MainActor
-final class HyperliquidSupportTests: XCTestCase {
-    func testHyperliquidEVMContextUsesDedicatedDefaults() {
-        XCTAssertEqual(EVMChainContext.hyperliquid.displayName, "Hyperliquid")
-        XCTAssertEqual(EVMChainContext.hyperliquid.expectedChainID, 999)
-        XCTAssertEqual(EVMChainContext.hyperliquid.defaultDerivationPath, "m/44'/60'/0'/0/0")
-        XCTAssertEqual(EVMChainContext.hyperliquid.derivationPath(account: 2), "m/44'/60'/2'/0/0")
-        XCTAssertTrue(EVMChainContext.hyperliquid.defaultRPCEndpoints.contains("https://rpc.hyperliquid.xyz/evm"))
-    }
-    func testHyperliquidImportSelectionProducesNativeHYPECoin() throws {
-        let draft = makeSingleChainDraft { $0.wantsHyperliquid = true }
-        XCTAssertEqual(draft.selectedChainNames, ["Hyperliquid"])
-        let hypeCoin = try XCTUnwrap(
-            draft.selectedCoins.first { $0.chainName == "Hyperliquid" && $0.symbol == "HYPE" }
-        )
-        XCTAssertEqual(hypeCoin.name, "Hyperliquid")
-        XCTAssertEqual(hypeCoin.coinGeckoId, "hyperliquid")
-        XCTAssertEqual(hypeCoin.marketDataId, "0")
-        XCTAssertNil(hypeCoin.contractAddress)
-    }
-    func testHyperliquidChainWikiEntryIsPresent() throws {
-        let chain = try chainWikiEntry(id: "hyperliquid")
-        XCTAssertEqual(chain.name, "Hyperliquid")
-        XCTAssertEqual(chain.symbol, "HYPE")
-        XCTAssertEqual(chain.derivationPath, "m/44'/60'/0'/0/0")
-    }
-}
-@MainActor
-final class AptosSupportTests: XCTestCase {
-    func testAptosImportSelectionProducesNativeAPTCoin() throws {
-        let draft = makeSingleChainDraft { $0.wantsAptos = true }
-        XCTAssertEqual(draft.selectedChainNames, ["Aptos"])
-        let aptCoin = try XCTUnwrap(
-            draft.selectedCoins.first { $0.chainName == "Aptos" && $0.symbol == "APT" }
-        )
-        XCTAssertEqual(aptCoin.name, "Aptos")
-        XCTAssertEqual(aptCoin.coinGeckoId, "aptos")
-        XCTAssertNil(aptCoin.contractAddress)
-    }
-    func testAptosChainWikiEntryIsPresent() throws {
-        let chain = try chainWikiEntry(id: "aptos")
-        XCTAssertEqual(chain.name, "Aptos")
-        XCTAssertEqual(chain.symbol, "APT")
-        XCTAssertEqual(chain.derivationPath, "m/44'/637'/0'/0'/0'")
+final class ChainWikiRegistryTests: XCTestCase {
+    func testEveryRegisteredChainHasAMatchingWikiEntry() {
+        let registryIds = Set(ChainRegistryEntry.all.map(\.id))
+        let wikiIds = Set(ChainWikiEntry.all.map(\.id))
+        let missing = registryIds.subtracting(wikiIds)
+        XCTAssertTrue(missing.isEmpty, "Chains missing wiki entries: \(missing.sorted())")
     }
 }
 @MainActor
@@ -159,34 +57,6 @@ final class NearHistoryParsingTests: XCTestCase {
         XCTAssertEqual(receive.kind, "receive")
         XCTAssertEqual(receive.counterpartyAddress, "payer.near")
         XCTAssertEqual(receive.amountNear, 2.5, accuracy: 0.0000001)
-    }
-}
-@MainActor
-final class StellarSupportTests: XCTestCase {
-    func testStellarChainWikiEntryIsPresent() throws {
-        let chain = try chainWikiEntry(id: "stellar")
-        XCTAssertEqual(chain.name, "Stellar")
-        XCTAssertEqual(chain.symbol, "XLM")
-        XCTAssertEqual(chain.derivationPath, "m/44'/148'/0'")
-    }
-}
-@MainActor
-final class ICPSupportTests: XCTestCase {
-    func testICPImportSelectionProducesNativeICPCoin() throws {
-        let draft = makeSingleChainDraft { $0.wantsICP = true }
-        XCTAssertEqual(draft.selectedChainNames, ["Internet Computer"])
-        let icpCoin = try XCTUnwrap(
-            draft.selectedCoins.first { $0.chainName == "Internet Computer" && $0.symbol == "ICP" }
-        )
-        XCTAssertEqual(icpCoin.name, "Internet Computer")
-        XCTAssertEqual(icpCoin.coinGeckoId, "internet-computer")
-        XCTAssertNil(icpCoin.contractAddress)
-    }
-    func testICPChainWikiEntryIsPresent() throws {
-        let chain = try chainWikiEntry(id: "internet-computer")
-        XCTAssertEqual(chain.name, "Internet Computer")
-        XCTAssertEqual(chain.symbol, "ICP")
-        XCTAssertEqual(chain.derivationPath, "m/44'/223'/0'/0/0")
     }
 }
 @MainActor

@@ -30,10 +30,11 @@ extension AppState {
             id: UUID(), timestamp: Date(), chainName: chainName, level: level, message: message,
             transactionHash: transactionHash?.trimmingCharacters(in: .whitespacesAndNewlines)
         )
-        var events = chainOperationalEventsByChain[chainName] ?? []
-        events.insert(event, at: 0)
-        if events.count > 200 { events = Array(events.prefix(200)) }
-        chainOperationalEventsByChain[chainName] = events
+        let existing = chainOperationalEventsByChain[chainName] ?? []
+        let updatedRecords = corePlanAppendChainOperationalEvent(
+            existingEvents: existing.map(\.coreRecord), newEvent: event.coreRecord
+        )
+        chainOperationalEventsByChain[chainName] = updatedRecords.compactMap(ChainOperationalEvent.init(coreRecord:))
         let mappedLevel: OperationalLogEvent.Level
         switch level {
         case .info: mappedLevel = .info
@@ -115,30 +116,12 @@ extension AppState {
     func consumePendingSelfSendConfirmation(walletID: String, chainName: String, symbol: String, destinationAddress: String, amount: Double)
         -> Bool
     {
-        if let plan = rustSelfSendConfirmationPlan(
+        let plan = rustSelfSendConfirmationPlan(
             walletID: walletID, chainName: chainName, symbol: symbol, destinationAddress: destinationAddress, amount: amount,
             ownedAddresses: []
-        ) {
-            if plan.clearPendingConfirmation { pendingSelfSendConfirmation = nil }
-            return plan.consumeExistingConfirmation
-        }
-        guard let pendingSelfSendConfirmation else { return false }
-        let isExpired = Date().timeIntervalSince(pendingSelfSendConfirmation.createdAt) > Self.selfSendConfirmationWindowSeconds
-        guard !isExpired else {
-            self.pendingSelfSendConfirmation = nil
-            return false
-        }
-        let sameWallet = pendingSelfSendConfirmation.walletID == walletID
-        let sameChain = pendingSelfSendConfirmation.chainName == chainName
-        let sameSymbol = pendingSelfSendConfirmation.symbol == symbol
-        let sameDestination = pendingSelfSendConfirmation.destinationAddressLowercased == destinationAddress.lowercased()
-        let sameAmount = abs(pendingSelfSendConfirmation.amount - amount) < 0.00000001
-        guard sameWallet, sameChain, sameSymbol, sameDestination, sameAmount else {
-            self.pendingSelfSendConfirmation = nil
-            return false
-        }
-        self.pendingSelfSendConfirmation = nil
-        return true
+        )
+        if plan.clearPendingConfirmation { pendingSelfSendConfirmation = nil }
+        return plan.consumeExistingConfirmation
     }
     func requiresSelfSendConfirmation(wallet: ImportedWallet, holding: Coin, destinationAddress: String, amount: Double) -> Bool {
         let ownAddresses: [String]
@@ -147,33 +130,14 @@ extension AppState {
         } else {
             ownAddresses = knownOwnedAddresses(for: wallet.id)
         }
-        if let plan = rustSelfSendConfirmationPlan(
+        let plan = rustSelfSendConfirmationPlan(
             walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress,
             amount: amount, ownedAddresses: ownAddresses
-        ) {
-            if plan.clearPendingConfirmation { pendingSelfSendConfirmation = nil }
-            guard plan.requiresConfirmation else { return false }
-            if plan.consumeExistingConfirmation {
-                pendingSelfSendConfirmation = nil
-                return false
-            }
-            registerPendingSelfSendConfirmation(
-                walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress,
-                amount: amount
-            )
-            sendError =
-                "This \(holding.symbol) destination belongs to your wallet. Tap Send again within \(Int(Self.selfSendConfirmationWindowSeconds))s to confirm intentional self-send."
-            if holding.chainName == "Dogecoin" {
-                appendChainOperationalEvent(.warning, chainName: "Dogecoin", message: "DOGE self-send confirmation required.")
-            }
-            return true
-        }
-        let ownAddressSet = Set(ownAddresses.map { $0.lowercased() })
-        guard ownAddressSet.contains(destinationAddress.lowercased()) else { return false }
-        if consumePendingSelfSendConfirmation(
-            walletID: wallet.id, chainName: holding.chainName, symbol: holding.symbol, destinationAddress: destinationAddress,
-            amount: amount
-        ) {
+        )
+        if plan.clearPendingConfirmation { pendingSelfSendConfirmation = nil }
+        guard plan.requiresConfirmation else { return false }
+        if plan.consumeExistingConfirmation {
+            pendingSelfSendConfirmation = nil
             return false
         }
         registerPendingSelfSendConfirmation(
@@ -189,18 +153,19 @@ extension AppState {
     }
     private func rustSelfSendConfirmationPlan(
         walletID: String, chainName: String, symbol: String, destinationAddress: String, amount: Double, ownedAddresses: [String]
-    ) -> SelfSendConfirmationPlan? {
-        let request = SelfSendConfirmationRequest(
-            pendingConfirmation: pendingSelfSendConfirmation.map {
-                PendingSelfSendConfirmationInput(
-                    walletId: $0.walletID, chainName: $0.chainName, symbol: $0.symbol,
-                    destinationAddressLowercased: $0.destinationAddressLowercased, amount: $0.amount,
-                    createdAtUnix: $0.createdAt.timeIntervalSince1970
-                )
-            }, walletId: walletID, chainName: chainName, symbol: symbol, destinationAddress: destinationAddress, amount: amount,
-            nowUnix: Date().timeIntervalSince1970, windowSeconds: Self.selfSendConfirmationWindowSeconds, ownedAddresses: ownedAddresses
+    ) -> SelfSendConfirmationPlan {
+        corePlanSelfSendConfirmation(
+            request: SelfSendConfirmationRequest(
+                pendingConfirmation: pendingSelfSendConfirmation.map {
+                    PendingSelfSendConfirmationInput(
+                        walletId: $0.walletID, chainName: $0.chainName, symbol: $0.symbol,
+                        destinationAddressLowercased: $0.destinationAddressLowercased, amount: $0.amount,
+                        createdAtUnix: $0.createdAt.timeIntervalSince1970
+                    )
+                }, walletId: walletID, chainName: chainName, symbol: symbol, destinationAddress: destinationAddress, amount: amount,
+                nowUnix: Date().timeIntervalSince1970, windowSeconds: Self.selfSendConfirmationWindowSeconds, ownedAddresses: ownedAddresses
+            )
         )
-        return corePlanSelfSendConfirmation(request: request)
     }
     func finalityConfirmations(for chainName: String) -> Int { Self.standardFinalityConfirmations }
     func updatedTransaction(
@@ -233,112 +198,167 @@ extension AppState {
             "%@ transaction appears stuck and could not be confirmed after extended retries.", transaction.chainName
         )
     }
+    private func transactionStatusPollConfig() -> TransactionStatusPollConfig {
+        TransactionStatusPollConfig(
+            pendingPollSeconds: Self.pendingStatusPollSeconds,
+            confirmedPollSeconds: Self.confirmedStatusPollSeconds,
+            backoffMaxSeconds: Self.statusPollBackoffMaxSeconds,
+            finalityConfirmations: UInt32(Self.standardFinalityConfirmations),
+            pendingFailureTimeoutSeconds: Self.pendingFailureTimeoutSeconds,
+            pendingFailureMinFailures: UInt32(Self.pendingFailureMinFailures)
+        )
+    }
+    private func coreTrackerState(for transactionID: UUID) -> TransactionStatusTrackerState? {
+        statusTrackingByTransactionID[transactionID].map(\.coreRecord)
+    }
+    private func storeCoreTracker(_ tracker: TransactionStatusTrackerState, for transactionID: UUID) {
+        statusTrackingByTransactionID[transactionID] = TransactionStatusTrackingState(coreRecord: tracker)
+    }
     func shouldPollTransactionStatus(for transaction: TransactionRecord, now: Date) -> Bool {
-        let tracker = statusTrackingByTransactionID[transaction.id] ?? TransactionStatusTrackingState.initial(now: now)
-        if tracker.reachedFinality { return false }
-        return now >= tracker.nextCheckAt
+        corePlanTransactionStatusShouldPoll(tracker: coreTrackerState(for: transaction.id), nowUnix: now.timeIntervalSince1970)
     }
     func markTransactionStatusPollSuccess(
         for transaction: TransactionRecord, resolvedStatus: TransactionStatus, confirmations: Int? = nil, now: Date
     ) {
-        var tracker = statusTrackingByTransactionID[transaction.id] ?? TransactionStatusTrackingState.initial(now: now)
-        tracker.lastCheckedAt = now
-        tracker.consecutiveFailures = 0
-        let reachedFinality: Bool
-        if resolvedStatus == .pending {
-            reachedFinality = false
-        } else {
-            reachedFinality =
-                (confirmations ?? finalityConfirmations(for: transaction.chainName)) >= finalityConfirmations(for: transaction.chainName)
-        }
-        if reachedFinality {
-            tracker.reachedFinality = true
-            tracker.nextCheckAt = now.addingTimeInterval(Self.statusPollBackoffMaxSeconds)
-        } else if resolvedStatus == .confirmed {
-            tracker.nextCheckAt = now.addingTimeInterval(Self.confirmedStatusPollSeconds)
-        } else {
-            tracker.nextCheckAt = now.addingTimeInterval(Self.pendingStatusPollSeconds)
-        }
-        statusTrackingByTransactionID[transaction.id] = tracker
+        let tracker = corePlanTransactionStatusPollSuccess(
+            tracker: coreTrackerState(for: transaction.id),
+            resolvedStatusConfirmed: resolvedStatus == .confirmed,
+            resolvedStatusPending: resolvedStatus == .pending,
+            reportedConfirmations: confirmations.map { UInt32(max(0, $0)) },
+            nowUnix: now.timeIntervalSince1970,
+            config: transactionStatusPollConfig()
+        )
+        storeCoreTracker(tracker, for: transaction.id)
     }
     func markTransactionStatusPollFailure(for transaction: TransactionRecord, now: Date) {
-        var tracker = statusTrackingByTransactionID[transaction.id] ?? TransactionStatusTrackingState.initial(now: now)
-        tracker.lastCheckedAt = now
-        tracker.consecutiveFailures += 1
-        let exponentialBackoff = min(
-            Self.pendingStatusPollSeconds * pow(2, Double(max(0, tracker.consecutiveFailures - 1))), Self.statusPollBackoffMaxSeconds
+        let tracker = corePlanTransactionStatusPollFailure(
+            tracker: coreTrackerState(for: transaction.id),
+            nowUnix: now.timeIntervalSince1970,
+            config: transactionStatusPollConfig()
         )
-        tracker.nextCheckAt = now.addingTimeInterval(exponentialBackoff)
-        statusTrackingByTransactionID[transaction.id] = tracker
+        storeCoreTracker(tracker, for: transaction.id)
     }
     func stalePendingFailureIDs(from trackedTransactions: [TransactionRecord], now: Date) -> Set<UUID> {
-        Set(
-            trackedTransactions.compactMap { transaction in
-                guard transaction.status == .pending else { return nil }
-                let age = now.timeIntervalSince(transaction.createdAt)
-                guard age >= Self.pendingFailureTimeoutSeconds else { return nil }
-                let tracker = statusTrackingByTransactionID[transaction.id]
-                guard (tracker?.consecutiveFailures ?? 0) >= Self.pendingFailureMinFailures else { return nil }
-                return transaction.id
-            }
+        let inputs = trackedTransactions.map { transaction in
+            StalePendingFailureTransactionInput(
+                id: transaction.id.uuidString,
+                createdAtUnix: transaction.createdAt.timeIntervalSince1970,
+                statusIsPending: transaction.status == .pending,
+                trackerConsecutiveFailures: UInt32(max(0, statusTrackingByTransactionID[transaction.id]?.consecutiveFailures ?? 0))
+            )
+        }
+        let ids = corePlanStalePendingFailureIds(
+            transactions: inputs, nowUnix: now.timeIntervalSince1970, config: transactionStatusPollConfig()
         )
+        return Set(ids.compactMap(UUID.init(uuidString:)))
     }
     func applyResolvedPendingTransactionStatuses(
         _ resolvedStatuses: [UUID: PendingTransactionStatusResolution], staleFailureIDs: Set<UUID>, now: Date
     ) {
         guard !resolvedStatuses.isEmpty || !staleFailureIDs.isEmpty else { return }
         let oldByID = Dictionary(uniqueKeysWithValues: transactions.map { ($0.id, $0) })
+        let inputs: [ResolvedPendingTransactionInput] = transactions.compactMap { transaction in
+            let resolution = resolvedStatuses[transaction.id]
+            let isStale = staleFailureIDs.contains(transaction.id)
+            guard resolution != nil || isStale else { return nil }
+            return ResolvedPendingTransactionInput(
+                id: transaction.id.uuidString,
+                oldStatus: transaction.status.rawValue,
+                oldFailureReason: transaction.failureReason,
+                oldConfirmations: (transaction.dogecoinConfirmations ?? transaction.confirmationCount).map { UInt32(max(0, $0)) },
+                resolution: resolution.map {
+                    ResolvedPendingStatusInput(status: $0.status.rawValue, confirmations: $0.confirmations.map { UInt32(max(0, $0)) })
+                },
+                isStaleFailure: isStale,
+                currentTracker: coreTrackerState(for: transaction.id)
+            )
+        }
+        let decisions = corePlanApplyResolvedPendingTransactionStatuses(
+            inputs: inputs, nowUnix: now.timeIntervalSince1970, config: transactionStatusPollConfig()
+        )
+        let decisionByID: [UUID: ResolvedPendingTransactionDecision] = Dictionary(
+            uniqueKeysWithValues: decisions.compactMap { decision in
+                UUID(uuidString: decision.id).map { ($0, decision) }
+            }
+        )
+        for (transactionID, decision) in decisionByID {
+            if let tracker = decision.updatedTracker {
+                storeCoreTracker(tracker, for: transactionID)
+            }
+        }
         setTransactions(
             transactions.map { transaction in
-                if let resolution = resolvedStatuses[transaction.id] {
-                    if resolution.status != .pending {
-                        var tracker = statusTrackingByTransactionID[transaction.id] ?? TransactionStatusTrackingState.initial(now: now)
-                        tracker.reachedFinality =
-                            (resolution.confirmations ?? finalityConfirmations(for: transaction.chainName))
-                            >= finalityConfirmations(for: transaction.chainName)
-                        tracker.nextCheckAt = now.addingTimeInterval(Self.statusPollBackoffMaxSeconds)
-                        statusTrackingByTransactionID[transaction.id] = tracker
-                    }
-                    return updatedTransaction(
-                        transaction, status: resolution.status, receiptBlockNumber: resolution.receiptBlockNumber,
-                        failureReason: resolution.status == .failed
-                            ? (transaction.failureReason ?? statusPollFailureMessage(for: transaction)) : nil,
-                        dogecoinConfirmations: resolution.confirmations, dogecoinConfirmedNetworkFeeDoge: resolution.dogecoinNetworkFeeDoge
-                    )
+                guard let decision = decisionByID[transaction.id] else { return transaction }
+                guard let newStatus = TransactionStatus(rawValue: decision.newStatus) else { return transaction }
+                let resolution = resolvedStatuses[transaction.id]
+                let failureReason: String?
+                switch decision.failureReasonDisposition {
+                case .none: failureReason = nil
+                case .preserve: failureReason = transaction.failureReason
+                case .localizedFallback: failureReason = statusPollFailureMessage(for: transaction)
                 }
-                guard staleFailureIDs.contains(transaction.id) else { return transaction }
                 return updatedTransaction(
-                    transaction, status: .failed, failureReason: transaction.failureReason ?? statusPollFailureMessage(for: transaction)
+                    transaction,
+                    status: newStatus,
+                    receiptBlockNumber: resolution?.receiptBlockNumber,
+                    failureReason: failureReason,
+                    dogecoinConfirmations: resolution?.confirmations,
+                    dogecoinConfirmedNetworkFeeDoge: resolution?.dogecoinNetworkFeeDoge
                 )
             })
-        for (transactionID, resolution) in resolvedStatuses {
-            guard let oldTransaction = oldByID[transactionID], let newTransaction = transactions.first(where: { $0.id == transactionID }),
-                oldTransaction.status != newTransaction.status
-            else {
-                continue
+        for (transactionID, decision) in decisionByID {
+            guard let oldTransaction = oldByID[transactionID], let newTransaction = transactions.first(where: { $0.id == transactionID })
+            else { continue }
+            if decision.statusChanged, let newStatus = TransactionStatus(rawValue: decision.newStatus) {
+                switch decision.emitEventCode {
+                case "confirmed":
+                    appendChainOperationalEvent(
+                        .info, chainName: newTransaction.chainName,
+                        message: statusPollConfirmedMessage(for: newTransaction),
+                        transactionHash: newTransaction.transactionHash
+                    )
+                case "failed":
+                    appendChainOperationalEvent(
+                        .error, chainName: newTransaction.chainName,
+                        message: statusPollFailedEventMessage(for: newTransaction),
+                        transactionHash: newTransaction.transactionHash
+                    )
+                default: break
+                }
+                if decision.sendStatusNotification {
+                    sendTransactionStatusNotification(for: oldTransaction, newStatus: newStatus)
+                }
             }
-            if resolution.status == .confirmed {
+            if let confirmations = decision.reachedFinalityConfirmations {
                 appendChainOperationalEvent(
-                    .info, chainName: newTransaction.chainName, message: "Transaction confirmed on-chain.",
+                    .info, chainName: newTransaction.chainName,
+                    message: statusPollFinalityReachedMessage(for: newTransaction, confirmations: Int(confirmations)),
                     transactionHash: newTransaction.transactionHash
                 )
-            } else if resolution.status == .failed {
-                appendChainOperationalEvent(
-                    .error, chainName: newTransaction.chainName,
-                    message: newTransaction.failureReason ?? statusPollFailureMessage(for: newTransaction),
-                    transactionHash: newTransaction.transactionHash
-                )
             }
-            sendTransactionStatusNotification(for: oldTransaction, newStatus: resolution.status)
         }
-        for failedID in staleFailureIDs {
-            guard let oldTransaction = oldByID[failedID], oldTransaction.status != .failed else { continue }
-            appendChainOperationalEvent(
-                .error, chainName: oldTransaction.chainName,
-                message: oldTransaction.failureReason ?? statusPollFailureMessage(for: oldTransaction),
-                transactionHash: oldTransaction.transactionHash
-            )
-            sendTransactionStatusNotification(for: oldTransaction, newStatus: .failed)
+    }
+
+    private func statusPollFailedEventMessage(for transaction: TransactionRecord) -> String {
+        switch transaction.chainName {
+        case "Dogecoin": return localizedStoreString("DOGE transaction marked failed after extended retries.")
+        default: return transaction.failureReason ?? statusPollFailureMessage(for: transaction)
+        }
+    }
+
+    private func statusPollConfirmedMessage(for transaction: TransactionRecord) -> String {
+        switch transaction.chainName {
+        case "Dogecoin": return localizedStoreString("DOGE transaction confirmed.")
+        default: return "Transaction confirmed on-chain."
+        }
+    }
+
+    private func statusPollFinalityReachedMessage(for transaction: TransactionRecord, confirmations: Int) -> String {
+        switch transaction.chainName {
+        case "Dogecoin":
+            return localizedStoreFormat("DOGE transaction reached finality (%d confirmations).", confirmations)
+        default:
+            return localizedStoreFormat("Transaction reached finality (%d confirmations).", confirmations)
         }
     }
     func refreshPendingHistoryBackedTransactions(
@@ -389,18 +409,6 @@ extension AppState {
             statusByHash[transactionHash.lowercased()] = status(snapshot)
         }
         return statusByHash
-    }
-    func shouldPollDogecoinStatus(for transaction: TransactionRecord, now: Date) -> Bool {
-        shouldPollTransactionStatus(for: transaction, now: now)
-    }
-    func markDogecoinStatusPollSuccess(for transaction: TransactionRecord, status: DogecoinTransactionStatus, now: Date) {
-        markTransactionStatusPollSuccess(
-            for: transaction, resolvedStatus: status.confirmed ? .confirmed : .pending,
-            confirmations: status.confirmations ?? transaction.dogecoinConfirmations, now: now
-        )
-    }
-    func markDogecoinStatusPollFailure(for transaction: TransactionRecord, now: Date) {
-        markTransactionStatusPollFailure(for: transaction, now: now)
     }
     func updateTransactionStatus(id: UUID, to status: TransactionStatus) {
         guard let index = transactions.firstIndex(where: { $0.id == id }) else { return }

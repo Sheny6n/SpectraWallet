@@ -713,129 +713,46 @@ extension AppState {
     func refreshPendingLitecoinTransactions() async {
         await refreshPendingUTXOChainTransactions(chainName: "Litecoin", chainId: SpectraChainID.litecoin, requireSendKind: false)
     }
-    private func refreshPendingUTXOChainTransactions(chainName: String, chainId: UInt32, requireSendKind: Bool = true) async {
+    private func refreshPendingUTXOChainTransactions(
+        chainName: String, chainId: UInt32, requireSendKind: Bool = true, tracksFinality: Bool = false
+    ) async {
         let now = Date()
-        let pending = transactions.filter {
-            (requireSendKind ? $0.kind == .send : true) && $0.chainName == chainName && $0.status == .pending && $0.transactionHash != nil
+        let tracked = transactions.filter {
+            guard requireSendKind ? $0.kind == .send : true,
+                $0.chainName == chainName, $0.transactionHash != nil else { return false }
+            if tracksFinality { return $0.status == .pending || $0.status == .confirmed }
+            return $0.status == .pending
         }
-        guard !pending.isEmpty else { return }
+        if tracked.isEmpty {
+            if tracksFinality { statusTrackingByTransactionID = [:] }
+            return
+        }
+        if tracksFinality {
+            let trackedIDs = Set(tracked.map(\.id))
+            statusTrackingByTransactionID = statusTrackingByTransactionID.filter { trackedIDs.contains($0.key) }
+        }
         var resolved: [UUID: PendingTransactionStatusResolution] = [:]
-        for transaction in pending {
+        for transaction in tracked {
             guard let hash = transaction.transactionHash, shouldPollTransactionStatus(for: transaction, now: now) else { continue }
             do {
                 let status = try await WalletServiceBridge.shared.fetchUtxoTxStatusTyped(chainId: chainId, txid: hash)
                 let confirmed = status.confirmed
-                markTransactionStatusPollSuccess(for: transaction, resolvedStatus: confirmed ? .confirmed : .pending, now: now)
+                let confirmations = tracksFinality ? (status.confirmations.map(Int.init) ?? transaction.dogecoinConfirmations) : nil
+                markTransactionStatusPollSuccess(
+                    for: transaction, resolvedStatus: confirmed ? .confirmed : .pending, confirmations: confirmations, now: now
+                )
                 resolved[transaction.id] = PendingTransactionStatusResolution(
                     status: confirmed ? .confirmed : .pending,
                     receiptBlockNumber: status.blockHeight.map(Int.init),
-                    confirmations: nil,
+                    confirmations: confirmations,
                     dogecoinNetworkFeeDoge: nil)
             } catch { markTransactionStatusPollFailure(for: transaction, now: now) }
         }
-        applyResolvedPendingTransactionStatuses(resolved, staleFailureIDs: stalePendingFailureIDs(from: pending, now: now), now: now)
+        applyResolvedPendingTransactionStatuses(resolved, staleFailureIDs: stalePendingFailureIDs(from: tracked, now: now), now: now)
     }
 
     func refreshPendingDogecoinTransactions() async {
-        let now = Date()
-        let tracked = transactions.filter { transaction in
-            transaction.kind == .send && transaction.chainName == "Dogecoin"
-                && (transaction.status == .pending || transaction.status == .confirmed)
-                && transaction.transactionHash != nil
-        }
-        guard !tracked.isEmpty else { statusTrackingByTransactionID = [:]; return }
-        let trackedIDs = Set(tracked.map(\.id))
-        statusTrackingByTransactionID = statusTrackingByTransactionID.filter { trackedIDs.contains($0.key) }
-        var resolved: [UUID: DogecoinTransactionStatus] = [:]
-        for transaction in tracked {
-            guard let hash = transaction.transactionHash, shouldPollDogecoinStatus(for: transaction, now: now) else { continue }
-            do {
-                let raw = try await WalletServiceBridge.shared.fetchUtxoTxStatusTyped(chainId: SpectraChainID.dogecoin, txid: hash)
-                let status = DogecoinTransactionStatus(
-                    confirmed: raw.confirmed, blockHeight: raw.blockHeight.map(Int.init), networkFeeDOGE: nil,
-                    confirmations: raw.confirmations.map(Int.init))
-                resolved[transaction.id] = status
-                markDogecoinStatusPollSuccess(for: transaction, status: status, now: now)
-            } catch { markDogecoinStatusPollFailure(for: transaction, now: now); continue }
-        }
-        let staleFailureCandidates = tracked.filter { transaction in
-            guard transaction.status == .pending else { return false }
-            guard now.timeIntervalSince(transaction.createdAt) >= Self.pendingFailureTimeoutSeconds else { return false }
-            return (statusTrackingByTransactionID[transaction.id]?.consecutiveFailures ?? 0) >= Self.pendingFailureMinFailures
-        }
-        let staleFailureIDs = Set(staleFailureCandidates.map { $0.id })
-        guard !resolved.isEmpty || !staleFailureIDs.isEmpty else { return }
-        let oldByID = Dictionary(uniqueKeysWithValues: transactions.map { ($0.id, $0) })
-        setTransactions(
-            transactions.map { transaction in
-                if let status = resolved[transaction.id] {
-                    let resolvedStatus: TransactionStatus = status.confirmed ? .confirmed : .pending
-                    let resolvedConfirmations = status.confirmations ?? transaction.dogecoinConfirmations
-                    if (resolvedConfirmations ?? 0) >= Self.standardFinalityConfirmations {
-                        var tracker = statusTrackingByTransactionID[transaction.id] ?? DogecoinStatusTrackingState.initial(now: now)
-                        tracker.reachedFinality = true
-                        tracker.nextCheckAt = now.addingTimeInterval(Self.statusPollBackoffMaxSeconds)
-                        statusTrackingByTransactionID[transaction.id] = tracker
-                    }
-                    return TransactionRecord(
-                        id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: resolvedStatus,
-                        walletName: transaction.walletName, assetName: transaction.assetName, symbol: transaction.symbol,
-                        chainName: transaction.chainName, amount: transaction.amount, address: transaction.address,
-                        transactionHash: transaction.transactionHash, receiptBlockNumber: status.blockHeight,
-                        receiptGasUsed: transaction.receiptGasUsed, receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei,
-                        receiptNetworkFeeEth: transaction.receiptNetworkFeeEth, feePriorityRaw: transaction.feePriorityRaw,
-                        feeRateDescription: transaction.feeRateDescription, confirmationCount: resolvedConfirmations,
-                        dogecoinConfirmedNetworkFeeDoge: status.networkFeeDOGE ?? transaction.dogecoinConfirmedNetworkFeeDoge,
-                        dogecoinConfirmations: resolvedConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw,
-                        dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb,
-                        usedChangeOutput: transaction.usedChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput,
-                        dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex, failureReason: nil,
-                        transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt)
-                }
-                guard staleFailureIDs.contains(transaction.id) else { return transaction }
-                return TransactionRecord(
-                    id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: .failed,
-                    walletName: transaction.walletName, assetName: transaction.assetName, symbol: transaction.symbol,
-                    chainName: transaction.chainName, amount: transaction.amount, address: transaction.address,
-                    transactionHash: transaction.transactionHash, receiptBlockNumber: transaction.receiptBlockNumber,
-                    receiptGasUsed: transaction.receiptGasUsed, receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei,
-                    receiptNetworkFeeEth: transaction.receiptNetworkFeeEth, feePriorityRaw: transaction.feePriorityRaw,
-                    feeRateDescription: transaction.feeRateDescription, confirmationCount: transaction.confirmationCount,
-                    dogecoinConfirmedNetworkFeeDoge: transaction.dogecoinConfirmedNetworkFeeDoge,
-                    dogecoinConfirmations: transaction.dogecoinConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw,
-                    dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb,
-                    usedChangeOutput: transaction.usedChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput,
-                    dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex,
-                    failureReason: transaction.failureReason
-                        ?? localizedStoreString("Dogecoin transaction appears stuck and could not be confirmed after extended retries."),
-                    transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt)
-            })
-        for (transactionID, status) in resolved {
-            guard let oldTransaction = oldByID[transactionID], let newTransaction = transactions.first(where: { $0.id == transactionID })
-            else { continue }
-            if oldTransaction.status != .confirmed, status.confirmed {
-                appendChainOperationalEvent(
-                    .info, chainName: "Dogecoin", message: localizedStoreString("DOGE transaction confirmed."),
-                    transactionHash: newTransaction.transactionHash)
-                sendTransactionStatusNotification(for: oldTransaction, newStatus: .confirmed)
-            }
-            if oldTransaction.dogecoinConfirmations != newTransaction.dogecoinConfirmations, newTransaction.status == .confirmed,
-                let c = newTransaction.dogecoinConfirmations, c >= Self.standardFinalityConfirmations,
-                oldTransaction.dogecoinConfirmations ?? 0 < Self.standardFinalityConfirmations
-            {
-                appendChainOperationalEvent(
-                    .info, chainName: "Dogecoin", message: localizedStoreFormat("DOGE transaction reached finality (%d confirmations).", c),
-                    transactionHash: newTransaction.transactionHash)
-                sendTransactionStatusNotification(for: oldTransaction, newStatus: .confirmed)
-            }
-        }
-        for failedID in staleFailureIDs {
-            guard let oldTransaction = oldByID[failedID], oldTransaction.status != .failed else { continue }
-            appendChainOperationalEvent(
-                .error, chainName: "Dogecoin", message: localizedStoreString("DOGE transaction marked failed after extended retries."),
-                transactionHash: oldTransaction.transactionHash)
-            sendTransactionStatusNotification(for: oldTransaction, newStatus: .failed)
-        }
+        await refreshPendingUTXOChainTransactions(chainName: "Dogecoin", chainId: SpectraChainID.dogecoin, tracksFinality: true)
     }
 
     func refreshPendingTronTransactions() async {

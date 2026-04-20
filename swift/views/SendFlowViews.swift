@@ -142,25 +142,19 @@ struct SendView: View {
         }
     }
     private func utxoAdvancedModeCaption(for chainName: String) -> String? {
-        switch chainName {
-        case "Bitcoin":
+        switch AppEndpointDirectory.appChain(for: chainName)?.id {
+        case .bitcoin:
             return AppLocalization.string("For Bitcoin sends, advanced mode records RBF/CPFP intent and applies the max-input cap for coin selection.")
-        case "Bitcoin Cash":
+        case .bitcoinCash:
             return AppLocalization.string("For Bitcoin Cash sends, advanced mode records RBF intent and applies the max-input cap for coin selection.")
-        case "Dogecoin":
+        case .dogecoin:
             return AppLocalization.string("For Dogecoin sends, advanced mode records RBF/CPFP intent and applies the max-input cap for coin selection.")
         default:
             return nil
         }
     }
     private func evmFeeSymbol(for chainName: String) -> String {
-        switch chainName {
-        case "BNB Chain": return "BNB"
-        case "Ethereum Classic": return "ETC"
-        case "Avalanche": return "AVAX"
-        case "Hyperliquid": return "HYPE"
-        default: return "ETH"
-        }
+        AppEndpointDirectory.appChain(for: chainName)?.nativeSymbol ?? "ETH"
     }
     private func formattedPreviewAssetAmount(_ amount: Double, for coin: Coin) -> String {
         store.formattedAssetAmount(amount, symbol: coin.symbol, chainName: coin.chainName)
@@ -463,14 +457,14 @@ struct SendView: View {
                 }.padding(20)
             }.navigationTitle(AppLocalization.string("Send")).sheet(isPresented: $isShowingQRScanner) {
                 SendQRScannerSheet { payload in applyScannedRecipientPayload(payload) }
-            }.alert(AppLocalization.string("QR Scanner"), isPresented: qrScannerAlertBinding) {
+            }.alert(AppLocalization.string("QR Scanner"), isPresented: .isPresent($qrScannerErrorMessage)) {
                 Button(AppLocalization.string("OK"), role: .cancel) {}
             } message: {
                 if let qrScannerErrorMessage { Text(verbatim: qrScannerErrorMessage) }
             }.onChange(of: store.sendHoldingKey) { _, _ in
                 selectedAddressBookEntryID = ""
             }.toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalization.string("Send")) {
                         Task {
                             await store.submitSend()
@@ -493,14 +487,6 @@ struct SendView: View {
                         : "• " + store.pendingHighRiskSendReasons.joined(separator: "\n• "))
             }
         }
-    }
-    private var qrScannerAlertBinding: Binding<Bool> {
-        Binding(
-            get: { qrScannerErrorMessage != nil },
-            set: { isPresented in
-                if !isPresented { qrScannerErrorMessage = nil }
-            }
-        )
     }
     private func applyScannedRecipientPayload(_ payload: String) {
         let trimmedPayload = payload.trimmingCharacters(in: .whitespacesAndNewlines)

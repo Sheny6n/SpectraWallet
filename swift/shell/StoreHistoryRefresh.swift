@@ -287,24 +287,7 @@ extension AppState {
         throw URLError(.fileDoesNotExist)
     }
     private func fetchBitcoinHDHistoryPage(xpub: String, limit: Int) async throws -> BitcoinHistoryPage {
-        async let receiveTask = WalletServiceBridge.shared.deriveBitcoinHdAddressStrings(xpub: xpub, change: 0, startIndex: 0, count: 20)
-        async let changeTask = WalletServiceBridge.shared.deriveBitcoinHdAddressStrings(xpub: xpub, change: 1, startIndex: 0, count: 10)
-        let (receiveAddresses, changeAddresses) = try await (receiveTask, changeTask)
-        let allAddresses = receiveAddresses + changeAddresses
-        guard !allAddresses.isEmpty else { return BitcoinHistoryPage(snapshots: [], nextCursor: nil, sourceUsed: "rust.hd") }
-        let indexedAddresses = Array(allAddresses.enumerated())
-        let fetchedSnapshots = await collectLimitedConcurrentIndexedResults(from: indexedAddresses, maxConcurrent: 4) { entry in
-            let (index, address) = entry
-            do {
-                let payloads = try await WalletServiceBridge.shared.fetchBitcoinHistorySnapshots(address: address)
-                return (index, payloads)
-            } catch { return (index, nil) }
-        }
-        let mergedSnapshots = coreMergeBitcoinHistorySnapshots(
-            request: MergeBitcoinHistorySnapshotsRequest(
-                snapshots: fetchedSnapshots.sorted { $0.key < $1.key }.flatMap(\.value), ownedAddresses: allAddresses, limit: UInt64(limit)
-            )
-        )
+        let mergedSnapshots = try await WalletServiceBridge.shared.fetchBitcoinHdHistoryPage(xpub: xpub, limit: UInt64(limit))
         return BitcoinHistoryPage(snapshots: mergedSnapshots, nextCursor: nil, sourceUsed: "rust.hd")
     }
     private func decodeBitcoinNormalizedPage(entries: [NormalizedHistoryItem], limit: Int) -> BitcoinHistoryPage {

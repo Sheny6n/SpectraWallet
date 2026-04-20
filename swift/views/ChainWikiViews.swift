@@ -90,7 +90,8 @@ struct ChainWikiDetailView: View {
                 }
                 ChainWikiSectionCard(title: AppLocalization.string("Technical Notes")) {
                     VStack(alignment: .leading, spacing: 12) {
-                        ForEach(Array(chain.notableDetails.enumerated()), id: \.offset) { index, detail in
+                        ForEach(chain.notableDetails.indices, id: \.self) { index in
+                            let detail = chain.notableDetails[index]
                             HStack(alignment: .top, spacing: 10) {
                                 Text("\(index + 1)").font(.caption.weight(.bold)).foregroundStyle(chain.accentColor).frame(
                                     width: 22, height: 22
@@ -280,17 +281,15 @@ private struct ChainWikiChainLogoBadge: View {
     let titleFont: Font
     var useFullSymbolFallback = false
     var body: some View {
-        Group {
-            if let nativeAssetIdentifier = chain.nativeAssetIdentifier {
-                CoinBadge(
-                    assetIdentifier: nativeAssetIdentifier,
-                    fallbackText: useFullSymbolFallback ? chain.symbol : String(chain.symbol.prefix(2)), color: .white, size: size
-                )
-            } else {
-                Text(useFullSymbolFallback ? chain.symbol : String(chain.symbol.prefix(2))).font(titleFont).foregroundStyle(
-                    chain.accentColor
-                ).frame(width: size, height: size)
-            }
+        if let nativeAssetIdentifier = chain.nativeAssetIdentifier {
+            CoinBadge(
+                assetIdentifier: nativeAssetIdentifier,
+                fallbackText: useFullSymbolFallback ? chain.symbol : String(chain.symbol.prefix(2)), color: .white, size: size
+            )
+        } else {
+            Text(useFullSymbolFallback ? chain.symbol : String(chain.symbol.prefix(2))).font(titleFont).foregroundStyle(
+                chain.accentColor
+            ).frame(width: size, height: size)
         }
     }
 }

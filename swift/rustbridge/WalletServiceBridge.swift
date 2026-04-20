@@ -54,8 +54,8 @@ actor WalletServiceBridge {
     func fetchHistoryConfirmedTxids(chainId: UInt32, address: String) async throws -> [String] {
         try await service().fetchHistoryConfirmedTxids(chainId: chainId, address: address)
     }
-    func fetchBitcoinHistorySnapshots(address: String) async throws -> [CoreBitcoinHistorySnapshot] {
-        try await service().fetchBitcoinHistorySnapshots(address: address)
+    func fetchBitcoinHdHistoryPage(xpub: String, limit: UInt64) async throws -> [CoreBitcoinHistorySnapshot] {
+        try await service().fetchBitcoinHdHistoryPage(xpub: xpub, limit: limit)
     }
     func fetchEVMHistoryPage(
         chainId: UInt32, address: String, tokens: [TokenDescriptor], page: Int, pageSize: Int
@@ -145,7 +145,6 @@ actor WalletServiceBridge {
         return try await service().fetchFiatRatesTyped(provider: provider, currencies: currencies)
     }
     func registerSecretStore(_ store: SecretStore) throws { try service().setSecretStore(store: store) }
-    func makeSendStateMachine() -> SendStateMachine { SendStateMachine() }
 }
 extension WalletServiceBridge {
     func fetchSolanaBalance(address: String) async throws -> SolanaBalance {

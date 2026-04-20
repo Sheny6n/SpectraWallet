@@ -1,14 +1,5 @@
 import Foundation
 
-// MARK: - RustBalanceDecoder (thin Swift forwarders; logic lives in Rust core/src/balance_decoder.rs)
-enum RustBalanceDecoder {
-    nonisolated static func int64Field(_ field: String, from json: String) -> Int64? { balanceDecoderI64Field(field: field, json: json) }
-    nonisolated static func f64Field(_ field: String, from json: String) -> Double? { balanceDecoderF64Field(field: field, json: json) }
-    nonisolated static func firstElementStringField(_ field: String, from json: String) -> String? {
-        balanceDecoderFirstElementStringField(field: field, json: json)
-    }
-}
-
 // MARK: - Bitcoin
 typealias BitcoinNetworkMode = CoreBitcoinNetworkMode
 nonisolated extension CoreBitcoinNetworkMode: RawRepresentable, CaseIterable, Codable, Identifiable {
@@ -83,12 +74,6 @@ nonisolated extension CoreDogecoinNetworkMode: RawRepresentable, CaseIterable, C
         var c = encoder.singleValueContainer(); try c.encode(rawValue)
     }
     public var displayName: String { self == .mainnet ? "Mainnet" : "Testnet" }
-}
-struct DogecoinTransactionStatus {
-    let confirmed: Bool
-    let blockHeight: Int?
-    let networkFeeDOGE: Double?
-    let confirmations: Int?
 }
 enum DogecoinBalanceService {
     typealias NetworkMode = DogecoinNetworkMode

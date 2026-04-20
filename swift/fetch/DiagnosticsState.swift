@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 @Observable
 final class WalletDiagnosticsState {
     static let chainSyncStateDefaultsKey = "chain.sync.state.v1"
@@ -251,16 +252,16 @@ final class WalletDiagnosticsState {
     }
 }
 
-// Phase B: The 24 per-wallet diagnostic dictionaries that previously lived as
-// stored `@Published` properties on this class now live in the Rust registry
+// The 24 per-wallet diagnostic dictionaries that previously lived as stored
+// properties on this class now live in the Rust registry
 // (`core/src/diagnostics/registry.rs`). Swift presents the same `[String: T]`
 // dict-shaped API via writable computed vars that delegate to UniFFI, so
 // every existing call site and `ReferenceWritableKeyPath` continues to work.
 //
-// SwiftUI reactivity: mutations bump `diagnosticsRevision`, and since this is
-// `@Published`, any view observing the whole `WalletChainDiagnosticsState`
-// (or observing `AppState` which forwards `objectWillChange` from this
-// object) refreshes as before.
+// SwiftUI reactivity: mutations bump `diagnosticsRevision`. Because this type
+// is `@Observable`, any view reading the revision (or reading through
+// `AppState`) invalidates when it changes.
+@MainActor
 @Observable
 final class WalletChainDiagnosticsState {
     var diagnosticsRevision: Int = 0

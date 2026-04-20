@@ -1,6 +1,6 @@
 # Spectra Swift layer — file-by-file map
 
-This document describes what each file in `swift/` does and how it relates to the Rust core in `core/src/`. The Swift layer is intentionally thin: all business logic (derivation, balance decoding, HTTP calls, SQLite persistence, send-flow planning, diagnostics aggregation, secrets policy) lives in Rust and is surfaced via UniFFI-generated bindings in [generated/spectra_core.swift](generated/spectra_core.swift). Swift only keeps SwiftUI views, `@MainActor ObservableObject` forwarding, and callbacks for iOS-only APIs that Rust cannot reach (Keychain, ActivityKit, UNUserNotificationCenter, UIDevice battery/network signals, biometric prompts).
+This document describes what each file in `swift/` does and how it relates to the Rust core in `core/src/`. The Swift layer is intentionally thin: all business logic (derivation, balance decoding, HTTP calls, SQLite persistence, send-flow planning, diagnostics aggregation, secrets policy) lives in Rust and is surfaced via UniFFI-generated bindings in [generated/spectra_core.swift](generated/spectra_core.swift). Swift only keeps SwiftUI views, `@MainActor @Observable` forwarding, and callbacks for iOS-only APIs that Rust cannot reach (Keychain, ActivityKit, UNUserNotificationCenter, UIDevice battery/network signals, biometric prompts).
 
 ## Top-level layout
 
@@ -22,12 +22,12 @@ swift/
 
 ## shell/ — `class AppState` and its orchestration
 
-`AppState` is the single `@MainActor ObservableObject` the whole SwiftUI app observes. It is sliced across many extension files so individual domains can be read in isolation. `wallets`, `transactions`, and `addressBook` are canonical Swift `@Published` arrays; persistence is durable via [shell/PersistenceStore.swift](shell/PersistenceStore.swift) into the Rust SQLite KV store.
+`AppState` is the single `@MainActor @Observable final class` the whole SwiftUI app observes. It is sliced across many extension files so individual domains can be read in isolation. `wallets`, `transactions`, and `addressBook` are canonical Swift arrays tracked by the `@Observable` macro; persistence is durable via [shell/PersistenceStore.swift](shell/PersistenceStore.swift) into the Rust SQLite KV store.
 
-- [shell/AppState.swift](shell/AppState.swift) — Declares `class AppState: ObservableObject`. Owns the `@Published` collections + scalars, derived-state caches, persistence-debounce `Task` handles, JSON coders, and logger categories.
+- [shell/AppState.swift](shell/AppState.swift) — Declares `@Observable final class AppState`. Owns the observable collections + scalars, derived-state caches, persistence-debounce `Task` handles, JSON coders, and logger categories.
 - [shell/AppStateTypes.swift](shell/AppStateTypes.swift) — Nested types lifted out of `AppState.swift` for focus: `ResetScope`, `TimeoutError`, `BackgroundSyncProfile`, `MainAppTab`, etc. No runtime state.
-- [shell/AppState+CoreStateStore.swift](shell/AppState+CoreStateStore.swift) — Mutation helpers (`setWallets`, `appendWallet`, `upsertWallet`, `removeWallet(id:)`, `setTransactions`, `prependTransaction`, `setAddressBook`, etc.) that centralise the standard add/replace/remove patterns on the three core `@Published` arrays.
-- [shell/AppState+RustObserver.swift](shell/AppState+RustObserver.swift) — `WalletBalanceObserver` bridges the Rust per-chain balance refresh engine into AppState's `@Published` mirrors on the main actor.
+- [shell/AppState+CoreStateStore.swift](shell/AppState+CoreStateStore.swift) — Mutation helpers (`setWallets`, `appendWallet`, `upsertWallet`, `removeWallet(id:)`, `setTransactions`, `prependTransaction`, `setAddressBook`, etc.) that centralise the standard add/replace/remove patterns on the three core observable arrays.
+- [shell/AppState+RustObserver.swift](shell/AppState+RustObserver.swift) — `WalletBalanceObserver` bridges the Rust per-chain balance refresh engine into AppState's `@Observable` mirrors on the main actor.
 - [shell/AppState+BalanceRefresh.swift](shell/AppState+BalanceRefresh.swift) — Kicks `WalletServiceBridge.triggerImmediateBalanceRefresh`, then batches per-chain balance deltas with a 30 ms debounce and flushes as one `wallets` mutation to avoid re-render storms.
 - [shell/AppState+ReceiveFlow.swift](shell/AppState+ReceiveFlow.swift) — Receive-sheet orchestration. The `receiveAddress()` per-chain dispatch is routed through `corePlanReceiveAddressResolver` in Rust (`core/src/send/flow_helpers.rs`), so Swift only holds the thin `switch` that maps `ReceiveAddressResolverKind` back to the right Swift bridge call.
 - [shell/AppState+SendFlow.swift](shell/AppState+SendFlow.swift) — Send-flow state machine: destination validation, risk-probe orchestration, Tron error mapping. Pure-logic helpers (`coreSeedDerivationChainRaw`, `coreMapEthereumSendError`, `coreChainRiskProbeMessages`, `coreSimpleChainRiskProbeConfig`) live in Rust `core/src/send/flow_helpers.rs`; this file glues them to SwiftUI-observable state.
@@ -46,7 +46,7 @@ swift/
 - [shell/StoreLifecycleReset.swift](shell/StoreLifecycleReset.swift) — App-launch state restoration (`restorePersistedRuntimeConfigurationAndState`) and `ResetScope`-driven wipes.
 - [shell/StoreHistoryRefresh.swift](shell/StoreHistoryRefresh.swift) — Transaction-history pagination. Cursors/pages live in Rust (`wsb.historyNextCursor` etc.); Swift just notifies `objectWillChange`.
 - [shell/StoreDiagnosticsExport.swift](shell/StoreDiagnosticsExport.swift) — `DiagnosticsEnvironmentMetadata` envelope + per-chain JSON builders that fan into `diagnosticsBuild*Json` Rust helpers.
-- [shell/Store+Formatting.swift](shell/Store+Formatting.swift) — `localizedStoreString`/`localizedStoreFormat` shortcuts and USD↔fiat conversions. Rate data is stored in Swift `@Published` (`fiatRatesFromUSD`) but the number formatting delegates to Rust helpers for the hot paths.
+- [shell/Store+Formatting.swift](shell/Store+Formatting.swift) — `localizedStoreString`/`localizedStoreFormat` shortcuts and USD↔fiat conversions. Rate data is stored on the `@Observable` AppState (`fiatRatesFromUSD`) but the number formatting delegates to Rust helpers for the hot paths.
 - [shell/Store+Notifications.swift](shell/Store+Notifications.swift) — Token-preference merge + price-alert evaluation + `UNUserNotificationCenter` scheduling (iOS-only).
 - [shell/Platform.swift](shell/Platform.swift) — `PlatformSnapshotEnvelope` and the `makePlatformSnapshot()` implementations used for diagnostics bundle export. Pure value-type projections, no logic.
 - [shell/SecureStores.swift](shell/SecureStores.swift) — Keychain-backed `SecureStore`, `SecureSeedStore`, `AppLockPinStore`. Wraps `KeychainAccess`; must stay in Swift because Rust cannot reach the iOS Keychain.
@@ -56,15 +56,15 @@ swift/
 
 - [send/AppState+SendRouting.swift](send/AppState+SendRouting.swift) — `refreshSendPreview()` top-level dispatch by `SendPreviewKind` (chain).
 - [send/AppState+SendPreview.swift](send/AppState+SendPreview.swift) — Per-chain preview decoders. UTXO, EVM, and simple-chain previews are built by Rust (`buildUtxoSendPreviewRecord`, `buildEvmSendPreviewRecord`, etc.); Swift orchestrates the async fetch.
-- [send/AppState+SendExecution.swift](send/AppState+SendExecution.swift) — `submitSend()` final signing/broadcast path. Delegates to Rust `executeSend` for most chains; only the host/iOS state machine (Live Activity start/complete/fail, `@Published` mutations) remains in Swift.
+- [send/AppState+SendExecution.swift](send/AppState+SendExecution.swift) — `submitSend()` final signing/broadcast path. Delegates to Rust `executeSend` for most chains; only the host/iOS state machine (Live Activity start/complete/fail, AppState mutations) remains in Swift.
 - [send/SendPreviewTypes.swift](send/SendPreviewTypes.swift) — `EVMChainContext` enum + chain-ID mappings, Swift-side preview/result struct shapes.
 
 ## fetch/ — balance / diagnostics Swift side
 
 - [fetch/ChainBackendModels.swift](fetch/ChainBackendModels.swift) — Small Codable registry of which chains support import/balance/receive/send (`AppChainID`, `AppChainDescriptor`, `ChainBackendRecord`).
 - [fetch/ChainTypes.swift](fetch/ChainTypes.swift) — `RustBalanceDecoder` thin forwarders (every method is a one-liner into `core/src/fetch/balance_decoder.rs`) + `RustStringEnum` protocol for Rust-owned enums that need `RawRepresentable`/`CaseIterable` in Swift.
-- [fetch/DiagnosticsState.swift](fetch/DiagnosticsState.swift) — `WalletDiagnosticsState: ObservableObject`. Holds per-chain `@Published` degraded-state maps and operational-log ring buffer; debounces persistence to the Rust-backed SQLite store.
-- [fetch/DiagnosticsStore.swift](fetch/DiagnosticsStore.swift) — Long list of per-chain property shims bridging `AppState.bitcoinSelfTestResults` → `chainDiagnosticsState.bitcoinSelfTestResults`. Pure forwarding — exists to give views a single `@Published` surface.
+- [fetch/DiagnosticsState.swift](fetch/DiagnosticsState.swift) — `@Observable final class WalletDiagnosticsState`. Holds per-chain degraded-state maps and operational-log ring buffer; debounces persistence to the Rust-backed SQLite store.
+- [fetch/DiagnosticsStore.swift](fetch/DiagnosticsStore.swift) — Long list of per-chain property shims bridging `AppState.bitcoinSelfTestResults` → `chainDiagnosticsState.bitcoinSelfTestResults`. Pure forwarding — exists to give views a single observable surface on AppState.
 
 ## derivation/ — Swift wrappers over Rust derivation
 
@@ -99,7 +99,7 @@ Pure UI. Each file observes `AppState` (`@EnvironmentObject` / `@StateObject`) a
 - [views/TransactionDetailView.swift](views/TransactionDetailView.swift) — Single-transaction detail.
 - [views/AddWalletEntryView.swift](views/AddWalletEntryView.swift) — Row component for "add wallet" rows.
 - [views/StakingView.swift](views/StakingView.swift), [views/DonationsView.swift](views/DonationsView.swift) — Tab stubs.
-- [views/ImportDraft.swift](views/ImportDraft.swift) — `WalletImportDraft: ObservableObject` used by the import sheet.
+- [views/ImportDraft.swift](views/ImportDraft.swift) — `@Observable final class WalletImportDraft` used by the import sheet.
 - [views/IconUIHelpers.swift](views/IconUIHelpers.swift) — `CoinBadge` and icon fallback helpers.
 - [views/BundleImageLoader.swift](views/BundleImageLoader.swift) — Loads token PNGs from the bundle `Resources/icons/` folder (bypasses xcassets).
 - [views/LiveActivityManager.swift](views/LiveActivityManager.swift) — `SendTransactionLiveActivityManager` — starts/updates/ends `ActivityKit` activities for in-flight sends.
@@ -114,10 +114,9 @@ Pure UI. Each file observes `AppState` (`@EnvironmentObject` / `@StateObject`) a
 
 - [tests/AppStateTests.swift](tests/AppStateTests.swift) — High-level `AppState` behavior.
 - [tests/RefreshPlannerTests.swift](tests/RefreshPlannerTests.swift) — Verifies `plannedChainRefreshDescriptors` ordering and chain-name → ID mapping.
-- [tests/NetworkClientTests.swift](tests/NetworkClientTests.swift) — `EVMChainContext` display names / chain-ID mappings.
+- [tests/ChainSupportTests.swift](tests/ChainSupportTests.swift) — Chain-wiki registry presence, NEAR history parsing, derivation preset resolution, and `WalletDerivationLayer` signing-material round-trip.
 - [tests/DiagnosticsStateTests.swift](tests/DiagnosticsStateTests.swift), [tests/DiagnosticsBundleTests.swift](tests/DiagnosticsBundleTests.swift) — Diagnostics state and bundle export.
 - [tests/SecureSeedStoreTests.swift](tests/SecureSeedStoreTests.swift) — Keychain-backed seed store round-trip.
-- [tests/SolanaBalanceTests.swift](tests/SolanaBalanceTests.swift) — Balance-decoder smoke test for Solana JSON shape.
 
 ## generated/ — UniFFI output (do not edit)
 
@@ -133,7 +132,7 @@ Pure UI. Each file observes `AppState` (`@EnvironmentObject` / `@StateObject`) a
 ## How Swift talks to Rust
 
 1. **Static content.** JSON/text data files live in `core/embedded/` (chain wiki, endpoint directory, derivation presets, token visual registry, BIP-39 word list). Swift loads them via `coreStaticResourceJson` in [shell/StaticContentCatalog.swift](shell/StaticContentCatalog.swift); Bundle JSON is only a fallback for localized strings.
-2. **Canonical state.** Wallets / transactions / address book are Swift `@Published` arrays on `AppState`. Durable persistence lives in `core/src/store/` (SQLite via `rusqlite`); Swift writes flow through [shell/PersistenceStore.swift](shell/PersistenceStore.swift) and helpers in [shell/AppState+CoreStateStore.swift](shell/AppState+CoreStateStore.swift).
+2. **Canonical state.** Wallets / transactions / address book are Swift arrays on the `@Observable` `AppState`. Durable persistence lives in `core/src/store/` (SQLite via `rusqlite`); Swift writes flow through [shell/PersistenceStore.swift](shell/PersistenceStore.swift) and helpers in [shell/AppState+CoreStateStore.swift](shell/AppState+CoreStateStore.swift).
 3. **HTTP / fetch.** `WalletService` in Rust owns `reqwest` clients. [rustbridge/WalletServiceBridge.swift](rustbridge/WalletServiceBridge.swift) is the async-facing actor; every network call eventually goes through it.
 4. **Derivation.** Swift never does key derivation. [derivation/WalletDerivationLayer.swift](derivation/WalletDerivationLayer.swift) builds a request model and calls the UniFFI entry point backed by `core/src/derivation/`.
 5. **Secrets.** Seed phrases and PINs sit in the iOS Keychain via [shell/SecureStores.swift](shell/SecureStores.swift). Rust's secrets *policy* (which keys, which access classes) is mirrored in Rust types, but the actual Keychain IO is Swift-only by necessity.

@@ -15,7 +15,6 @@ struct ReceiveView: View {
         let selectedCoin: Coin?
         let sameChainSymbolsText: String?
     }
-    private func localized(_ key: String) -> String { AppLocalization.string(key) }
     private var presentation: Presentation {
         let resolvedAddress = store.receiveAddress()
         let trimmedAddress = resolvedAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -49,26 +48,21 @@ struct ReceiveView: View {
                     }
                     receiveAddressSections
                 }.padding(20)
-            }.navigationTitle(localized("Receive")).task(id: store.receiveWalletID) {
+            }.navigationTitle(AppLocalization.string("Receive")).task(id: store.receiveWalletID) {
                 await store.refreshReceiveAddress()
             }.sheet(isPresented: $isShowingReceiveQRShareSheet) {
                 if let receiveQRImage = presentation.qrImage { ActivityItemSheet(activityItems: [receiveQRImage]) }
             }.alert(
-                localized("QR Code Export"),
-                isPresented: Binding(
-                    get: { receiveQRExportMessage != nil },
-                    set: { isPresented in
-                        if !isPresented { receiveQRExportMessage = nil }
-                    }
-                )
+                AppLocalization.string("QR Code Export"),
+                isPresented: .isPresent($receiveQRExportMessage)
             ) {
-                Button(localized("OK"), role: .cancel) {
+                Button(AppLocalization.string("OK"), role: .cancel) {
                     receiveQRExportMessage = nil
                 }
             } message: {
                 if let receiveQRExportMessage { Text(verbatim: receiveQRExportMessage) }
             }.toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         UIPasteboard.general.string = presentation.resolvedAddress
                         didCopyReceiveAddress = true
@@ -77,7 +71,7 @@ struct ReceiveView: View {
                             didCopyReceiveAddress = false
                         }
                     } label: {
-                        Label(localized("Copy"), systemImage: didCopyReceiveAddress ? "checkmark" : "doc.on.doc")
+                        Label(AppLocalization.string("Copy"), systemImage: didCopyReceiveAddress ? "checkmark" : "doc.on.doc")
                     }.disabled(!presentation.canUseAddress || store.isResolvingReceiveAddress)
                 }
             }
@@ -90,31 +84,29 @@ struct ReceiveView: View {
                 if presentation.canUseAddress {
                     QRCodeImage(address: presentation.resolvedAddress).frame(width: 184, height: 184).padding(14).background(
                         Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    Text(localized("Scan to receive")).font(.headline)
-                    Text(localized("Share this QR code or copy the address below.")).font(.caption).foregroundStyle(.secondary)
+                    Text(AppLocalization.string("Scan to receive")).font(.headline)
+                    Text(AppLocalization.string("Share this QR code or copy the address below.")).font(.caption).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                     Button {
                         guard let receiveQRImage = presentation.qrImage else { return }
                         let saver = PhotoLibraryImageSaver { result in
-                            Task { @MainActor in
-                                switch result {
-                                case .success: receiveQRExportMessage = localized("QR code saved to Photos.")
-                                case .failure(let error): receiveQRExportMessage = error.localizedDescription
-                                }
-                                receiveQRImageSaver = nil
+                            switch result {
+                            case .success: receiveQRExportMessage = AppLocalization.string("QR code saved to Photos.")
+                            case .failure(let error): receiveQRExportMessage = error.localizedDescription
                             }
+                            receiveQRImageSaver = nil
                         }
                         receiveQRImageSaver = saver
                         saver.save(receiveQRImage)
                     } label: {
-                        Label(localized("Save QR Code"), systemImage: "square.and.arrow.down").font(.subheadline.weight(.semibold)).frame(
+                        Label(AppLocalization.string("Save QR Code"), systemImage: "square.and.arrow.down").font(.subheadline.weight(.semibold)).frame(
                             maxWidth: .infinity
                         ).padding(.vertical, 10)
                     }.buttonStyle(.glass).disabled(presentation.qrImage == nil)
                 } else {
                     ProgressView()
-                    Text(localized("Preparing receive address...")).font(.headline)
-                    Text(localized("Spectra is resolving the current address for this wallet.")).font(.caption).foregroundStyle(.secondary)
+                    Text(AppLocalization.string("Preparing receive address...")).font(.headline)
+                    Text(AppLocalization.string("Spectra is resolving the current address for this wallet.")).font(.caption).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
             }.frame(maxWidth: .infinity).padding(18).spectraBubbleFill().glassEffect(
@@ -125,7 +117,7 @@ struct ReceiveView: View {
                 maxWidth: .infinity, alignment: .leading
             ).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 18))
             if didCopyReceiveAddress {
-                Label(localized("Address copied to clipboard."), systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(
+                Label(AppLocalization.string("Address copied to clipboard."), systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(
                     .green)
             }
         }
@@ -142,15 +134,15 @@ struct ReceiveView: View {
                         }
                         Spacer()
                     }
-                    LabeledContent(localized("Network"), value: receiveCoin.chainName)
-                    LabeledContent(localized("Standard"), value: receiveCoin.tokenStandard)
+                    LabeledContent(AppLocalization.string("Network"), value: receiveCoin.chainName)
+                    LabeledContent(AppLocalization.string("Standard"), value: receiveCoin.tokenStandard)
                     if let chainSymbols = presentation.sameChainSymbolsText, chainSymbols.contains(",") {
-                        LabeledContent(localized("Also Receives")) {
+                        LabeledContent(AppLocalization.string("Also Receives")) {
                             Text(chainSymbols).multilineTextAlignment(.trailing)
                         }
                     }
                     if let contractAddress = receiveCoin.contractAddress {
-                        LabeledContent(localized("Contract")) {
+                        LabeledContent(AppLocalization.string("Contract")) {
                             Text(contractAddress).font(.footnote.monospaced()).textSelection(.enabled)
                         }
                     }

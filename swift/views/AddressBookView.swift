@@ -69,8 +69,9 @@ struct AddressBookView: View {
                 Text(addressValidationMessage).font(.caption).foregroundStyle(addressValidationColor)
                 TextField(AppLocalization.string("Note (Optional)"), text: $note).textInputAutocapitalization(.sentences)
                 if let formMessage {
-                    Text(formMessage).font(.caption).foregroundStyle(.secondary).foregroundColor(
-                        store.canSaveAddressBookEntry(name: contactName, address: address, chainName: selectedChainName) ? nil : .red)
+                    Text(formMessage).font(.caption).foregroundStyle(
+                        store.canSaveAddressBookEntry(name: contactName, address: address, chainName: selectedChainName)
+                            ? Color.secondary : Color.red)
                 }
                 Button(AppLocalization.string("Save Contact")) {
                     saveContact()
@@ -112,7 +113,7 @@ struct AddressBookView: View {
                 }
             }
         }.navigationTitle(AppLocalization.string("Address Book")).sheet(item: $editingEntry) { entry in
-            NavigationView {
+            NavigationStack {
                 Form {
                     Section {
                         Text(
@@ -130,13 +131,13 @@ struct AddressBookView: View {
                             .autocorrectionDisabled()
                     }
                 }.navigationTitle(AppLocalization.string("Edit Label")).toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
+                    ToolbarItem(placement: .topBarLeading) {
                         Button(AppLocalization.string("Cancel")) {
                             editingEntry = nil
                             editedName = ""
                         }
                     }
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItem(placement: .topBarTrailing) {
                         Button(AppLocalization.string("Save")) {
                             store.renameAddressBookEntry(id: entry.id, to: editedName)
                             editingEntry = nil

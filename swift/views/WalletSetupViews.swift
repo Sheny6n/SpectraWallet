@@ -637,8 +637,8 @@ struct SetupView: View {
         )
         Text(copy.createSeedPhraseWarning).font(.footnote).foregroundStyle(Color.primary.opacity(0.72))
         LazyVGrid(columns: seedPhraseGridColumns, spacing: 12) {
-            ForEach(Array(draft.seedPhraseWords.enumerated()), id: \.offset) { index, word in
-                numberedSeedPhraseRow(index: index, text: word)
+            ForEach(draft.seedPhraseWords.indices, id: \.self) { index in
+                numberedSeedPhraseRow(index: index, text: draft.seedPhraseWords[index])
             }
         }
     }
@@ -697,7 +697,8 @@ struct SetupView: View {
                     draft.prepareBackupVerificationChallenge()
                 }.buttonStyle(.glass)
             } else {
-                ForEach(Array(draft.backupVerificationWordIndices.enumerated()), id: \.offset) { offset, wordIndex in
+                ForEach(draft.backupVerificationWordIndices.indices, id: \.self) { offset in
+                    let wordIndex = draft.backupVerificationWordIndices[offset]
                     HStack(spacing: 10) {
                         Text(walletFlowLocalizedFormat("Word #%lld", wordIndex + 1)).font(.caption.weight(.bold)).foregroundStyle(
                             Color.primary.opacity(0.82)

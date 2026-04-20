@@ -43,7 +43,6 @@ struct HistoryDetailView: View {
         guard let walletID = displayedTransaction.walletID else { return nil }
         return store.knownOwnedAddresses(for: walletID).first
     }
-    private func localized(_ key: String) -> String { AppLocalization.string(key) }
     var body: some View {
         ZStack {
             SpectraBackdrop()
@@ -71,8 +70,8 @@ struct HistoryDetailView: View {
                                 .spectraNumericTextLayout(minimumScaleFactor: 0.5)
                         }
                     }.padding(20).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 28))
-                    detailCard(title: "Overview") {
-                        detailRow(label: "Type", value: displayedTransaction.kind == .send ? localized("Send") : localized("Receive"))
+                    spectraDetailCard(title: "Overview") {
+                        detailRow(label: "Type", value: displayedTransaction.kind == .send ? AppLocalization.string("Send") : AppLocalization.string("Receive"))
                         detailRow(label: "Status", value: displayedTransaction.statusText)
                         detailRow(label: "Wallet", value: displayedTransaction.walletName)
                         detailRow(label: "Asset", value: displayedTransaction.assetName)
@@ -129,11 +128,11 @@ struct HistoryDetailView: View {
                     if displayedTransaction.chainName == "Ethereum", displayedTransaction.kind == .send,
                         displayedTransaction.status == .pending
                     {
-                        detailCard(title: "Ethereum Mempool Actions") {
+                        spectraDetailCard(title: "Ethereum Mempool Actions") {
                             if store.isPreparingEthereumReplacementContext {
                                 HStack(spacing: 10) {
                                     ProgressView()
-                                    Text(localized("Preparing replacement/cancel context...")).font(.caption).foregroundStyle(
+                                    Text(AppLocalization.string("Preparing replacement/cancel context...")).font(.caption).foregroundStyle(
                                         Color.primary.opacity(0.78))
                                 }
                             } else {
@@ -144,7 +143,7 @@ struct HistoryDetailView: View {
                                         )
                                     }
                                 } label: {
-                                    Text(localized("Speed Up This Transaction")).font(.headline).frame(maxWidth: .infinity).padding(
+                                    Text(AppLocalization.string("Speed Up This Transaction")).font(.headline).frame(maxWidth: .infinity).padding(
                                         .vertical, 12)
                                 }.buttonStyle(.glassProminent)
                                 Button {
@@ -154,11 +153,11 @@ struct HistoryDetailView: View {
                                         )
                                     }
                                 } label: {
-                                    Text(localized("Cancel This Transaction")).font(.headline).frame(maxWidth: .infinity).padding(
+                                    Text(AppLocalization.string("Cancel This Transaction")).font(.headline).frame(maxWidth: .infinity).padding(
                                         .vertical, 12)
                                 }.buttonStyle(.glass)
                                 Text(
-                                    localized(
+                                    AppLocalization.string(
                                         "This opens the Send composer with the same nonce and higher fee defaults so you can safely speed up or cancel the pending transaction."
                                     )
                                 ).font(.caption).foregroundStyle(Color.primary.opacity(0.72))
@@ -168,14 +167,14 @@ struct HistoryDetailView: View {
                             }
                         }
                     }
-                    detailCard(title: "Addresses") {
+                    spectraDetailCard(title: "Addresses") {
                         if let fromAddressText {
                             addressBlock(label: "From", value: fromAddressText, isMine: isOwnedAddress(fromAddressText))
                         }
                         if let toAddressText { addressBlock(label: "To", value: toAddressText, isMine: isOwnedAddress(toAddressText)) }
                     }
                     if let transactionHash = displayedTransaction.transactionHash {
-                        detailCard(title: "Transaction Hash") {
+                        spectraDetailCard(title: "Transaction Hash") {
                             Text(transactionHash).font(.body.monospaced()).foregroundStyle(Color.primary.opacity(0.82)).textSelection(
                                 .enabled
                             ).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(
@@ -192,7 +191,7 @@ struct HistoryDetailView: View {
                         }
                     }
                     if let rawTransactionHexText = displayedTransaction.rawTransactionHexText {
-                        detailCard(title: "Raw Transaction Hex") {
+                        spectraDetailCard(title: "Raw Transaction Hex") {
                             Text(rawTransactionHexText).font(.body.monospaced()).foregroundStyle(Color.primary.opacity(0.82)).textSelection(
                                 .enabled
                             ).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(
@@ -201,7 +200,7 @@ struct HistoryDetailView: View {
                     }
                 }.padding(20)
             }
-        }.navigationTitle(localized("Transaction")).navigationBarTitleDisplayMode(.inline).onAppear {
+        }.navigationTitle(AppLocalization.string("Transaction")).navigationBarTitleDisplayMode(.inline).onAppear {
             rebuildDisplayedTransactionState()
         }.onChange(of: store.transactionRevision) { _, _ in
             rebuildDisplayedTransactionState()
@@ -217,16 +216,9 @@ struct HistoryDetailView: View {
         )
     }
     @ViewBuilder
-    private func detailCard(title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(localized(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary)
-            content()
-        }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
-    }
-    @ViewBuilder
     private func detailRow(label: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 16) {
-            Text(localized(label)).font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.58)).frame(
+            Text(AppLocalization.string(label)).font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.58)).frame(
                 width: 122, alignment: .leading)
             Text(value).font(.body).foregroundStyle(Color.primary.opacity(0.84)).frame(maxWidth: .infinity, alignment: .leading)
         }.padding(.vertical, 2)
@@ -235,9 +227,9 @@ struct HistoryDetailView: View {
     private func addressBlock(label: String, value: String, isMine: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text(localized(label)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+                Text(AppLocalization.string(label)).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
                 if isMine {
-                    Text(localized("Mine")).font(.caption.bold()).foregroundStyle(Color.primary).padding(.horizontal, 8).padding(
+                    Text(AppLocalization.string("Mine")).font(.caption.bold()).foregroundStyle(Color.primary).padding(.horizontal, 8).padding(
                         .vertical, 4
                     ).background(Color.mint.opacity(0.22), in: Capsule()).overlay(
                         Capsule().stroke(Color.mint.opacity(0.35), lineWidth: 1)
@@ -253,8 +245,8 @@ struct HistoryDetailView: View {
             } label: {
                 Label(
                     didCopyAddress
-                        ? localized("Copied")
-                        : localized("Copy Address"), systemImage: didCopyAddress ? "checkmark" : "doc.on.doc"
+                        ? AppLocalization.string("Copied")
+                        : AppLocalization.string("Copy Address"), systemImage: didCopyAddress ? "checkmark" : "doc.on.doc"
                 ).font(.subheadline.weight(.semibold)).padding(.horizontal, 12).padding(.vertical, 8)
             }.buttonStyle(.glass).frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -265,10 +257,8 @@ struct HistoryDetailView: View {
     }
     private func normalizedAddress(_ value: String?) -> String? {
         guard let trimmed = nonEmptyAddress(value) else { return nil }
-        switch displayedTransaction.chainName {
-        case "Ethereum", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid": return trimmed.lowercased()
-        default: return trimmed
-        }
+        let isEVM = AppEndpointDirectory.appChain(for: displayedTransaction.chainName)?.isEVM ?? false
+        return isEVM ? trimmed.lowercased() : trimmed
     }
     private func isOwnedAddress(_ value: String?) -> Bool {
         guard let normalized = normalizedAddress(value) else { return false }

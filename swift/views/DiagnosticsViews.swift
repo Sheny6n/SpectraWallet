@@ -757,10 +757,10 @@ struct StandardChainDiagnosticsView: View {
                 ForEach(diagnostics) { item in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.walletName).font(.subheadline.weight(.semibold))
-                        Text("Next receive index: \(item.nextExternalIndex)").font(.caption).foregroundStyle(.secondary)
-                        Text("Next change index: \(item.nextChangeIndex)").font(.caption).foregroundStyle(.secondary)
+                        Text(AppLocalization.format("Next receive index: %lld", Int(item.nextExternalIndex))).font(.caption).foregroundStyle(.secondary)
+                        Text(AppLocalization.format("Next change index: %lld", Int(item.nextChangeIndex))).font(.caption).foregroundStyle(.secondary)
                         if let reservedReceiveIndex = item.reservedReceiveIndex {
-                            Text("Reserved receive index: \(reservedReceiveIndex)").font(.caption).foregroundStyle(.secondary)
+                            Text(AppLocalization.format("Reserved receive index: %lld", Int(reservedReceiveIndex))).font(.caption).foregroundStyle(.secondary)
                         }
                         if let reservedReceivePath = item.reservedReceivePath, !reservedReceivePath.isEmpty {
                             Text(reservedReceivePath).font(.caption.monospaced()).foregroundStyle(.secondary)

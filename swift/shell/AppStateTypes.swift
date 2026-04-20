@@ -19,6 +19,35 @@ struct ChainOperationalEvent: Identifiable, Sendable {
     let transactionHash: String?
 }
 
+extension ChainOperationalEvent {
+    var coreRecord: ChainOperationalEventRecord {
+        let coreLevel: ChainOperationalEventLevel
+        switch level {
+        case .info: coreLevel = .info
+        case .warning: coreLevel = .warning
+        case .error: coreLevel = .error
+        }
+        return ChainOperationalEventRecord(
+            id: id.uuidString, timestampUnix: timestamp.timeIntervalSince1970, chainName: chainName,
+            level: coreLevel, message: message, transactionHash: transactionHash
+        )
+    }
+    init?(coreRecord: ChainOperationalEventRecord) {
+        guard let id = UUID(uuidString: coreRecord.id) else { return nil }
+        let level: Level
+        switch coreRecord.level {
+        case .info: level = .info
+        case .warning: level = .warning
+        case .error: level = .error
+        }
+        self.init(
+            id: id, timestamp: Date(timeIntervalSince1970: coreRecord.timestampUnix),
+            chainName: coreRecord.chainName, level: level, message: coreRecord.message,
+            transactionHash: coreRecord.transactionHash
+        )
+    }
+}
+
 nonisolated extension ChainOperationalEvent: Codable {
     private enum CodingKeys: String, CodingKey { case id, timestamp, chainName, level, message, transactionHash }
     init(from decoder: Decoder) throws {
@@ -241,4 +270,40 @@ extension AppState {
     }
 
     typealias DogecoinStatusTrackingState = TransactionStatusTrackingState
+}
+
+extension AppState.ChainKeypoolState {
+    var coreRecord: ChainKeypoolStateRecord {
+        ChainKeypoolStateRecord(
+            nextExternalIndex: Int32(nextExternalIndex),
+            nextChangeIndex: Int32(nextChangeIndex),
+            reservedReceiveIndex: reservedReceiveIndex.map { Int32($0) }
+        )
+    }
+    init(coreRecord: ChainKeypoolStateRecord) {
+        self.init(
+            nextExternalIndex: Int(coreRecord.nextExternalIndex),
+            nextChangeIndex: Int(coreRecord.nextChangeIndex),
+            reservedReceiveIndex: coreRecord.reservedReceiveIndex.map { Int($0) }
+        )
+    }
+}
+
+extension AppState.TransactionStatusTrackingState {
+    var coreRecord: TransactionStatusTrackerState {
+        TransactionStatusTrackerState(
+            lastCheckedAtUnix: lastCheckedAt?.timeIntervalSince1970,
+            nextCheckAtUnix: nextCheckAt.timeIntervalSince1970,
+            consecutiveFailures: UInt32(max(0, consecutiveFailures)),
+            reachedFinality: reachedFinality
+        )
+    }
+    init(coreRecord: TransactionStatusTrackerState) {
+        self.init(
+            lastCheckedAt: coreRecord.lastCheckedAtUnix.map { Date(timeIntervalSince1970: $0) },
+            nextCheckAt: Date(timeIntervalSince1970: coreRecord.nextCheckAtUnix),
+            consecutiveFailures: Int(coreRecord.consecutiveFailures),
+            reachedFinality: coreRecord.reachedFinality
+        )
+    }
 }

@@ -265,7 +265,7 @@ extension AppState {
     }
     // Simple-chain dispatch: Rust owns per-chain defaults (fee raw parsing, priorityLabel,
     // gasBudgetMist, feeStroops, etc.). Swift just resolves address, fetches JSON, and
-    // applies the tagged-enum result to the right @Published field.
+    // applies the tagged-enum result to the right AppState field.
     private struct SimpleChainConfig {
         let chainId: UInt32
         let rustChain: SimpleChain

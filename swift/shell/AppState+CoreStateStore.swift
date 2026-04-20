@@ -1,10 +1,11 @@
 // MARK: - Wallet/transactions/address-book mutation helpers
 //
-// Swift's `@Published` arrays are the canonical store. These helpers exist
-// only to centralise mutation patterns (replace, append, upsert, remove) and
-// keep call sites readable. There is no Rust round-trip — direct assignment
-// to `self.wallets`, `self.transactions`, `self.addressBook` is fine, but
-// going through these helpers preserves the existing call-site style.
+// Swift's `@Observable` arrays on AppState are the canonical store. These
+// helpers exist only to centralise mutation patterns (replace, append, upsert,
+// remove) and keep call sites readable. There is no Rust round-trip — direct
+// assignment to `self.wallets`, `self.transactions`, `self.addressBook` is
+// fine, but going through these helpers preserves the existing call-site
+// style.
 
 import Foundation
 

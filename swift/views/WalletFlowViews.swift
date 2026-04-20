@@ -149,6 +149,7 @@ struct ActivityItemSheet: UIViewControllerRepresentable {
     }
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
+@MainActor
 final class PhotoLibraryImageSaver: NSObject {
     private let completion: (Result<Void, Error>) -> Void
     init(completion: @escaping (Result<Void, Error>) -> Void) {
@@ -183,7 +184,7 @@ struct DonationQRCodeView: View {
                     Spacer()
                 }.padding(20)
             }.navigationTitle(localizedWalletFlowString("QR Code")).navigationBarTitleDisplayMode(.inline).toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(localizedWalletFlowString("Done")) {
                         dismiss()
                     }.buttonStyle(.glass)
@@ -195,12 +196,10 @@ struct DonationQRCodeView: View {
 struct QRCodeImage: View {
     let address: String
     var body: some View {
-        Group {
-            if let image = qrUIImage {
-                Image(uiImage: image).interpolation(.none).resizable().scaledToFit()
-            } else {
-                Image(systemName: "qrcode").resizable().scaledToFit().padding(28).foregroundStyle(.black)
-            }
+        if let image = qrUIImage {
+            Image(uiImage: image).interpolation(.none).resizable().scaledToFit()
+        } else {
+            Image(systemName: "qrcode").resizable().scaledToFit().padding(28).foregroundStyle(.black)
         }
     }
     private var qrUIImage: UIImage? { QRCodeRenderer.makeImage(from: address) }
@@ -469,12 +468,7 @@ struct WalletDetailView: View {
             Text(deleteWalletMessage)
         }.alert(
             localizedWalletFlowString("Cannot Reveal Seed Phrase"),
-            isPresented: Binding(
-                get: { seedPhraseErrorMessage != nil },
-                set: { isPresented in
-                    if !isPresented { seedPhraseErrorMessage = nil }
-                }
-            )
+            isPresented: .isPresent($seedPhraseErrorMessage)
         ) {
             Button(localizedWalletFlowString("OK"), role: .cancel) {}
         } message: {
@@ -598,19 +592,23 @@ private struct WalletAdvancedDetailsView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 12) {
-                        walletDetailRow(label: "Wallet ID", value: walletID)
-                        if let derivationPathsText { walletDetailRow(label: "Derivation Paths", value: derivationPathsText) }
+                        WalletDetailRow(label: "Wallet ID", value: walletID)
+                        if let derivationPathsText { WalletDetailRow(label: "Derivation Paths", value: derivationPathsText) }
                     }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 }.padding(20)
             }
         }.navigationTitle(localizedWalletFlowString("Advanced")).navigationBarTitleDisplayMode(.inline)
     }
 }
-private func walletDetailRow(label: String, value: String) -> some View {
-    VStack(alignment: .leading, spacing: 4) {
-        Text(localizedWalletFlowString(label)).font(.caption).foregroundStyle(Color.primary.opacity(0.65))
-        Text(value).font(.subheadline).foregroundStyle(Color.primary).textSelection(.enabled)
-    }.frame(maxWidth: .infinity, alignment: .leading)
+private struct WalletDetailRow: View {
+    let label: String
+    let value: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(localizedWalletFlowString(label)).font(.caption).foregroundStyle(Color.primary.opacity(0.65))
+            Text(value).font(.subheadline).foregroundStyle(Color.primary).textSelection(.enabled)
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 func walletFlowLocalizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
     let format = AppLocalization.string(key)
@@ -636,7 +634,8 @@ struct SeedPathSlotEditor: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     Text("m").font(.caption.monospaced().weight(.semibold)).foregroundStyle(Color.primary.opacity(0.72))
-                    ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+                    ForEach(segments.indices, id: \.self) { index in
+                        let segment = segments[index]
                         HStack(spacing: 4) {
                             Text(verbatim: "/").font(.caption.monospaced()).foregroundStyle(Color.primary.opacity(0.52))
                             TextField(

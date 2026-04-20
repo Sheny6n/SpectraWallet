@@ -93,19 +93,19 @@ struct TokenRegistryEntryCardView: View {
                     AppLocalization.string("Shown"), isOn: Binding(get: { entry.isEnabled }, set: setEnabled)
                 ).labelsHidden()
             }
-            settingsTokenDetailRow(
+            SettingsTokenDetailRow(
                 title: AppLocalization.string("Source"),
                 value: entry.isBuiltIn ? AppLocalization.string("Built-In") : AppLocalization.string("Custom"))
-            settingsTokenDetailRow(title: AppLocalization.string("Supported Decimals"), value: "\(entry.decimals)")
+            SettingsTokenDetailRow(title: AppLocalization.string("Supported Decimals"), value: "\(entry.decimals)")
             VStack(alignment: .leading, spacing: 6) {
                 Text(AppLocalization.string("Contract / Mint")).font(.caption).foregroundStyle(.secondary)
                 Text(entry.contractAddress).font(.caption.monospaced()).textSelection(.enabled)
             }
             if !entry.coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                settingsTokenDetailRow(title: AppLocalization.string("CoinGecko ID"), value: entry.coinGeckoId)
+                SettingsTokenDetailRow(title: AppLocalization.string("CoinGecko ID"), value: entry.coinGeckoId)
             }
             if !entry.marketDataId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, entry.marketDataId != "0" {
-                settingsTokenDetailRow(title: AppLocalization.string("Market Data ID"), value: entry.marketDataId)
+                SettingsTokenDetailRow(title: AppLocalization.string("Market Data ID"), value: entry.marketDataId)
             }
             if !entry.isBuiltIn {
                 Stepper(
@@ -129,7 +129,7 @@ struct TokenIconSetting: Identifiable {
 }
 struct TokenIconCustomizationRow: View {
     let setting: TokenIconSetting
-    @AppStorage(TokenIconPreferenceStore.defaultsKey) private var tokenIconPreferencesStorage = ""
+    @Bindable private var preferences = TokenIconPreferences.shared
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isImportingPhoto = false
     @State private var photoImportError: String?
@@ -181,14 +181,8 @@ struct TokenIconCustomizationRow: View {
         )
     }
     private var selectedStyle: TokenIconStyle {
-        get {
-            TokenIconPreferenceStore.preference(for: setting.assetIdentifier, storage: tokenIconPreferencesStorage)
-        }
-        nonmutating set {
-            tokenIconPreferencesStorage = TokenIconPreferenceStore.updatePreference(
-                newValue, for: setting.assetIdentifier, storage: tokenIconPreferencesStorage
-            )
-        }
+        get { preferences.style(for: setting.assetIdentifier) }
+        nonmutating set { preferences.setStyle(newValue, for: setting.assetIdentifier) }
     }
     private var hasCustomPhoto: Bool {
         _ = TokenIconImageRevision.shared.tick
@@ -214,10 +208,14 @@ struct TokenIconCustomizationRow: View {
         self.selectedPhotoItem = nil
     }
 }
-private func settingsTokenDetailRow(title: String, value: String) -> some View {
-    HStack {
-        Text(title).foregroundStyle(.secondary)
-        Spacer()
-        Text(value).multilineTextAlignment(.trailing)
+private struct SettingsTokenDetailRow: View {
+    let title: String
+    let value: String
+    var body: some View {
+        HStack {
+            Text(title).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).multilineTextAlignment(.trailing)
+        }
     }
 }

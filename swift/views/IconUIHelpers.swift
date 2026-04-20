@@ -16,7 +16,7 @@ struct CoinBadge: View {
     let fallbackText: String
     let color: Color
     var size: CGFloat = 40
-    @AppStorage(TokenIconPreferenceStore.defaultsKey) private var tokenIconPreferencesStorage = ""
+    @Bindable private var preferences = TokenIconPreferences.shared
     private var resolvedAssetIdentifier: String {
         if let assetIdentifier { return Coin.normalizedIconIdentifier(assetIdentifier) }
         return "generic:\(fallbackText.lowercased())"
@@ -28,7 +28,7 @@ struct CoinBadge: View {
         return TokenVisualRegistryEntry.entry(matchingAssetIdentifier: resolvedAssetIdentifier)?.assetName
     }
     private var preferredIconStyle: TokenIconStyle {
-        TokenIconPreferenceStore.preference(for: resolvedAssetIdentifier, storage: tokenIconPreferencesStorage)
+        preferences.style(for: resolvedAssetIdentifier)
     }
     var body: some View {
         ZStack {
@@ -48,7 +48,7 @@ struct CoinBadge: View {
                     width: size, height: size)
                 Circle().fill(Color.white.opacity(0.18)).frame(width: size * 0.38, height: size * 0.38).offset(
                     x: -size * 0.16, y: -size * 0.16)
-                Text(fallbackText).font(.system(size: size * 0.3, weight: .black, design: .rounded)).foregroundColor(.white)
+                Text(fallbackText).font(.system(size: size * 0.3, weight: .black, design: .rounded)).foregroundStyle(.white)
             }
         }.shadow(color: color.opacity(0.18), radius: 6, y: 3)
     }
@@ -76,27 +76,41 @@ enum TokenIconStyle: String, CaseIterable, Identifiable {
 }
 enum TokenIconPreferenceStore {
     static let defaultsKey = "settings.tokenIconPreferences.v1"
-    static func preference(for identifier: String, storage: String) -> TokenIconStyle {
-        let preferences = storedPreferences(from: storage)
-        return preferences[identifier] ?? .artwork
+}
+@Observable
+@MainActor
+final class TokenIconPreferences {
+    static let shared = TokenIconPreferences()
+    private var cache: [String: TokenIconStyle]
+    private init() { self.cache = Self.load() }
+    var isEmpty: Bool { cache.isEmpty }
+    func style(for identifier: String) -> TokenIconStyle { cache[identifier] ?? .artwork }
+    func setStyle(_ style: TokenIconStyle, for identifier: String) {
+        if style == .artwork { cache.removeValue(forKey: identifier) } else { cache[identifier] = style }
+        persist()
     }
-    static func updatePreference(_ preference: TokenIconStyle, for identifier: String, storage: String) -> String {
-        var preferences = storedPreferences(from: storage)
-        if preference == .artwork { preferences.removeValue(forKey: identifier) } else { preferences[identifier] = preference }
-        return encodedStorage(from: preferences)
+    func resetAll() {
+        cache = [:]
+        UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.defaultsKey)
     }
-    private static func storedPreferences(from storage: String) -> [String: TokenIconStyle] {
-        guard let data = storage.data(using: .utf8), let rawPreferences = try? JSONDecoder().decode([String: String].self, from: data)
-        else { return [:] }
-        return rawPreferences.reduce(into: [:]) { partialResult, entry in
-            if let preference = TokenIconStyle(rawValue: entry.value) { partialResult[entry.key] = preference }
+    func reloadFromStorage() { cache = Self.load() }
+    private func persist() {
+        guard !cache.isEmpty else {
+            UserDefaults.standard.removeObject(forKey: TokenIconPreferenceStore.defaultsKey)
+            return
         }
+        let raw = cache.mapValues(\.rawValue)
+        guard let data = try? JSONEncoder().encode(raw), let encoded = String(data: data, encoding: .utf8) else { return }
+        UserDefaults.standard.set(encoded, forKey: TokenIconPreferenceStore.defaultsKey)
     }
-    private static func encodedStorage(from preferences: [String: TokenIconStyle]) -> String {
-        guard !preferences.isEmpty else { return "" }
-        let rawPreferences = preferences.mapValues(\.rawValue)
-        guard let data = try? JSONEncoder().encode(rawPreferences), let encoded = String(data: data, encoding: .utf8) else { return "" }
-        return encoded
+    private static func load() -> [String: TokenIconStyle] {
+        guard let storage = UserDefaults.standard.string(forKey: TokenIconPreferenceStore.defaultsKey),
+            let data = storage.data(using: .utf8),
+            let raw = try? JSONDecoder().decode([String: String].self, from: data)
+        else { return [:] }
+        return raw.reduce(into: [:]) { result, entry in
+            if let style = TokenIconStyle(rawValue: entry.value) { result[entry.key] = style }
+        }
     }
 }
 enum TokenIconImageStore {
@@ -202,7 +216,7 @@ struct ChainToggleLabel: View {
             CoinBadge(assetIdentifier: assetIdentifier, fallbackText: mark, color: color, size: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                Text(symbol).font(.caption).foregroundColor(.secondary)
+                Text(symbol).font(.caption).foregroundStyle(.secondary)
             }
         }
     }

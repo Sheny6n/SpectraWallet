@@ -7,7 +7,7 @@ import UIKit
 #endif
 @MainActor
 @Observable
-class AppState {
+final class AppState {
     enum HistoryPaging {
         static let endpointBatchSize = 20
         static let uiPageSize = 10

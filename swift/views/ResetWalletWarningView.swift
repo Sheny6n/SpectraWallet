@@ -8,7 +8,7 @@ struct ResetWalletWarningView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedScopes = Set(AppState.ResetScope.allCases)
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section {
                     Text(
@@ -75,7 +75,7 @@ struct ResetWalletWarningView: View {
                     }.disabled(selectedScopes.isEmpty)
                 }
             }.navigationTitle(AppLocalization.string("Reset Wallet")).toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button(AppLocalization.string("Cancel")) {
                         dismiss()
                     }

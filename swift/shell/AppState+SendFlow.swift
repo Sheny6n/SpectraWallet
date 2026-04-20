@@ -71,15 +71,18 @@ extension AppState {
             usesChangeOutput: c.usesChangeOutput, maxSendable: c.maxSendable)
     }
     var customEthereumFeeValidationError: String? {
-        guard useCustomEthereumFees, selectedSendCoin?.chainName == "Ethereum" else { return nil }
-        let trimmedMaxFee = customEthereumMaxFeeGwei.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedPriorityFee = customEthereumPriorityFeeGwei.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let maxFee = Double(trimmedMaxFee), maxFee > 0 else { return localizedStoreString("Enter a valid Max Fee in gwei.") }
-        guard let priorityFee = Double(trimmedPriorityFee), priorityFee > 0 else {
-            return localizedStoreString("Enter a valid Priority Fee in gwei.")
+        let code = corePlanEthereumCustomFeeValidation(
+            useCustomFees: useCustomEthereumFees,
+            isEthereumChain: selectedSendCoin?.chainName == "Ethereum",
+            maxFeeGweiRaw: customEthereumMaxFeeGwei,
+            priorityFeeGweiRaw: customEthereumPriorityFeeGwei
+        )
+        switch code {
+        case .none: return nil
+        case .invalidMaxFee: return localizedStoreString("Enter a valid Max Fee in gwei.")
+        case .invalidPriorityFee: return localizedStoreString("Enter a valid Priority Fee in gwei.")
+        case .maxBelowPriority: return localizedStoreString("Max Fee must be greater than or equal to Priority Fee.")
         }
-        guard maxFee >= priorityFee else { return localizedStoreString("Max Fee must be greater than or equal to Priority Fee.") }
-        return nil
     }
     func customEthereumFeeConfiguration() -> EthereumCustomFeeConfiguration? {
         guard useCustomEthereumFees else { return nil }
@@ -90,14 +93,15 @@ extension AppState {
         return EthereumCustomFeeConfiguration(maxFeePerGasGwei: maxFee, maxPriorityFeePerGasGwei: priorityFee)
     }
     var customEthereumNonceValidationError: String? {
-        guard ethereumManualNonceEnabled else { return nil }
-        let trimmedNonce = ethereumManualNonce.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedNonce.isEmpty else { return localizedStoreString("Enter a nonce value for manual nonce mode.") }
-        guard let nonceValue = Int(trimmedNonce), nonceValue >= 0 else {
-            return localizedStoreString("Nonce must be a non-negative integer.")
+        let code = corePlanEthereumManualNonceValidation(
+            manualNonceEnabled: ethereumManualNonceEnabled, nonceRaw: ethereumManualNonce
+        )
+        switch code {
+        case .none: return nil
+        case .empty: return localizedStoreString("Enter a nonce value for manual nonce mode.")
+        case .notNonNegativeInteger: return localizedStoreString("Nonce must be a non-negative integer.")
+        case .tooLarge: return localizedStoreString("Nonce value is too large.")
         }
-        if nonceValue > Int(Int32.max) { return localizedStoreString("Nonce value is too large.") }
-        return nil
     }
     func explicitEthereumNonce() -> Int? {
         guard ethereumManualNonceEnabled else { return nil }
@@ -192,26 +196,22 @@ extension AppState {
     }
     func mapEthereumSendError(_ error: Error) -> String {
         let message = error.localizedDescription
-        let lower = message.lowercased()
-        if lower.contains("nonce too low") {
+        switch corePlanEthereumSendErrorCode(message: message) {
+        case .nonceTooLow:
             return localizedStoreString("Nonce too low. A newer transaction from this wallet is already known. Refresh and retry.")
-        }
-        if lower.contains("replacement transaction underpriced") {
+        case .replacementUnderpriced:
             return localizedStoreString("Replacement transaction underpriced. Increase fees and retry.")
-        }
-        if lower.contains("already known") {
+        case .alreadyKnown:
             return localizedStoreString("This transaction is already in the mempool.")
-        }
-        if lower.contains("insufficient funds") {
+        case .insufficientFunds:
             return localizedStoreString("Insufficient ETH to cover value plus network fee.")
-        }
-        if lower.contains("max fee per gas less than block base fee") {
+        case .maxFeeBelowBaseFee:
             return localizedStoreString("Max fee is below current base fee. Increase Max Fee and retry.")
-        }
-        if lower.contains("intrinsic gas too low") {
+        case .intrinsicGasLow:
             return localizedStoreString("Gas limit is too low for this transaction.")
+        case .unknown:
+            return message
         }
-        return message
     }
     func evmChainContext(for chainName: String) -> EVMChainContext? {
         switch coreEvmChainContextTag(chainName: chainName, ethereumNetworkMode: ethereumNetworkMode.rawValue) {
@@ -292,43 +292,43 @@ extension AppState {
     }
     func evmRecipientPreflightReasons(holding: Coin, chain: EVMChainContext, destinationAddress: String) async -> [String] {
         guard let chainId = SpectraChainID.id(for: holding.chainName) else { return [] }
-        var recipientHasCode: Bool? = nil
+        let recipientHasCode: Bool?
         do {
             recipientHasCode = try await WalletServiceBridge.shared.fetchEvmHasContractCode(chainId: chainId, address: destinationAddress)
         } catch { recipientHasCode = nil }
         let token = supportedEVMToken(for: holding)
-        var tokenHasCode: Bool? = nil
-        var tokenProbed = false
+        let tokenHasCode: Bool?
         if let token {
-            tokenProbed = true
             do {
                 tokenHasCode = try await WalletServiceBridge.shared.fetchEvmHasContractCode(chainId: chainId, address: token.contractAddress)
             } catch { tokenHasCode = nil }
-        }
-        var reasons: [String] = []
-        if let hasCode = recipientHasCode {
-            if hasCode {
-                reasons.append(
-                    localizedStoreFormat(
-                        "Recipient is a smart contract on %@. Confirm it can receive %@ safely.", holding.chainName, holding.symbol))
-            }
         } else {
-            reasons.append(
-                localizedStoreFormat("Could not verify recipient contract state on %@. Review destination carefully.", holding.chainName))
+            tokenHasCode = nil
         }
-        if tokenProbed, let tokenSym = token?.symbol {
-            if let hasCode = tokenHasCode {
-                if !hasCode {
-                    reasons.append(
-                        localizedStoreFormat(
-                            "Token contract %@ appears missing on %@. This may be a wrong-network token selection.", tokenSym,
-                            holding.chainName))
-                }
-            } else {
-                reasons.append(localizedStoreFormat("Could not verify %@ contract bytecode on %@.", tokenSym, holding.chainName))
+        let warnings = corePlanEvmRecipientPreflightWarnings(
+            request: EvmRecipientPreflightRequest(
+                chainName: holding.chainName, holdingSymbol: holding.symbol,
+                tokenSymbol: token?.symbol, recipientHasCode: recipientHasCode, tokenHasCode: tokenHasCode
+            )
+        )
+        return warnings.compactMap { w -> String? in
+            switch w.code {
+            case "recipient_is_contract":
+                return localizedStoreFormat(
+                    "Recipient is a smart contract on %@. Confirm it can receive %@ safely.", w.chainName ?? "", w.symbol ?? "")
+            case "recipient_code_unknown":
+                return localizedStoreFormat(
+                    "Could not verify recipient contract state on %@. Review destination carefully.", w.chainName ?? "")
+            case "token_contract_missing":
+                return localizedStoreFormat(
+                    "Token contract %@ appears missing on %@. This may be a wrong-network token selection.",
+                    w.tokenSymbol ?? "", w.chainName ?? "")
+            case "token_code_unknown":
+                return localizedStoreFormat(
+                    "Could not verify %@ contract bytecode on %@.", w.tokenSymbol ?? "", w.chainName ?? "")
+            default: return nil
             }
         }
-        return reasons
     }
     func evaluateHighRiskSendReasons(
         wallet: ImportedWallet, holding: Coin, amount: Double, destinationAddress: String, destinationInput: String,
@@ -1115,45 +1115,46 @@ extension AppState {
         }
     }
     func baselineChainKeypoolState(for wallet: ImportedWallet, chainName: String) -> ChainKeypoolState {
-        if supportsDeepUTXODiscovery(chainName: chainName) {
-            let chainTransactions = transactions.filter { $0.walletID == wallet.id && $0.chainName == chainName }
-            let maxExternalIndex =
-                chainTransactions.compactMap {
-                    parseUTXODiscoveryIndex(path: $0.sourceDerivationPath, chainName: chainName, branch: .external)
-                }.max() ?? -1
-            let maxChangeIndex =
-                chainTransactions.compactMap {
-                    parseUTXODiscoveryIndex(path: $0.changeDerivationPath, chainName: chainName, branch: .change)
-                }.max() ?? -1
-            let maxOwnedExternalIndex =
-                (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "external" }
-                .compactMap(\.index).max() ?? 0
-            let maxOwnedChangeIndex =
-                (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id && $0.branch == "change" }
-                .compactMap(\.index).max() ?? -1
-            return ChainKeypoolState(
-                nextExternalIndex: max(max(maxExternalIndex, maxOwnedExternalIndex) + 1, 1),
-                nextChangeIndex: max(max(maxChangeIndex, maxOwnedChangeIndex) + 1, 0), reservedReceiveIndex: nil
-            )
-        }
-        let hasResolvedAddress = resolvedAddress(for: wallet, chainName: chainName) != nil
-        let nextExternalIndex = hasResolvedAddress ? 1 : 0
-        return ChainKeypoolState(
-            nextExternalIndex: nextExternalIndex, nextChangeIndex: 0, reservedReceiveIndex: hasResolvedAddress ? 0 : nil
+        let supportsDeep = supportsDeepUTXODiscovery(chainName: chainName)
+        var input = ChainKeypoolBaselineInput(
+            supportsDeepUtxoDiscovery: supportsDeep,
+            maxTransactionExternalIndex: nil,
+            maxTransactionChangeIndex: nil,
+            maxOwnedExternalIndex: nil,
+            maxOwnedChangeIndex: nil,
+            hasResolvedAddress: false
         )
+        if supportsDeep {
+            let chainTransactions = transactions.filter { $0.walletID == wallet.id && $0.chainName == chainName }
+            let maxExternalIndex = chainTransactions.compactMap {
+                parseUTXODiscoveryIndex(path: $0.sourceDerivationPath, chainName: chainName, branch: .external)
+            }.max()
+            let maxChangeIndex = chainTransactions.compactMap {
+                parseUTXODiscoveryIndex(path: $0.changeDerivationPath, chainName: chainName, branch: .change)
+            }.max()
+            let ownedForWallet = (chainOwnedAddressMapByChain[chainName] ?? [:]).values.filter { $0.walletID == wallet.id }
+            let maxOwnedExternalIndex = ownedForWallet.filter { $0.branch == "external" }.compactMap(\.index).max()
+            let maxOwnedChangeIndex = ownedForWallet.filter { $0.branch == "change" }.compactMap(\.index).max()
+            input.maxTransactionExternalIndex = maxExternalIndex.map { Int32($0) }
+            input.maxTransactionChangeIndex = maxChangeIndex.map { Int32($0) }
+            input.maxOwnedExternalIndex = maxOwnedExternalIndex.map { Int32($0) }
+            input.maxOwnedChangeIndex = maxOwnedChangeIndex.map { Int32($0) }
+        } else {
+            input.hasResolvedAddress = resolvedAddress(for: wallet, chainName: chainName) != nil
+        }
+        return ChainKeypoolState(coreRecord: corePlanBaselineChainKeypoolState(input: input))
     }
     func keypoolState(for wallet: ImportedWallet, chainName: String) -> ChainKeypoolState {
         let baseline = baselineChainKeypoolState(for: wallet, chainName: chainName)
-        if var existing = (chainKeypoolByChain[chainName] ?? [:])[wallet.id] {
-            existing.nextExternalIndex = max(existing.nextExternalIndex, baseline.nextExternalIndex)
-            existing.nextChangeIndex = max(existing.nextChangeIndex, baseline.nextChangeIndex)
-            if existing.reservedReceiveIndex == nil { existing.reservedReceiveIndex = baseline.reservedReceiveIndex }
-            if let reserved = existing.reservedReceiveIndex { existing.nextExternalIndex = max(existing.nextExternalIndex, reserved + 1) }
-            storeChainKeypoolState(existing, chainName: chainName, walletID: wallet.id)
-            return existing
-        }
-        storeChainKeypoolState(baseline, chainName: chainName, walletID: wallet.id)
-        return baseline
+        let existing = (chainKeypoolByChain[chainName] ?? [:])[wallet.id]
+        let merged = ChainKeypoolState(
+            coreRecord: corePlanChainKeypoolState(
+                baseline: baseline.coreRecord,
+                existing: existing?.coreRecord
+            )
+        )
+        storeChainKeypoolState(merged, chainName: chainName, walletID: wallet.id)
+        return merged
     }
     func reserveReceiveIndex(for wallet: ImportedWallet, chainName: String) -> Int? {
         var state = keypoolState(for: wallet, chainName: chainName)

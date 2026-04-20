@@ -19,6 +19,14 @@ extension View {
         modifier(SpectraInputFieldChrome(cornerRadius: cornerRadius, borderColor: borderColor))
     }
 }
+extension Binding {
+    static func isPresent<Wrapped>(_ source: Binding<Wrapped?>) -> Binding<Bool> where Value == Bool {
+        Binding<Bool>(
+            get: { source.wrappedValue != nil },
+            set: { if !$0 { source.wrappedValue = nil } }
+        )
+    }
+}
 @ViewBuilder
 func spectraDetailCard(title: String? = nil, @ViewBuilder content: () -> some View) -> some View {
     VStack(alignment: .leading, spacing: 12) {
