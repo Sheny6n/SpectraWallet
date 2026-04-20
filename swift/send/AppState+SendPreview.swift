@@ -5,31 +5,19 @@ import Foundation
 private func decodedUTXOFeePreview(chainId: UInt32, address: String, satPerCoin: Double, feeRateSvb: UInt64 = 0) async throws
     -> BitcoinSendPreview
 {
-    let json = try await WalletServiceBridge.shared.fetchUTXOFeePreviewJSON(
-        chainId: chainId, address: address, feeRateSvb: feeRateSvb
-    )
-    guard let preview = buildUtxoSendPreviewRecord(json: json) else {
+    guard
+        let preview = try await WalletServiceBridge.shared.fetchUtxoFeePreviewTyped(
+            chainId: chainId, address: address, feeRateSvb: feeRateSvb)
+    else {
         throw NSError(domain: "UTXOFeePreview", code: 1, userInfo: [NSLocalizedDescriptionKey: "Insufficient funds"])
     }
     return preview
 }
 
-private func decodeEVMSendPreview(json: String, explicitNonce: Int?, customFees: EthereumCustomFeeConfiguration?) -> EthereumSendPreview? {
-    let customDTO: EvmCustomFeeConfiguration? = customFees.map {
+private func evmCustomFeeDTO(_ customFees: EthereumCustomFeeConfiguration?) -> EvmCustomFeeConfiguration? {
+    customFees.map {
         EvmCustomFeeConfiguration(maxFeePerGasGwei: $0.maxFeePerGasGwei, maxPriorityFeePerGasGwei: $0.maxPriorityFeePerGasGwei)
     }
-    return buildEvmSendPreviewRecord(
-        input: EvmPreviewDecodeInput(
-            rawJson: json, explicitNonce: explicitNonce.map(Int64.init), customFees: customDTO
-        ))
-}
-
-private func decodeBitcoinHDSendPreview(balanceJSON: String, feeJSON: String) -> BitcoinSendPreview? {
-    return buildBitcoinHdSendPreviewRecord(balanceJson: balanceJSON, feeJson: feeJSON)
-}
-
-private func decodeTronSendPreviewLocal(json: String) -> TronSendPreview? {
-    return buildTronSendPreviewRecord(json: json)
 }
 
 // MARK: - AppState send preview methods
@@ -117,11 +105,10 @@ extension AppState {
             let valueWei = assembly.valueWei
             let toAddress = assembly.toAddress
             let dataHex = assembly.dataHex
-            let previewJSON = try await WalletServiceBridge.shared.fetchEVMSendPreviewJSON(
-                chainId: chainId, from: fromAddress, to: toAddress, valueWei: valueWei, dataHex: dataHex
-            )
-            ethereumSendPreview = decodeEVMSendPreview(
-                json: previewJSON, explicitNonce: explicitEthereumNonce(), customFees: customEthereumFeeConfiguration()
+            ethereumSendPreview = try await WalletServiceBridge.shared.fetchEvmSendPreviewTyped(
+                chainId: chainId, from: fromAddress, to: toAddress, valueWei: valueWei, dataHex: dataHex,
+                explicitNonce: explicitEthereumNonce().map(Int64.init),
+                customFees: evmCustomFeeDTO(customEthereumFeeConfiguration())
             )
             if ethereumSendPreview != nil {
                 sendError = nil
@@ -173,11 +160,9 @@ extension AppState {
             return
         }
         do {
-            let json = try await WalletServiceBridge.shared.fetchUTXOFeePreviewJSON(
-                chainId: SpectraChainID.dogecoin, address: address, feeRateSvb: 0
-            )
             guard
-                let preview = buildDogecoinSendPreviewRecord(json: json, requestedAmount: amount, feePriority: dogecoinFeePriority.rawValue)
+                let preview = try await WalletServiceBridge.shared.fetchDogecoinSendPreviewTyped(
+                    address: address, requestedAmount: amount, feePriority: dogecoinFeePriority.rawValue)
             else {
                 dogecoinSendPreview = nil
                 sendError = "Insufficient DOGE funds."
@@ -204,10 +189,7 @@ extension AppState {
         }
         do {
             if let xpub = wallet.bitcoinXpub?.trimmingCharacters(in: .whitespacesAndNewlines), !xpub.isEmpty {
-                async let balanceJSONTask = WalletServiceBridge.shared.fetchBitcoinXpubBalanceJSON(xpub: xpub)
-                async let feeJSONTask = WalletServiceBridge.shared.fetchFeeEstimateJSON(chainId: SpectraChainID.bitcoin)
-                let (balanceJSON, feeJSON) = try await (balanceJSONTask, feeJSONTask)
-                bitcoinSendPreview = decodeBitcoinHDSendPreview(balanceJSON: balanceJSON, feeJSON: feeJSON)
+                bitcoinSendPreview = try await WalletServiceBridge.shared.fetchBitcoinHdSendPreviewTyped(xpub: xpub)
             } else if let address = resolvedBitcoinAddress(for: wallet) {
                 bitcoinSendPreview = try await decodedUTXOFeePreview(
                     chainId: SpectraChainID.bitcoin, address: address, satPerCoin: 100_000_000
@@ -271,10 +253,9 @@ extension AppState {
         isPreparingTronSend = true
         defer { isPreparingTronSend = false }
         do {
-            let previewJSON = try await WalletServiceBridge.shared.fetchTronSendPreviewJSON(
+            tronSendPreview = try await WalletServiceBridge.shared.fetchTronSendPreviewTyped(
                 address: sourceAddress, symbol: selectedSendCoin.symbol, contractAddress: selectedSendCoin.contractAddress ?? ""
             )
-            tronSendPreview = decodeTronSendPreviewLocal(json: previewJSON)
             sendError = nil
         } catch {
             if isCancelledRequest(error) { return }
@@ -304,8 +285,9 @@ extension AppState {
         guard !self[keyPath: cfg.preparingKP] else { return }
         self[keyPath: cfg.preparingKP] = true; defer { self[keyPath: cfg.preparingKP] = false }
         do {
-            let json = try await WalletServiceBridge.shared.fetchSimpleChainSendPreviewJSON(chainId: cfg.chainId, address: src)
-            cfg.applyPreview(self, buildSimpleChainPreview(json: json, chain: cfg.rustChain))
+            let preview = try await WalletServiceBridge.shared.fetchSimpleChainSendPreviewTyped(
+                chainId: cfg.chainId, address: src, chain: cfg.rustChain)
+            cfg.applyPreview(self, preview)
             sendError = nil
         } catch {
             if isCancelledRequest(error) { return }

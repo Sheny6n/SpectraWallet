@@ -15,9 +15,11 @@ final class WalletBalanceObserver: BalanceObserverImpl, @unchecked Sendable {
     nonisolated required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
         super.init(unsafeFromRawPointer: pointer)
     }
-    nonisolated override func onBalanceUpdated(chainId: UInt32, walletId: String, balanceJson: String) {
+    nonisolated override func onBalanceUpdated(chainId: UInt32, walletId: String, summary: WalletSummary?) {
+        _ = chainId
+        guard let summary else { return }
         Task { @MainActor [weak self] in
-            self?.store?.applyRustBalance(chainId: chainId, walletId: walletId, json: balanceJson)
+            self?.store?.applyRustBalance(walletId: walletId, summary: summary)
         }
     }
     nonisolated override func onRefreshCycleComplete(refreshed: UInt32, errors: UInt32) {

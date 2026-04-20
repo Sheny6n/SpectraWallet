@@ -45,14 +45,6 @@ enum WalletDerivationLayer {
         return address
     }
     static func evmSeedDerivationChain(for chainName: String) -> SeedDerivationChain? {
-        switch chainName {
-        case "Ethereum": return .ethereum
-        case "Ethereum Classic": return .ethereumClassic
-        case "Arbitrum": return .arbitrum
-        case "BNB Chain": return .ethereum
-        case "Avalanche": return .avalanche
-        case "Hyperliquid": return .hyperliquid
-        default: return nil
-        }
+        coreEvmSeedDerivationChainName(chainName: chainName).flatMap(SeedDerivationChain.init(rawValue:))
     }
 }

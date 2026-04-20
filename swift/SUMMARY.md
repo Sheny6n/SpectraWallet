@@ -77,7 +77,7 @@ swift/
 
 These two files are the `AppState`-facing seam onto UniFFI. They are intentionally thin — add a Rust export, call it everywhere else. The former `WalletRustAppCoreBridge` pass-through wrapper was removed; call `corePlan*` / `coreActiveMaintenancePlan` / etc. directly.
 
-- [rustbridge/WalletServiceBridge.swift](rustbridge/WalletServiceBridge.swift) — `actor WalletServiceBridge` + `enum SpectraChainID`. Owns the singleton `WalletService` instance, surfaces `fetchBalanceJSON`, `fetchHistoryJSON`, `fetchEVMSendPreviewJSON`, `executeSend`, `signAndSend`, `resolveENSName`, `deriveBitcoinAccountXpub`, `saveState/loadState`, etc.
+- [rustbridge/WalletServiceBridge.swift](rustbridge/WalletServiceBridge.swift) — `actor WalletServiceBridge` + `enum SpectraChainID`. Owns the singleton `WalletService` instance, surfaces typed helpers like `fetchNativeBalanceSummary`, `fetchHistoryHasActivity`, `fetchEvmSendPreviewTyped`, `fetchEVMHistoryPage`, `executeSend`, `signAndSend`, `resolveENSName`, `deriveBitcoinAccountXpub`, `saveState/loadState`, etc. JSON surfaces are now only the state-persistence blobs (`loadState`/`saveState`/`loadWalletSnapshot`).
 - [rustbridge/WalletRustEndpointCatalogBridge.swift](rustbridge/WalletRustEndpointCatalogBridge.swift) — Thin wrapper over typed UniFFI exports (`appCoreEndpointForId`, `appCoreEndpointRecordsForChain`, etc.). `AppEndpointRecord` is a typealias for the generated `AppCoreEndpointRecord`; the catalog itself lives in `core/embedded/AppEndpointDirectory.json`.
 
 ## views/ — SwiftUI

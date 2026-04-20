@@ -195,15 +195,7 @@ extension AppState {
                 receiveResolvedAddress = ""
                 return
             }
-            let json = try await WalletServiceBridge.shared.fetchBitcoinNextUnusedAddressJSON(xpub: xpub)
-            let address: String?
-            if json.trimmingCharacters(in: .whitespacesAndNewlines) == "null" {
-                address = nil
-            } else if let data = json.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                address = obj["address"] as? String
-            } else {
-                address = nil
-            }
+            let address = try await WalletServiceBridge.shared.fetchBitcoinNextUnusedAddressTyped(xpub: xpub)
             receiveResolvedAddress = activateLiveReceiveAddress(
                 address ?? wallet.bitcoinAddress ?? "", for: wallet, chainName: receiveCoin.chainName
             )

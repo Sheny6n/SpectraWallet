@@ -17,6 +17,9 @@ struct WalletChainID: Hashable, Codable, Identifiable, Comparable {
             self.init(rawValue: Self.fallbackRawValue(for: normalized))
         }
     }
+    nonisolated static func resolved(_ chainNameOrID: String) -> WalletChainID {
+        WalletChainID(chainNameOrID) ?? WalletChainID(rawValue: chainNameOrID)
+    }
     nonisolated static func < (lhs: WalletChainID, rhs: WalletChainID) -> Bool {
         lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
     }

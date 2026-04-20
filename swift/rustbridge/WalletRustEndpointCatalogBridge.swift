@@ -2,12 +2,10 @@ import Foundation
 enum WalletRustEndpointCatalogBridgeError: LocalizedError {
     case rustCoreReturnedNullResponse
     case rustCoreFailed(String)
-    case invalidPayload(String)
     var errorDescription: String? {
         switch self {
         case .rustCoreReturnedNullResponse: return "The Rust endpoint catalog returned an empty response."
         case .rustCoreFailed(let message): return message
-        case .invalidPayload(let message): return message
         }}
 }
 typealias AppEndpointGroupedSettingsEntry = AppCoreGroupedSettingsEntry
@@ -40,12 +38,9 @@ enum WalletRustEndpointCatalogBridge {
             ChainBroadcastProviderOption(id: $0.id, title: $0.title)
         }
     }
-    nonisolated static func chainBackends() throws -> [ChainBackendRecord] {
-        try appCoreChainBackends().map {
-            guard let state = ChainIntegrationState(rawValue: $0.integrationState) else {
-                throw WalletRustEndpointCatalogBridgeError.invalidPayload("Unknown integration state: \($0.integrationState)")
-            }
-            return ChainBackendRecord(chainName: $0.chainName, supportedSymbols: $0.supportedSymbols, integrationState: state, supportsSeedImport: $0.supportsSeedImport, supportsBalanceRefresh: $0.supportsBalanceRefresh, supportsReceiveAddress: $0.supportsReceiveAddress, supportsSend: $0.supportsSend)
+    nonisolated static func chainBackends() -> [ChainBackendRecord] {
+        appCoreChainBackends().map {
+            ChainBackendRecord(chainName: $0.chainName, supportedSymbols: $0.supportedSymbols, integrationState: $0.integrationState, supportsSeedImport: $0.supportsSeedImport, supportsBalanceRefresh: $0.supportsBalanceRefresh, supportsReceiveAddress: $0.supportsReceiveAddress, supportsSend: $0.supportsSend)
         }
     }
     nonisolated static func liveChainNames() -> [String] { appCoreLiveChainNames() }
@@ -72,79 +67,54 @@ enum AppEndpointRole: String, Hashable, CaseIterable, Decodable {
     case backend
 }
 nonisolated enum AppEndpointDirectory {
+    /// Every Rust catalog lookup below is infallible at runtime: if the
+    /// embedded JSON parses at boot, the queries never fail. Any throw
+    /// indicates a corrupted bundle, which is a programmer error we crash on.
+    private static func required<T>(_ context: @autoclosure () -> String, _ lookup: () throws -> T) -> T {
+        do { return try lookup() } catch {
+            preconditionFailure("Rust \(context()) failed: \(error.localizedDescription)")
+        }
+    }
     static func endpoint(_ id: String) -> String {
-        do {
-            return try WalletRustEndpointCatalogBridge.endpoint(id)
-        } catch {
-            preconditionFailure("Rust endpoint lookup failed for id \(id): \(error.localizedDescription)")
-        }}
+        required("endpoint lookup for id \(id)") { try WalletRustEndpointCatalogBridge.endpoint(id) }
+    }
     static func endpoints(for ids: [String]) -> [String] {
-        do {
-            return try WalletRustEndpointCatalogBridge.endpoints(for: ids)
-        } catch {
-            preconditionFailure("Rust endpoint lookup failed for ids \(ids): \(error.localizedDescription)")
-        }}
+        required("endpoint lookup for ids \(ids)") { try WalletRustEndpointCatalogBridge.endpoints(for: ids) }
+    }
     static func endpointRecords(for chainName: String, roles: Set<AppEndpointRole>? = nil, settingsVisibleOnly: Bool = false) -> [AppEndpointRecord] {
-        do {
-            return try WalletRustEndpointCatalogBridge.endpointRecords(
-                for: chainName, roles: roles ?? [], settingsVisibleOnly: settingsVisibleOnly
-            )
-        } catch {
-            preconditionFailure("Rust endpoint records failed for \(chainName): \(error.localizedDescription)")
-        }}
-    static func groupedSettingsEntries(for chainName: String) -> [(title: String, endpoints: [String])] {
-        do {
-            return try WalletRustEndpointCatalogBridge.groupedSettingsEntries(for: chainName).map { (title: $0.title, endpoints: $0.endpoints) }
-        } catch {
-            preconditionFailure("Rust grouped settings entries failed for \(chainName): \(error.localizedDescription)")
-        }}
+        required("endpoint records for \(chainName)") {
+            try WalletRustEndpointCatalogBridge.endpointRecords(
+                for: chainName, roles: roles ?? [], settingsVisibleOnly: settingsVisibleOnly)
+        }
+    }
+    static func groupedSettingsEntries(for chainName: String) -> [AppEndpointGroupedSettingsEntry] {
+        required("grouped settings entries for \(chainName)") { try WalletRustEndpointCatalogBridge.groupedSettingsEntries(for: chainName) }
+    }
     static func settingsEndpoints(for chainName: String) -> [String] { groupedSettingsEntries(for: chainName).flatMap(\.endpoints) }
-    static func diagnosticsChecks(for chainName: String) -> [(endpoint: String, probeURL: String)] {
-        do {
-            return try WalletRustEndpointCatalogBridge.diagnosticsChecks(for: chainName).map { (endpoint: $0.endpoint, probeURL: $0.probeUrl) }
-        } catch {
-            preconditionFailure("Rust diagnostics checks failed for \(chainName): \(error.localizedDescription)")
-        }}
+    static func diagnosticsChecks(for chainName: String) -> [AppEndpointDiagnosticsCheck] {
+        required("diagnostics checks for \(chainName)") { try WalletRustEndpointCatalogBridge.diagnosticsChecks(for: chainName) }
+    }
     static func evmRPCEndpoints(for chainName: String) -> [String] {
-        do {
-            return try WalletRustEndpointCatalogBridge.evmRPCEndpoints(for: chainName)
-        } catch {
-            preconditionFailure("Rust EVM RPC lookup failed for \(chainName): \(error.localizedDescription)")
-        }}
+        required("EVM RPC lookup for \(chainName)") { try WalletRustEndpointCatalogBridge.evmRPCEndpoints(for: chainName) }
+    }
     static func explorerSupplementalEndpoints(for chainName: String) -> [String] {
-        do {
-            return try WalletRustEndpointCatalogBridge.explorerSupplementalEndpoints(for: chainName)
-        } catch {
-            preconditionFailure("Rust explorer endpoint lookup failed for \(chainName): \(error.localizedDescription)")
-        }}
+        required("explorer endpoint lookup for \(chainName)") { try WalletRustEndpointCatalogBridge.explorerSupplementalEndpoints(for: chainName) }
+    }
     static func transactionExplorerBaseURL(for chainName: String) -> String? {
-        do {
-            return try WalletRustEndpointCatalogBridge.transactionExplorerEntry(for: chainName)?.endpoint
-        } catch {
-            preconditionFailure("Rust transaction explorer lookup failed for \(chainName): \(error.localizedDescription)")
-        }}
+        required("transaction explorer lookup for \(chainName)") { try WalletRustEndpointCatalogBridge.transactionExplorerEntry(for: chainName)?.endpoint }
+    }
     static func transactionExplorerLabel(for chainName: String) -> String? {
-        do {
-            return try WalletRustEndpointCatalogBridge.transactionExplorerEntry(for: chainName)?.label
-        } catch {
-            preconditionFailure("Rust transaction explorer label lookup failed for \(chainName): \(error.localizedDescription)")
-        }}
+        required("transaction explorer label lookup for \(chainName)") { try WalletRustEndpointCatalogBridge.transactionExplorerEntry(for: chainName)?.label }
+    }
     static func bitcoinEsploraBaseURLs(for networkMode: BitcoinNetworkMode) -> [String] {
-        do {
-            return try WalletRustEndpointCatalogBridge.bitcoinEsploraBaseURLs(for: networkMode)
-        } catch {
-            preconditionFailure("Rust Bitcoin Esplora lookup failed for \(networkMode.rawValue): \(error.localizedDescription)")
-        }}
+        required("Bitcoin Esplora lookup for \(networkMode.rawValue)") { try WalletRustEndpointCatalogBridge.bitcoinEsploraBaseURLs(for: networkMode) }
+    }
     static func bitcoinWalletStoreDefaultBaseURLs(for networkMode: BitcoinNetworkMode) -> [String] {
-        do {
-            return try WalletRustEndpointCatalogBridge.bitcoinWalletStoreDefaultBaseURLs(for: networkMode)
-        } catch {
-            preconditionFailure("Rust Bitcoin wallet-store lookup failed for \(networkMode.rawValue): \(error.localizedDescription)")
-        }}
+        required("Bitcoin wallet-store lookup for \(networkMode.rawValue)") { try WalletRustEndpointCatalogBridge.bitcoinWalletStoreDefaultBaseURLs(for: networkMode) }
+    }
     static func transactionExplorerURL(for chainName: String, transactionHash: String) -> URL? {
-        guard let baseURL = transactionExplorerBaseURL(for: chainName) else { return nil }
-        if chainName == "Aptos" { return URL(string: "\(baseURL)\(transactionHash)?network=mainnet") }
-        return URL(string: baseURL + transactionHash)
+        guard let urlString = (try? coreTransactionExplorerUrl(chainName: chainName, transactionHash: transactionHash)) ?? nil else { return nil }
+        return URL(string: urlString)
     }
     static let liveChainNames = WalletRustEndpointCatalogBridge.liveChainNames()
     static let allBackends: [ChainBackendRecord] = loadChainBackends()
@@ -158,8 +128,8 @@ nonisolated enum AppEndpointDirectory {
     static var diagnosticsChains: [AppChainDescriptor] { appChains.filter(\.supportsDiagnostics) }
     static var endpointCatalogChains: [AppChainDescriptor] { appChains.filter(\.supportsEndpointCatalog) }
     private static func loadChainBackends() -> [ChainBackendRecord] {
-        do { return try WalletRustEndpointCatalogBridge.chainBackends() }
-        catch { preconditionFailure("Rust chain backend catalog failed to load: \(error.localizedDescription)") }}
+        WalletRustEndpointCatalogBridge.chainBackends()
+    }
     private static func loadAppChains() -> [AppChainDescriptor] {
         WalletRustEndpointCatalogBridge.appChainDescriptors()
     }

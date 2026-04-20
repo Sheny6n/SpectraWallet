@@ -1,9 +1,6 @@
 import Foundation
-enum ChainIntegrationState: String, Decodable {
-    case live = "Live"
-    case planned = "Planned"
-}
-struct ChainBackendRecord: Decodable {
+typealias ChainIntegrationState = AppCoreChainIntegrationState
+struct ChainBackendRecord {
     let chainName: String
     let supportedSymbols: [String]
     let integrationState: ChainIntegrationState

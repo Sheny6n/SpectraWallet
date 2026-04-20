@@ -2,56 +2,46 @@ import Foundation
 
 // MARK: - RustBalanceDecoder (thin Swift forwarders; logic lives in Rust core/src/balance_decoder.rs)
 enum RustBalanceDecoder {
-    nonisolated static func uint64Field(_ field: String, from json: String) -> UInt64? { balanceDecoderU64Field(field: field, json: json) }
     nonisolated static func int64Field(_ field: String, from json: String) -> Int64? { balanceDecoderI64Field(field: field, json: json) }
     nonisolated static func f64Field(_ field: String, from json: String) -> Double? { balanceDecoderF64Field(field: field, json: json) }
-    nonisolated static func stringField(_ field: String, from json: String) -> String? {
-        balanceDecoderStringField(field: field, json: json)
-    }
-    nonisolated static func uint128StringField(_ field: String, from json: String) -> Double? {
-        balanceDecoderU128StringFieldAsF64(field: field, json: json)
-    }
-    nonisolated static func evmNativeBalance(from json: String) -> Double? { balanceDecoderEvmNativeBalance(json: json) }
-    nonisolated static func yoctoNearToDouble(from json: String) -> Double? { balanceDecoderYoctoNearToDouble(json: json) }
-    nonisolated static func jsonArrayIsNonEmpty(_ json: String) -> Bool { balanceDecoderJsonArrayIsNonEmpty(json: json) }
-    nonisolated static func hasField(_ field: String, in json: String) -> Bool { balanceDecoderHasField(field: field, json: json) }
     nonisolated static func firstElementStringField(_ field: String, from json: String) -> String? {
         balanceDecoderFirstElementStringField(field: field, json: json)
     }
 }
 
-// MARK: - Codable/RawRepresentable helpers for Rust-owned enums
-protocol RustStringEnum: RawRepresentable, CaseIterable, Codable, Identifiable, Hashable where RawValue == String {
-    nonisolated static var rawMap: [(Self, String)] { get }
-}
-extension RustStringEnum {
-    nonisolated public init?(rawValue: String) {
-        for (c, r) in Self.rawMap where r == rawValue { self = c; return }
-        return nil
+// MARK: - Bitcoin
+typealias BitcoinNetworkMode = CoreBitcoinNetworkMode
+nonisolated extension CoreBitcoinNetworkMode: RawRepresentable, CaseIterable, Codable, Identifiable {
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "mainnet": self = .mainnet
+        case "testnet": self = .testnet
+        case "testnet4": self = .testnet4
+        case "signet": self = .signet
+        default: return nil
+        }
     }
-    nonisolated public var rawValue: String {
-        Self.rawMap.first(where: { $0.0 == self })?.1 ?? ""
+    public var rawValue: String {
+        switch self {
+        case .mainnet: return "mainnet"
+        case .testnet: return "testnet"
+        case .testnet4: return "testnet4"
+        case .signet: return "signet"
+        }
     }
-    nonisolated public static var allCases: [Self] { Self.rawMap.map(\.0) }
-    nonisolated public var id: String { rawValue }
-    nonisolated public init(from decoder: Decoder) throws {
-        let c = try decoder.singleValueContainer()
-        let raw = try c.decode(String.self)
+    public static var allCases: [CoreBitcoinNetworkMode] { [.mainnet, .testnet, .testnet4, .signet] }
+    public var id: String { rawValue }
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
         guard let v = Self(rawValue: raw) else {
-            throw DecodingError.dataCorruptedError(in: c, debugDescription: "Invalid \(Self.self): \(raw)")
+            throw DecodingError.dataCorruptedError(
+                in: try decoder.singleValueContainer(),
+                debugDescription: "Invalid CoreBitcoinNetworkMode: \(raw)")
         }
         self = v
     }
-    nonisolated public func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var c = encoder.singleValueContainer(); try c.encode(rawValue)
-    }
-}
-
-// MARK: - Bitcoin
-typealias BitcoinNetworkMode = CoreBitcoinNetworkMode
-nonisolated extension CoreBitcoinNetworkMode: RustStringEnum {
-    static var rawMap: [(CoreBitcoinNetworkMode, String)] {
-        [(.mainnet, "mainnet"), (.testnet, "testnet"), (.testnet4, "testnet4"), (.signet, "signet")]
     }
     public var displayName: String {
         switch self {
@@ -64,8 +54,34 @@ nonisolated extension CoreBitcoinNetworkMode: RustStringEnum {
 }
 // MARK: - Dogecoin
 typealias DogecoinNetworkMode = CoreDogecoinNetworkMode
-nonisolated extension CoreDogecoinNetworkMode: RustStringEnum {
-    static var rawMap: [(CoreDogecoinNetworkMode, String)] { [(.mainnet, "mainnet"), (.testnet, "testnet")] }
+nonisolated extension CoreDogecoinNetworkMode: RawRepresentable, CaseIterable, Codable, Identifiable {
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "mainnet": self = .mainnet
+        case "testnet": self = .testnet
+        default: return nil
+        }
+    }
+    public var rawValue: String {
+        switch self {
+        case .mainnet: return "mainnet"
+        case .testnet: return "testnet"
+        }
+    }
+    public static var allCases: [CoreDogecoinNetworkMode] { [.mainnet, .testnet] }
+    public var id: String { rawValue }
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        guard let v = Self(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(
+                in: try decoder.singleValueContainer(),
+                debugDescription: "Invalid CoreDogecoinNetworkMode: \(raw)")
+        }
+        self = v
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer(); try c.encode(rawValue)
+    }
     public var displayName: String { self == .mainnet ? "Mainnet" : "Testnet" }
 }
 struct DogecoinTransactionStatus {
@@ -77,10 +93,10 @@ struct DogecoinTransactionStatus {
 enum DogecoinBalanceService {
     typealias NetworkMode = DogecoinNetworkMode
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Dogecoin") }
-    static func endpointCatalogByNetwork() -> [(title: String, endpoints: [String])] {
+    static func endpointCatalogByNetwork() -> [AppEndpointGroupedSettingsEntry] {
         AppEndpointDirectory.groupedSettingsEntries(for: "Dogecoin")
     }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Dogecoin") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Dogecoin") }
 }
 
 // MARK: - EVM
@@ -103,21 +119,21 @@ enum TronBalanceService {
         let decimals: Int
     }
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Tron") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Tron") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Tron") }
 }
 
 // MARK: - Stellar
 // StellarHistoryDiagnostics moved to Rust core.
 enum StellarBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Stellar") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Stellar") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Stellar") }
 }
 
 // MARK: - ICP
 // ICPHistoryDiagnostics moved to Rust core.
 enum ICPBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Internet Computer") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] {
         AppEndpointDirectory.diagnosticsChecks(for: "Internet Computer")
     }
 }
@@ -126,8 +142,8 @@ enum ICPBalanceService {
 // XRPHistoryDiagnostics moved to Rust core.
 enum XRPBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "XRP Ledger") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
-        endpointCatalog().map { base in (endpoint: base, probeURL: base) }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] {
+        endpointCatalog().map { base in AppEndpointDiagnosticsCheck(endpoint: base, probeUrl: base) }
     }
 }
 
@@ -135,7 +151,7 @@ enum XRPBalanceService {
 // CardanoHistoryDiagnostics moved to Rust core.
 enum CardanoBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Cardano") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Cardano") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Cardano") }
 }
 
 // MARK: - Polkadot
@@ -143,7 +159,7 @@ enum CardanoBalanceService {
 enum PolkadotBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Polkadot") }
     static func sidecarEndpointCatalog() -> [String] { AppEndpointDirectory.endpoints(for: ["polkadot.sidecar.parity"]) }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Polkadot") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Polkadot") }
 }
 
 // MARK: - Monero
@@ -175,7 +191,7 @@ enum MoneroBalanceService {
 // MARK: - Bitcoin Cash
 enum BitcoinCashBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Bitcoin Cash") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] {
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] {
         AppEndpointDirectory.diagnosticsChecks(for: "Bitcoin Cash")
     }
 }
@@ -183,13 +199,13 @@ enum BitcoinCashBalanceService {
 // MARK: - Bitcoin SV
 enum BitcoinSVBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Bitcoin SV") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Bitcoin SV") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Bitcoin SV") }
 }
 
 // MARK: - Litecoin
 enum LitecoinBalanceService {
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Litecoin") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Litecoin") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Litecoin") }
 }
 
 // MARK: - Solana
@@ -198,7 +214,7 @@ enum SolanaBalanceService {
     static func endpointCatalog() -> [String] {
         AppEndpointDirectory.endpoints(for: ["solana.rpc.mainnet", "solana.rpc.ankr", "solana.rpc.publicnode"])
     }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Solana") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Solana") }
     struct KnownTokenMetadata {
         let symbol: String
         let name: String
@@ -270,7 +286,7 @@ enum NearBalanceService {
     static func rpcEndpointCatalog() -> [String] {
         AppEndpointDirectory.endpoints(for: ["near.rpc.mainnet", "near.rpc.fastnear", "near.rpc.lava"])
     }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "NEAR") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "NEAR") }
     static func parseHistoryResponse(_ data: Data, ownerAddress: String) throws -> [NearHistoryParsedSnapshot] {
         let jsonString = String(data: data, encoding: .utf8) ?? ""
         return nearParseHistoryResponse(json: jsonString, ownerAddress: ownerAddress)
@@ -290,7 +306,7 @@ enum AptosBalanceService {
         let coinGeckoId: String
     }
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Aptos") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Aptos") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Aptos") }
 }
 
 // MARK: - Sui
@@ -306,7 +322,7 @@ enum SuiBalanceService {
         let coinGeckoId: String
     }
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "Sui") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "Sui") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "Sui") }
 }
 
 // MARK: - TON
@@ -321,7 +337,7 @@ enum TONBalanceService {
         let coinGeckoId: String
     }
     static func endpointCatalog() -> [String] { AppEndpointDirectory.settingsEndpoints(for: "TON") }
-    static func diagnosticsChecks() -> [(endpoint: String, probeURL: String)] { AppEndpointDirectory.diagnosticsChecks(for: "TON") }
+    static func diagnosticsChecks() -> [AppEndpointDiagnosticsCheck] { AppEndpointDirectory.diagnosticsChecks(for: "TON") }
     static func normalizeJettonMasterAddress(_ address: String) -> String { canonicalAddressIdentifier(address) }
     private static func canonicalAddressIdentifier(_ address: String?) -> String {
         address?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -331,18 +347,96 @@ enum TONBalanceService {
 // MARK: - Transactions & price alerts (Rust-owned enums)
 
 typealias TransactionKind = CoreTransactionKind
-nonisolated extension CoreTransactionKind: RustStringEnum {
-    static var rawMap: [(CoreTransactionKind, String)] { [(.send, "send"), (.receive, "receive")] }
+nonisolated extension CoreTransactionKind: RawRepresentable, CaseIterable, Codable, Identifiable {
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "send": self = .send
+        case "receive": self = .receive
+        default: return nil
+        }
+    }
+    public var rawValue: String {
+        switch self {
+        case .send: return "send"
+        case .receive: return "receive"
+        }
+    }
+    public static var allCases: [CoreTransactionKind] { [.send, .receive] }
+    public var id: String { rawValue }
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        guard let v = Self(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(
+                in: try decoder.singleValueContainer(),
+                debugDescription: "Invalid CoreTransactionKind: \(raw)")
+        }
+        self = v
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer(); try c.encode(rawValue)
+    }
 }
 
 typealias TransactionStatus = CoreTransactionStatus
-nonisolated extension CoreTransactionStatus: RustStringEnum {
-    static var rawMap: [(CoreTransactionStatus, String)] {
-        [(.pending, "pending"), (.confirmed, "confirmed"), (.failed, "failed")]
+nonisolated extension CoreTransactionStatus: RawRepresentable, CaseIterable, Codable, Identifiable {
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "pending": self = .pending
+        case "confirmed": self = .confirmed
+        case "failed": self = .failed
+        default: return nil
+        }
+    }
+    public var rawValue: String {
+        switch self {
+        case .pending: return "pending"
+        case .confirmed: return "confirmed"
+        case .failed: return "failed"
+        }
+    }
+    public static var allCases: [CoreTransactionStatus] { [.pending, .confirmed, .failed] }
+    public var id: String { rawValue }
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        guard let v = Self(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(
+                in: try decoder.singleValueContainer(),
+                debugDescription: "Invalid CoreTransactionStatus: \(raw)")
+        }
+        self = v
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer(); try c.encode(rawValue)
     }
 }
 
 typealias PriceAlertCondition = CorePriceAlertCondition
-nonisolated extension CorePriceAlertCondition: RustStringEnum {
-    static var rawMap: [(CorePriceAlertCondition, String)] { [(.above, "Above"), (.below, "Below")] }
+nonisolated extension CorePriceAlertCondition: RawRepresentable, CaseIterable, Codable, Identifiable {
+    public init?(rawValue: String) {
+        switch rawValue {
+        case "Above": self = .above
+        case "Below": self = .below
+        default: return nil
+        }
+    }
+    public var rawValue: String {
+        switch self {
+        case .above: return "Above"
+        case .below: return "Below"
+        }
+    }
+    public static var allCases: [CorePriceAlertCondition] { [.above, .below] }
+    public var id: String { rawValue }
+    public init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        guard let v = Self(rawValue: raw) else {
+            throw DecodingError.dataCorruptedError(
+                in: try decoder.singleValueContainer(),
+                debugDescription: "Invalid CorePriceAlertCondition: \(raw)")
+        }
+        self = v
+    }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer(); try c.encode(rawValue)
+    }
 }

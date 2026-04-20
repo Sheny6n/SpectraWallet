@@ -271,7 +271,7 @@ extension AppState {
             largeMovementAlertUsdThreshold: largeMovementAlertUSDThreshold,
             pinnedDashboardAssetSymbols: cachedPinnedDashboardAssetSymbols
         )
-        Task { await WalletServiceBridge.shared.saveAppSettingsTyped(settings: settings) }
+        Task { try? await WalletServiceBridge.shared.saveAppSettingsTyped(settings: settings) }
     }
     func loadPersistedTokenPreferences() -> [TokenPreferenceEntry] {
         guard

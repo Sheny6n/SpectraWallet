@@ -312,24 +312,22 @@ extension AppState {
     }
     func evmRecipientPreflightReasons(holding: Coin, chain: EVMChainContext, destinationAddress: String) async -> [String] {
         guard let chainId = SpectraChainID.id(for: holding.chainName) else { return [] }
-        var recipientCode: String? = nil
+        var recipientHasCode: Bool? = nil
         do {
-            let codeJSON = try await WalletServiceBridge.shared.fetchEVMCodeJSON(chainId: chainId, address: destinationAddress)
-            recipientCode = rustField("code", from: codeJSON)
-        } catch { recipientCode = nil }
+            recipientHasCode = try await WalletServiceBridge.shared.fetchEvmHasContractCode(chainId: chainId, address: destinationAddress)
+        } catch { recipientHasCode = nil }
         let token = supportedEVMToken(for: holding)
-        var tokenCode: String? = nil
+        var tokenHasCode: Bool? = nil
         var tokenProbed = false
         if let token {
             tokenProbed = true
             do {
-                let codeJSON = try await WalletServiceBridge.shared.fetchEVMCodeJSON(chainId: chainId, address: token.contractAddress)
-                tokenCode = rustField("code", from: codeJSON)
-            } catch { tokenCode = nil }
+                tokenHasCode = try await WalletServiceBridge.shared.fetchEvmHasContractCode(chainId: chainId, address: token.contractAddress)
+            } catch { tokenHasCode = nil }
         }
         var reasons: [String] = []
-        if let code = recipientCode {
-            if coreEvmHasContractCode(code: code) {
+        if let hasCode = recipientHasCode {
+            if hasCode {
                 reasons.append(
                     localizedStoreFormat(
                         "Recipient is a smart contract on %@. Confirm it can receive %@ safely.", holding.chainName, holding.symbol))
@@ -339,8 +337,8 @@ extension AppState {
                 localizedStoreFormat("Could not verify recipient contract state on %@. Review destination carefully.", holding.chainName))
         }
         if tokenProbed, let tokenSym = token?.symbol {
-            if let code = tokenCode {
-                if !coreEvmHasContractCode(code: code) {
+            if let hasCode = tokenHasCode {
+                if !hasCode {
                     reasons.append(
                         localizedStoreFormat(
                             "Token contract %@ appears missing on %@. This may be a wrong-network token selection.", tokenSym,
@@ -546,10 +544,7 @@ extension AppState {
                     name: "ETH Portfolio Probe", passed: true, chainLabel: "Ethereum",
                     outcome: .custom(text: "Skipped: no imported wallet with Ethereum enabled.")))
         }
-        let diagnosticsOK: Bool = {
-            guard let json = ethereumDiagnosticsJSON() else { return false }
-            return RustBalanceDecoder.hasField("history", in: json) && RustBalanceDecoder.hasField("endpoints", in: json)
-        }()
+        let diagnosticsOK = ethereumDiagnosticsJSON().map { coreDiagnosticsEvmJsonShapeOk(json: $0) } ?? false
         results.append(
             ChainSelfTestResult(
                 name: "ETH Diagnostics JSON Shape", passed: diagnosticsOK, chainLabel: "Ethereum",
@@ -655,12 +650,12 @@ extension AppState {
         guard !walletsToRefresh.isEmpty else { dogecoinHistoryDiagnosticsLastUpdatedAt = Date(); return }
         for (wallet, address) in walletsToRefresh {
             do {
-                let json = try await withTimeout(seconds: 20) {
-                    try await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.dogecoin, address: address)
+                let count = try await withTimeout(seconds: 20) {
+                    try await WalletServiceBridge.shared.fetchHistoryEntryCount(chainId: SpectraChainID.dogecoin, address: address)
                 }
                 dogecoinHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
                     walletId: wallet.id, identifier: address, sourceUsed: "rust",
-                    transactionCount: Int32(decodeRustHistoryJSON(json: json).count), nextCursor: nil, error: nil)
+                    transactionCount: Int32(count), nextCursor: nil, error: nil)
             } catch {
                 dogecoinHistoryDiagnosticsByWallet[wallet.id] = BitcoinHistoryDiagnostics(
                     walletId: wallet.id, identifier: address, sourceUsed: "none", transactionCount: 0, nextCursor: nil,
@@ -794,8 +789,8 @@ extension AppState {
         appendChainOperationalEvent(
             .info, chainName: "Dogecoin", message: "DOGE rebroadcast requested.", transactionHash: transaction.transactionHash)
         do {
-            let resultJSON = try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.dogecoin, payload: rawTransactionHex)
-            let txidFromJSON = rustField("txid", from: resultJSON)
+            let txidFromJSON = try await WalletServiceBridge.shared.broadcastRawExtract(
+                chainId: SpectraChainID.dogecoin, payload: rawTransactionHex, resultField: "txid")
             let txHash = txidFromJSON.isEmpty ? (transaction.transactionHash ?? "") : txidFromJSON
             let result = (transactionHash: txHash, verificationStatus: SendBroadcastVerificationStatus.deferred)
             if let index = transactions.firstIndex(where: { $0.id == transactionID }) {
@@ -860,37 +855,13 @@ extension AppState {
             guard let chainId = SpectraChainID.id(for: transaction.chainName) else {
                 throw NSError(domain: "Spectra", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unsupported EVM chain for rebroadcast."])
             }
-            let txid = rustField("txid", from: try await WalletServiceBridge.shared.broadcastRaw(chainId: chainId, payload: payload))
+            let txid = try await WalletServiceBridge.shared.broadcastRawExtract(
+                chainId: chainId, payload: payload, resultField: "txid")
             return (txid.isEmpty ? existing : txid, .deferred)
         }
-        if format == "sui.signed_json" {
-            let suiPayload: String = {
-                if let d = payload.data(using: .utf8), let obj = try? JSONSerialization.jsonObject(with: d) as? [String: String],
-                    let tx = obj["txBytesBase64"], let sig = obj["signatureBase64"],
-                    let remapped = (try? JSONSerialization.data(withJSONObject: ["tx_bytes_b64": tx, "sig_b64": sig])).flatMap({
-                        String(data: $0, encoding: .utf8)
-                    })
-                {
-                    return remapped
-                }
-                return payload
-            }()
-            let digest = rustField(
-                "digest", from: try await WalletServiceBridge.shared.broadcastRaw(chainId: SpectraChainID.sui, payload: suiPayload))
-            return (digest.isEmpty ? existing : digest, .deferred)
-        }
-        let entry = try coreRebroadcastDispatchForFormat(format: format)
-        let broadcastPayload: String
-        if let extractField = entry.extractField {
-            broadcastPayload = rustField(extractField, from: payload)
-        } else if let wrapKey = entry.wrapKey {
-            broadcastPayload =
-                (try? JSONSerialization.data(withJSONObject: [wrapKey: payload])).flatMap { String(data: $0, encoding: .utf8) } ?? payload
-        } else {
-            broadcastPayload = payload
-        }
-        let resultValue = rustField(
-            entry.resultField, from: try await WalletServiceBridge.shared.broadcastRaw(chainId: entry.chainId, payload: broadcastPayload))
+        let prepared = try coreRebroadcastPreparePayload(format: format, rawPayload: payload)
+        let resultValue = try await WalletServiceBridge.shared.broadcastRawExtract(
+            chainId: prepared.chainId, payload: prepared.broadcastPayload, resultField: prepared.resultField)
         return (resultValue.isEmpty ? existing : resultValue, .deferred)
     }
     func walletDerivationPath(for wallet: ImportedWallet, chain: SeedDerivationChain) -> String {
@@ -989,32 +960,27 @@ extension AppState {
     func hasUTXOOnChainActivity(address: String, chainName: String) async -> Bool {
         switch chainName {
         case "Bitcoin":
-            if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.bitcoin, address: address) {
-                let confirmedSats = RustBalanceDecoder.uint64Field("confirmed_sats", from: json) ?? 0
-                let txCount = RustBalanceDecoder.uint64Field("utxo_count", from: json) ?? 0
-                if txCount > 0 || confirmedSats > 0 { return true }
+            if let summary = try? await WalletServiceBridge.shared.fetchNativeBalanceSummary(chainId: SpectraChainID.bitcoin, address: address) {
+                let confirmedSats = UInt64(summary.smallestUnit) ?? 0
+                if summary.utxoCount > 0 || confirmedSats > 0 { return true }
             }
         case "Bitcoin Cash", "Bitcoin SV", "Litecoin":
             guard let chainId = SpectraChainID.id(for: chainName) else { return false }
-            if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address),
-                let sat = RustBalanceDecoder.uint64Field("balance_sat", from: json), sat > 0
+            if let summary = try? await WalletServiceBridge.shared.fetchNativeBalanceSummary(chainId: chainId, address: address),
+                let sat = UInt64(summary.smallestUnit), sat > 0
             {
                 return true
             }
-            if let histJSON = try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: chainId, address: address),
-                RustBalanceDecoder.jsonArrayIsNonEmpty(histJSON)
-            {
+            if (try? await WalletServiceBridge.shared.fetchHistoryHasActivity(chainId: chainId, address: address)) == true {
                 return true
             }
         case "Dogecoin":
-            if let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.dogecoin, address: address),
-                let koin = RustBalanceDecoder.uint64Field("balance_koin", from: json), koin > 0
+            if let summary = try? await WalletServiceBridge.shared.fetchNativeBalanceSummary(chainId: SpectraChainID.dogecoin, address: address),
+                let koin = UInt64(summary.smallestUnit), koin > 0
             {
                 return true
             }
-            if let histJSON = try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.dogecoin, address: address),
-                RustBalanceDecoder.jsonArrayIsNonEmpty(histJSON)
-            {
+            if (try? await WalletServiceBridge.shared.fetchHistoryHasActivity(chainId: SpectraChainID.dogecoin, address: address)) == true {
                 return true
             }
         default: return false
@@ -1332,12 +1298,11 @@ extension AppState {
             let infoMessage: String?
             switch coin.chainName {
             case "Bitcoin":
-                let btcJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(
+                let btcSummary = try await WalletServiceBridge.shared.fetchNativeBalanceSummary(
                     chainId: SpectraChainID.bitcoin, address: destinationForProbe)
-                let btcBalance = RustBalanceDecoder.uint64Field("confirmed_sats", from: btcJSON) ?? 0
-                let utxoCount = RustBalanceDecoder.uint64Field("utxo_count", from: btcJSON) ?? 0
+                let btcBalance = UInt64(btcSummary.smallestUnit) ?? 0
                 let m = chainRiskProbeMessages(
-                    chainName: "Bitcoin", balanceLabel: "balance", balanceNonPositive: btcBalance <= 0, hasHistory: utxoCount > 0)
+                    chainName: "Bitcoin", balanceLabel: "balance", balanceNonPositive: btcBalance <= 0, hasHistory: btcSummary.utxoCount > 0)
                 warning = m.warning; infoMessage = m.info
             case "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid":
                 guard let chainId = SpectraChainID.id(for: coin.chainName) else {
@@ -1346,21 +1311,20 @@ extension AppState {
                     break
                 }
                 let normalizedAddress = try validateEVMAddress(destinationForProbe)
-                let previewJSON = try await WalletServiceBridge.shared.fetchEVMSendPreviewJSON(
-                    chainId: chainId, from: normalizedAddress, to: normalizedAddress, valueWei: "0", dataHex: "0x"
+                let probe = try await WalletServiceBridge.shared.fetchEvmAddressProbe(
+                    chainId: chainId, address: normalizedAddress
                 )
-                let nonce = RustBalanceDecoder.int64Field("nonce", from: previewJSON) ?? 0
-                let hasHistory = nonce > 0
+                let hasHistory = probe.nonce > 0
                 if coin.symbol == "ETH" || coin.symbol == "BNB" || coin.symbol == "AVAX" || coin.symbol == "ARB" || coin.symbol == "OP" {
                     let m = chainRiskProbeMessages(
                         chainName: coin.chainName, balanceLabel: "\(coin.symbol) balance",
-                        balanceNonPositive: (RustBalanceDecoder.f64Field("balance_eth", from: previewJSON) ?? 0) <= 0,
+                        balanceNonPositive: probe.balanceEth <= 0,
                         hasHistory: hasHistory)
                     warning = m.warning; infoMessage = m.info
                 } else if let token = supportedEVMToken(for: coin) {
                     let tokenBalances = try await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(
                         chainId: chainId, address: normalizedAddress,
-                        tokens: [(contract: token.contractAddress, symbol: token.symbol, decimals: token.decimals)])
+                        tokens: [TokenDescriptor(contract: token.contractAddress, symbol: token.symbol, decimals: UInt8(token.decimals), name: nil)])
                     let tokenBalance = Decimal(string: tokenBalances.first?.balanceDisplay ?? "0") ?? .zero
                     warning =
                         (tokenBalance <= .zero && !hasHistory)
@@ -1374,22 +1338,20 @@ extension AppState {
                 }
             case "Tron":
                 if coin.symbol == "TRX" || coin.symbol == "USDT" {
-                    let tronNativeJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(
+                    let tronSummary = try await WalletServiceBridge.shared.fetchNativeBalanceSummary(
                         chainId: SpectraChainID.tron, address: destinationForProbe)
-                    let tronSun = RustBalanceDecoder.uint64Field("sun", from: tronNativeJSON) ?? 0
-                    let tronHistJSON =
-                        (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.tron, address: destinationForProbe))
-                        ?? "[]"
-                    let hasHistory = RustBalanceDecoder.jsonArrayIsNonEmpty(tronHistJSON)
+                    let tronSun = UInt64(tronSummary.smallestUnit) ?? 0
+                    let hasHistory =
+                        (try? await WalletServiceBridge.shared.fetchHistoryHasActivity(
+                            chainId: SpectraChainID.tron, address: destinationForProbe)) ?? false
                     let balance: Double
                     if coin.symbol == "TRX" {
                         balance = Double(tronSun) / 1e6
                     } else {
-                        let usdtTokenJSON = try await WalletServiceBridge.shared.fetchTokenBalancesJSON(
+                        let usdtResults = try await WalletServiceBridge.shared.fetchTokenBalances(
                             chainId: SpectraChainID.tron, address: destinationForProbe,
-                            tokens: [(contract: TronBalanceService.usdtTronContract, symbol: "USDT", decimals: 6)])
-                        balance =
-                            RustBalanceDecoder.firstElementStringField("balance_display", from: usdtTokenJSON).flatMap { Double($0) } ?? 0
+                            tokens: [TokenDescriptor(contract: TronBalanceService.usdtTronContract, symbol: "USDT", decimals: 6, name: nil)])
+                        balance = usdtResults.first.flatMap { Double($0.balanceDisplay) } ?? 0
                     }
                     let label = "\(coin.symbol) balance"
                     warning =
@@ -1406,20 +1368,23 @@ extension AppState {
                     let chainId = SpectraChainID.id(for: coin.chainName)
                 {
                     (warning, infoMessage) = await fetchChainRiskWarning(
-                        chainId: chainId, address: destinationForProbe, balanceField: cfg.balanceField, divisor: cfg.divisor,
+                        chainId: chainId, address: destinationForProbe,
                         chainName: cfg.displayChainName, balanceLabel: cfg.balanceLabel)
                 } else {
                     warning = nil; infoMessage = nil
                 }
             case "NEAR":
-                let nearJson =
-                    (try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.near, address: destinationForProbe))
-                    ?? "{}"
-                let nearBalance = RustBalanceDecoder.yoctoNearToDouble(from: nearJson) ?? 0
-                let nearHistJson =
-                    (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.near, address: destinationForProbe))
-                    ?? "[]"
-                let nearHasHistory = RustBalanceDecoder.jsonArrayIsNonEmpty(nearHistJson)
+                let nearBalance: Double
+                if let nearSummary = try? await WalletServiceBridge.shared.fetchNativeBalanceSummary(
+                    chainId: SpectraChainID.near, address: destinationForProbe)
+                {
+                    nearBalance = Double(nearSummary.amountDisplay) ?? 0
+                } else {
+                    nearBalance = 0
+                }
+                let nearHasHistory =
+                    (try? await WalletServiceBridge.shared.fetchHistoryHasActivity(
+                        chainId: SpectraChainID.near, address: destinationForProbe)) ?? false
                 let m = chainRiskProbeMessages(
                     chainName: "NEAR", balanceLabel: "NEAR balance", balanceNonPositive: nearBalance <= 0, hasHistory: nearHasHistory)
                 warning = m.warning; infoMessage = m.info
@@ -1458,14 +1423,13 @@ extension AppState {
         tronLastSendErrorAt = Date()
     }
     private func fetchChainRiskWarning(
-        chainId: UInt32, address: String, balanceField: String, divisor: Double, chainName: String, balanceLabel: String
+        chainId: UInt32, address: String, chainName: String, balanceLabel: String
     ) async -> (warning: String?, info: String?) {
-        guard let json = try? await WalletServiceBridge.shared.fetchBalanceJSON(chainId: chainId, address: address) else {
+        guard let summary = try? await WalletServiceBridge.shared.fetchNativeBalanceSummary(chainId: chainId, address: address) else {
             return (nil, nil)
         }
-        let balance = Double(RustBalanceDecoder.uint64Field(balanceField, from: json) ?? 0) / divisor
-        let histJSON = (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: chainId, address: address)) ?? "[]"
-        let hasHistory = RustBalanceDecoder.jsonArrayIsNonEmpty(histJSON)
+        let balance = Double(summary.amountDisplay) ?? 0
+        let hasHistory = (try? await WalletServiceBridge.shared.fetchHistoryHasActivity(chainId: chainId, address: address)) ?? false
         let m = chainRiskProbeMessages(
             chainName: chainName, balanceLabel: balanceLabel, balanceNonPositive: balance <= 0, hasHistory: hasHistory)
         return (m.warning, m.info)

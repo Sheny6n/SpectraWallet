@@ -1,18 +1,11 @@
 import SwiftUI
-private func localizedDashboardString(_ key: String) -> String {
-    AppLocalization.string(key)
-}
-private func localizedDashboardFormat(_ key: String, _ arguments: CVarArg...) -> String {
-    let format = AppLocalization.string(key)
-    return String(format: format, locale: AppLocalization.locale, arguments: arguments)
-}
 private func dashboardConfigButtonLabel() -> some View {
     Image(systemName: "slider.horizontal.3").font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.78)).frame(
         width: 30, height: 30
     ).background(Circle().fill(.white.opacity(0.14)))
 }
 struct DashboardView: View {
-    let store: AppState
+    @Bindable var store: AppState
     @State private var dashboardPage: DashboardPage = .assets
     @State private var isShowingPinnedAssetsSheet = false
     @State private var selectedWalletID: String?
@@ -22,9 +15,9 @@ struct DashboardView: View {
     private var deleteWalletMessage: String {
         guard let pendingWallet = store.walletPendingDeletion else { return "" }
         if store.isWatchOnlyWallet(pendingWallet) {
-            return localizedDashboardString("You can't recover this wallet after deletion until you still have this address.")
+            return AppLocalization.string("You can't recover this wallet after deletion until you still have this address.")
         }
-        return localizedDashboardString("Please take note of your seed phrase because you can't recover this wallet after deletion.")
+        return AppLocalization.string("Please take note of your seed phrase because you can't recover this wallet after deletion.")
     }
     private var selectedWallet: ImportedWallet? {
         guard let selectedWalletID else { return nil }
@@ -43,7 +36,7 @@ struct DashboardView: View {
                 }.refreshable {
                     await store.performUserInitiatedRefresh()
                 }.scrollBounceBehavior(.always)
-            }.navigationTitle(localizedDashboardString("Spectra")).navigationBarTitleDisplayMode(.inline).toolbar {
+            }.navigationTitle(AppLocalization.string("Spectra")).navigationBarTitleDisplayMode(.inline).toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     NavigationLink {
                         AppNoticesView(store: store)
@@ -70,14 +63,14 @@ struct DashboardView: View {
             ) {
                 if let selectedWallet { WalletDetailView(store: store, wallet: selectedWallet) }
             }.navigationDestination(item: $selectedAssetGroup) { assetGroup in AssetGroupDetailView(store: store, assetGroup: assetGroup) }
-                .navigationDestination(isPresented: Binding(get: { store.isShowingSendSheet }, set: { store.isShowingSendSheet = $0 })) {
+                .navigationDestination(isPresented: $store.isShowingSendSheet) {
                     SendView(store: store)
                 }.navigationDestination(
-                    isPresented: Binding(get: { store.isShowingReceiveSheet }, set: { store.isShowingReceiveSheet = $0 })
+                    isPresented: $store.isShowingReceiveSheet
                 ) {
                     ReceiveView(store: store)
                 }.alert(
-                    localizedDashboardString("Delete Wallet?"),
+                    AppLocalization.string("Delete Wallet?"),
                     isPresented: Binding(
                         get: { store.walletPendingDeletion != nil },
                         set: { isPresented in
@@ -85,12 +78,12 @@ struct DashboardView: View {
                         }
                     )
                 ) {
-                    Button(localizedDashboardString("Delete"), role: .destructive) {
+                    Button(AppLocalization.string("Delete"), role: .destructive) {
                         Task {
                             await store.deletePendingWallet()
                         }
                     }
-                    Button(localizedDashboardString("Cancel"), role: .cancel) {
+                    Button(AppLocalization.string("Cancel"), role: .cancel) {
                         store.walletPendingDeletion = nil
                     }
                 } message: {
@@ -106,7 +99,7 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
                     SpectraLogo(size: 36)
-                    Text(localizedDashboardString("Portfolio")).font(.headline).foregroundStyle(Color.primary.opacity(0.82))
+                    Text(AppLocalization.string("Portfolio")).font(.headline).foregroundStyle(Color.primary.opacity(0.82))
                 }
                 Text(store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.totalBalanceIfAvailable)).font(
                     .system(size: 42, weight: .black, design: .rounded)
@@ -120,7 +113,7 @@ struct DashboardView: View {
                     Image(systemName: "chevron.right.circle.fill").font(.system(size: 24, weight: .semibold)).foregroundStyle(
                         Color.primary.opacity(0.88))
                 }.buttonStyle(.plain)
-                Text(localizedFormat("%lld in total", store.cachedIncludedPortfolioWallets.count)).font(.caption2).foregroundStyle(
+                Text(AppLocalization.format("%lld in total", store.cachedIncludedPortfolioWallets.count)).font(.caption2).foregroundStyle(
                     Color.primary.opacity(0.72))
             }
         }.padding(20).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 30)).padding(.top, 12)
@@ -138,8 +131,8 @@ struct DashboardView: View {
             }
         }.frame(width: 32, height: 28, alignment: .center).foregroundStyle(Color.primary).accessibilityLabel(
             isEmpty
-                ? localizedDashboardString("No active notices")
-                : localizedDashboardFormat("%lld active notices", count)
+                ? AppLocalization.string("No active notices")
+                : AppLocalization.format("%lld active notices", count)
         )
     }
     private var actionButtons: some View {
@@ -149,13 +142,13 @@ struct DashboardView: View {
             Button {
                 store.beginSend()
             } label: {
-                Label(localizedDashboardString("Send"), systemImage: "arrow.up.right").font(.headline).frame(maxWidth: .infinity).padding(
+                Label(AppLocalization.string("Send"), systemImage: "arrow.up.right").font(.headline).frame(maxWidth: .infinity).padding(
                     .vertical, 14)
             }.buttonStyle(.glass).disabled(!canSend).opacity(canSend ? 1.0 : 0.5)
             Button {
                 store.beginReceive()
             } label: {
-                Label(localizedDashboardString("Receive"), systemImage: "arrow.down.left").font(.headline).frame(maxWidth: .infinity)
+                Label(AppLocalization.string("Receive"), systemImage: "arrow.down.left").font(.headline).frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
             }.buttonStyle(.glassProminent).disabled(!canReceive).opacity(canReceive ? 1.0 : 0.5)
         }
@@ -184,8 +177,8 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 14) {
             if wallets.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(localizedDashboardString("No wallets yet")).font(.headline).foregroundStyle(Color.primary)
-                    Text(localizedDashboardString("Tap the + button in the top right to add your first wallet.")).font(.subheadline)
+                    Text(AppLocalization.string("No wallets yet")).font(.headline).foregroundStyle(Color.primary)
+                    Text(AppLocalization.string("Tap the + button in the top right to add your first wallet.")).font(.subheadline)
                         .foregroundStyle(Color.primary.opacity(0.76))
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(16).glassEffect(
                     .regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
@@ -200,7 +193,7 @@ struct DashboardView: View {
                                 totalValueText: store.hideBalances
                                     ? "••••••"
                                     : store.formattedFiatAmountOrZero(fromUSD: store.currentTotalIfAvailable(for: wallet)),
-                                assetCountText: localizedFormat("%lld assets", wallet.holdings.filter { $0.amount > 0 }.count),
+                                assetCountText: AppLocalization.format("%lld assets", wallet.holdings.filter { $0.amount > 0 }.count),
                                 isWatchOnly: store.isWatchOnlyWallet(wallet), badgeAssetIdentifier: badge.0, badgeMark: badge.1,
                                 badgeColor: badge.2
                             )
@@ -238,8 +231,8 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 14) {
             if portfolio.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(localizedDashboardString("No assets to display yet")).font(.headline).foregroundStyle(Color.primary)
-                    Text(localizedDashboardString("Import a wallet or pull to refresh to load chain balances.")).font(.subheadline)
+                    Text(AppLocalization.string("No assets to display yet")).font(.headline).foregroundStyle(Color.primary)
+                    Text(AppLocalization.string("Import a wallet or pull to refresh to load chain balances.")).font(.subheadline)
                         .foregroundStyle(Color.primary.opacity(0.76))
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(16).glassEffect(
                     .regular.tint(.white.opacity(0.02)), in: .rect(cornerRadius: 20))
@@ -274,18 +267,18 @@ struct DashboardView: View {
     private var activeNotices: [AppNoticeItem] { store.appNoticeItems }
     private var dashboardContentTransition: AnyTransition { .opacity }
     private var dashboardCardTitle: String {
-        dashboardPage == .assets ? localizedDashboardString("My Assets") : localizedDashboardString("My Wallets")
+        dashboardPage == .assets ? AppLocalization.string("My Assets") : AppLocalization.string("My Wallets")
     }
     private var dashboardCardSymbol: String { dashboardPage == .assets ? "bitcoinsign.circle" : "wallet.pass" }
     private var dashboardConfigMenu: some View {
         Menu {
-            Picker(localizedDashboardString("Dashboard Section"), selection: $dashboardPage) {
-                Text(localizedDashboardString("Assets")).tag(DashboardPage.assets)
-                Text(localizedDashboardString("Wallets")).tag(DashboardPage.wallets)
+            Picker(AppLocalization.string("Dashboard Section"), selection: $dashboardPage) {
+                Text(AppLocalization.string("Assets")).tag(DashboardPage.assets)
+                Text(AppLocalization.string("Wallets")).tag(DashboardPage.wallets)
             }
             if dashboardPage == .assets {
                 Divider()
-                Button(localizedDashboardString("Customize Assets")) {
+                Button(AppLocalization.string("Customize Assets")) {
                     isShowingPinnedAssetsSheet = true
                 }
             }
@@ -299,7 +292,7 @@ struct DashboardView: View {
     }
     @ViewBuilder
     private func sectionHeading(_ title: String, symbol: String) -> some View {
-        Label(localizedDashboardString(title), systemImage: symbol).font(.headline).foregroundStyle(Color.primary)
+        Label(AppLocalization.string(title), systemImage: symbol).font(.headline).foregroundStyle(Color.primary)
     }
     private func dashboardAssetPriceText(for assetGroup: DashboardAssetGroup, hideBalances: Bool) -> String {
         if hideBalances { return "••••••" }
@@ -309,15 +302,15 @@ struct DashboardView: View {
         return store.formattedFiatAmountOrZero(fromUSD: price)
     }
     private func dashboardChainSummaryText(for assetGroup: DashboardAssetGroup) -> String {
-        if assetGroup.chainEntries.isEmpty { return localizedDashboardString("No chain balances yet") }
+        if assetGroup.chainEntries.isEmpty { return AppLocalization.string("No chain balances yet") }
         if assetGroup.chainEntries.count == 1, let chainName = assetGroup.chainEntries.first?.coin.chainName {
-            return localizedFormat("dashboard.asset.onChain", chainName)
+            return AppLocalization.format("dashboard.asset.onChain", chainName)
         }
         let names = assetGroup.chainEntries.map(\.coin.chainName)
         let preview = names.prefix(2).joined(separator: ", ")
         let remainder = names.count - min(names.count, 2)
-        if remainder > 0 { return localizedFormat("On %@ +%lld more", preview, remainder) }
-        return localizedFormat("dashboard.asset.onChain", preview)
+        if remainder > 0 { return AppLocalization.format("On %@ +%lld more", preview, remainder) }
+        return AppLocalization.format("dashboard.asset.onChain", preview)
     }
 }
 enum DashboardPage {
@@ -335,8 +328,8 @@ enum AppNoticeSeverity {
     }
     var label: String {
         switch self {
-        case .warning: return localizedDashboardString("Warning")
-        case .error: return localizedDashboardString("Error")
+        case .warning: return AppLocalization.string("Warning")
+        case .error: return AppLocalization.string("Error")
         }
     }
 }
@@ -407,25 +400,25 @@ struct AssetGroupDetailView: View {
                         }
                     }
                     dashboardDetailRow(
-                        label: localizedDashboardString("Total Amount"),
+                        label: AppLocalization.string("Total Amount"),
                         value: store.formattedAssetAmount(
                             assetGroup.totalAmount, symbol: assetGroup.symbol, chainName: assetGroup.representativeCoin.chainName
                         )
                     )
                     dashboardDetailRow(
-                        label: localizedDashboardString("Total Value"),
+                        label: AppLocalization.string("Total Value"),
                         value: store.formattedFiatAmountOrZero(fromUSD: assetGroup.totalValueUSD))
-                    dashboardDetailRow(label: localizedDashboardString("Chains"), value: "\(assetGroup.chainEntries.count)")
+                    dashboardDetailRow(label: AppLocalization.string("Chains"), value: "\(assetGroup.chainEntries.count)")
                 }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text(localizedDashboardString("Chain Breakdown")).font(.headline).foregroundStyle(Color.primary)
+                        Text(AppLocalization.string("Chain Breakdown")).font(.headline).foregroundStyle(Color.primary)
                         Spacer()
                         Text("\(assetGroup.chainEntries.count)").font(.subheadline.weight(.semibold)).foregroundStyle(
                             Color.primary.opacity(0.68))
                     }
                     if assetGroup.chainEntries.isEmpty {
-                        Text(localizedDashboardString("No chain balances yet for this asset.")).font(.subheadline).foregroundStyle(
+                        Text(AppLocalization.string("No chain balances yet for this asset.")).font(.subheadline).foregroundStyle(
                             Color.primary.opacity(0.72))
                     } else {
                         ForEach(assetGroup.chainEntries) { entry in
@@ -449,7 +442,7 @@ struct AssetGroupDetailView: View {
                             }.padding(.vertical, 4)
                         }
                         Text(
-                            localizedDashboardString(
+                            AppLocalization.string(
                                 "This asset view merges balances across chains while preserving the per-chain token standard details here.")
                         ).font(.caption).foregroundStyle(Color.primary.opacity(0.62))
                     }
@@ -458,7 +451,7 @@ struct AssetGroupDetailView: View {
         }.background(SpectraBackdrop()).navigationTitle(assetGroup.symbol).navigationBarTitleDisplayMode(.inline).toolbar {
             if !supportedTokenEntries.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink(localizedDashboardString("Details")) {
+                    NavigationLink(AppLocalization.string("Details")) {
                         AssetContractsDetailView(store: store, assetGroup: assetGroup)
                     }
                 }
@@ -485,12 +478,12 @@ struct AssetContractsDetailView: View {
                             Text(assetGroup.symbol).font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
-                    dashboardDetailRow(label: localizedDashboardString("Supported Chains"), value: "\(supportedTokenEntries.count)")
+                    dashboardDetailRow(label: AppLocalization.string("Supported Chains"), value: "\(supportedTokenEntries.count)")
                 }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(localizedDashboardString("Contracts")).font(.headline).foregroundStyle(Color.primary)
+                    Text(AppLocalization.string("Contracts")).font(.headline).foregroundStyle(Color.primary)
                     if supportedTokenEntries.isEmpty {
-                        Text(localizedDashboardString("No contract addresses are available for this asset.")).font(.subheadline)
+                        Text(AppLocalization.string("No contract addresses are available for this asset.")).font(.subheadline)
                             .foregroundStyle(Color.primary.opacity(0.72))
                     } else {
                         ForEach(supportedTokenEntries) { entry in
@@ -509,7 +502,7 @@ struct AssetContractsDetailView: View {
                     }
                 }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
             }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
-        }.background(SpectraBackdrop()).navigationTitle(localizedFormat("%@ Details", assetGroup.symbol)).navigationBarTitleDisplayMode(
+        }.background(SpectraBackdrop()).navigationTitle(AppLocalization.format("%@ Details", assetGroup.symbol)).navigationBarTitleDisplayMode(
             .inline)
     }
 }
@@ -534,25 +527,25 @@ struct PinnedAssetsView: View {
                         Toggle(isOn: binding(for: option.symbol)) {
                             DashboardPinnedAssetRowView(
                                 option: option,
-                                subtitleText: localizedFormat("dashboard.pinnedAsset.symbolSubtitle", option.symbol, option.subtitle)
+                                subtitleText: AppLocalization.format("dashboard.pinnedAsset.symbolSubtitle", option.symbol, option.subtitle)
                             ).equatable()
                         }
                     }
                 } header: {
-                    Text(localizedDashboardString("Pinned Assets"))
+                    Text(AppLocalization.string("Pinned Assets"))
                 } footer: {
-                    Text(localizedDashboardString("Pinned assets stay visible in My Assets even when the total balance is zero."))
+                    Text(AppLocalization.string("Pinned assets stay visible in My Assets even when the total balance is zero."))
                 }
-            }.navigationTitle(localizedDashboardString("Pinned Assets")).searchable(
-                text: $searchText, prompt: localizedDashboardString("Search assets")
+            }.navigationTitle(AppLocalization.string("Pinned Assets")).searchable(
+                text: $searchText, prompt: AppLocalization.string("Search assets")
             ).toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(localizedDashboardString("Reset")) {
+                    Button(AppLocalization.string("Reset")) {
                         store.resetPinnedDashboardAssets()
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(localizedDashboardString("Done")) {
+                    Button(AppLocalization.string("Done")) {
                         dismiss()
                     }
                 }
@@ -577,13 +570,13 @@ struct PortfolioWalletSelectionView: View {
                     }
                 }
             } header: {
-                Text(localizedDashboardString("Included In Portfolio Total"))
+                Text(AppLocalization.string("Included In Portfolio Total"))
             } footer: {
                 Text(
-                    localizedDashboardString(
+                    AppLocalization.string(
                         "Only selected wallets contribute to the portfolio total and the aggregated asset list on the home page."))
             }
-        }.navigationTitle(localizedDashboardString("Portfolio Wallets"))
+        }.navigationTitle(AppLocalization.string("Portfolio Wallets"))
     }
     private func binding(for walletID: String) -> Binding<Bool> {
         Binding(
@@ -601,23 +594,19 @@ struct AppNoticesView: View {
             if notices.isEmpty {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(localizedDashboardString("No active notices")).font(.headline)
-                        Text(localizedDashboardString("Current wallet, pricing, and chain-state warnings will appear here.")).font(
+                        Text(AppLocalization.string("No active notices")).font(.headline)
+                        Text(AppLocalization.string("Current wallet, pricing, and chain-state warnings will appear here.")).font(
                             .subheadline
                         ).foregroundStyle(.secondary)
                     }.padding(.vertical, 6)
                 }
             } else {
-                Section(localizedDashboardString("Active Notices")) {
+                Section(AppLocalization.string("Active Notices")) {
                     ForEach(notices) { notice in DashboardNoticeCardView(notice: notice) }
                 }
             }
-        }.navigationTitle(localizedDashboardString("Notices"))
+        }.navigationTitle(AppLocalization.string("Notices"))
     }
-}
-private func localizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
-    let format = AppLocalization.string(key)
-    return String(format: format, locale: AppLocalization.locale, arguments: arguments)
 }
 struct DashboardAssetRowPresentation: Identifiable, Equatable {
     let assetGroup: DashboardAssetGroup

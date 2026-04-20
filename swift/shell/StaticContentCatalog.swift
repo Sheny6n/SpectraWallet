@@ -467,6 +467,9 @@ enum AppLocalization {
         localizedStringCache[cacheKey] = fallbackValue
         return fallbackValue
     }
+    static func format(_ key: String, _ arguments: CVarArg...) -> String {
+        String(format: string(key), locale: locale, arguments: arguments)
+    }
     static func preferredLocalizationIdentifiers() -> [String] { localizationState().identifiers }
     private static func localizationState() -> LocalizationState {
         let signature = preferenceSignature()

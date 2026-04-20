@@ -1,46 +1,52 @@
 import Foundation
 import PhotosUI
 import SwiftUI
-func settingsTokenAssetIdentifier(for entry: TokenPreferenceEntry) -> String? {
-    let chainSlug: String
-    switch entry.chain {
-    case .ethereum: chainSlug = "ethereum"
-    case .arbitrum: chainSlug = "arbitrum"
-    case .optimism: chainSlug = "optimism"
-    case .bnb: chainSlug = "bnb"
-    case .avalanche: chainSlug = "avalanche"
-    case .hyperliquid: chainSlug = "hyperliquid"
-    case .solana: chainSlug = "solana"
-    case .sui: chainSlug = "sui"
-    case .aptos: chainSlug = "aptos"
-    case .ton: chainSlug = "ton"
-    case .near: chainSlug = "near"
-    case .tron: chainSlug = "tron"
+extension TokenTrackingChain {
+    var settingsIconSlug: String {
+        switch self {
+        case .ethereum: return "ethereum"
+        case .arbitrum: return "arbitrum"
+        case .optimism: return "optimism"
+        case .bnb: return "bnb"
+        case .avalanche: return "avalanche"
+        case .hyperliquid: return "hyperliquid"
+        case .solana: return "solana"
+        case .sui: return "sui"
+        case .aptos: return "aptos"
+        case .ton: return "ton"
+        case .near: return "near"
+        case .tron: return "tron"
+        }
     }
-    let symbol = entry.symbol.lowercased()
-    if !entry.coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        return "\(chainSlug):\(entry.coinGeckoId.lowercased()):\(symbol)"
+    var settingsIconTint: Color {
+        switch self {
+        case .ethereum: return .blue
+        case .arbitrum: return .cyan
+        case .optimism: return .red
+        case .bnb: return .yellow
+        case .avalanche: return .red
+        case .hyperliquid: return .mint
+        case .solana: return .purple
+        case .sui: return .mint
+        case .aptos: return .cyan
+        case .ton: return .blue
+        case .near: return .indigo
+        case .tron: return .red
+        }
     }
-    return "\(chainSlug):\(symbol)"
 }
-func settingsTokenFallbackMark(for entry: TokenPreferenceEntry) -> String {
-    let compact = entry.symbol.trimmingCharacters(in: .whitespacesAndNewlines)
-    return String(compact.prefix(2)).uppercased()
-}
-func settingsTokenTint(for chain: TokenTrackingChain) -> Color {
-    switch chain {
-    case .ethereum: return .blue
-    case .arbitrum: return .cyan
-    case .optimism: return .red
-    case .bnb: return .yellow
-    case .avalanche: return .red
-    case .hyperliquid: return .mint
-    case .solana: return .purple
-    case .sui: return .mint
-    case .aptos: return .cyan
-    case .ton: return .blue
-    case .near: return .indigo
-    case .tron: return .red
+extension TokenPreferenceEntry {
+    var settingsAssetIdentifier: String {
+        let slug = chain.settingsIconSlug
+        let lowerSymbol = symbol.lowercased()
+        let trimmedGeckoId = coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedGeckoId.isEmpty {
+            return "\(slug):\(trimmedGeckoId.lowercased()):\(lowerSymbol)"
+        }
+        return "\(slug):\(lowerSymbol)"
+    }
+    var settingsFallbackMark: String {
+        String(symbol.trimmingCharacters(in: .whitespacesAndNewlines).prefix(2)).uppercased()
     }
 }
 struct TokenRegistryGroup: Identifiable {
@@ -58,9 +64,9 @@ struct TokenRegistryGroupRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             CoinBadge(
-                assetIdentifier: settingsTokenAssetIdentifier(for: group.representativeEntry),
-                fallbackText: settingsTokenFallbackMark(for: group.representativeEntry),
-                color: settingsTokenTint(for: group.representativeEntry.chain), size: 30
+                assetIdentifier: group.representativeEntry.settingsAssetIdentifier,
+                fallbackText: group.representativeEntry.settingsFallbackMark,
+                color: group.representativeEntry.chain.settingsIconTint, size: 30
             )
             VStack(alignment: .leading, spacing: 4) {
                 Text(group.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
@@ -84,30 +90,30 @@ struct TokenRegistryEntryCardView: View {
                 }
                 Spacer()
                 Toggle(
-                    settingsLocalizedString("Shown"), isOn: Binding(get: { entry.isEnabled }, set: setEnabled)
+                    AppLocalization.string("Shown"), isOn: Binding(get: { entry.isEnabled }, set: setEnabled)
                 ).labelsHidden()
             }
             settingsTokenDetailRow(
-                title: settingsLocalizedString("Source"),
-                value: entry.isBuiltIn ? settingsLocalizedString("Built-In") : settingsLocalizedString("Custom"))
-            settingsTokenDetailRow(title: settingsLocalizedString("Supported Decimals"), value: "\(entry.decimals)")
+                title: AppLocalization.string("Source"),
+                value: entry.isBuiltIn ? AppLocalization.string("Built-In") : AppLocalization.string("Custom"))
+            settingsTokenDetailRow(title: AppLocalization.string("Supported Decimals"), value: "\(entry.decimals)")
             VStack(alignment: .leading, spacing: 6) {
-                Text(settingsLocalizedString("Contract / Mint")).font(.caption).foregroundStyle(.secondary)
+                Text(AppLocalization.string("Contract / Mint")).font(.caption).foregroundStyle(.secondary)
                 Text(entry.contractAddress).font(.caption.monospaced()).textSelection(.enabled)
             }
             if !entry.coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                settingsTokenDetailRow(title: settingsLocalizedString("CoinGecko ID"), value: entry.coinGeckoId)
+                settingsTokenDetailRow(title: AppLocalization.string("CoinGecko ID"), value: entry.coinGeckoId)
             }
             if !entry.marketDataId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, entry.marketDataId != "0" {
-                settingsTokenDetailRow(title: settingsLocalizedString("Market Data ID"), value: entry.marketDataId)
+                settingsTokenDetailRow(title: AppLocalization.string("Market Data ID"), value: entry.marketDataId)
             }
             if !entry.isBuiltIn {
                 Stepper(
-                    settingsLocalizedFormat("Supports: %lld decimals", Int(entry.decimals)),
+                    AppLocalization.format("Supports: %lld decimals", Int(entry.decimals)),
                     value: Binding(get: { Int(entry.decimals) }, set: updateDecimals), in: 0...30, step: 1
                 )
                 Button(role: .destructive, action: removeToken) {
-                    Label(settingsLocalizedString("Remove Token"), systemImage: "trash")
+                    Label(AppLocalization.string("Remove Token"), systemImage: "trash")
                 }
             }
         }.padding(.vertical, 4)
@@ -145,11 +151,11 @@ struct TokenIconCustomizationRow: View {
                 HStack(spacing: 12) {
                     PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                         Label(
-                            hasCustomPhoto ? settingsLocalizedString("Replace Photo") : settingsLocalizedString("Choose Photo"),
+                            hasCustomPhoto ? AppLocalization.string("Replace Photo") : AppLocalization.string("Choose Photo"),
                             systemImage: "photo")
                     }
                     if hasCustomPhoto {
-                        Button(settingsLocalizedString("Remove Photo"), role: .destructive) {
+                        Button(AppLocalization.string("Remove Photo"), role: .destructive) {
                             TokenIconImageStore.removeImage(for: setting.assetIdentifier)
                             tokenIconCustomImageRevision += 1
                             if selectedStyle == .customPhoto { selectedStyle = .artwork }
@@ -161,7 +167,7 @@ struct TokenIconCustomizationRow: View {
                     }
                 }.font(.caption.weight(.semibold))
                 if !hasCustomPhoto {
-                    Text(settingsLocalizedString("Select a photo from your library to use as this token icon.")).font(.caption)
+                    Text(AppLocalization.string("Select a photo from your library to use as this token icon.")).font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -203,7 +209,7 @@ struct TokenIconCustomizationRow: View {
             self.selectedStyle = .customPhoto
         } catch {
             photoImportError =
-                (error as? LocalizedError)?.errorDescription ?? settingsLocalizedString("The selected photo could not be imported.")
+                (error as? LocalizedError)?.errorDescription ?? AppLocalization.string("The selected photo could not be imported.")
         }
         isImportingPhoto = false
         self.selectedPhotoItem = nil
@@ -215,11 +221,4 @@ private func settingsTokenDetailRow(title: String, value: String) -> some View {
         Spacer()
         Text(value).multilineTextAlignment(.trailing)
     }
-}
-private func settingsLocalizedString(_ key: String) -> String {
-    AppLocalization.string(key)
-}
-private func settingsLocalizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
-    let format = AppLocalization.string(key)
-    return String(format: format, locale: AppLocalization.locale, arguments: arguments)
 }

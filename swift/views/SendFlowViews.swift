@@ -1,46 +1,12 @@
 import Foundation
 import SwiftUI
 import VisionKit
-private func localizedSendString(_ key: String) -> String {
-    AppLocalization.string(key)
-}
 struct SendView: View {
-    let store: AppState
+    @Bindable var store: AppState
     @State private var selectedAddressBookEntryID: String = ""
     @State private var isShowingQRScanner: Bool = false
     @State private var qrScannerErrorMessage: String?
     private var sendPreviewStore: SendPreviewStore { store.sendPreviewStore }
-    private func localized(_ key: String) -> String { localizedSendString(key) }
-    private var sendAdvancedModeBinding: Binding<Bool> {
-        Binding(get: { store.sendAdvancedMode }, set: { store.sendAdvancedMode = $0 })
-    }
-    private var sendUTXOMaxInputCountBinding: Binding<Int> {
-        Binding(get: { store.sendUTXOMaxInputCount }, set: { store.sendUTXOMaxInputCount = $0 })
-    }
-    private var sendEnableRBFBinding: Binding<Bool> {
-        Binding(get: { store.sendEnableRBF }, set: { store.sendEnableRBF = $0 })
-    }
-    private var sendEnableCPFPBinding: Binding<Bool> {
-        Binding(get: { store.sendEnableCPFP }, set: { store.sendEnableCPFP = $0 })
-    }
-    private var sendLitecoinChangeStrategyBinding: Binding<LitecoinChangeStrategy> {
-        Binding(get: { store.sendLitecoinChangeStrategy }, set: { store.sendLitecoinChangeStrategy = $0 })
-    }
-    private var useCustomEthereumFeesBinding: Binding<Bool> {
-        Binding(get: { store.useCustomEthereumFees }, set: { store.useCustomEthereumFees = $0 })
-    }
-    private var customEthereumMaxFeeGweiBinding: Binding<String> {
-        Binding(get: { store.customEthereumMaxFeeGwei }, set: { store.customEthereumMaxFeeGwei = $0 })
-    }
-    private var customEthereumPriorityFeeGweiBinding: Binding<String> {
-        Binding(get: { store.customEthereumPriorityFeeGwei }, set: { store.customEthereumPriorityFeeGwei = $0 })
-    }
-    private var ethereumManualNonceEnabledBinding: Binding<Bool> {
-        Binding(get: { store.ethereumManualNonceEnabled }, set: { store.ethereumManualNonceEnabled = $0 })
-    }
-    private var ethereumManualNonceBinding: Binding<String> {
-        Binding(get: { store.ethereumManualNonce }, set: { store.ethereumManualNonce = $0 })
-    }
     private var isSendBusy: Bool {
         store.isSendingBitcoin
             || store.isSendingBitcoinCash
@@ -117,31 +83,31 @@ struct SendView: View {
                 } label: {
                     Label(
                         store.canSaveLastSentRecipientToAddressBook()
-                            ? localized("Save Recipient To Address Book") : localized("Recipient Already Saved"),
+                            ? AppLocalization.string("Save Recipient To Address Book") : AppLocalization.string("Recipient Already Saved"),
                         systemImage: store.canSaveLastSentRecipientToAddressBook() ? "book.closed" : "checkmark.circle"
                     ).font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 10)
                 }.disabled(!store.canSaveLastSentRecipientToAddressBook())
             }
         }
-        optionalSendingSection(store.isSendingBitcoin, localized("Broadcasting Bitcoin transaction..."))
-        optionalSendingSection(store.isSendingBitcoinCash, localized("Broadcasting Bitcoin Cash transaction..."))
-        optionalSendingSection(store.isSendingBitcoinSV, localized("Broadcasting Bitcoin SV transaction..."))
-        optionalSendingSection(store.isSendingLitecoin, localized("Broadcasting Litecoin transaction..."))
+        optionalSendingSection(store.isSendingBitcoin, AppLocalization.string("Broadcasting Bitcoin transaction..."))
+        optionalSendingSection(store.isSendingBitcoinCash, AppLocalization.string("Broadcasting Bitcoin Cash transaction..."))
+        optionalSendingSection(store.isSendingBitcoinSV, AppLocalization.string("Broadcasting Bitcoin SV transaction..."))
+        optionalSendingSection(store.isSendingLitecoin, AppLocalization.string("Broadcasting Litecoin transaction..."))
         optionalSendingSection(
-            store.isSendingEthereum, localized("Broadcasting \(store.selectedSendCoin?.chainName ?? "EVM") transaction..."))
-        optionalSendingSection(store.isSendingDogecoin, localized("Broadcasting Dogecoin transaction..."))
-        optionalSendingSection(store.isSendingTron, localized("Broadcasting Tron transaction..."))
-        optionalSendingSection(store.isSendingSolana, localized("Broadcasting Solana transaction..."))
-        optionalSendingSection(store.isSendingXRP, localized("Broadcasting XRP transaction..."))
-        optionalSendingSection(store.isSendingStellar, localized("Broadcasting Stellar transaction..."))
-        optionalSendingSection(store.isSendingMonero, localized("Broadcasting Monero transaction..."))
-        optionalSendingSection(store.isSendingCardano, localized("Broadcasting Cardano transaction..."))
-        optionalSendingSection(store.isSendingSui, localized("Broadcasting Sui transaction..."))
-        optionalSendingSection(store.isSendingAptos, localized("Broadcasting Aptos transaction..."))
-        optionalSendingSection(store.isSendingTON, localized("Broadcasting TON transaction..."))
-        optionalSendingSection(store.isSendingICP, localized("Broadcasting Internet Computer transaction..."))
-        optionalSendingSection(store.isSendingNear, localized("Broadcasting NEAR transaction..."))
-        optionalSendingSection(store.isSendingPolkadot, localized("Broadcasting Polkadot transaction..."))
+            store.isSendingEthereum, AppLocalization.string("Broadcasting \(store.selectedSendCoin?.chainName ?? "EVM") transaction..."))
+        optionalSendingSection(store.isSendingDogecoin, AppLocalization.string("Broadcasting Dogecoin transaction..."))
+        optionalSendingSection(store.isSendingTron, AppLocalization.string("Broadcasting Tron transaction..."))
+        optionalSendingSection(store.isSendingSolana, AppLocalization.string("Broadcasting Solana transaction..."))
+        optionalSendingSection(store.isSendingXRP, AppLocalization.string("Broadcasting XRP transaction..."))
+        optionalSendingSection(store.isSendingStellar, AppLocalization.string("Broadcasting Stellar transaction..."))
+        optionalSendingSection(store.isSendingMonero, AppLocalization.string("Broadcasting Monero transaction..."))
+        optionalSendingSection(store.isSendingCardano, AppLocalization.string("Broadcasting Cardano transaction..."))
+        optionalSendingSection(store.isSendingSui, AppLocalization.string("Broadcasting Sui transaction..."))
+        optionalSendingSection(store.isSendingAptos, AppLocalization.string("Broadcasting Aptos transaction..."))
+        optionalSendingSection(store.isSendingTON, AppLocalization.string("Broadcasting TON transaction..."))
+        optionalSendingSection(store.isSendingICP, AppLocalization.string("Broadcasting Internet Computer transaction..."))
+        optionalSendingSection(store.isSendingNear, AppLocalization.string("Broadcasting NEAR transaction..."))
+        optionalSendingSection(store.isSendingPolkadot, AppLocalization.string("Broadcasting Polkadot transaction..."))
     }
     @ViewBuilder
     private func optionalSendingSection(_ isActive: Bool, _ message: String) -> some View {
@@ -176,11 +142,11 @@ struct SendView: View {
     private func utxoAdvancedModeCaption(for chainName: String) -> String? {
         switch chainName {
         case "Bitcoin":
-            return localized("For Bitcoin sends, advanced mode records RBF/CPFP intent and applies the max-input cap for coin selection.")
+            return AppLocalization.string("For Bitcoin sends, advanced mode records RBF/CPFP intent and applies the max-input cap for coin selection.")
         case "Bitcoin Cash":
-            return localized("For Bitcoin Cash sends, advanced mode records RBF intent and applies the max-input cap for coin selection.")
+            return AppLocalization.string("For Bitcoin Cash sends, advanced mode records RBF intent and applies the max-input cap for coin selection.")
         case "Dogecoin":
-            return localized("For Dogecoin sends, advanced mode records RBF/CPFP intent and applies the max-input cap for coin selection.")
+            return AppLocalization.string("For Dogecoin sends, advanced mode records RBF/CPFP intent and applies the max-input cap for coin selection.")
         default:
             return nil
         }
@@ -200,7 +166,7 @@ struct SendView: View {
     @ViewBuilder
     private func sendPreviewDetailsSection(for selectedCoin: Coin) -> some View {
         if let details = store.sendPreviewDetails(for: selectedCoin), details.hasVisibleContent {
-            Section(localized("Preview Details")) {
+            Section(AppLocalization.string("Preview Details")) {
                 if let spendableBalance = details.spendableBalance {
                     Text("Spendable Balance: \(formattedPreviewAssetAmount(spendableBalance, for: selectedCoin))")
                 }
@@ -210,7 +176,7 @@ struct SendView: View {
                 }
                 if let selectedInputCount = details.selectedInputCount { Text("Selected Inputs: \(selectedInputCount)") }
                 if let usesChangeOutput = details.usesChangeOutput {
-                    let changeOutputLabel = usesChangeOutput ? localized("Yes") : localized("No")
+                    let changeOutputLabel = usesChangeOutput ? AppLocalization.string("Yes") : AppLocalization.string("No")
                     Text("Change Output: \(changeOutputLabel)")
                 }
                 if let maxSendable = details.maxSendable {
@@ -225,26 +191,26 @@ struct SendView: View {
             selectedCoin.chainName == "Bitcoin" || selectedCoin.chainName == "Bitcoin Cash" || selectedCoin.chainName == "Bitcoin SV"
                 || selectedCoin.chainName == "Litecoin" || selectedCoin.chainName == "Dogecoin"
         {
-            Section(localized("Advanced UTXO Mode")) {
-                Toggle(localized("Enable Advanced Controls"), isOn: sendAdvancedModeBinding)
+            Section(AppLocalization.string("Advanced UTXO Mode")) {
+                Toggle(AppLocalization.string("Enable Advanced Controls"), isOn: $store.sendAdvancedMode)
                 if store.sendAdvancedMode {
                     Stepper(
                         "Max Inputs: \(store.sendUTXOMaxInputCount == 0 ? "Auto" : "\(store.sendUTXOMaxInputCount)")",
-                        value: sendUTXOMaxInputCountBinding, in: 0...50
+                        value: $store.sendUTXOMaxInputCount, in: 0...50
                     )
                     if selectedCoin.chainName == "Litecoin" {
-                        Toggle(localized("Enable RBF Policy"), isOn: sendEnableRBFBinding)
-                        Picker(localized("Change Strategy"), selection: sendLitecoinChangeStrategyBinding) {
+                        Toggle(AppLocalization.string("Enable RBF Policy"), isOn: $store.sendEnableRBF)
+                        Picker(AppLocalization.string("Change Strategy"), selection: $store.sendLitecoinChangeStrategy) {
                             ForEach(LitecoinChangeStrategy.allCases) { strategy in Text(strategy.displayName).tag(strategy) }
                         }.pickerStyle(.menu)
                         Text(
-                            localized(
+                            AppLocalization.string(
                                 "For LTC sends, max input cap is applied for coin selection, RBF policy is encoded in input sequence numbers, and change strategy controls whether change uses a derived change path or your source address."
                             )
                         ).font(.caption).foregroundStyle(.secondary)
                     } else {
-                        Toggle(localized("RBF Intent"), isOn: sendEnableRBFBinding)
-                        Toggle(localized("CPFP Intent"), isOn: sendEnableCPFPBinding)
+                        Toggle(AppLocalization.string("RBF Intent"), isOn: $store.sendEnableRBF)
+                        Toggle(AppLocalization.string("CPFP Intent"), isOn: $store.sendEnableCPFP)
                         if let caption = utxoAdvancedModeCaption(for: selectedCoin.chainName) {
                             Text(caption).font(.caption).foregroundStyle(.secondary)
                         }
@@ -255,12 +221,12 @@ struct SendView: View {
         if let selectedCoin, selectedCoin.chainName != "Bitcoin", selectedCoin.chainName != "Bitcoin Cash",
             selectedCoin.chainName != "Bitcoin SV", selectedCoin.chainName != "Litecoin", selectedCoin.chainName != "Dogecoin"
         {
-            Section(localized("Fee Priority")) {
-                Picker(localized("Fee Priority"), selection: chainFeePriorityBinding(for: selectedCoin.chainName)) {
+            Section(AppLocalization.string("Fee Priority")) {
+                Picker(AppLocalization.string("Fee Priority"), selection: chainFeePriorityBinding(for: selectedCoin.chainName)) {
                     ForEach(ChainFeePriorityOption.allCases) { priority in Text(priority.displayName).tag(priority) }
                 }.pickerStyle(.segmented)
                 Text(
-                    localized(
+                    AppLocalization.string(
                         "Spectra stores this preference per chain. Some networks still use provider-managed fee estimation in this build.")
                 ).font(.caption).foregroundStyle(.secondary)
             }
@@ -274,19 +240,19 @@ struct SendView: View {
         {
             let feeSymbol = selectedCoin.symbol
             let utxoPreview = utxoPreview(for: selectedCoin)
-            Section(localized("\(selectedCoin.chainName) Network")) {
-                Picker(localized("Fee Priority"), selection: chainFeePriorityBinding(for: selectedCoin.chainName)) {
+            Section(AppLocalization.string("\(selectedCoin.chainName) Network")) {
+                Picker(AppLocalization.string("Fee Priority"), selection: chainFeePriorityBinding(for: selectedCoin.chainName)) {
                     ForEach(ChainFeePriorityOption.allCases) { priority in Text(priority.displayName).tag(priority) }
                 }.pickerStyle(.segmented)
                 Text(
-                    localized(
+                    AppLocalization.string(
                         "Spectra stores fee priority separately for each UTXO chain and applies it to live send previews for supported chains."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
                 if selectedCoin.chainName == "Dogecoin", store.isPreparingDogecoinSend {
                     HStack(spacing: 10) {
                         ProgressView()
-                        Text(localized("Loading UTXOs and fee estimate...")).font(.caption)
+                        Text(AppLocalization.string("Loading UTXOs and fee estimate...")).font(.caption)
                     }
                 } else if selectedCoin.chainName == "Dogecoin", let dogecoinSendPreview = store.dogecoinSendPreview {
                     if let fiatFee = store.formattedFiatAmount(fromNative: dogecoinSendPreview.estimatedNetworkFeeDoge, symbol: feeSymbol) {
@@ -315,21 +281,21 @@ struct SendView: View {
                 || selectedCoin.chainName == "Optimism" || selectedCoin.chainName == "BNB Chain" || selectedCoin.chainName == "Avalanche"
                 || selectedCoin.chainName == "Hyperliquid")
         {
-            Section(localized("\(selectedCoin.chainName) Network")) {
-                Toggle(localized("Use Custom Fees"), isOn: useCustomEthereumFeesBinding)
+            Section(AppLocalization.string("\(selectedCoin.chainName) Network")) {
+                Toggle(AppLocalization.string("Use Custom Fees"), isOn: $store.useCustomEthereumFees)
                 if store.useCustomEthereumFees {
-                    TextField(localized("Max Fee (gwei)"), text: customEthereumMaxFeeGweiBinding).keyboardType(.decimalPad)
-                    TextField(localized("Priority Fee (gwei)"), text: customEthereumPriorityFeeGweiBinding).keyboardType(.decimalPad)
+                    TextField(AppLocalization.string("Max Fee (gwei)"), text: $store.customEthereumMaxFeeGwei).keyboardType(.decimalPad)
+                    TextField(AppLocalization.string("Priority Fee (gwei)"), text: $store.customEthereumPriorityFeeGwei).keyboardType(.decimalPad)
                     if let customEthereumFeeValidationError = store.customEthereumFeeValidationError {
                         Text(customEthereumFeeValidationError).font(.caption).foregroundStyle(.red)
                     } else {
-                        Text(localized("Custom EIP-1559 fees are applied to this send and preview.")).font(.caption).foregroundStyle(
+                        Text(AppLocalization.string("Custom EIP-1559 fees are applied to this send and preview.")).font(.caption).foregroundStyle(
                             .secondary)
                     }
                 }
-                Toggle(localized("Manual Nonce"), isOn: ethereumManualNonceEnabledBinding)
+                Toggle(AppLocalization.string("Manual Nonce"), isOn: $store.ethereumManualNonceEnabled)
                 if store.ethereumManualNonceEnabled {
-                    TextField(localized("Nonce"), text: ethereumManualNonceBinding).keyboardType(.numberPad)
+                    TextField(AppLocalization.string("Nonce"), text: $store.ethereumManualNonce).keyboardType(.numberPad)
                     if let customEthereumNonceValidationError = store.customEthereumNonceValidationError {
                         Text(customEthereumNonceValidationError).font(.caption).foregroundStyle(.red)
                     }
@@ -338,13 +304,13 @@ struct SendView: View {
                     if store.isPreparingEthereumReplacementContext {
                         HStack(spacing: 10) {
                             ProgressView()
-                            Text(localized("Preparing replacement/cancel context...")).font(.caption)
+                            Text(AppLocalization.string("Preparing replacement/cancel context...")).font(.caption)
                         }
                     } else if store.hasPendingEthereumSendForSelectedWallet {
-                        Button(localized("Speed Up Pending Transaction")) {
+                        Button(AppLocalization.string("Speed Up Pending Transaction")) {
                             Task { await store.prepareEthereumSpeedUpContext() }
                         }
-                        Button(localized("Cancel Pending Transaction")) {
+                        Button(AppLocalization.string("Cancel Pending Transaction")) {
                             Task { await store.prepareEthereumCancelContext() }
                         }
                     }
@@ -355,7 +321,7 @@ struct SendView: View {
                 if store.isPreparingEthereumSend {
                     HStack(spacing: 10) {
                         ProgressView()
-                        Text(localized("Loading nonce and fee estimate...")).font(.caption)
+                        Text(AppLocalization.string("Loading nonce and fee estimate...")).font(.caption)
                     }
                 } else if let ethereumSendPreview = store.ethereumSendPreview {
                     Text("Nonce: \(ethereumSendPreview.nonce)")
@@ -372,11 +338,11 @@ struct SendView: View {
                             .subheadline.weight(.semibold))
                     }
                 } else {
-                    Text(localized("Enter an amount to load a live nonce and fee preview. Add a valid destination address before sending."))
+                    Text(AppLocalization.string("Enter an amount to load a live nonce and fee preview. Add a valid destination address before sending."))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Text(
-                    localized(
+                    AppLocalization.string(
                         "Spectra signs and broadcasts supported \(selectedCoin.chainName) transfers. This preview is the live nonce and fee estimate for the transaction you are about to send."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
@@ -508,27 +474,27 @@ struct SendView: View {
                     }
                     sendStatusSections
                 }.padding(20)
-            }.navigationTitle(localized("Send")).sheet(isPresented: $isShowingQRScanner) {
+            }.navigationTitle(AppLocalization.string("Send")).sheet(isPresented: $isShowingQRScanner) {
                 SendQRScannerSheet { payload in applyScannedRecipientPayload(payload) }
-            }.alert(localized("QR Scanner"), isPresented: qrScannerAlertBinding) {
-                Button(localized("OK"), role: .cancel) {}
+            }.alert(AppLocalization.string("QR Scanner"), isPresented: qrScannerAlertBinding) {
+                Button(AppLocalization.string("OK"), role: .cancel) {}
             } message: {
                 if let qrScannerErrorMessage { Text(verbatim: qrScannerErrorMessage) }
             }.onChange(of: store.sendHoldingKey) { _, _ in
                 selectedAddressBookEntryID = ""
             }.toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(localized("Send")) {
+                    Button(AppLocalization.string("Send")) {
                         Task {
                             await store.submitSend()
                         }
                     }.disabled(isSendBusy)
                 }
-            }.alert(localized("High-Risk Send"), isPresented: store.isShowingHighRiskSendConfirmationBinding) {
-                Button(localized("Cancel"), role: .cancel) {
+            }.alert(AppLocalization.string("High-Risk Send"), isPresented: store.isShowingHighRiskSendConfirmationBinding) {
+                Button(AppLocalization.string("Cancel"), role: .cancel) {
                     store.clearHighRiskSendConfirmation()
                 }
-                Button(localized("Send Anyway"), role: .destructive) {
+                Button(AppLocalization.string("Send Anyway"), role: .destructive) {
                     Task {
                         await store.confirmHighRiskSendAndSubmit()
                     }
@@ -544,7 +510,7 @@ struct SendView: View {
     @ViewBuilder
     private func sendDetailCard(title: String? = nil, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let title { Text(localizedSendString(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary) }
+            if let title { Text(AppLocalization.string(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary) }
             VStack(alignment: .leading, spacing: 12) { content() }
         }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }
@@ -559,13 +525,13 @@ struct SendView: View {
     private func applyScannedRecipientPayload(_ payload: String) {
         let trimmedPayload = payload.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPayload.isEmpty else {
-            qrScannerErrorMessage = localizedSendString("The scanned QR code did not contain a usable address.")
+            qrScannerErrorMessage = AppLocalization.string("The scanned QR code did not contain a usable address.")
             return
         }
         let selectedChainName = store.availableSendCoins(for: store.sendWalletID).first(where: { $0.holdingKey == store.sendHoldingKey })?
             .chainName
         guard let resolvedAddress = resolvedRecipientAddress(from: trimmedPayload, chainName: selectedChainName) else {
-            qrScannerErrorMessage = localizedSendString("The scanned QR code does not contain a valid address for the selected asset.")
+            qrScannerErrorMessage = AppLocalization.string("The scanned QR code does not contain a valid address for the selected asset.")
             return
         }
         store.sendAddress = resolvedAddress
@@ -695,7 +661,7 @@ private struct SendPrimarySectionsView: View {
                         Image(systemName: "arrow.up.right.circle.fill").font(.system(size: 38)).foregroundStyle(.mint)
                     }
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(localizedSendString("Send")).font(.title3.weight(.bold))
+                        Text(AppLocalization.string("Send")).font(.title3.weight(.bold))
                         if let wallet = presentation.selectedWallet { Text(wallet.name).font(.subheadline).foregroundStyle(.secondary) }
                     }
                     Spacer()
@@ -708,17 +674,17 @@ private struct SendPrimarySectionsView: View {
                 if let selectedCoin = presentation.selectedCoin {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(localizedSendString("Available")).font(.caption).foregroundStyle(.secondary)
+                            Text(AppLocalization.string("Available")).font(.caption).foregroundStyle(.secondary)
                             Text(presentation.selectedCoinAmountText ?? "").font(.headline.weight(.semibold)).spectraNumericTextLayout()
                         }
                         Spacer()
                         VStack(alignment: .trailing, spacing: 4) {
-                            Text(localizedSendString("Network")).font(.caption).foregroundStyle(.secondary)
+                            Text(AppLocalization.string("Network")).font(.caption).foregroundStyle(.secondary)
                             Text(selectedCoin.chainName).font(.subheadline.weight(.semibold))
                         }
                     }
                 } else {
-                    Text(localizedSendString("Choose a wallet and asset to prepare a transfer with live fee previews and risk checks."))
+                    Text(AppLocalization.string("Choose a wallet and asset to prepare a transfer with live fee previews and risk checks."))
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
             }
@@ -727,12 +693,12 @@ private struct SendPrimarySectionsView: View {
     private var walletAssetSection: some View {
         sendDetailCard(title: "Wallet & Asset") {
             VStack(alignment: .leading, spacing: 12) {
-                Picker(localizedSendString("Wallet"), selection: store.sendWalletIDBinding) {
+                Picker(AppLocalization.string("Wallet"), selection: store.sendWalletIDBinding) {
                     ForEach(presentation.sendWallets) { wallet in Text(wallet.name).tag(wallet.id) }
                 }.onChange(of: store.sendWalletID) { _, _ in
                     store.syncSendAssetSelection()
                 }
-                Picker(localizedSendString("Asset"), selection: store.sendHoldingKeyBinding) {
+                Picker(AppLocalization.string("Asset"), selection: store.sendHoldingKeyBinding) {
                     ForEach(presentation.availableSendCoins, id: \.holdingKey) { coin in
                         Text("\(coin.name) on \(store.displayChainTitle(for: coin.chainName))").tag(coin.holdingKey)
                     }
@@ -744,8 +710,8 @@ private struct SendPrimarySectionsView: View {
         sendDetailCard(title: "Recipient") {
             VStack(alignment: .leading, spacing: 12) {
                 if !presentation.addressBookEntries.isEmpty {
-                    Picker(localizedSendString("Saved Recipient"), selection: $selectedAddressBookEntryID) {
-                        Text(localizedSendString("None")).tag("")
+                    Picker(AppLocalization.string("Saved Recipient"), selection: $selectedAddressBookEntryID) {
+                        Text(AppLocalization.string("None")).tag("")
                         ForEach(presentation.addressBookEntries) { entry in
                             Text("\(entry.name) • \(entry.chainName)").tag(entry.id.uuidString)
                         }
@@ -757,29 +723,29 @@ private struct SendPrimarySectionsView: View {
                     }
                 }
                 HStack(spacing: 10) {
-                    TextField(localizedSendString("Recipient address"), text: store.sendAddressBinding).textInputAutocapitalization(.never)
+                    TextField(AppLocalization.string("Recipient address"), text: store.sendAddressBinding).textInputAutocapitalization(.never)
                         .autocorrectionDisabled().padding(.horizontal, 12).padding(.vertical, 10).background(
                             .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     Button {
                         guard DataScannerViewController.isSupported else {
-                            qrScannerErrorMessage = localizedSendString("QR scanning is not supported on this device.")
+                            qrScannerErrorMessage = AppLocalization.string("QR scanning is not supported on this device.")
                             return
                         }
                         guard DataScannerViewController.isAvailable else {
-                            qrScannerErrorMessage = localizedSendString(
+                            qrScannerErrorMessage = AppLocalization.string(
                                 "QR scanning is unavailable right now. Check camera permission and try again.")
                             return
                         }
                         isShowingQRScanner = true
                     } label: {
                         Image(systemName: "qrcode.viewfinder").font(.title3.weight(.semibold)).frame(width: 40, height: 40)
-                    }.buttonStyle(.glass).accessibilityLabel(localizedSendString("Scan QR Code"))
+                    }.buttonStyle(.glass).accessibilityLabel(AppLocalization.string("Scan QR Code"))
                 }
                 if let qrScannerErrorMessage { Text(qrScannerErrorMessage).font(.caption).foregroundStyle(.orange) }
                 if store.isCheckingSendDestinationBalance {
                     HStack(spacing: 8) {
                         ProgressView()
-                        Text(localizedSendString("Checking destination on-chain balance...")).font(.caption).foregroundStyle(.secondary)
+                        Text(AppLocalization.string("Checking destination on-chain balance...")).font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 if let sendDestinationRiskWarning = store.sendDestinationRiskWarning {
@@ -794,17 +760,17 @@ private struct SendPrimarySectionsView: View {
     private var amountSection: some View {
         sendDetailCard(title: "Amount") {
             VStack(alignment: .leading, spacing: 12) {
-                TextField(localizedSendString("Amount"), text: store.sendAmountBinding).keyboardType(.decimalPad).padding(.horizontal, 12)
+                TextField(AppLocalization.string("Amount"), text: store.sendAmountBinding).keyboardType(.decimalPad).padding(.horizontal, 12)
                     .padding(.vertical, 10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 if let selectedCoin = presentation.selectedCoin {
                     HStack {
-                        Text(localizedSendString("Using")).foregroundStyle(.secondary)
+                        Text(AppLocalization.string("Using")).foregroundStyle(.secondary)
                         Spacer()
                         Text(selectedCoin.symbol).font(.subheadline.weight(.semibold))
                     }
                     if let fiatAmount = presentation.selectedCoinApproximateFiatText {
                         HStack {
-                            Text(localizedSendString("Approx. Value")).foregroundStyle(.secondary)
+                            Text(AppLocalization.string("Approx. Value")).foregroundStyle(.secondary)
                             Spacer()
                             Text(fiatAmount).font(.subheadline.weight(.semibold)).spectraNumericTextLayout()
                         }
@@ -815,7 +781,7 @@ private struct SendPrimarySectionsView: View {
     }
     private func sendDetailCard(title: String? = nil, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let title { Text(localizedSendString(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary) }
+            if let title { Text(AppLocalization.string(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary) }
             VStack(alignment: .leading, spacing: 12) { content() }
         }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
     }

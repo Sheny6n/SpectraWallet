@@ -64,7 +64,7 @@ extension AppState {
         if amount > 0, amount < minimumVisibleAmount, let thresholdString = formatter.string(from: NSNumber(value: minimumVisibleAmount)) {
             return "<\(thresholdString)"
         }
-        return formatter.string(from: NSNumber(value: amount)) ?? "\(currency.rawValue) \(String(format: "%.2f", amount))"
+        return formatter.string(from: NSNumber(value: amount)) ?? ""
     }
     func formattedFiatAmount(fromNative amount: Double, symbol: String) -> String? {
         guard let coin = portfolio.first(where: { $0.symbol == symbol }) else { return nil }
@@ -84,15 +84,11 @@ extension AppState {
                 let thresholdFormatter = decimalFormatter(
                     minimumFractionDigits: visibleDecimals, maximumFractionDigits: visibleDecimals, usesGroupingSeparator: false
                 )
-                let thresholdText =
-                    thresholdFormatter.string(from: NSNumber(value: threshold))
-                    ?? String(format: "%.\(visibleDecimals)f", threshold)
+                let thresholdText = thresholdFormatter.string(from: NSNumber(value: threshold)) ?? ""
                 return "<\(thresholdText) \(symbol)"
             }
         }
-        let formattedValue =
-            formatter.string(from: NSNumber(value: amount))
-            ?? String(format: "%.\(visibleDecimals)f", amount)
+        let formattedValue = formatter.string(from: NSNumber(value: amount)) ?? ""
         return "\(formattedValue) \(symbol)"
     }
     func formattedTransactionAmount(_ transaction: TransactionRecord) -> String? {
@@ -199,9 +195,7 @@ extension AppState {
         let formatter = decimalFormatter(
             minimumFractionDigits: 0, maximumFractionDigits: supportedDecimals, usesGroupingSeparator: false
         )
-        let formattedValue =
-            formatter.string(from: NSNumber(value: amount))
-            ?? String(format: "%.\(supportedDecimals)f", amount)
+        let formattedValue = formatter.string(from: NSNumber(value: amount)) ?? ""
         return "\(formattedValue) \(symbol)"
     }
     func tokenPreferenceLookupKey(chainName: String, symbol: String) -> String {

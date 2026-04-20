@@ -1,6 +1,6 @@
 import SwiftUI
 struct EndpointCatalogSettingsView: View {
-    let store: AppState
+    @Bindable var store: AppState
     @State private var newBitcoinEndpoint: String = ""
     private let copy = EndpointsContentCopy.current
     private var endpointSections: [AppChainDescriptor] { AppEndpointDirectory.endpointCatalogChains }
@@ -10,28 +10,14 @@ struct EndpointCatalogSettingsView: View {
         }
         .filter { !$0.isEmpty }
     }
-    private var bitcoinEndpoints: [String] {
-        Self.esploraRuntimeBaseURLs(for: store.bitcoinNetworkMode, custom: parsedBitcoinCustomEndpoints)
-    }
-    private var bitcoinEndpointsByNetwork: [(title: String, endpoints: [String])] {
+    private var bitcoinEndpointsByNetwork: [AppEndpointGroupedSettingsEntry] {
         BitcoinNetworkMode.allCases.map { mode in
             let custom = mode == store.bitcoinNetworkMode ? parsedBitcoinCustomEndpoints : []
             let title = mode == .mainnet ? "Bitcoin" : "Bitcoin \(mode.displayName)"
-            return (title: title, endpoints: Self.esploraRuntimeBaseURLs(for: mode, custom: custom))
+            return AppEndpointGroupedSettingsEntry(title: title, endpoints: Self.esploraRuntimeBaseURLs(for: mode, custom: custom))
         }
     }
-    private var ethereumEndpoints: [String] {
-        var endpoints: [String] = []
-        let custom = store.ethereumRPCEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !custom.isEmpty { endpoints.append(custom) }
-        let context = store.evmChainContext(for: "Ethereum") ?? .ethereum
-        for endpoint in context.defaultRPCEndpoints where !endpoints.contains(endpoint) { endpoints.append(endpoint) }
-        for endpoint in AppEndpointDirectory.explorerSupplementalEndpoints(for: "Ethereum") {
-            if !endpoints.contains(endpoint) { endpoints.append(endpoint) }
-        }
-        return endpoints
-    }
-    private var ethereumEndpointsByNetwork: [(title: String, endpoints: [String])] {
+    private var ethereumEndpointsByNetwork: [AppEndpointGroupedSettingsEntry] {
         EthereumNetworkMode.allCases.map { mode in
             var endpoints: [String] = []
             if mode == store.ethereumNetworkMode {
@@ -51,12 +37,9 @@ struct EndpointCatalogSettingsView: View {
                 }
             }
             let title = mode == .mainnet ? "Ethereum" : "Ethereum \(mode.displayName)"
-            return (title: title, endpoints: endpoints)
+            return AppEndpointGroupedSettingsEntry(title: title, endpoints: endpoints)
         }
     }
-    private var ethereumClassicEndpoints: [String] { EVMChainContext.ethereumClassic.defaultRPCEndpoints }
-    private var arbitrumEndpoints: [String] { EVMChainContext.arbitrum.defaultRPCEndpoints }
-    private var optimismEndpoints: [String] { EVMChainContext.optimism.defaultRPCEndpoints }
     private var bnbEndpoints: [String] {
         var endpoints = EVMChainContext.bnb.defaultRPCEndpoints
         for endpoint in AppEndpointDirectory.explorerSupplementalEndpoints(for: "BNB Chain") {
@@ -64,14 +47,12 @@ struct EndpointCatalogSettingsView: View {
         }
         return endpoints
     }
-    private var avalancheEndpoints: [String] { EVMChainContext.avalanche.defaultRPCEndpoints }
-    private var hyperliquidEndpoints: [String] { EVMChainContext.hyperliquid.defaultRPCEndpoints }
     private var moneroEndpoints: [String] {
         let trimmed = store.moneroBackendBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return [trimmed] }
         return [MoneroBalanceService.defaultPublicBackend.baseURL]
     }
-    private var dogecoinEndpointsByNetwork: [(title: String, endpoints: [String])] { DogecoinBalanceService.endpointCatalogByNetwork() }
+    private var dogecoinEndpointsByNetwork: [AppEndpointGroupedSettingsEntry] { DogecoinBalanceService.endpointCatalogByNetwork() }
     private func addBitcoinEndpoint() {
         let trimmed = newBitcoinEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -104,69 +85,67 @@ struct EndpointCatalogSettingsView: View {
         }
     }
     @ViewBuilder
+    private var bitcoinSectionBody: some View {
+        ForEach(bitcoinEndpointsByNetwork, id: \.title) { group in
+            namedEndpointGroup(title: group.title, endpoints: group.endpoints)
+        }
+        TextField(copy.addEsploraEndpointPlaceholder, text: $newBitcoinEndpoint).textInputAutocapitalization(.never)
+            .autocorrectionDisabled().keyboardType(.URL)
+        Button(copy.addEndpointButtonTitle) {
+            addBitcoinEndpoint()
+        }
+        if !parsedBitcoinCustomEndpoints.isEmpty {
+            Button(copy.clearCustomBitcoinEndpointsTitle, role: .destructive) {
+                store.bitcoinEsploraEndpoints = ""
+            }
+        }
+        if let error = store.bitcoinEsploraEndpointsValidationError { Text(error).font(.caption).foregroundStyle(.red) }
+    }
+    @ViewBuilder
+    private var ethereumSectionBody: some View {
+        ForEach(ethereumEndpointsByNetwork, id: \.title) { group in
+            namedEndpointGroup(title: group.title, endpoints: group.endpoints)
+        }
+        TextField(copy.customEthereumRPCURLPlaceholder, text: $store.ethereumRPCEndpoint)
+            .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+        if let error = store.ethereumRPCEndpointValidationError { Text(error).font(.caption).foregroundStyle(.red) }
+    }
+    @ViewBuilder
+    private var moneroSectionBody: some View {
+        endpointRows(moneroEndpoints)
+        TextField(copy.customMoneroBackendURLPlaceholder, text: $store.moneroBackendBaseURL)
+            .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+        if let error = store.moneroBackendBaseURLValidationError { Text(error).font(.caption).foregroundStyle(.red) }
+    }
+    @ViewBuilder
+    private func readOnlyEVMSection(_ endpoints: [String]) -> some View {
+        endpointRows(endpoints)
+        readOnlyFootnote
+    }
+    @ViewBuilder
     private func endpointSection(_ descriptor: AppChainDescriptor) -> some View {
         Section(descriptor.chainName) {
             switch descriptor.id {
-            case .bitcoin:
-                ForEach(bitcoinEndpointsByNetwork, id: \.title) { group in
-                    namedEndpointGroup(title: group.title, endpoints: group.endpoints)
-                }
-                TextField(copy.addEsploraEndpointPlaceholder, text: $newBitcoinEndpoint).textInputAutocapitalization(.never)
-                    .autocorrectionDisabled().keyboardType(.URL)
-                Button(copy.addEndpointButtonTitle) {
-                    addBitcoinEndpoint()
-                }
-                if !parsedBitcoinCustomEndpoints.isEmpty {
-                    Button(copy.clearCustomBitcoinEndpointsTitle, role: .destructive) {
-                        store.bitcoinEsploraEndpoints = ""
-                    }
-                }
-                if let error = store.bitcoinEsploraEndpointsValidationError { Text(error).font(.caption).foregroundStyle(.red) }
+            case .bitcoin: bitcoinSectionBody
             case .bitcoinCash: endpointRows(BitcoinCashBalanceService.endpointCatalog())
             case .litecoin: endpointRows(LitecoinBalanceService.endpointCatalog())
             case .dogecoin:
                 ForEach(dogecoinEndpointsByNetwork, id: \.title) { group in
                     namedEndpointGroup(title: group.title, endpoints: group.endpoints)
                 }
-            case .ethereum:
-                ForEach(ethereumEndpointsByNetwork, id: \.title) { group in
-                    namedEndpointGroup(title: group.title, endpoints: group.endpoints)
-                }
-                TextField(
-                    copy.customEthereumRPCURLPlaceholder,
-                    text: Binding(get: { store.ethereumRPCEndpoint }, set: { store.ethereumRPCEndpoint = $0 })
-                ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                if let error = store.ethereumRPCEndpointValidationError { Text(error).font(.caption).foregroundStyle(.red) }
-            case .ethereumClassic:
-                endpointRows(ethereumClassicEndpoints)
-                readOnlyFootnote
-            case .arbitrum:
-                endpointRows(arbitrumEndpoints)
-                readOnlyFootnote
-            case .optimism:
-                endpointRows(optimismEndpoints)
-                readOnlyFootnote
-            case .bnb:
-                endpointRows(bnbEndpoints)
-                readOnlyFootnote
-            case .avalanche:
-                endpointRows(avalancheEndpoints)
-                readOnlyFootnote
-            case .hyperliquid:
-                endpointRows(hyperliquidEndpoints)
-                readOnlyFootnote
+            case .ethereum: ethereumSectionBody
+            case .ethereumClassic: readOnlyEVMSection(EVMChainContext.ethereumClassic.defaultRPCEndpoints)
+            case .arbitrum: readOnlyEVMSection(EVMChainContext.arbitrum.defaultRPCEndpoints)
+            case .optimism: readOnlyEVMSection(EVMChainContext.optimism.defaultRPCEndpoints)
+            case .bnb: readOnlyEVMSection(bnbEndpoints)
+            case .avalanche: readOnlyEVMSection(EVMChainContext.avalanche.defaultRPCEndpoints)
+            case .hyperliquid: readOnlyEVMSection(EVMChainContext.hyperliquid.defaultRPCEndpoints)
             case .tron: endpointRows(TronBalanceService.endpointCatalog())
             case .solana: endpointRows(SolanaBalanceService.endpointCatalog())
             case .cardano: endpointRows(CardanoBalanceService.endpointCatalog())
             case .xrp: endpointRows(XRPBalanceService.endpointCatalog())
             case .stellar: endpointRows(StellarBalanceService.endpointCatalog())
-            case .monero:
-                endpointRows(moneroEndpoints)
-                TextField(
-                    copy.customMoneroBackendURLPlaceholder,
-                    text: Binding(get: { store.moneroBackendBaseURL }, set: { store.moneroBackendBaseURL = $0 })
-                ).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                if let error = store.moneroBackendBaseURLValidationError { Text(error).font(.caption).foregroundStyle(.red) }
+            case .monero: moneroSectionBody
             case .sui: endpointRows(SuiBalanceService.endpointCatalog())
             case .aptos: endpointRows(AptosBalanceService.endpointCatalog())
             case .ton: endpointRows(TONBalanceService.endpointCatalog())

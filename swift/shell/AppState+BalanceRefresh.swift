@@ -6,19 +6,21 @@ extension AppState {
 
     /// Pending balance updates accumulated during a refresh cycle. Flushed as a
     /// single `wallets` mutation so SwiftUI only re-renders once per batch.
+    /// Rust applies the balance to its store before invoking the observer, so
+    /// the summary here is already authoritative — Swift just merges holdings.
     private struct PendingBalanceUpdate {
-        let chainId: UInt32
         let walletId: String
-        let json: String
+        let summary: WalletSummary
     }
     private static var pendingBalanceUpdates: [PendingBalanceUpdate] = []
     private static var balanceFlushTask: Task<Void, Never>?
 
-    /// Called by the Rust balance refresh engine when a new native balance arrives.
-    /// Accumulates updates and flushes them as a single wallets mutation after a
-    /// short debounce window, so 50+ balance callbacks produce one SwiftUI re-render.
-    func applyRustBalance(chainId: UInt32, walletId: String, json: String) {
-        Self.pendingBalanceUpdates.append(PendingBalanceUpdate(chainId: chainId, walletId: walletId, json: json))
+    /// Called by the Rust balance refresh engine after each successful balance
+    /// fetch. Accumulates updates and flushes them as a single wallets mutation
+    /// after a short debounce so a burst of 50+ callbacks produces one SwiftUI
+    /// re-render.
+    func applyRustBalance(walletId: String, summary: WalletSummary) {
+        Self.pendingBalanceUpdates.append(PendingBalanceUpdate(walletId: walletId, summary: summary))
         Self.balanceFlushTask?.cancel()
         Self.balanceFlushTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms debounce
@@ -27,20 +29,17 @@ extension AppState {
             let batch = Self.pendingBalanceUpdates
             Self.pendingBalanceUpdates = []
             guard !batch.isEmpty else { return }
-            await self.flushBalanceBatch(batch)
+            self.flushBalanceBatch(batch)
         }
     }
 
-    private func flushBalanceBatch(_ batch: [PendingBalanceUpdate]) async {
+    private func flushBalanceBatch(_ batch: [PendingBalanceUpdate]) {
         var walletsCopy = wallets
         let walletIndexById = Dictionary(uniqueKeysWithValues: walletsCopy.enumerated().map { ($1.id, $0) })
         var anyChanged = false
         for update in batch {
-            guard let idx = walletIndexById[update.walletId],
-                let summary = try? await WalletServiceBridge.shared.updateNativeBalanceTyped(
-                    walletId: update.walletId, chainId: update.chainId, balanceJson: update.json)
-            else { continue }
-            if let updated = holdingsAppliedFromSummary(summary, to: walletsCopy[idx]) {
+            guard let idx = walletIndexById[update.walletId] else { continue }
+            if let updated = holdingsAppliedFromSummary(update.summary, to: walletsCopy[idx]) {
                 walletsCopy[idx] = updated
                 anyChanged = true
             }
@@ -143,13 +142,13 @@ extension AppState {
     }
     func fetchEthereumPortfolio(for address: String) async throws -> (nativeBalance: Double, tokenBalances: [TokenBalanceResult]) {
         let ethereumContext = evmChainContext(for: "Ethereum") ?? .ethereum
-        let balanceJSON = try await WalletServiceBridge.shared.fetchBalanceJSON(chainId: SpectraChainID.ethereum, address: address)
-        let nativeBalance = RustBalanceDecoder.evmNativeBalance(from: balanceJSON) ?? 0
+        let summary = try await WalletServiceBridge.shared.fetchNativeBalanceSummary(chainId: SpectraChainID.ethereum, address: address)
+        let nativeBalance = Double(summary.amountDisplay) ?? 0
         let tokenBalances =
             ethereumContext.isEthereumMainnet
             ? ((try? await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(
                 chainId: SpectraChainID.ethereum, address: address,
-                tokens: enabledEthereumTrackedTokens().map { ($0.contractAddress, $0.symbol, $0.decimals) }
+                tokens: enabledEthereumTrackedTokens().map { TokenDescriptor(contract: $0.contractAddress, symbol: $0.symbol, decimals: UInt8($0.decimals), name: nil) }
             )) ?? [])
             : []
         return (nativeBalance, tokenBalances)
@@ -170,15 +169,12 @@ extension AppState {
             guard shouldPollTransactionStatus(for: transaction, now: now) else { continue }
             do {
                 guard
-                    let receiptJSON = try await WalletServiceBridge.shared.fetchEVMReceiptJSON(
+                    let classified = try await WalletServiceBridge.shared.fetchEvmReceiptClassification(
                         chainId: chainId, txHash: transactionHash
                     )
                 else {
                     markTransactionStatusPollSuccess(for: transaction, resolvedStatus: .pending, now: now)
                     continue
-                }
-                guard let classified = classifyEvmReceiptJson(json: receiptJSON) else {
-                    throw NSError(domain: "EvmReceipt", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid receipt JSON"])
                 }
                 if classified.isConfirmed {
                     let resolvedStatus: TransactionStatus = classified.isFailed ? .failed : .confirmed

@@ -379,7 +379,9 @@ extension AppState {
         isCheckingNearEndpointHealth = true; defer { isCheckingNearEndpointHealth = false }
         var results: [BitcoinEndpointHealthResult] = []
         let rpcEndpoints = Set(NearBalanceService.rpcEndpointCatalog())
-        for (endpoint, probeURL) in NearBalanceService.diagnosticsChecks() {
+        for check in NearBalanceService.diagnosticsChecks() {
+            let endpoint = check.endpoint
+            let probeURL = check.probeUrl
             if rpcEndpoints.contains(endpoint) {
                 results.append(await probeJSONRPC(endpoint: endpoint, urlString: endpoint, rpcMethod: "status"))
             } else if let url = URL(string: probeURL) {
@@ -397,7 +399,9 @@ extension AppState {
         guard !isCheckingPolkadotEndpointHealth else { return }
         isCheckingPolkadotEndpointHealth = true; defer { isCheckingPolkadotEndpointHealth = false }
         var results: [BitcoinEndpointHealthResult] = []
-        for (endpoint, probeURL) in PolkadotBalanceService.diagnosticsChecks() {
+        for check in PolkadotBalanceService.diagnosticsChecks() {
+            let endpoint = check.endpoint
+            let probeURL = check.probeUrl
             if PolkadotBalanceService.sidecarEndpointCatalog().contains(endpoint) {
                 guard URL(string: probeURL) != nil else {
                     results.append(
@@ -530,36 +534,30 @@ extension AppState {
         self[keyPath: diagsPath][wallet.id] = await rustEVMHistoryDiagnostics(chainName: chainName, address: address)
         self[keyPath: tsPath] = Date()
     }
-    /// Bridge to Rust: fetch EVM history JSON then construct the diagnostics
-    /// record in Rust (`diagnosticsMakeEvmSuccess` / `diagnosticsMakeEvmError`).
+    /// Bridge to Rust: fused history-fetch-then-build call. Rust owns both
+    /// the HTTP fetch and the diagnostics record construction so Swift never
+    /// sees the intermediate JSON. Unsupported chain → error record built
+    /// on the Rust side via `fetch_evm_history_diagnostics`' fallback path.
     private func rustEVMHistoryDiagnostics(chainName: String, address: String) async -> EthereumTokenTransferHistoryDiagnostics {
-        guard let chainId = SpectraChainID.id(for: chainName) else {
-            return diagnosticsMakeEvmError(
-                address: address, errorDescription: WalletServiceBridgeError.unsupportedChain(chainName).localizedDescription)
-        }
-        do {
-            let historyJSON = try await WalletServiceBridge.shared.fetchEVMHistoryPageJSON(
-                chainId: chainId, address: address, tokens: [], page: 1, pageSize: 50)
-            return diagnosticsMakeEvmSuccess(address: address, historyJson: historyJSON)
-        } catch {
-            return diagnosticsMakeEvmError(address: address, errorDescription: error.localizedDescription)
-        }
+        let chainId = SpectraChainID.id(for: chainName) ?? 0
+        return (try? await WalletServiceBridge.shared.fetchEVMHistoryDiagnostics(chainId: chainId, address: address))
+            ?? diagnosticsMakeEvmRunning(address: address)
     }
 
     // MARK: EVM endpoint reachability
 
+    private static let ethereumExplorerProbeChecks: [(label: String, urlString: String)] = [
+        ("Etherscan API", "https://api.etherscan.io/api?module=stats&action=ethprice"),
+        ("Ethplorer API", "https://api.ethplorer.io/getAddressInfo/0x0000000000000000000000000000000000000000?apiKey=freekey"),
+    ]
     func runEthereumEndpointReachabilityDiagnostics() async {
         guard !isCheckingEthereumEndpointHealth else { return }
         isCheckingEthereumEndpointHealth = true; defer { isCheckingEthereumEndpointHealth = false }
         var checks = evmEndpointChecks(chainName: "Ethereum", context: evmChainContext(for: "Ethereum") ?? .ethereum)
         checks.append(
-            contentsOf: [
-                ("Etherscan API", URL(string: "https://api.etherscan.io/api?module=stats&action=ethprice")!),
-                (
-                    "Ethplorer API",
-                    URL(string: "https://api.ethplorer.io/getAddressInfo/0x0000000000000000000000000000000000000000?apiKey=freekey")!
-                ),
-            ].map { ($0.0, $0.1, false) })
+            contentsOf: Self.ethereumExplorerProbeChecks.compactMap { entry in
+                URL(string: entry.urlString).map { (entry.label, $0, false) }
+            })
         await runLabeledEVMEndpointDiagnostics(
             checks: checks, setResults: { self.ethereumEndpointHealthResults = $0 },
             markUpdated: { self.ethereumEndpointHealthLastUpdatedAt = Date() })
@@ -589,14 +587,17 @@ extension AppState {
             isCheckingKP: \.isCheckingHyperliquidEndpointHealth, chainName: "Hyperliquid", context: .hyperliquid,
             resultsKP: \.hyperliquidEndpointHealthResults, tsKP: \.hyperliquidEndpointHealthLastUpdatedAt)
     }
+    private static let bnbExplorerProbeChecks: [(label: String, urlString: String)] = [
+        ("BscScan API", "https://api.bscscan.com/api?module=stats&action=bnbprice")
+    ]
     func runBNBEndpointReachabilityDiagnostics() async {
         guard !isCheckingBNBEndpointHealth else { return }
         isCheckingBNBEndpointHealth = true; defer { isCheckingBNBEndpointHealth = false }
         var checks = evmEndpointChecks(chainName: "BNB Chain", context: .bnb)
         checks.append(
-            contentsOf: [
-                ("BscScan API", URL(string: "https://api.bscscan.com/api?module=stats&action=bnbprice")!)
-            ].map { ($0.0, $0.1, false) })
+            contentsOf: Self.bnbExplorerProbeChecks.compactMap { entry in
+                URL(string: entry.urlString).map { (entry.label, $0, false) }
+            })
         await runLabeledEVMEndpointDiagnostics(
             checks: checks, setResults: { self.bnbEndpointHealthResults = $0 },
             markUpdated: { self.bnbEndpointHealthLastUpdatedAt = Date() })
@@ -611,12 +612,12 @@ extension AppState {
         return checks
     }
     func runSimpleEndpointReachabilityDiagnostics(
-        checks: [(endpoint: String, probeURL: String)], profile: HttpRetryProfile, setResults: ([BitcoinEndpointHealthResult]) -> Void,
+        checks: [AppEndpointDiagnosticsCheck], profile: HttpRetryProfile, setResults: ([BitcoinEndpointHealthResult]) -> Void,
         markUpdated: () -> Void
     ) async {
         var results: [BitcoinEndpointHealthResult] = []
         for check in checks {
-            guard let url = URL(string: check.probeURL) else {
+            guard let url = URL(string: check.probeUrl) else {
                 results.append(
                     BitcoinEndpointHealthResult(endpoint: check.endpoint, reachable: false, statusCode: nil, detail: "Invalid URL"))
                 continue
@@ -642,7 +643,7 @@ extension AppState {
         setResults(results); markUpdated()
     }
     private func runSimpleEndpointDiagnostics(
-        isCheckingKP: ReferenceWritableKeyPath<AppState, Bool>, checks: [(endpoint: String, probeURL: String)],
+        isCheckingKP: ReferenceWritableKeyPath<AppState, Bool>, checks: [AppEndpointDiagnosticsCheck],
         resultsKP: ReferenceWritableKeyPath<AppState, [BitcoinEndpointHealthResult]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
         guard !self[keyPath: isCheckingKP] else { return }
@@ -722,12 +723,13 @@ extension AppState {
         for transaction in pending {
             guard let hash = transaction.transactionHash, shouldPollTransactionStatus(for: transaction, now: now) else { continue }
             do {
-                let json = try await WalletServiceBridge.shared.fetchUTXOTxStatusJSON(chainId: chainId, txid: hash)
-                let obj = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] ?? [:]
-                let confirmed = obj["confirmed"] as? Bool ?? false
+                let status = try await WalletServiceBridge.shared.fetchUtxoTxStatusTyped(chainId: chainId, txid: hash)
+                let confirmed = status.confirmed
                 markTransactionStatusPollSuccess(for: transaction, resolvedStatus: confirmed ? .confirmed : .pending, now: now)
                 resolved[transaction.id] = PendingTransactionStatusResolution(
-                    status: confirmed ? .confirmed : .pending, receiptBlockNumber: obj["block_height"] as? Int, confirmations: nil,
+                    status: confirmed ? .confirmed : .pending,
+                    receiptBlockNumber: status.blockHeight.map(Int.init),
+                    confirmations: nil,
                     dogecoinNetworkFeeDoge: nil)
             } catch { markTransactionStatusPollFailure(for: transaction, now: now) }
         }
@@ -748,11 +750,10 @@ extension AppState {
         for transaction in tracked {
             guard let hash = transaction.transactionHash, shouldPollDogecoinStatus(for: transaction, now: now) else { continue }
             do {
-                let json = try await WalletServiceBridge.shared.fetchUTXOTxStatusJSON(chainId: SpectraChainID.dogecoin, txid: hash)
-                let obj = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any] ?? [:]
+                let raw = try await WalletServiceBridge.shared.fetchUtxoTxStatusTyped(chainId: SpectraChainID.dogecoin, txid: hash)
                 let status = DogecoinTransactionStatus(
-                    confirmed: obj["confirmed"] as? Bool ?? false, blockHeight: obj["block_height"] as? Int, networkFeeDOGE: nil,
-                    confirmations: obj["confirmations"] as? Int)
+                    confirmed: raw.confirmed, blockHeight: raw.blockHeight.map(Int.init), networkFeeDOGE: nil,
+                    confirmations: raw.confirmations.map(Int.init))
                 resolved[transaction.id] = status
                 markDogecoinStatusPollSuccess(for: transaction, status: status, now: now)
             } catch { markDogecoinStatusPollFailure(for: transaction, now: now); continue }
@@ -888,11 +889,9 @@ extension AppState {
         chainName: String, chainId: UInt32, addressResolver: (ImportedWallet) -> String?
     ) async {
         await refreshPendingHistoryBackedTransactions(chainName: chainName, addressResolver: addressResolver) { address in
-            guard let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: chainId, address: address) else {
+            guard let confirmed = try? await WalletServiceBridge.shared.fetchHistoryConfirmedTxids(chainId: chainId, address: address) else {
                 return ([:], true)
             }
-            // Rust-side decoder returns confirmed txids; project to Swift's `[String: TransactionStatus]` shape.
-            let confirmed = diagnosticsHistoryConfirmedTxids(json: json)
             let map: [String: TransactionStatus] = Dictionary(uniqueKeysWithValues: confirmed.map { ($0, TransactionStatus.confirmed) })
             return (map, false)
         }
@@ -930,10 +929,7 @@ extension AppState {
             isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 }, chainName: chainName,
             resolveAddress: resolveAddress,
             fetchDiagnostics: { address in
-                let count = Int(
-                    (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: chainId, address: address)).map {
-                        diagnosticsHistoryEntryCount(json: $0)
-                    } ?? 0)
+                let count = Int((try? await WalletServiceBridge.shared.fetchHistoryEntryCount(chainId: chainId, address: address)) ?? 0)
                 return BitcoinHistoryDiagnostics(
                     walletId: "", identifier: address, sourceUsed: "rust", transactionCount: Int32(count), nextCursor: nil, error: nil)
             },
@@ -952,10 +948,7 @@ extension AppState {
             walletID: walletID, isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 },
             chainName: chainName, resolveAddress: resolveAddress,
             fetchDiagnostics: { address in
-                let count = Int(
-                    (try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: chainId, address: address)).map {
-                        diagnosticsHistoryEntryCount(json: $0)
-                    } ?? 0)
+                let count = Int((try? await WalletServiceBridge.shared.fetchHistoryEntryCount(chainId: chainId, address: address)) ?? 0)
                 return BitcoinHistoryDiagnostics(
                     walletId: walletID, identifier: address, sourceUsed: "rust", transactionCount: Int32(count), nextCursor: nil, error: nil
                 )
@@ -965,8 +958,8 @@ extension AppState {
     /// Counting is now delegated to Rust (`diagnosticsHistoryEntryCount`);
     /// the Swift layer only threads the chain-specific `make` constructor.
     private func rustHistoryFetch<D>(chainId: UInt32, address: String, make: (String, String, Int, String?) -> D) async -> D {
-        if let json = try? await WalletServiceBridge.shared.fetchHistoryJSON(chainId: chainId, address: address) {
-            return make(address, "rust", Int(diagnosticsHistoryEntryCount(json: json)), nil)
+        if let count = try? await WalletServiceBridge.shared.fetchHistoryEntryCount(chainId: chainId, address: address) {
+            return make(address, "rust", Int(count), nil)
         }
         return make(address, "none", 0, "History fetch failed")
     }

@@ -36,22 +36,21 @@ struct ContentView: View {
             await store.refreshForForegroundIfNeeded()
         }
     }
-    private func localized(_ key: String) -> String { AppLocalization.string(key) }
     var body: some View {
         ZStack {
             MainTabView(store: store).blur(radius: store.isAppLocked ? 8 : 0).disabled(store.isAppLocked)
             if store.isAppLocked {
                 VStack(spacing: 14) {
                     Image(systemName: "lock.fill").font(.system(size: 36, weight: .semibold)).foregroundStyle(.secondary)
-                    Text(localized("content.locked.title")).font(.headline)
-                    Text(localized("content.locked.subtitle")).font(.subheadline).foregroundStyle(.secondary)
+                    Text(AppLocalization.string("content.locked.title")).font(.headline)
+                    Text(AppLocalization.string("content.locked.subtitle")).font(.subheadline).foregroundStyle(.secondary)
                     if let appLockError = store.appLockError { Text(appLockError).font(.caption).foregroundStyle(.red) }
                     Button {
                         Task {
                             await store.unlockApp()
                         }
                     } label: {
-                        Label(localized("content.locked.unlock"), systemImage: "faceid").frame(maxWidth: 220)
+                        Label(AppLocalization.string("content.locked.unlock"), systemImage: "faceid").frame(maxWidth: 220)
                     }.buttonStyle(.borderedProminent)
                 }.padding(24).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous)).padding(28)
             }
@@ -68,8 +67,8 @@ struct ContentView: View {
         }
     }
 }
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View { ContentView() }
+#Preview {
+    ContentView()
 }
 @main
 struct SpectraApp: App {

@@ -54,7 +54,7 @@ extension AppState {
         let deletedWalletIDString = deletedWalletID
         let deletedChainName = normalizedWalletChainName(walletPendingDeletion.selectedChain)
         deleteWalletSecrets(for: deletedWalletID)
-        await WalletServiceBridge.shared.deleteWalletRelationalData(walletId: deletedWalletIDString)
+        try? await WalletServiceBridge.shared.deleteWalletRelationalData(walletId: deletedWalletIDString)
         removeWallet(id: walletPendingDeletion.id)
         let hasRemainingWalletsOnDeletedChain = wallets.contains { normalizedWalletChainName($0.selectedChain) == deletedChainName }
         resetLargeMovementAlertBaseline()

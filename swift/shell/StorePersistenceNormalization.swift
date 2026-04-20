@@ -1,7 +1,9 @@
 import Foundation
-private nonisolated func encodeHistoryRecords(_ snapshots: [CorePersistedTransactionRecord]) -> String? {
+private nonisolated func historyRecordEncodeInputs(
+    _ snapshots: [CorePersistedTransactionRecord]
+) -> [HistoryRecordEncodeInput]? {
     do {
-        let records: [HistoryRecordEncodeInput] = try snapshots.map { snap in
+        return try snapshots.map { snap in
             HistoryRecordEncodeInput(
                 id: snap.id.lowercased(),
                 walletId: snap.walletId?.lowercased(),
@@ -11,7 +13,6 @@ private nonisolated func encodeHistoryRecords(_ snapshots: [CorePersistedTransac
                 payloadJson: try encodePersistedTransactionRecordJson(value: snap)
             )
         }
-        return try coreEncodeHistoryRecordsJson(records: records)
     } catch {
         return nil
     }
@@ -280,8 +281,8 @@ extension AppState {
     func persistTransactionsFullSync() {
         let snapshots = transactions.map(\.persistedSnapshot)
         Task.detached(priority: .utility) {
-            guard let json = encodeHistoryRecords(snapshots) else { return }
-            await WalletServiceBridge.shared.replaceAllHistoryRecords(recordsJSON: json)
+            guard let records = historyRecordEncodeInputs(snapshots) else { return }
+            try? await WalletServiceBridge.shared.replaceAllHistoryRecords(records)
         }
     }
     func persistTransactionsDelta(from oldRecords: [TransactionRecord], to newRecords: [TransactionRecord]) {
@@ -291,16 +292,13 @@ extension AppState {
         let upsertSnapshots = newRecords.map(\.persistedSnapshot)
         if !deletedIDs.isEmpty {
             Task.detached(priority: .utility) {
-                guard let idsData = try? JSONEncoder().encode(deletedIDs),
-                    let idsJSON = String(data: idsData, encoding: .utf8)
-                else { return }
-                await WalletServiceBridge.shared.deleteHistoryRecords(idsJSON: idsJSON)
+                try? await WalletServiceBridge.shared.deleteHistoryRecords(ids: deletedIDs)
             }
         }
         if !upsertSnapshots.isEmpty {
             Task.detached(priority: .utility) {
-                guard let json = encodeHistoryRecords(upsertSnapshots) else { return }
-                await WalletServiceBridge.shared.upsertHistoryRecords(recordsJSON: json)
+                guard let records = historyRecordEncodeInputs(upsertSnapshots) else { return }
+                try? await WalletServiceBridge.shared.upsertHistoryRecords(records)
             }
         }
     }
@@ -355,7 +353,7 @@ extension AppState {
                 nextChangeIndex: Int64(state.nextChangeIndex),
                 reservedReceiveIndex: state.reservedReceiveIndex.map { Int64($0) }
             )
-            Task { await WalletServiceBridge.shared.saveKeypoolStateTyped(walletId: walletID, chainName: chainName, state: typed) }
+            Task { try? await WalletServiceBridge.shared.saveKeypoolStateTyped(walletId: walletID, chainName: chainName, state: typed) }
         }
     }
     private func persistOwnedAddressToRust(
@@ -370,7 +368,7 @@ extension AppState {
             branch: branch,
             branchIndex: branchIndex.map { Int64($0) }
         )
-        Task { await WalletServiceBridge.shared.saveOwnedAddressTyped(record: record) }
+        Task { try? await WalletServiceBridge.shared.saveOwnedAddressTyped(record: record) }
     }
 }
 private extension TransactionRecord {

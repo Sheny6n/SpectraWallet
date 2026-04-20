@@ -287,23 +287,16 @@ extension AppState {
         throw URLError(.fileDoesNotExist)
     }
     private func fetchBitcoinHDHistoryPage(xpub: String, limit: Int) async throws -> BitcoinHistoryPage {
-        async let receiveTask = WalletServiceBridge.shared.deriveBitcoinHdAddressesJSON(xpub: xpub, change: 0, startIndex: 0, count: 20)
-        async let changeTask = WalletServiceBridge.shared.deriveBitcoinHdAddressesJSON(xpub: xpub, change: 1, startIndex: 0, count: 10)
-        let (receiveJSON, changeJSON) = try await (receiveTask, changeTask)
-        let allAddresses = historyDecodeHdAddresses(json: receiveJSON) + historyDecodeHdAddresses(json: changeJSON)
+        async let receiveTask = WalletServiceBridge.shared.deriveBitcoinHdAddressStrings(xpub: xpub, change: 0, startIndex: 0, count: 20)
+        async let changeTask = WalletServiceBridge.shared.deriveBitcoinHdAddressStrings(xpub: xpub, change: 1, startIndex: 0, count: 10)
+        let (receiveAddresses, changeAddresses) = try await (receiveTask, changeTask)
+        let allAddresses = receiveAddresses + changeAddresses
         guard !allAddresses.isEmpty else { return BitcoinHistoryPage(snapshots: [], nextCursor: nil, sourceUsed: "rust.hd") }
         let indexedAddresses = Array(allAddresses.enumerated())
         let fetchedSnapshots = await collectLimitedConcurrentIndexedResults(from: indexedAddresses, maxConcurrent: 4) { entry in
             let (index, address) = entry
             do {
-                let json = try await WalletServiceBridge.shared.fetchHistoryJSON(chainId: SpectraChainID.bitcoin, address: address)
-                let payloads = historyDecodeBitcoinRawSnapshots(json: json).map { s in
-                    CoreBitcoinHistorySnapshot(
-                        txid: s.txid, amountBtc: s.amountBtc, kind: s.kind, status: s.status,
-                        counterpartyAddress: s.counterpartyAddress,
-                        blockHeight: s.blockHeight, createdAtUnix: s.createdAtUnix
-                    )
-                }
+                let payloads = try await WalletServiceBridge.shared.fetchBitcoinHistorySnapshots(address: address)
                 return (index, payloads)
             } catch { return (index, nil) }
         }
@@ -325,12 +318,6 @@ extension AppState {
         }
         let nextCursor = entries.count > limit ? entries[limit - 1].txHash : nil
         return BitcoinHistoryPage(snapshots: snapshots, nextCursor: nextCursor, sourceUsed: "rust")
-    }
-    func decodeRustHistoryJSON(json: String) -> [[String: Any]] {
-        guard let data = json.data(using: .utf8), let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            return []
-        }
-        return arr
     }
     func refreshBitcoinTransactions(limit: Int? = nil, loadMore: Bool = false, targetWalletIDs: Set<String>? = nil) async {
         let walletSnapshot = wallets
@@ -542,13 +529,12 @@ extension AppState {
                 encounteredErrors = true
                 continue
             }
-            let tokenTuples: [(contract: String, symbol: String, name: String, decimals: Int)] =
-                (trackedTokens ?? []).map { ($0.contractAddress, $0.symbol, $0.name, Int($0.decimals)) }
+            let tokenDescriptors: [TokenDescriptor] =
+                (trackedTokens ?? []).map { TokenDescriptor(contract: $0.contractAddress, symbol: $0.symbol, decimals: UInt8($0.decimals), name: $0.name) }
             do {
-                let json = try await WalletServiceBridge.shared.fetchEVMHistoryPageJSON(
-                    chainId: chainId, address: normalizedAddress, tokens: tokenTuples, page: page, pageSize: requestedPageSize
+                decodedPage = try await WalletServiceBridge.shared.fetchEVMHistoryPage(
+                    chainId: chainId, address: normalizedAddress, tokens: tokenDescriptors, page: page, pageSize: requestedPageSize
                 )
-                decodedPage = historyDecodeEvmPage(json: json)
                 tokenDiagnostics = EthereumTokenTransferHistoryDiagnostics(
                     address: normalizedAddress, rpcTransferCount: 0, rpcError: nil, blockscoutTransferCount: 0, blockscoutError: nil,
                     etherscanTransferCount: Int32(decodedPage.tokens.count), etherscanError: nil, ethplorerTransferCount: 0,

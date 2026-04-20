@@ -7,7 +7,6 @@ import UIKit
 #endif
 @MainActor
 @Observable
-@dynamicMemberLookup
 class AppState {
     enum HistoryPaging {
         static let endpointBatchSize = 20
@@ -428,8 +427,8 @@ class AppState {
             persistAppSettings()
             WalletServiceBridge.shared.resetHistoryForChain(chainId: 0)
             Task {
-                await WalletServiceBridge.shared.deleteKeypoolForChain(chainName: "Bitcoin")
-                await WalletServiceBridge.shared.deleteOwnedAddressesForChain(chainName: "Bitcoin")
+                try? await WalletServiceBridge.shared.deleteKeypoolForChain(chainName: "Bitcoin")
+                try? await WalletServiceBridge.shared.deleteOwnedAddressesForChain(chainName: "Bitcoin")
             }
             chainKeypoolByChain.removeValue(forKey: "Bitcoin")
             chainOwnedAddressMapByChain.removeValue(forKey: "Bitcoin")
@@ -439,8 +438,8 @@ class AppState {
         didSet {
             persistAppSettings()
             Task {
-                await WalletServiceBridge.shared.deleteKeypoolForChain(chainName: "Dogecoin")
-                await WalletServiceBridge.shared.deleteOwnedAddressesForChain(chainName: "Dogecoin")
+                try? await WalletServiceBridge.shared.deleteKeypoolForChain(chainName: "Dogecoin")
+                try? await WalletServiceBridge.shared.deleteOwnedAddressesForChain(chainName: "Dogecoin")
             }
             chainKeypoolByChain["Dogecoin"] = [:]
             chainOwnedAddressMapByChain["Dogecoin"] = [:]

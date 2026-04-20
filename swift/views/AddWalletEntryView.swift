@@ -1,7 +1,4 @@
 import SwiftUI
-private func localizedAddWalletString(_ key: String) -> String {
-    AppLocalization.string(key)
-}
 struct AddWalletEntryView: View {
     let store: AppState
     var body: some View {
@@ -10,29 +7,29 @@ struct AddWalletEntryView: View {
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 14) {
                     actionCard(
-                        title: localizedAddWalletString("Create New Wallet"),
-                        subtitle: localizedAddWalletString("Generate a new seed phrase and set up your wallet."), icon: "plus.circle.fill",
+                        title: AppLocalization.string("Create New Wallet"),
+                        subtitle: AppLocalization.string("Generate a new seed phrase and set up your wallet."), icon: "plus.circle.fill",
                         tint: Color.green
                     ) {
                         store.beginWalletCreation()
                     }
                     actionCard(
-                        title: localizedAddWalletString("Import Wallet"),
-                        subtitle: localizedAddWalletString("Use an existing seed phrase or private key."), icon: "arrow.down.circle.fill",
+                        title: AppLocalization.string("Import Wallet"),
+                        subtitle: AppLocalization.string("Use an existing seed phrase or private key."), icon: "arrow.down.circle.fill",
                         tint: Color.blue
                     ) {
                         store.beginWalletImport()
                     }
                     actionCard(
-                        title: localizedAddWalletString("Watch Addresses"),
-                        subtitle: localizedAddWalletString("Track public addresses without adding private keys."), icon: "eye.circle.fill",
+                        title: AppLocalization.string("Watch Addresses"),
+                        subtitle: AppLocalization.string("Track public addresses without adding private keys."), icon: "eye.circle.fill",
                         tint: Color.orange
                     ) {
                         store.beginWatchAddressesImport()
                     }
                 }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
             }
-        }.navigationTitle(localizedAddWalletString("Add Wallet")).navigationBarTitleDisplayMode(.inline).navigationDestination(
+        }.navigationTitle(AppLocalization.string("Add Wallet")).navigationBarTitleDisplayMode(.inline).navigationDestination(
             isPresented: Binding(
                 get: { store.isShowingWalletImporter && store.editingWalletID == nil },
                 set: { isPresented in

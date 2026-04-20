@@ -240,7 +240,7 @@ extension AppState {
         cancelWalletImport()
     }
     private func resetHistoryAndCacheState() {
-        Task { await WalletServiceBridge.shared.clearAllHistoryRecords() }
+        Task { try? await WalletServiceBridge.shared.clearAllHistoryRecords() }
         UserDefaults.standard.removeObject(forKey: Self.chainSyncStateDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.operationalLogsDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.chainKeypoolDefaultsKey)

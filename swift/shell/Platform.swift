@@ -106,7 +106,7 @@ private nonisolated extension ImportedWallet {
 }
 nonisolated extension Coin: PlatformSnapshotConvertible {
     func makePlatformSnapshot() -> PlatformAssetSnapshot {
-        let chainID = WalletChainID(chainName) ?? WalletChainID(rawValue: chainName)
+        let chainID = WalletChainID.resolved(chainName)
         return PlatformAssetSnapshot(
             id: holdingKey, name: name, symbol: symbol, chainID: chainID.rawValue, chainName: chainID.displayName,
             tokenStandard: tokenStandard, contractAddress: contractAddress?.platformTrimmedOrNil, marketDataId: marketDataId,
@@ -116,7 +116,7 @@ nonisolated extension Coin: PlatformSnapshotConvertible {
 }
 nonisolated extension ImportedWallet: PlatformSnapshotConvertible {
     func makePlatformSnapshot() -> PlatformWalletSnapshot {
-        let chainID = WalletChainID(selectedChain) ?? WalletChainID(rawValue: selectedChain)
+        let chainID = WalletChainID.resolved(selectedChain)
         return PlatformWalletSnapshot(
             id: id, name: name, selectedChainID: chainID.rawValue, selectedChainName: chainID.displayName,
             includeInPortfolioTotal: includeInPortfolioTotal, totalBalanceUSD: totalBalance, addresses: makeAddressSnapshots(),
@@ -126,7 +126,7 @@ nonisolated extension ImportedWallet: PlatformSnapshotConvertible {
 }
 nonisolated extension TransactionRecord: PlatformSnapshotConvertible {
     func makePlatformSnapshot() -> PlatformTransactionSnapshot {
-        let chainID = WalletChainID(chainName) ?? WalletChainID(rawValue: chainName)
+        let chainID = WalletChainID.resolved(chainName)
         return PlatformTransactionSnapshot(
             id: id, walletID: walletID, kind: kind.rawValue, status: status.rawValue, walletName: walletName, assetName: assetName,
             symbol: symbol, chainID: chainID.rawValue, chainName: chainID.displayName, amount: amount, address: address,
@@ -137,7 +137,7 @@ nonisolated extension TransactionRecord: PlatformSnapshotConvertible {
 }
 nonisolated extension AddressBookEntry: PlatformSnapshotConvertible {
     func makePlatformSnapshot() -> PlatformAddressBookEntrySnapshot {
-        let chainID = WalletChainID(chainName) ?? WalletChainID(rawValue: chainName)
+        let chainID = WalletChainID.resolved(chainName)
         return PlatformAddressBookEntrySnapshot(
             id: id, name: name, chainID: chainID.rawValue, chainName: chainID.displayName, address: address, note: note
         )

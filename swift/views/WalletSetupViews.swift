@@ -1,12 +1,5 @@
 import Foundation
 import SwiftUI
-private func localizedSetupString(_ key: String) -> String {
-    AppLocalization.string(key)
-}
-private func localizedSetupFormat(_ key: String, _ arguments: CVarArg...) -> String {
-    let format = AppLocalization.string(key)
-    return String(format: format, locale: AppLocalization.locale, arguments: arguments)
-}
 private struct SetupChainSelectionDescriptor: Identifiable {
     let id: String
     let titleKey: String
@@ -122,10 +115,10 @@ struct SetupView: View {
     private var isShowingAdvancedPage: Bool { setupPage == .advanced }
     private var isSimpleSetupSelected: Bool { setupModeChoice == .simple }
     private var setupTitle: String {
-        if isShowingSetupModeChoicePage { return localizedSetupString("Choose Setup Type") }
+        if isShowingSetupModeChoicePage { return AppLocalization.string("Choose Setup Type") }
         if isShowingBackupVerificationPage { return copy.backupVerificationTitle }
         if isShowingAdvancedPage { return copy.advancedTitle }
-        if isShowingPasswordPage { return localizedSetupString("import_flow.wallet_password_title") }
+        if isShowingPasswordPage { return AppLocalization.string("import_flow.wallet_password_title") }
         if isShowingWatchAddressesPage { return copy.watchAddressesTitle }
         if isShowingSeedPhrasePage {
             if isCreateMode { return copy.recordSeedPhraseTitle }
@@ -137,11 +130,11 @@ struct SetupView: View {
     }
     private var setupSubtitle: String {
         if isShowingSetupModeChoicePage {
-            return localizedSetupString("Start with a guided simple setup or continue with full advanced controls.")
+            return AppLocalization.string("Start with a guided simple setup or continue with full advanced controls.")
         }
         if isShowingBackupVerificationPage { return copy.backupVerificationSubtitle }
         if isShowingAdvancedPage { return copy.advancedSubtitle }
-        if isShowingPasswordPage { return localizedSetupString("import_flow.wallet_password_subtitle") }
+        if isShowingPasswordPage { return AppLocalization.string("import_flow.wallet_password_subtitle") }
         if isShowingWatchAddressesPage { return copy.watchAddressesSubtitle }
         if isShowingSeedPhrasePage {
             if isPrivateKeyImportMode { return copy.privateKeySubtitle }
@@ -155,14 +148,14 @@ struct SetupView: View {
     private var seedPhraseStatusText: String {
         if draft.seedPhraseWords.isEmpty { return "" }
         if !draft.invalidSeedWords.isEmpty {
-            return localizedSetupFormat("import_flow.seed_phrase_invalid_words_format", draft.invalidSeedWords.joined(separator: ", "))
+            return AppLocalization.format("import_flow.seed_phrase_invalid_words_format", draft.invalidSeedWords.joined(separator: ", "))
         }
         if draft.seedPhraseWords.count < draft.selectedSeedPhraseWordCount {
-            return localizedSetupFormat(
+            return AppLocalization.format(
                 "import_flow.seed_phrase_progress_format", draft.seedPhraseWords.count, draft.selectedSeedPhraseWordCount)
         }
         if let validationError = draft.seedPhraseValidationError { return validationError }
-        return localizedSetupString("import_flow.seed_phrase_valid_status")
+        return AppLocalization.string("import_flow.seed_phrase_valid_status")
     }
     private var seedPhraseStatusColor: Color {
         if draft.seedPhraseWords.isEmpty || draft.seedPhraseWords.count < draft.selectedSeedPhraseWordCount { return .white.opacity(0.7) }
@@ -221,15 +214,15 @@ struct SetupView: View {
         return store.canImportWallet && !store.isImportingWallet
     }
     private var primaryActionTitle: String {
-        if isShowingSetupModeChoicePage { return localizedSetupString("import_flow.next") }
-        if isShowingDetailsPage && (usesSeedPhraseFlow || usesWatchAddressesFlow) { return localizedSetupString("import_flow.next") }
+        if isShowingSetupModeChoicePage { return AppLocalization.string("import_flow.next") }
+        if isShowingDetailsPage && (usesSeedPhraseFlow || usesWatchAddressesFlow) { return AppLocalization.string("import_flow.next") }
         if isShowingAdvancedPage { return "" }
-        if isShowingSeedPhrasePage { return localizedSetupString("import_flow.next") }
-        if isShowingPasswordPage && isCreateMode { return localizedSetupString("import_flow.continue_to_backup_verification") }
-        if isEditingWallet { return localizedSetupString("import_flow.save_wallet") }
-        if isCreateMode { return localizedSetupString("import_flow.create_wallet") }
+        if isShowingSeedPhrasePage { return AppLocalization.string("import_flow.next") }
+        if isShowingPasswordPage && isCreateMode { return AppLocalization.string("import_flow.continue_to_backup_verification") }
+        if isEditingWallet { return AppLocalization.string("import_flow.save_wallet") }
+        if isCreateMode { return AppLocalization.string("import_flow.create_wallet") }
         return isWatchAddressesImportMode
-            ? localizedSetupString("import_flow.watch_addresses") : localizedSetupString("import_flow.import_wallet")
+            ? AppLocalization.string("import_flow.watch_addresses") : AppLocalization.string("import_flow.import_wallet")
     }
     private var isPrimaryActionEnabled: Bool {
         if isShowingSetupModeChoicePage { return setupModeChoice != nil && !store.isImportingWallet }
@@ -247,26 +240,26 @@ struct SetupView: View {
     private var selectedChainCount: Int { draft.selectedChainNames.count }
     private var chainSelectionSummary: String {
         switch selectedChainCount {
-        case 0: return localizedSetupString("import_flow.no_chains_selected")
-        case 1: return localizedSetupString("import_flow.one_chain_selected")
-        default: return localizedSetupFormat("import_flow.multiple_chains_selected_format", selectedChainCount)
+        case 0: return AppLocalization.string("import_flow.no_chains_selected")
+        case 1: return AppLocalization.string("import_flow.one_chain_selected")
+        default: return AppLocalization.format("import_flow.multiple_chains_selected_format", selectedChainCount)
         }
     }
     private var chainSelectionSubtitle: String {
-        if isCreateMode { return localizedSetupString("import_flow.create_chain_selection_subtitle") }
-        return localizedSetupString("import_flow.import_chain_selection_subtitle")
+        if isCreateMode { return AppLocalization.string("import_flow.create_chain_selection_subtitle") }
+        return AppLocalization.string("import_flow.import_chain_selection_subtitle")
     }
     @ViewBuilder
     private var setupModeChoiceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             setupModeButton(
-                title: localizedSetupString("Simple Setup"),
-                subtitle: localizedSetupString("Recommended defaults and fewer required choices."), iconName: "sparkles", tint: .green,
+                title: AppLocalization.string("Simple Setup"),
+                subtitle: AppLocalization.string("Recommended defaults and fewer required choices."), iconName: "sparkles", tint: .green,
                 choice: .simple
             )
             setupModeButton(
-                title: localizedSetupString("Advanced Setup"),
-                subtitle: localizedSetupString("Configure derivation paths and network-level options."), iconName: "slider.horizontal.3",
+                title: AppLocalization.string("Advanced Setup"),
+                subtitle: AppLocalization.string("Configure derivation paths and network-level options."), iconName: "slider.horizontal.3",
                 tint: .orange, choice: .advanced
             )
         }
@@ -316,19 +309,19 @@ struct SetupView: View {
     @ViewBuilder
     private var walletPasswordStepSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(localizedSetupString("import_flow.wallet_password_optional")).font(.headline).foregroundStyle(Color.primary)
-            Text(localizedSetupString("import_flow.wallet_password_explanation")).font(.subheadline).foregroundStyle(
+            Text(AppLocalization.string("import_flow.wallet_password_optional")).font(.headline).foregroundStyle(Color.primary)
+            Text(AppLocalization.string("import_flow.wallet_password_explanation")).font(.subheadline).foregroundStyle(
                 Color.primary.opacity(0.76))
-            SecureField(localizedSetupString("import_flow.wallet_password_field"), text: $draft.walletPassword).textInputAutocapitalization(
+            SecureField(AppLocalization.string("import_flow.wallet_password_field"), text: $draft.walletPassword).textInputAutocapitalization(
                 .never
             ).autocorrectionDisabled().padding(14).spectraInputFieldStyle().foregroundStyle(Color.primary)
-            SecureField(localizedSetupString("import_flow.wallet_password_confirmation_field"), text: $draft.walletPasswordConfirmation)
+            SecureField(AppLocalization.string("import_flow.wallet_password_confirmation_field"), text: $draft.walletPasswordConfirmation)
                 .textInputAutocapitalization(.never).autocorrectionDisabled().padding(14).spectraInputFieldStyle().foregroundStyle(
                     Color.primary)
             if let walletPasswordValidationError = draft.walletPasswordValidationError {
                 Text(walletPasswordValidationError).font(.caption).foregroundStyle(.red.opacity(0.9))
             } else if draft.normalizedWalletPassword != nil {
-                Text(localizedSetupString("import_flow.wallet_password_success")).font(.caption).foregroundStyle(.green.opacity(0.9))
+                Text(AppLocalization.string("import_flow.wallet_password_success")).font(.caption).foregroundStyle(.green.opacity(0.9))
             }
         }
     }
@@ -374,7 +367,7 @@ struct SetupView: View {
                     maxWidth: .infinity, alignment: .leading
                 ).spectraInputFieldStyle().tint(.white)
                 if showsRegenerateButton {
-                    Button(localizedSetupString("Regenerate")) {
+                    Button(AppLocalization.string("Regenerate")) {
                         draft.regenerateSeedPhrase()
                     }.buttonStyle(.glass).disabled(![12, 15, 18, 21, 24].contains(draft.selectedSeedPhraseWordCount))
                 }
@@ -384,7 +377,7 @@ struct SetupView: View {
                     .textInputAutocapitalization(.never).autocorrectionDisabled().padding(.horizontal, 14).padding(.vertical, 12).frame(
                         maxWidth: .infinity, alignment: .leading
                     ).spectraInputFieldStyle()
-                Button(localizedSetupString("Apply")) {
+                Button(AppLocalization.string("Apply")) {
                     draft.applyCustomSeedPhraseWordCount(customSeedPhraseWordCountInput)
                     customSeedPhraseWordCountInput = String(draft.selectedSeedPhraseWordCount)
                 }.buttonStyle(.glass)
@@ -471,40 +464,40 @@ struct SetupView: View {
     }
     private var advancedDescriptionText: String {
         if hasBitcoinSelection && hasEthereumSelection && hasDogecoinSelection {
-            return localizedSetupString(
+            return AppLocalization.string(
                 "Control the derivation path used for each selected chain and choose the Bitcoin, Ethereum, and Dogecoin networks when needed."
             )
         }
         if hasBitcoinSelection && hasEthereumSelection {
-            return localizedSetupString(
+            return AppLocalization.string(
                 "Control the derivation path used for each selected chain and choose the Bitcoin and Ethereum networks when needed.")
         }
         if hasBitcoinSelection && hasDogecoinSelection {
-            return localizedSetupString(
+            return AppLocalization.string(
                 "Control the derivation path used for each selected chain and choose the Bitcoin and Dogecoin networks when needed.")
         }
         if hasEthereumSelection && hasDogecoinSelection {
-            return localizedSetupString(
+            return AppLocalization.string(
                 "Control the derivation path used for each selected chain and choose the Ethereum and Dogecoin networks when needed.")
         }
         if hasBitcoinSelection {
-            return localizedSetupString(
+            return AppLocalization.string(
                 "Control the derivation path used for each selected chain and choose the Bitcoin network when needed.")
         }
         if hasEthereumSelection {
-            return localizedSetupString(
+            return AppLocalization.string(
                 "Control the derivation path used for each selected chain and choose the Ethereum network when needed.")
         }
         if hasDogecoinSelection {
-            return localizedSetupString(
+            return AppLocalization.string(
                 "Control the derivation path used for each selected chain and choose the Dogecoin network when needed.")
         }
-        return localizedSetupString("Control the derivation path used for each selected chain.")
+        return AppLocalization.string("Control the derivation path used for each selected chain.")
     }
     private var bitcoinNetworkAdvancedSection: some View {
         networkModePicker(
-            title: localizedSetupString("Bitcoin Network"), accentColor: .orange,
-            caption: localizedSetupString(
+            title: AppLocalization.string("Bitcoin Network"), accentColor: .orange,
+            caption: AppLocalization.string(
                 "This controls Bitcoin wallet import, address validation, and endpoint usage for Bitcoin wallets."),
             modeOptions: BitcoinNetworkMode.allCases.map { ($0.rawValue, $0.displayName) },
             currentModeID: store.bitcoinNetworkMode.rawValue,
@@ -513,8 +506,8 @@ struct SetupView: View {
     }
     private var ethereumNetworkAdvancedSection: some View {
         networkModePicker(
-            title: localizedSetupString("Ethereum Network"), accentColor: .blue,
-            caption: localizedSetupString(
+            title: AppLocalization.string("Ethereum Network"), accentColor: .blue,
+            caption: AppLocalization.string(
                 "This controls Ethereum wallet import, balance refresh, history, and endpoint usage for Ethereum wallets."),
             modeOptions: EthereumNetworkMode.allCases.map { ($0.rawValue, $0.displayName) },
             currentModeID: store.ethereumNetworkMode.rawValue,
@@ -523,8 +516,8 @@ struct SetupView: View {
     }
     private var dogecoinNetworkAdvancedSection: some View {
         networkModePicker(
-            title: localizedSetupString("Dogecoin Network"), accentColor: .yellow, accentForeground: .yellow.opacity(0.9),
-            caption: localizedSetupString(
+            title: AppLocalization.string("Dogecoin Network"), accentColor: .yellow, accentForeground: .yellow.opacity(0.9),
+            caption: AppLocalization.string(
                 "This controls Dogecoin wallet import, address validation, history, and endpoint usage for Dogecoin wallets."),
             modeOptions: DogecoinNetworkMode.allCases.map { ($0.rawValue, $0.displayName) },
             currentModeID: store.dogecoinNetworkMode.rawValue,
@@ -574,7 +567,7 @@ struct SetupView: View {
                         width: 26, height: 26
                     ).background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(localizedSetupString("Advanced")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+                        Text(AppLocalization.string("Advanced")).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
                         Text(advancedButtonSubtitle).font(.caption2).foregroundStyle(Color.primary.opacity(0.68))
                     }
                     Spacer()
@@ -585,21 +578,21 @@ struct SetupView: View {
     }
     private var advancedButtonSubtitle: String {
         if hasBitcoinSelection && hasEthereumSelection && hasDogecoinSelection {
-            return localizedSetupString("Adjust derivation paths plus Bitcoin, Ethereum, and Dogecoin networks.")
+            return AppLocalization.string("Adjust derivation paths plus Bitcoin, Ethereum, and Dogecoin networks.")
         }
         if hasBitcoinSelection && hasEthereumSelection {
-            return localizedSetupString("Adjust derivation paths plus Bitcoin and Ethereum networks.")
+            return AppLocalization.string("Adjust derivation paths plus Bitcoin and Ethereum networks.")
         }
         if hasBitcoinSelection && hasDogecoinSelection {
-            return localizedSetupString("Adjust derivation paths plus Bitcoin and Dogecoin networks.")
+            return AppLocalization.string("Adjust derivation paths plus Bitcoin and Dogecoin networks.")
         }
         if hasEthereumSelection && hasDogecoinSelection {
-            return localizedSetupString("Adjust derivation paths plus Ethereum and Dogecoin networks.")
+            return AppLocalization.string("Adjust derivation paths plus Ethereum and Dogecoin networks.")
         }
-        if hasBitcoinSelection { return localizedSetupString("Adjust derivation paths and Bitcoin network.") }
-        if hasEthereumSelection { return localizedSetupString("Adjust derivation paths and Ethereum network.") }
-        if hasDogecoinSelection { return localizedSetupString("Adjust derivation paths and Dogecoin network.") }
-        return localizedSetupString("Adjust derivation paths.")
+        if hasBitcoinSelection { return AppLocalization.string("Adjust derivation paths and Bitcoin network.") }
+        if hasEthereumSelection { return AppLocalization.string("Adjust derivation paths and Ethereum network.") }
+        if hasDogecoinSelection { return AppLocalization.string("Adjust derivation paths and Dogecoin network.") }
+        return AppLocalization.string("Adjust derivation paths.")
     }
     @ViewBuilder
     private var importSecretModePicker: some View {
@@ -669,7 +662,7 @@ struct SetupView: View {
             } else if !draft.privateKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                 !corePrivateKeyHexIsLikely(rawValue: draft.privateKeyInput)
             {
-                Text(localizedSetupString("Enter a valid 32-byte hex private key.")).font(.footnote).foregroundStyle(.red.opacity(0.9))
+                Text(AppLocalization.string("Enter a valid 32-byte hex private key.")).font(.footnote).foregroundStyle(.red.opacity(0.9))
             }
         }
     }
@@ -753,7 +746,7 @@ struct SetupView: View {
                             VStack(alignment: .leading, spacing: 14) {
                                 HStack(alignment: .center, spacing: 12) {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(localizedSetupString("Chains")).font(.headline).foregroundStyle(Color.primary)
+                                        Text(AppLocalization.string("Chains")).font(.headline).foregroundStyle(Color.primary)
                                     }
                                     Spacer()
                                     Text(chainSelectionSummary).font(.caption.weight(.semibold)).foregroundStyle(
@@ -778,9 +771,9 @@ struct SetupView: View {
                                             ).frame(width: 26, height: 26).background(
                                                 Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                                             VStack(alignment: .leading, spacing: 4) {
-                                                Text(localizedSetupString("See All Chains")).font(.subheadline.weight(.semibold))
+                                                Text(AppLocalization.string("See All Chains")).font(.subheadline.weight(.semibold))
                                                     .foregroundStyle(Color.primary)
-                                                Text(localizedSetupString("Browse the full chain list.")).font(.caption2).foregroundStyle(
+                                                Text(AppLocalization.string("Browse the full chain list.")).font(.caption2).foregroundStyle(
                                                     Color.primary.opacity(0.68))
                                             }
                                             Spacer()
@@ -894,7 +887,7 @@ struct SetupView: View {
                                     && !draft.wantsCardano && !draft.wantsSui && !draft.wantsAptos && !draft.wantsTON && !draft.wantsICP
                                     && !draft.wantsNear && !draft.wantsPolkadot && !draft.wantsStellar
                                 {
-                                    Text(localizedSetupString("Select a supported chain above to enter its address to watch.")).font(
+                                    Text(AppLocalization.string("Select a supported chain above to enter its address to watch.")).font(
                                         .caption
                                     ).foregroundStyle(.orange.opacity(0.9))
                                 }
@@ -906,15 +899,15 @@ struct SetupView: View {
                             VStack(alignment: .leading, spacing: 14) {
                                 Text(
                                     isEditingWallet
-                                        ? localizedSetupString("import_flow.wallet_name")
-                                        : localizedSetupString("import_flow.wallet_name_optional")
+                                        ? AppLocalization.string("import_flow.wallet_name")
+                                        : AppLocalization.string("import_flow.wallet_name_optional")
                                 ).font(.headline).foregroundStyle(Color.primary)
                                 if !isEditingWallet {
-                                    Text(localizedSetupString("import_flow.wallet_name_hint")).font(.subheadline).foregroundStyle(
+                                    Text(AppLocalization.string("import_flow.wallet_name_hint")).font(.subheadline).foregroundStyle(
                                         Color.primary.opacity(0.76))
                                 }
                                 HStack(spacing: 10) {
-                                    TextField(localizedSetupString("import_flow.wallet_name_placeholder"), text: $draft.walletName)
+                                    TextField(AppLocalization.string("import_flow.wallet_name_placeholder"), text: $draft.walletName)
                                         .textInputAutocapitalization(.words).autocorrectionDisabled().foregroundStyle(Color.primary)
                                     if isEditingWallet && !draft.walletName.isEmpty {
                                         Button {
@@ -947,7 +940,7 @@ struct SetupView: View {
                     if store.isImportingWallet {
                         HStack(spacing: 10) {
                             ProgressView().tint(.white)
-                            Text(localizedSetupString("import_flow.initializing_wallet_connections")).font(.footnote).foregroundStyle(
+                            Text(AppLocalization.string("import_flow.initializing_wallet_connections")).font(.footnote).foregroundStyle(
                                 Color.primary.opacity(0.8))
                         }.frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -996,31 +989,31 @@ struct SetupView: View {
                         }.buttonStyle(.glassProminent).disabled(!isPrimaryActionEnabled).opacity(isPrimaryActionEnabled ? 1.0 : 0.55)
                     }
                     if isShowingSeedPhrasePage || isShowingWatchAddressesPage {
-                        Button(localizedSetupString("import_flow.back")) {
+                        Button(AppLocalization.string("import_flow.back")) {
                             withAnimation {
                                 setupPage = .details
                             }
                         }.buttonStyle(.glass)
                     } else if isShowingDetailsPage && !isEditingWallet {
-                        Button(localizedSetupString("import_flow.back")) {
+                        Button(AppLocalization.string("import_flow.back")) {
                             withAnimation {
                                 setupPage = .setupModeChoice
                             }
                         }.buttonStyle(.glass)
                     } else if isShowingAdvancedPage {
-                        Button(localizedSetupString("import_flow.back")) {
+                        Button(AppLocalization.string("import_flow.back")) {
                             withAnimation {
                                 setupPage = .seedPhrase
                             }
                         }.buttonStyle(.glass)
                     } else if isShowingPasswordPage {
-                        Button(localizedSetupString("import_flow.back")) {
+                        Button(AppLocalization.string("import_flow.back")) {
                             withAnimation {
                                 setupPage = .seedPhrase
                             }
                         }.buttonStyle(.glass)
                     } else if isShowingBackupVerificationPage {
-                        Button(localizedSetupString("import_flow.back_to_wallet_password")) {
+                        Button(AppLocalization.string("import_flow.back_to_wallet_password")) {
                             withAnimation {
                                 setupPage = .password
                             }
@@ -1083,11 +1076,11 @@ private struct AllChainsSelectionView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 10) {
                                 Image(systemName: "magnifyingglass").foregroundStyle(Color.primary.opacity(0.6))
-                                TextField(localizedSetupString("import_flow.search_chains"), text: $chainSearchText)
+                                TextField(AppLocalization.string("import_flow.search_chains"), text: $chainSearchText)
                                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                             }.padding(.horizontal, 14).padding(.vertical, 12).spectraInputFieldStyle()
                             if filteredDescriptors.isEmpty {
-                                Text(localizedSetupString("import_flow.no_chains_match")).font(.caption).foregroundStyle(
+                                Text(AppLocalization.string("import_flow.no_chains_match")).font(.caption).foregroundStyle(
                                     Color.primary.opacity(0.7))
                             } else {
                                 VStack(alignment: .leading, spacing: 2) {
@@ -1097,9 +1090,9 @@ private struct AllChainsSelectionView: View {
                         }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 24))
                     }.padding(.horizontal, 20).padding(.vertical, 20)
                 }
-            }.navigationTitle(localizedSetupString("import_flow.all_chains_title")).navigationBarTitleDisplayMode(.inline).toolbar {
+            }.navigationTitle(AppLocalization.string("import_flow.all_chains_title")).navigationBarTitleDisplayMode(.inline).toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(localizedSetupString("import_flow.done")) {
+                    Button(AppLocalization.string("import_flow.done")) {
                         dismiss()
                     }
                 }

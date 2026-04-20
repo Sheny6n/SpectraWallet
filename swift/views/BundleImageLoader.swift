@@ -16,21 +16,21 @@ enum BundleImageLoader {
             cache.countLimit = 256
             return cache
         }()
-        private static let missSentinel = NSURL(string: "spectra-miss:///")!
-        private static let urlCache = NSCache<NSString, NSURL>()
+        private final class CachedURL {
+            let url: URL?
+            init(_ url: URL?) { self.url = url }
+        }
+        private static let urlCache = NSCache<NSString, CachedURL>()
     #endif
 
     private static func url(forImageNamed name: String) -> URL? {
         #if canImport(UIKit)
             let key = name as NSString
-            if let cached = urlCache.object(forKey: key) {
-                return cached === missSentinel ? nil : (cached as URL)
-            }
+            if let cached = urlCache.object(forKey: key) { return cached.url }
         #endif
         let resolved = resolvedURL(forImageNamed: name)
         #if canImport(UIKit)
-            let key2 = name as NSString
-            if let resolved { urlCache.setObject(resolved as NSURL, forKey: key2) } else { urlCache.setObject(missSentinel, forKey: key2) }
+            urlCache.setObject(CachedURL(resolved), forKey: name as NSString)
         #endif
         return resolved
     }

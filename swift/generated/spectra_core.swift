@@ -621,14 +621,21 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
  * Callback interface implemented by Swift. Rust calls these from the tokio
  * task that owns the refresh timer loop. Implementations must be
  * `Send + Sync` (UniFFI enforces this for foreign trait objects).
+ *
+ * As of 2026-04-19 the refresh engine applies the balance update to the
+ * Rust-owned wallet state before invoking the callback, so Swift receives a
+ * typed `WalletSummary` record directly instead of shuttling the raw JSON
+ * back through `update_native_balance_typed`.
  */
 public protocol BalanceObserver: AnyObject, Sendable {
     
     /**
-     * Called after each successful balance fetch within a cycle.
-     * `balance_json` is the raw JSON from `WalletService::fetch_balance_auto`.
+     * Called after each successful balance fetch within a cycle. `summary`
+     * is the updated `WalletSummary` (already applied to the Rust store), or
+     * `None` if the native amount could not be parsed or the wallet is not
+     * in the in-memory state.
      */
-    nonisolated func onBalanceUpdated(chainId: UInt32, walletId: String, balanceJson: String) 
+    nonisolated func onBalanceUpdated(chainId: UInt32, walletId: String, summary: WalletSummary?) 
     
     /**
      * Called once the full sweep of all registered entries completes.
@@ -640,6 +647,11 @@ public protocol BalanceObserver: AnyObject, Sendable {
  * Callback interface implemented by Swift. Rust calls these from the tokio
  * task that owns the refresh timer loop. Implementations must be
  * `Send + Sync` (UniFFI enforces this for foreign trait objects).
+ *
+ * As of 2026-04-19 the refresh engine applies the balance update to the
+ * Rust-owned wallet state before invoking the callback, so Swift receives a
+ * typed `WalletSummary` record directly instead of shuttling the raw JSON
+ * back through `update_native_balance_typed`.
  */
 nonisolated open class BalanceObserverImpl: BalanceObserver, @unchecked Sendable {
     fileprivate let pointer: UnsafeMutableRawPointer!
@@ -694,14 +706,16 @@ nonisolated open class BalanceObserverImpl: BalanceObserver, @unchecked Sendable
 
     
     /**
-     * Called after each successful balance fetch within a cycle.
-     * `balance_json` is the raw JSON from `WalletService::fetch_balance_auto`.
+     * Called after each successful balance fetch within a cycle. `summary`
+     * is the updated `WalletSummary` (already applied to the Rust store), or
+     * `None` if the native amount could not be parsed or the wallet is not
+     * in the in-memory state.
      */
-nonisolated open func onBalanceUpdated(chainId: UInt32, walletId: String, balanceJson: String)  {try! rustCall() {
+nonisolated open func onBalanceUpdated(chainId: UInt32, walletId: String, summary: WalletSummary?)  {try! rustCall() {
     uniffi_spectra_core_fn_method_balanceobserver_on_balance_updated(self.uniffiClonePointer(),
         FfiConverterUInt32.lower(chainId),
         FfiConverterString.lower(walletId),
-        FfiConverterString.lower(balanceJson),$0
+        FfiConverterOptionTypeWalletSummary.lower(summary),$0
     )
 }
 }
@@ -734,7 +748,7 @@ fileprivate struct UniffiCallbackInterfaceBalanceObserver {
             uniffiHandle: UInt64,
             chainId: UInt32,
             walletId: RustBuffer,
-            balanceJson: RustBuffer,
+            summary: RustBuffer,
             uniffiOutReturn: UnsafeMutableRawPointer,
             uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
         ) in
@@ -746,7 +760,7 @@ fileprivate struct UniffiCallbackInterfaceBalanceObserver {
                 return uniffiObj.onBalanceUpdated(
                      chainId: try FfiConverterUInt32.lift(chainId),
                      walletId: try FfiConverterString.lift(walletId),
-                     balanceJson: try FfiConverterString.lift(balanceJson)
+                     summary: try FfiConverterOptionTypeWalletSummary.lift(summary)
                 )
             }
 
@@ -1663,8 +1677,6 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      */
     nonisolated func advanceHistoryPage(chainId: UInt32, walletId: String, isLast: Bool) 
     
-    nonisolated func applyNativeAmountInternal(walletId: String, chainId: UInt32, amount: Double) async throws  -> String?
-    
     nonisolated func applyNativeAmountTyped(walletId: String, chainId: UInt32, amount: Double) async throws  -> WalletSummary?
     
     /**
@@ -1679,30 +1691,17 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func broadcastRaw(chainId: UInt32, payload: String) async throws  -> String
     
     /**
+     * Typed wrapper around `broadcast_raw`: runs the broadcast then extracts
+     * the named field (typically `"txid"` or `"digest"`) from the result JSON.
+     * Returns the field value as a string (empty string when missing —
+     * matches the prior `rustField(...)` semantics on the Swift side).
+     */
+    nonisolated func broadcastRawExtract(chainId: UInt32, payload: String, resultField: String) async throws  -> String
+    
+    /**
      * Build the chain-specific payload JSON for `execute_send`.
      */
     nonisolated func buildExecuteSendPayload(req: SendExecutionRequest, privHex: String, pubHex: String?) throws  -> String
-    
-    /**
-     * Store a balance JSON snapshot in the cache.
-     */
-    nonisolated func cacheBalance(chainId: UInt32, address: String, balanceJson: String) 
-    
-    /**
-     * Store a history JSON snapshot in the in-memory cache.
-     */
-    nonisolated func cacheHistory(chainId: UInt32, address: String, historyJson: String) 
-    
-    /**
-     * Return the cached balance JSON for `(chain_id, address)` if present and
-     * not expired. Returns `null` as JSON when the cache is cold.
-     */
-    nonisolated func cachedBalance(chainId: UInt32, address: String)  -> String?
-    
-    /**
-     * Return cached history JSON for `(chain_id, address)` if present and not expired.
-     */
-    nonisolated func cachedHistory(chainId: UInt32, address: String)  -> String?
     
     /**
      * Delete all history records (hard reset).
@@ -1710,14 +1709,9 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func clearAllHistoryRecords(dbPath: String) async throws 
     
     /**
-     * Delete history records by a JSON array of ID strings.
+     * Delete history records by ID.
      */
-    nonisolated func deleteHistoryRecords(dbPath: String, idsJson: String) async throws 
-    
-    /**
-     * Delete all history records for a given wallet_id.
-     */
-    nonisolated func deleteHistoryRecordsForWallet(dbPath: String, walletId: String) async throws 
+    nonisolated func deleteHistoryRecords(dbPath: String, ids: [String]) async throws 
     
     /**
      * Remove all keypool state for a chain (called when the user switches network modes,
@@ -1767,6 +1761,13 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func deriveBitcoinAccountXpubTyped(mnemonicPhrase: String, passphrase: String, accountPath: String) throws  -> String
     
     /**
+     * Typed wrapper: return just the derived addresses. Swift callers that
+     * previously parsed the JSON array to pull out `address` now get them
+     * directly.
+     */
+    nonisolated func deriveBitcoinHdAddressStrings(xpub: String, change: UInt32, startIndex: UInt32, count: UInt32) async throws  -> [String]
+    
+    /**
      * Derive a contiguous range of child addresses from an account-level
      * extended public key (xpub/ypub/zpub).
      *
@@ -1778,11 +1779,6 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func deriveBitcoinHdAddresses(xpub: String, change: UInt32, startIndex: UInt32, count: UInt32) async throws  -> String
     
     /**
-     * Evict all expired entries. Cheap to call on any balance-refresh tick.
-     */
-    nonisolated func evictExpiredBalanceCache() 
-    
-    /**
      * Derive key material, build the chain-specific payload, sign, and
      * broadcast in a single call.
      *
@@ -1791,12 +1787,6 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      * raw private key) directly, and Rust handles the entire pipeline.
      */
     nonisolated func executeSend(request: SendExecutionRequest) async throws  -> SendExecutionResult
-    
-    /**
-     * Fetch all history records, ordered by created_at DESC.
-     * Returns a JSON array of HistoryRecord objects.
-     */
-    nonisolated func fetchAllHistoryRecords(dbPath: String) async throws  -> String
     
     nonisolated func fetchAllHistoryRecordsTyped(dbPath: String) async throws  -> [HistoryRecord]
     
@@ -1812,10 +1802,17 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func fetchBalanceAuto(chainId: UInt32, address: String) async throws  -> String
     
     /**
-     * Fetch the balance, returning the cached value if still fresh, otherwise
-     * fetching from the chain and caching the result.
+     * Typed Bitcoin HD send preview: concurrently fetches the xpub balance
+     * and the Bitcoin fee estimate then decodes into `BitcoinSendPreview`.
      */
-    nonisolated func fetchBalanceCached(chainId: UInt32, address: String) async throws  -> String
+    nonisolated func fetchBitcoinHdSendPreviewTyped(xpub: String, receiveCount: UInt32, changeCount: UInt32) async throws  -> BitcoinSendPreview?
+    
+    /**
+     * Fetch Bitcoin history JSON for `address` and decode it into
+     * typed `CoreBitcoinHistorySnapshot` records. Replaces the Swift
+     * pattern of calling `fetch_history` then `history_decode_bitcoin_raw_snapshots`.
+     */
+    nonisolated func fetchBitcoinHistorySnapshots(address: String) async throws  -> [CoreBitcoinHistorySnapshot]
     
     /**
      * Return the first address on the `change` leg (0 = receive, 1 = change)
@@ -1825,18 +1822,52 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func fetchBitcoinNextUnusedAddress(xpub: String, change: UInt32, gapLimit: UInt32) async throws  -> String
     
     /**
+     * Typed variant of `fetch_bitcoin_next_unused_address` — returns just
+     * the derived address string, or `None` if every candidate in the
+     * `gap_limit` window had activity.
+     */
+    nonisolated func fetchBitcoinNextUnusedAddressTyped(xpub: String, change: UInt32, gapLimit: UInt32) async throws  -> String?
+    
+    /**
      * Scan an xpub's receive + change legs and return aggregated balance
      * plus per-UTXO breakdown. Uses the Bitcoin Esplora endpoint bundle.
      */
     nonisolated func fetchBitcoinXpubBalance(xpub: String, receiveCount: UInt32, changeCount: UInt32) async throws  -> String
     
+    /**
+     * Typed Dogecoin send preview: runs the UTXO fee-preview fetch on the
+     * Dogecoin chain then decodes with the requested amount + fee priority.
+     */
+    nonisolated func fetchDogecoinSendPreviewTyped(address: String, requestedAmount: Double, feePriority: String) async throws  -> DogecoinSendPreview?
+    
     nonisolated func fetchErc20BalanceTyped(chainId: UInt32, contract: String, holder: String) async throws  -> Erc20Balance
+    
+    /**
+     * Lightweight EVM address probe used for send-flow chain-risk warnings.
+     * Fetches nonce + native balance concurrently and returns both typed,
+     * skipping the fee/gas work of the full preview.
+     */
+    nonisolated func fetchEvmAddressProbe(chainId: UInt32, address: String) async throws  -> EvmAddressProbe
     
     /**
      * Fetch the bytecode at `address` on the given EVM chain.
      * Returns `{"code": "0x…"}`. "0x" / "0x0" means EOA (no contract code).
      */
     nonisolated func fetchEvmCode(chainId: UInt32, address: String) async throws  -> String
+    
+    /**
+     * Typed wrapper: returns true iff `address` has deployed bytecode on the
+     * given EVM chain. Combines `fetch_evm_code` with the
+     * `core_evm_has_contract_code` predicate so Swift never sees the JSON.
+     */
+    nonisolated func fetchEvmHasContractCode(chainId: UInt32, address: String) async throws  -> Bool
+    
+    /**
+     * Fetch EVM history for diagnostics and return a fully-built
+     * `EthereumTokenTransferHistoryDiagnostics` record. On network or
+     * chain-support failure the record is seeded with an error description.
+     */
+    nonisolated func fetchEvmHistoryDiagnostics(chainId: UInt32, address: String) async  -> EthereumTokenTransferHistoryDiagnostics
     
     /**
      * Fetch one page of EVM transaction history for `address`.
@@ -1846,23 +1877,18 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      * 1. `txlist` — native ETH/EVM transfers
      * 2. `tokentx` — ERC-20 token transfers
      *
-     * `tokens_json` is `[{"contract":"0x…","symbol":"USDC","name":"USD Coin","decimals":6},…]`.
-     * Only token transfers whose contract matches a tracked token are included in the result.
-     * Pass `"[]"` to skip token transfers.
-     *
-     * Returns `{"native": […], "tokens": […]}`.
+     * `tokens` lists the tracked tokens to include. Only transfers whose
+     * contract matches a tracked token are returned; pass an empty list to
+     * skip token transfers entirely.
      */
-    nonisolated func fetchEvmHistoryPage(chainId: UInt32, address: String, tokensJson: String, page: UInt32, pageSize: UInt32) async throws  -> String
-    
-    nonisolated func fetchEvmHistoryPageTyped(chainId: UInt32, address: String, tokens: [TokenDescriptor], page: UInt32, pageSize: UInt32) async throws  -> String
+    nonisolated func fetchEvmHistoryPage(chainId: UInt32, address: String, tokens: [TokenDescriptor], page: UInt32, pageSize: UInt32) async throws  -> EvmHistoryPageDecoded
     
     /**
-     * Fetch a transaction receipt by hash on an EVM chain.
-     *
-     * Returns the receipt JSON when the transaction has been mined, or
-     * `"null"` (JSON null as a string) when it is still pending.
+     * Fused fetch + classification for an EVM receipt: returns
+     * `Some(classification)` once the receipt has been mined, or `None`
+     * while the transaction is still pending.
      */
-    nonisolated func fetchEvmReceipt(chainId: UInt32, txHash: String) async throws  -> String
+    nonisolated func fetchEvmReceiptClassification(chainId: UInt32, txHash: String) async throws  -> EvmReceiptClassification?
     
     /**
      * Compute an EVM send preview: fetches nonce, EIP-1559 fees, gas
@@ -1889,23 +1915,11 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func fetchEvmSendPreview(chainId: UInt32, from: String, to: String, valueWei: String, dataHex: String) async throws  -> String
     
     /**
-     * Fetch balances for multiple ERC-20 tokens in a single call.
-     *
-     * `tokens_json` is a JSON array of objects:
-     * ```json
-     * [{"contract": "0x...", "symbol": "USDC", "decimals": 6}, ...]
-     * ```
-     *
-     * Returns a JSON array of results:
-     * ```json
-     * [{"contract_address": "0x...", "symbol": "USDC", "balance_display": "10.5",
-     * "balance_raw": "10500000", "decimals": 6}, ...]
-     * ```
-     *
-     * Tokens with zero balance are **included** in the response so the caller
-     * can detect the difference between "zero balance" and "missing token".
+     * Typed EVM send preview: fetches the raw preview JSON then decodes it
+     * into `EthereumSendPreview` with the caller-supplied nonce / fee
+     * overrides applied. Returns `None` when the decoder rejects the payload.
      */
-    nonisolated func fetchEvmTokenBalancesBatch(chainId: UInt32, address: String, tokensJson: String) async throws  -> String
+    nonisolated func fetchEvmSendPreviewTyped(chainId: UInt32, from: String, to: String, valueWei: String, dataHex: String, explicitNonce: Int64?, customFees: EvmCustomFeeConfiguration?) async throws  -> EthereumSendPreview?
     
     nonisolated func fetchEvmTokenBalancesBatchTyped(chainId: UInt32, address: String, tokens: [TokenDescriptor]) async throws  -> [TokenBalanceResult]
     
@@ -1919,29 +1933,6 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      * Typed variant — returns the nonce as u64 directly.
      */
     nonisolated func fetchEvmTxNonceTyped(chainId: UInt32, txHash: String) async throws  -> UInt64
-    
-    /**
-     * Fetch a fee estimate preview for the given chain.
-     *
-     * BTC and EVM return their chain-specific structs (`FeeRate`,
-     * `EvmFeeEstimate`) for backward compatibility with existing Swift
-     * decoders. All other chains return a unified JSON object:
-     *
-     * ```json
-     * {
-     * "chain_id": 17,
-     * "native_fee_raw": "1000000000000000000000",
-     * "native_fee_display": "0.001",
-     * "unit": "NEAR",
-     * "source": "rpc" | "static"
-     * }
-     * ```
-     *
-     * `source` is `"rpc"` when the value comes from a live endpoint call,
-     * and `"static"` when it is a conservative hardcoded default (used for
-     * chains where no preview RPC exists yet).
-     */
-    nonisolated func fetchFeeEstimate(chainId: UInt32) async throws  -> String
     
     /**
      * Fetch USD-relative fiat rates from `provider`. `currencies_json`
@@ -1958,31 +1949,41 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func fetchHistory(chainId: UInt32, address: String) async throws  -> String
     
     /**
-     * Fetch history from the chain, returning the cached value if still fresh.
+     * Fetch history JSON and return the set of confirmed `txid`s.
+     * Used to reconcile pending transactions with on-chain confirmations.
      */
-    nonisolated func fetchHistoryCached(chainId: UInt32, address: String) async throws  -> String
+    nonisolated func fetchHistoryConfirmedTxids(chainId: UInt32, address: String) async throws  -> [String]
+    
+    /**
+     * Fetch history JSON and return the top-level entry count.
+     */
+    nonisolated func fetchHistoryEntryCount(chainId: UInt32, address: String) async throws  -> UInt32
+    
+    /**
+     * Fetch history JSON for `address` on `chain_id` and return
+     * `true` when the response is a non-empty JSON array. Lets Swift
+     * avoid parsing the chain-specific history shape just to answer
+     * "has this address seen any activity?".
+     */
+    nonisolated func fetchHistoryHasActivity(chainId: UInt32, address: String) async throws  -> Bool
+    
+    /**
+     * Unified per-chain native balance summary, replacing chain-specific JSON
+     * decoding on the Swift side. Smallest unit is returned as a decimal
+     * string (sats / wei / lamports / yocto-NEAR / ...) so callers can `UInt64`
+     * or `BigInt` parse as appropriate. `amount_display` is the human-readable
+     * native amount as decimal string. `utxo_count` is 0 for non-UTXO chains.
+     */
+    nonisolated func fetchNativeBalanceSummary(chainId: UInt32, address: String) async throws  -> NativeBalanceSummary
     
     nonisolated func fetchNearBalanceTyped(address: String) async throws  -> NearBalance
     
     /**
-     * Fetch and decode history in one call — returns typed records directly,
-     * bypassing JSON serialization/deserialization between Rust and Swift.
+     * Fetch history for `address` on `chain_id` and normalize the raw
+     * chain-specific shape into a standard `NormalizedHistoryItem` array,
+     * returning typed records directly across the FFI boundary.
      */
     nonisolated func fetchNormalizedHistory(chainId: UInt32, address: String) async throws  -> [NormalizedHistoryItem]
-    
-    /**
-     * Fetch history for `address` on `chain_id`, normalize the raw
-     * chain-specific JSON into a standard `ChainHistoryEntry` array,
-     * and return it as JSON.
-     *
-     * Chains covered: BTC(0), LTC(5), BCH(6), BSV(22), DOGE(3), XRP(4),
-     * XLM(8), ADA(9), DOT(10), SOL(2), TRX(7), SUI(14), APT(15),
-     * TON(16), NEAR(17), ICP(18), XMR(19).
-     *
-     * EVM chains (1,11,12,13,20,21,23,24) are not supported here because
-     * they use the separate paginated `fetch_evm_history_page_json` method.
-     */
-    nonisolated func fetchNormalizedHistoryJson(chainId: UInt32, address: String) async throws  -> String
     
     /**
      * Fetch USD spot prices for the supplied coins from `provider`.
@@ -2022,6 +2023,12 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      */
     nonisolated func fetchSimpleChainSendPreview(chainId: UInt32, address: String) async throws  -> String
     
+    /**
+     * Typed simple-chain send preview: fuses `fetch_simple_chain_send_preview`
+     * + `build_simple_chain_preview` so Swift never sees the intermediate JSON.
+     */
+    nonisolated func fetchSimpleChainSendPreviewTyped(chainId: UInt32, address: String, chain: SimpleChain) async throws  -> SimpleChainPreview
+    
     nonisolated func fetchSolanaBalanceTyped(address: String) async throws  -> SolanaBalance
     
     /**
@@ -2041,19 +2048,13 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     /**
      * Fetch balances for a list of tokens in one call.
      *
-     * `tokens_json` is a JSON array of objects:
-     * `[{"contract": "<address>", "symbol": "<SYM>", "decimals": <u8>}, …]`
+     * For Solana `contract` is the mint address; for Sui / Aptos it is the
+     * coin type; for TON it is the jetton master address.
      *
-     * For Solana (chain_id=2) `"contract"` is the mint address.
-     *
-     * Returns a JSON array in the same shape with additional fields:
-     * `"balance_raw"` and `"balance_display"`.
-     * Tokens that fail to fetch are returned with `"balance_raw": "0"` so the
+     * Tokens that fail to fetch are returned with `balance_raw = "0"` so the
      * caller always gets back the full list.
      */
-    nonisolated func fetchTokenBalances(chainId: UInt32, address: String, tokensJson: String) async throws  -> String
-    
-    nonisolated func fetchTokenBalancesTyped(chainId: UInt32, address: String, tokens: [TokenDescriptor]) async throws  -> String
+    nonisolated func fetchTokenBalances(chainId: UInt32, address: String, tokens: [TokenDescriptor]) async throws  -> [TokenBalanceResult]
     
     /**
      * Compute a Tron send preview for TRX or TRC-20 sends.
@@ -2076,6 +2077,12 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      * ```
      */
     nonisolated func fetchTronSendPreview(address: String, symbol: String, contractAddress: String) async throws  -> String
+    
+    /**
+     * Typed Tron send preview wrapper around `fetch_tron_send_preview` +
+     * `build_tron_send_preview_record`.
+     */
+    nonisolated func fetchTronSendPreviewTyped(address: String, symbol: String, contractAddress: String) async throws  -> TronSendPreview?
     
     /**
      * Compute a fee-capacity preview for a UTXO-based chain.
@@ -2104,11 +2111,24 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func fetchUtxoFeePreview(chainId: UInt32, address: String, feeRateSvb: UInt64) async throws  -> String
     
     /**
+     * Typed UTXO fee preview wrapper (BTC / LTC / BCH / BSV single-address
+     * flow). Fuses `fetch_utxo_fee_preview` + `build_utxo_send_preview_record`.
+     */
+    nonisolated func fetchUtxoFeePreviewTyped(chainId: UInt32, address: String, feeRateSvb: UInt64) async throws  -> BitcoinSendPreview?
+    
+    /**
      * Fetch confirmation status for a UTXO chain transaction.
      * Returns JSON `{"txid","confirmed","block_height","block_time"}`.
      * Supported chain_ids: 0 (BTC), 3 (DOGE), 5 (LTC), 6 (BCH), 22 (BSV).
      */
     nonisolated func fetchUtxoTxStatus(chainId: UInt32, txid: String) async throws  -> String
+    
+    /**
+     * Typed variant of `fetch_utxo_tx_status` — returns the decoded record
+     * directly so Swift can read the `confirmed`/`block_height`/`confirmations`
+     * fields without bouncing through JSON.
+     */
+    nonisolated func fetchUtxoTxStatusTyped(chainId: UInt32, txid: String) async throws  -> UtxoTxStatus
     
     /**
      * Current cursor for the next history fetch, or `None` if no fetch has
@@ -2123,26 +2143,9 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func historyNextPage(chainId: UInt32, walletId: String)  -> UInt32
     
     /**
-     * Seed the in-memory wallet list from a JSON array of WalletSummary
-     * objects.  Called once at startup after `load_wallet_snapshot`.
-     */
-    nonisolated func initWalletState(walletsJson: String) async throws 
-    
-    /**
      * Seed the in-memory wallet list from typed `WalletSummary` records.
-     * Preferred over `init_wallet_state` — avoids JSON serialization overhead.
      */
     nonisolated func initWalletStateDirect(wallets: [WalletSummary]) async throws 
-    
-    /**
-     * Evict a specific cached balance (call after a send completes).
-     */
-    nonisolated func invalidateCachedBalance(chainId: UInt32, address: String) 
-    
-    /**
-     * Evict the history cache entry for `(chain_id, address)`.
-     */
-    nonisolated func invalidateCachedHistory(chainId: UInt32, address: String) 
     
     /**
      * Returns `true` when all history pages have been fetched and no more
@@ -2157,18 +2160,6 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      */
     nonisolated func listBuiltinTokens(chainId: UInt32) async throws  -> String
     
-    /**
-     * Return all wallets as a JSON array of WalletSummary objects.
-     */
-    nonisolated func listWalletsJson() async throws  -> String
-    
-    /**
-     * Bulk-load ALL keypool state across all wallets and chains.
-     * Returns a JSON object: `{ "Bitcoin": { "<uuid>": { state }, … }, … }`.
-     * Used at app startup to restore the in-memory keypool dictionaries.
-     */
-    nonisolated func loadAllKeypoolState(dbPath: String) async throws  -> String
-    
     nonisolated func loadAllKeypoolStateTyped(dbPath: String) async throws  -> [String: [String: KeypoolState]]
     
     /**
@@ -2179,17 +2170,7 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     
     nonisolated func loadAllOwnedAddressesTyped(dbPath: String) async throws  -> [OwnedAddressRecord]
     
-    /**
-     * Load app settings. Returns `"{}"` if not yet saved.
-     */
-    nonisolated func loadAppSettings(dbPath: String) async throws  -> String
-    
     nonisolated func loadAppSettingsTyped(dbPath: String) async throws  -> PersistedAppSettings?
-    
-    /**
-     * Load keypool state for one (wallet_id, chain_name). Returns `null` JSON if not found.
-     */
-    nonisolated func loadKeypoolState(dbPath: String, walletId: String, chainName: String) async throws  -> String?
     
     /**
      * Load all owned addresses for a (wallet, chain) pair.
@@ -2205,20 +2186,9 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func loadState(dbPath: String, key: String) async throws  -> String
     
     /**
-     * Load the wallet-list snapshot. Returns `"[]"` if no snapshot has been
-     * saved yet (first launch or after a reset).
+     * Atomically replace ALL history records with the provided batch.
      */
-    nonisolated func loadWalletSnapshot(dbPath: String) async throws  -> String
-    
-    /**
-     * Remove a wallet by ID.  Returns the updated wallet list as JSON.
-     */
-    nonisolated func removeWalletJson(walletId: String) async throws  -> String
-    
-    /**
-     * Atomically replace ALL history records with the provided JSON array.
-     */
-    nonisolated func replaceAllHistoryRecords(dbPath: String, recordsJson: String) async throws 
+    nonisolated func replaceAllHistoryRecords(dbPath: String, records: [HistoryRecordEncodeInput]) async throws 
     
     /**
      * Clear all history pagination state. Used on full account wipe / logout.
@@ -2257,19 +2227,7 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      */
     nonisolated func resolveEnsNameTyped(name: String) async throws  -> String?
     
-    /**
-     * Persist arbitrary app settings as a JSON blob. Separate from the wallet
-     * snapshot so each can be saved independently.
-     */
-    nonisolated func saveAppSettings(dbPath: String, settingsJson: String) async throws 
-    
     nonisolated func saveAppSettingsTyped(dbPath: String, settings: PersistedAppSettings) async throws 
-    
-    /**
-     * Persist keypool state for one (wallet_id, chain_name) pair.
-     * `state_json` encodes `KeypoolState` (nextExternalIndex, nextChangeIndex, reservedReceiveIndex).
-     */
-    nonisolated func saveKeypoolState(dbPath: String, walletId: String, chainName: String, stateJson: String) async throws 
     
     /**
      * Persist keypool state using typed record (no JSON intermediate).
@@ -2294,13 +2252,6 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func saveState(dbPath: String, key: String, stateJson: String) async throws 
     
     /**
-     * Persist the full wallet-list snapshot as a JSON string. Swift calls this
-     * whenever the wallet list changes so Rust/SQLite is always up-to-date.
-     * Key is fixed ("wallets.snapshot.v1") so old values are overwritten.
-     */
-    nonisolated func saveWalletSnapshot(dbPath: String, snapshotJson: String) async throws 
-    
-    /**
      * Explicitly mark a (chain, wallet) pair as exhausted or not. Used when
      * Swift detects an empty page without going through `advance_history_*`.
      */
@@ -2313,12 +2264,6 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      * successful request.
      */
     nonisolated func setHistoryPage(chainId: UInt32, walletId: String, page: UInt32) 
-    
-    /**
-     * Set the native balance for a wallet directly (for import-time seeding
-     * where the caller already decoded the Double from Rust fetch JSON).
-     */
-    nonisolated func setNativeBalance(walletId: String, chainId: UInt32, amount: Double) async throws  -> String?
     
     /**
      * Register the platform Keychain implementation. Must be called once at
@@ -2363,44 +2308,16 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func updateEndpointsTyped(endpoints: [ChainEndpoints]) async throws 
     
     /**
-     * Parse a chain-specific balance JSON blob (the same format produced by
-     * `fetch_balance`) and upsert the native `AssetHolding` for the given
-     * wallet.  Returns the updated `WalletSummary` JSON so Swift can apply
-     * the new amount in one round-trip without holding a stale copy.
-     *
-     * If the wallet is not yet in the in-memory state the call is a no-op
-     * and returns `null`.
+     * Upsert a batch of transaction history records. `records[*].payload_json`
+     * is the raw PersistedTransactionRecord JSON; Rust base64-encodes it into
+     * the stored `payload` column to match the `HistoryRecord` schema.
      */
-    nonisolated func updateNativeBalance(walletId: String, chainId: UInt32, balanceJson: String) async throws  -> String?
-    
-    nonisolated func updateNativeBalanceTyped(walletId: String, chainId: UInt32, balanceJson: String) async throws  -> WalletSummary?
-    
-    /**
-     * Upsert a batch of `AssetHolding` objects into a wallet's holdings.
-     * Each holding is matched by contract_address (for tokens) or by
-     * (chain_name, symbol) for native coins.  Non-matching existing holdings
-     * are preserved.  Returns the updated WalletSummary JSON, or null if the
-     * wallet was not found.
-     */
-    nonisolated func upsertAssetHoldings(walletId: String, holdingsJson: String) async throws  -> String?
-    
-    /**
-     * Upsert a batch of transaction records. `records_json` is a JSON array of
-     * HistoryRecord objects (id, walletId, chainName, txHash, createdAt, payload).
-     */
-    nonisolated func upsertHistoryRecords(dbPath: String, recordsJson: String) async throws 
+    nonisolated func upsertHistoryRecords(dbPath: String, records: [HistoryRecordEncodeInput]) async throws 
     
     /**
      * Add or replace a wallet from a typed `WalletSummary` record.
-     * Preferred over `upsert_wallet_json` — avoids JSON round-trip.
      */
     nonisolated func upsertWalletDirect(wallet: WalletSummary) async throws 
-    
-    /**
-     * Add or replace a wallet (matched by `id`).  Returns the updated wallet
-     * list as a JSON array so Swift can sync in one round-trip.
-     */
-    nonisolated func upsertWalletJson(walletJson: String) async throws  -> String
     
 }
 /**
@@ -2503,23 +2420,6 @@ nonisolated open func advanceHistoryPage(chainId: UInt32, walletId: String, isLa
 }
 }
     
-nonisolated open func applyNativeAmountInternal(walletId: String, chainId: UInt32, amount: Double)async throws  -> String?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_apply_native_amount_internal(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(walletId),FfiConverterUInt32.lower(chainId),FfiConverterDouble.lower(amount)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
 nonisolated open func applyNativeAmountTyped(walletId: String, chainId: UInt32, amount: Double)async throws  -> WalletSummary?  {
     return
         try  await uniffiRustCallAsync(
@@ -2564,6 +2464,29 @@ nonisolated open func broadcastRaw(chainId: UInt32, payload: String)async throws
 }
     
     /**
+     * Typed wrapper around `broadcast_raw`: runs the broadcast then extracts
+     * the named field (typically `"txid"` or `"digest"`) from the result JSON.
+     * Returns the field value as a string (empty string when missing —
+     * matches the prior `rustField(...)` semantics on the Swift side).
+     */
+nonisolated open func broadcastRawExtract(chainId: UInt32, payload: String, resultField: String)async throws  -> String  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_broadcast_raw_extract(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(payload),FfiConverterString.lower(resultField)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
      * Build the chain-specific payload JSON for `execute_send`.
      */
 nonisolated open func buildExecuteSendPayload(req: SendExecutionRequest, privHex: String, pubHex: String?)throws  -> String  {
@@ -2572,55 +2495,6 @@ nonisolated open func buildExecuteSendPayload(req: SendExecutionRequest, privHex
         FfiConverterTypeSendExecutionRequest_lower(req),
         FfiConverterString.lower(privHex),
         FfiConverterOptionString.lower(pubHex),$0
-    )
-})
-}
-    
-    /**
-     * Store a balance JSON snapshot in the cache.
-     */
-nonisolated open func cacheBalance(chainId: UInt32, address: String, balanceJson: String)  {try! rustCall() {
-    uniffi_spectra_core_fn_method_walletservice_cache_balance(self.uniffiClonePointer(),
-        FfiConverterUInt32.lower(chainId),
-        FfiConverterString.lower(address),
-        FfiConverterString.lower(balanceJson),$0
-    )
-}
-}
-    
-    /**
-     * Store a history JSON snapshot in the in-memory cache.
-     */
-nonisolated open func cacheHistory(chainId: UInt32, address: String, historyJson: String)  {try! rustCall() {
-    uniffi_spectra_core_fn_method_walletservice_cache_history(self.uniffiClonePointer(),
-        FfiConverterUInt32.lower(chainId),
-        FfiConverterString.lower(address),
-        FfiConverterString.lower(historyJson),$0
-    )
-}
-}
-    
-    /**
-     * Return the cached balance JSON for `(chain_id, address)` if present and
-     * not expired. Returns `null` as JSON when the cache is cold.
-     */
-nonisolated open func cachedBalance(chainId: UInt32, address: String) -> String?  {
-    return try!  FfiConverterOptionString.lift(try! rustCall() {
-    uniffi_spectra_core_fn_method_walletservice_cached_balance(self.uniffiClonePointer(),
-        FfiConverterUInt32.lower(chainId),
-        FfiConverterString.lower(address),$0
-    )
-})
-}
-    
-    /**
-     * Return cached history JSON for `(chain_id, address)` if present and not expired.
-     */
-nonisolated open func cachedHistory(chainId: UInt32, address: String) -> String?  {
-    return try!  FfiConverterOptionString.lift(try! rustCall() {
-    uniffi_spectra_core_fn_method_walletservice_cached_history(self.uniffiClonePointer(),
-        FfiConverterUInt32.lower(chainId),
-        FfiConverterString.lower(address),$0
     )
 })
 }
@@ -2646,35 +2520,15 @@ nonisolated open func clearAllHistoryRecords(dbPath: String)async throws   {
 }
     
     /**
-     * Delete history records by a JSON array of ID strings.
+     * Delete history records by ID.
      */
-nonisolated open func deleteHistoryRecords(dbPath: String, idsJson: String)async throws   {
+nonisolated open func deleteHistoryRecords(dbPath: String, ids: [String])async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_spectra_core_fn_method_walletservice_delete_history_records(
                     self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterString.lower(idsJson)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_void,
-            completeFunc: ffi_spectra_core_rust_future_complete_void,
-            freeFunc: ffi_spectra_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Delete all history records for a given wallet_id.
-     */
-nonisolated open func deleteHistoryRecordsForWallet(dbPath: String, walletId: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_delete_history_records_for_wallet(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterString.lower(walletId)
+                    FfiConverterString.lower(dbPath),FfiConverterSequenceString.lower(ids)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_void,
@@ -2824,6 +2678,28 @@ nonisolated open func deriveBitcoinAccountXpubTyped(mnemonicPhrase: String, pass
 }
     
     /**
+     * Typed wrapper: return just the derived addresses. Swift callers that
+     * previously parsed the JSON array to pull out `address` now get them
+     * directly.
+     */
+nonisolated open func deriveBitcoinHdAddressStrings(xpub: String, change: UInt32, startIndex: UInt32, count: UInt32)async throws  -> [String]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_derive_bitcoin_hd_address_strings(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(xpub),FfiConverterUInt32.lower(change),FfiConverterUInt32.lower(startIndex),FfiConverterUInt32.lower(count)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
      * Derive a contiguous range of child addresses from an account-level
      * extended public key (xpub/ypub/zpub).
      *
@@ -2850,15 +2726,6 @@ nonisolated open func deriveBitcoinHdAddresses(xpub: String, change: UInt32, sta
 }
     
     /**
-     * Evict all expired entries. Cheap to call on any balance-refresh tick.
-     */
-nonisolated open func evictExpiredBalanceCache()  {try! rustCall() {
-    uniffi_spectra_core_fn_method_walletservice_evict_expired_balance_cache(self.uniffiClonePointer(),$0
-    )
-}
-}
-    
-    /**
      * Derive key material, build the chain-specific payload, sign, and
      * broadcast in a single call.
      *
@@ -2879,27 +2746,6 @@ nonisolated open func executeSend(request: SendExecutionRequest)async throws  ->
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeSendExecutionResult_lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Fetch all history records, ordered by created_at DESC.
-     * Returns a JSON array of HistoryRecord objects.
-     */
-nonisolated open func fetchAllHistoryRecords(dbPath: String)async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_fetch_all_history_records(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -2963,22 +2809,44 @@ nonisolated open func fetchBalanceAuto(chainId: UInt32, address: String)async th
 }
     
     /**
-     * Fetch the balance, returning the cached value if still fresh, otherwise
-     * fetching from the chain and caching the result.
+     * Typed Bitcoin HD send preview: concurrently fetches the xpub balance
+     * and the Bitcoin fee estimate then decodes into `BitcoinSendPreview`.
      */
-nonisolated open func fetchBalanceCached(chainId: UInt32, address: String)async throws  -> String  {
+nonisolated open func fetchBitcoinHdSendPreviewTyped(xpub: String, receiveCount: UInt32, changeCount: UInt32)async throws  -> BitcoinSendPreview?  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_fetch_balance_cached(
+                uniffi_spectra_core_fn_method_walletservice_fetch_bitcoin_hd_send_preview_typed(
                     self.uniffiClonePointer(),
-                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                    FfiConverterString.lower(xpub),FfiConverterUInt32.lower(receiveCount),FfiConverterUInt32.lower(changeCount)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
+            liftFunc: FfiConverterOptionTypeBitcoinSendPreview.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch Bitcoin history JSON for `address` and decode it into
+     * typed `CoreBitcoinHistorySnapshot` records. Replaces the Swift
+     * pattern of calling `fetch_history` then `history_decode_bitcoin_raw_snapshots`.
+     */
+nonisolated open func fetchBitcoinHistorySnapshots(address: String)async throws  -> [CoreBitcoinHistorySnapshot]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_bitcoin_history_snapshots(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceTypeCoreBitcoinHistorySnapshot.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3006,6 +2874,28 @@ nonisolated open func fetchBitcoinNextUnusedAddress(xpub: String, change: UInt32
 }
     
     /**
+     * Typed variant of `fetch_bitcoin_next_unused_address` — returns just
+     * the derived address string, or `None` if every candidate in the
+     * `gap_limit` window had activity.
+     */
+nonisolated open func fetchBitcoinNextUnusedAddressTyped(xpub: String, change: UInt32, gapLimit: UInt32)async throws  -> String?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_bitcoin_next_unused_address_typed(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(xpub),FfiConverterUInt32.lower(change),FfiConverterUInt32.lower(gapLimit)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
      * Scan an xpub's receive + change legs and return aggregated balance
      * plus per-UTXO breakdown. Uses the Bitcoin Esplora endpoint bundle.
      */
@@ -3026,6 +2916,27 @@ nonisolated open func fetchBitcoinXpubBalance(xpub: String, receiveCount: UInt32
         )
 }
     
+    /**
+     * Typed Dogecoin send preview: runs the UTXO fee-preview fetch on the
+     * Dogecoin chain then decodes with the requested amount + fee priority.
+     */
+nonisolated open func fetchDogecoinSendPreviewTyped(address: String, requestedAmount: Double, feePriority: String)async throws  -> DogecoinSendPreview?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_dogecoin_send_preview_typed(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(address),FfiConverterDouble.lower(requestedAmount),FfiConverterString.lower(feePriority)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeDogecoinSendPreview.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
 nonisolated open func fetchErc20BalanceTyped(chainId: UInt32, contract: String, holder: String)async throws  -> Erc20Balance  {
     return
         try  await uniffiRustCallAsync(
@@ -3039,6 +2950,28 @@ nonisolated open func fetchErc20BalanceTyped(chainId: UInt32, contract: String, 
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
             liftFunc: FfiConverterTypeErc20Balance_lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Lightweight EVM address probe used for send-flow chain-risk warnings.
+     * Fetches nonce + native balance concurrently and returns both typed,
+     * skipping the fee/gas work of the full preview.
+     */
+nonisolated open func fetchEvmAddressProbe(chainId: UInt32, address: String)async throws  -> EvmAddressProbe  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_evm_address_probe(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeEvmAddressProbe_lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3065,6 +2998,51 @@ nonisolated open func fetchEvmCode(chainId: UInt32, address: String)async throws
 }
     
     /**
+     * Typed wrapper: returns true iff `address` has deployed bytecode on the
+     * given EVM chain. Combines `fetch_evm_code` with the
+     * `core_evm_has_contract_code` predicate so Swift never sees the JSON.
+     */
+nonisolated open func fetchEvmHasContractCode(chainId: UInt32, address: String)async throws  -> Bool  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_evm_has_contract_code(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_i8,
+            completeFunc: ffi_spectra_core_rust_future_complete_i8,
+            freeFunc: ffi_spectra_core_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch EVM history for diagnostics and return a fully-built
+     * `EthereumTokenTransferHistoryDiagnostics` record. On network or
+     * chain-support failure the record is seeded with an error description.
+     */
+nonisolated open func fetchEvmHistoryDiagnostics(chainId: UInt32, address: String)async  -> EthereumTokenTransferHistoryDiagnostics  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_evm_history_diagnostics(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeEthereumTokenTransferHistoryDiagnostics_lift,
+            errorHandler: nil
+            
+        )
+}
+    
+    /**
      * Fetch one page of EVM transaction history for `address`.
      *
      * Runs two requests in parallel against the configured Etherscan-compatible
@@ -3072,34 +3050,15 @@ nonisolated open func fetchEvmCode(chainId: UInt32, address: String)async throws
      * 1. `txlist` — native ETH/EVM transfers
      * 2. `tokentx` — ERC-20 token transfers
      *
-     * `tokens_json` is `[{"contract":"0x…","symbol":"USDC","name":"USD Coin","decimals":6},…]`.
-     * Only token transfers whose contract matches a tracked token are included in the result.
-     * Pass `"[]"` to skip token transfers.
-     *
-     * Returns `{"native": […], "tokens": […]}`.
+     * `tokens` lists the tracked tokens to include. Only transfers whose
+     * contract matches a tracked token are returned; pass an empty list to
+     * skip token transfers entirely.
      */
-nonisolated open func fetchEvmHistoryPage(chainId: UInt32, address: String, tokensJson: String, page: UInt32, pageSize: UInt32)async throws  -> String  {
+nonisolated open func fetchEvmHistoryPage(chainId: UInt32, address: String, tokens: [TokenDescriptor], page: UInt32, pageSize: UInt32)async throws  -> EvmHistoryPageDecoded  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_spectra_core_fn_method_walletservice_fetch_evm_history_page(
-                    self.uniffiClonePointer(),
-                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterString.lower(tokensJson),FfiConverterUInt32.lower(page),FfiConverterUInt32.lower(pageSize)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-nonisolated open func fetchEvmHistoryPageTyped(chainId: UInt32, address: String, tokens: [TokenDescriptor], page: UInt32, pageSize: UInt32)async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_fetch_evm_history_page_typed(
                     self.uniffiClonePointer(),
                     FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterSequenceTypeTokenDescriptor.lower(tokens),FfiConverterUInt32.lower(page),FfiConverterUInt32.lower(pageSize)
                 )
@@ -3107,22 +3066,21 @@ nonisolated open func fetchEvmHistoryPageTyped(chainId: UInt32, address: String,
             pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
+            liftFunc: FfiConverterTypeEvmHistoryPageDecoded_lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
     
     /**
-     * Fetch a transaction receipt by hash on an EVM chain.
-     *
-     * Returns the receipt JSON when the transaction has been mined, or
-     * `"null"` (JSON null as a string) when it is still pending.
+     * Fused fetch + classification for an EVM receipt: returns
+     * `Some(classification)` once the receipt has been mined, or `None`
+     * while the transaction is still pending.
      */
-nonisolated open func fetchEvmReceipt(chainId: UInt32, txHash: String)async throws  -> String  {
+nonisolated open func fetchEvmReceiptClassification(chainId: UInt32, txHash: String)async throws  -> EvmReceiptClassification?  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_fetch_evm_receipt(
+                uniffi_spectra_core_fn_method_walletservice_fetch_evm_receipt_classification(
                     self.uniffiClonePointer(),
                     FfiConverterUInt32.lower(chainId),FfiConverterString.lower(txHash)
                 )
@@ -3130,7 +3088,7 @@ nonisolated open func fetchEvmReceipt(chainId: UInt32, txHash: String)async thro
             pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
+            liftFunc: FfiConverterOptionTypeEvmReceiptClassification.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3175,35 +3133,23 @@ nonisolated open func fetchEvmSendPreview(chainId: UInt32, from: String, to: Str
 }
     
     /**
-     * Fetch balances for multiple ERC-20 tokens in a single call.
-     *
-     * `tokens_json` is a JSON array of objects:
-     * ```json
-     * [{"contract": "0x...", "symbol": "USDC", "decimals": 6}, ...]
-     * ```
-     *
-     * Returns a JSON array of results:
-     * ```json
-     * [{"contract_address": "0x...", "symbol": "USDC", "balance_display": "10.5",
-     * "balance_raw": "10500000", "decimals": 6}, ...]
-     * ```
-     *
-     * Tokens with zero balance are **included** in the response so the caller
-     * can detect the difference between "zero balance" and "missing token".
+     * Typed EVM send preview: fetches the raw preview JSON then decodes it
+     * into `EthereumSendPreview` with the caller-supplied nonce / fee
+     * overrides applied. Returns `None` when the decoder rejects the payload.
      */
-nonisolated open func fetchEvmTokenBalancesBatch(chainId: UInt32, address: String, tokensJson: String)async throws  -> String  {
+nonisolated open func fetchEvmSendPreviewTyped(chainId: UInt32, from: String, to: String, valueWei: String, dataHex: String, explicitNonce: Int64?, customFees: EvmCustomFeeConfiguration?)async throws  -> EthereumSendPreview?  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_fetch_evm_token_balances_batch(
+                uniffi_spectra_core_fn_method_walletservice_fetch_evm_send_preview_typed(
                     self.uniffiClonePointer(),
-                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterString.lower(tokensJson)
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(from),FfiConverterString.lower(to),FfiConverterString.lower(valueWei),FfiConverterString.lower(dataHex),FfiConverterOptionInt64.lower(explicitNonce),FfiConverterOptionTypeEvmCustomFeeConfiguration.lower(customFees)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
+            liftFunc: FfiConverterOptionTypeEthereumSendPreview.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3262,44 +3208,6 @@ nonisolated open func fetchEvmTxNonceTyped(chainId: UInt32, txHash: String)async
             completeFunc: ffi_spectra_core_rust_future_complete_u64,
             freeFunc: ffi_spectra_core_rust_future_free_u64,
             liftFunc: FfiConverterUInt64.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Fetch a fee estimate preview for the given chain.
-     *
-     * BTC and EVM return their chain-specific structs (`FeeRate`,
-     * `EvmFeeEstimate`) for backward compatibility with existing Swift
-     * decoders. All other chains return a unified JSON object:
-     *
-     * ```json
-     * {
-     * "chain_id": 17,
-     * "native_fee_raw": "1000000000000000000000",
-     * "native_fee_display": "0.001",
-     * "unit": "NEAR",
-     * "source": "rpc" | "static"
-     * }
-     * ```
-     *
-     * `source` is `"rpc"` when the value comes from a live endpoint call,
-     * and `"static"` when it is a conservative hardcoded default (used for
-     * chains where no preview RPC exists yet).
-     */
-nonisolated open func fetchFeeEstimate(chainId: UInt32)async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_fetch_fee_estimate(
-                    self.uniffiClonePointer(),
-                    FfiConverterUInt32.lower(chainId)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3364,13 +3272,14 @@ nonisolated open func fetchHistory(chainId: UInt32, address: String)async throws
 }
     
     /**
-     * Fetch history from the chain, returning the cached value if still fresh.
+     * Fetch history JSON and return the set of confirmed `txid`s.
+     * Used to reconcile pending transactions with on-chain confirmations.
      */
-nonisolated open func fetchHistoryCached(chainId: UInt32, address: String)async throws  -> String  {
+nonisolated open func fetchHistoryConfirmedTxids(chainId: UInt32, address: String)async throws  -> [String]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_fetch_history_cached(
+                uniffi_spectra_core_fn_method_walletservice_fetch_history_confirmed_txids(
                     self.uniffiClonePointer(),
                     FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
                 )
@@ -3378,7 +3287,74 @@ nonisolated open func fetchHistoryCached(chainId: UInt32, address: String)async 
             pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
+            liftFunc: FfiConverterSequenceString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch history JSON and return the top-level entry count.
+     */
+nonisolated open func fetchHistoryEntryCount(chainId: UInt32, address: String)async throws  -> UInt32  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_history_entry_count(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_u32,
+            completeFunc: ffi_spectra_core_rust_future_complete_u32,
+            freeFunc: ffi_spectra_core_rust_future_free_u32,
+            liftFunc: FfiConverterUInt32.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Fetch history JSON for `address` on `chain_id` and return
+     * `true` when the response is a non-empty JSON array. Lets Swift
+     * avoid parsing the chain-specific history shape just to answer
+     * "has this address seen any activity?".
+     */
+nonisolated open func fetchHistoryHasActivity(chainId: UInt32, address: String)async throws  -> Bool  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_history_has_activity(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_i8,
+            completeFunc: ffi_spectra_core_rust_future_complete_i8,
+            freeFunc: ffi_spectra_core_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Unified per-chain native balance summary, replacing chain-specific JSON
+     * decoding on the Swift side. Smallest unit is returned as a decimal
+     * string (sats / wei / lamports / yocto-NEAR / ...) so callers can `UInt64`
+     * or `BigInt` parse as appropriate. `amount_display` is the human-readable
+     * native amount as decimal string. `utxo_count` is 0 for non-UTXO chains.
+     */
+nonisolated open func fetchNativeBalanceSummary(chainId: UInt32, address: String)async throws  -> NativeBalanceSummary  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_native_balance_summary(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeNativeBalanceSummary_lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3401,8 +3377,9 @@ nonisolated open func fetchNearBalanceTyped(address: String)async throws  -> Nea
 }
     
     /**
-     * Fetch and decode history in one call — returns typed records directly,
-     * bypassing JSON serialization/deserialization between Rust and Swift.
+     * Fetch history for `address` on `chain_id` and normalize the raw
+     * chain-specific shape into a standard `NormalizedHistoryItem` array,
+     * returning typed records directly across the FFI boundary.
      */
 nonisolated open func fetchNormalizedHistory(chainId: UInt32, address: String)async throws  -> [NormalizedHistoryItem]  {
     return
@@ -3417,35 +3394,6 @@ nonisolated open func fetchNormalizedHistory(chainId: UInt32, address: String)as
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeNormalizedHistoryItem.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Fetch history for `address` on `chain_id`, normalize the raw
-     * chain-specific JSON into a standard `ChainHistoryEntry` array,
-     * and return it as JSON.
-     *
-     * Chains covered: BTC(0), LTC(5), BCH(6), BSV(22), DOGE(3), XRP(4),
-     * XLM(8), ADA(9), DOT(10), SOL(2), TRX(7), SUI(14), APT(15),
-     * TON(16), NEAR(17), ICP(18), XMR(19).
-     *
-     * EVM chains (1,11,12,13,20,21,23,24) are not supported here because
-     * they use the separate paginated `fetch_evm_history_page_json` method.
-     */
-nonisolated open func fetchNormalizedHistoryJson(chainId: UInt32, address: String)async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_fetch_normalized_history_json(
-                    self.uniffiClonePointer(),
-                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3533,6 +3481,27 @@ nonisolated open func fetchSimpleChainSendPreview(chainId: UInt32, address: Stri
         )
 }
     
+    /**
+     * Typed simple-chain send preview: fuses `fetch_simple_chain_send_preview`
+     * + `build_simple_chain_preview` so Swift never sees the intermediate JSON.
+     */
+nonisolated open func fetchSimpleChainSendPreviewTyped(chainId: UInt32, address: String, chain: SimpleChain)async throws  -> SimpleChainPreview  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_simple_chain_send_preview_typed(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterTypeSimpleChain_lower(chain)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeSimpleChainPreview_lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
 nonisolated open func fetchSolanaBalanceTyped(address: String)async throws  -> SolanaBalance  {
     return
         try  await uniffiRustCallAsync(
@@ -3582,38 +3551,17 @@ nonisolated open func fetchTokenBalance(chainId: UInt32, paramsJson: String)asyn
     /**
      * Fetch balances for a list of tokens in one call.
      *
-     * `tokens_json` is a JSON array of objects:
-     * `[{"contract": "<address>", "symbol": "<SYM>", "decimals": <u8>}, …]`
+     * For Solana `contract` is the mint address; for Sui / Aptos it is the
+     * coin type; for TON it is the jetton master address.
      *
-     * For Solana (chain_id=2) `"contract"` is the mint address.
-     *
-     * Returns a JSON array in the same shape with additional fields:
-     * `"balance_raw"` and `"balance_display"`.
-     * Tokens that fail to fetch are returned with `"balance_raw": "0"` so the
+     * Tokens that fail to fetch are returned with `balance_raw = "0"` so the
      * caller always gets back the full list.
      */
-nonisolated open func fetchTokenBalances(chainId: UInt32, address: String, tokensJson: String)async throws  -> String  {
+nonisolated open func fetchTokenBalances(chainId: UInt32, address: String, tokens: [TokenDescriptor])async throws  -> [TokenBalanceResult]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_spectra_core_fn_method_walletservice_fetch_token_balances(
-                    self.uniffiClonePointer(),
-                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterString.lower(tokensJson)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-nonisolated open func fetchTokenBalancesTyped(chainId: UInt32, address: String, tokens: [TokenDescriptor])async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_fetch_token_balances_typed(
                     self.uniffiClonePointer(),
                     FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterSequenceTypeTokenDescriptor.lower(tokens)
                 )
@@ -3621,7 +3569,7 @@ nonisolated open func fetchTokenBalancesTyped(chainId: UInt32, address: String, 
             pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
+            liftFunc: FfiConverterSequenceTypeTokenBalanceResult.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3659,6 +3607,27 @@ nonisolated open func fetchTronSendPreview(address: String, symbol: String, cont
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
             liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Typed Tron send preview wrapper around `fetch_tron_send_preview` +
+     * `build_tron_send_preview_record`.
+     */
+nonisolated open func fetchTronSendPreviewTyped(address: String, symbol: String, contractAddress: String)async throws  -> TronSendPreview?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_tron_send_preview_typed(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(address),FfiConverterString.lower(symbol),FfiConverterString.lower(contractAddress)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeTronSendPreview.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3705,6 +3674,27 @@ nonisolated open func fetchUtxoFeePreview(chainId: UInt32, address: String, feeR
 }
     
     /**
+     * Typed UTXO fee preview wrapper (BTC / LTC / BCH / BSV single-address
+     * flow). Fuses `fetch_utxo_fee_preview` + `build_utxo_send_preview_record`.
+     */
+nonisolated open func fetchUtxoFeePreviewTyped(chainId: UInt32, address: String, feeRateSvb: UInt64)async throws  -> BitcoinSendPreview?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_utxo_fee_preview_typed(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(address),FfiConverterUInt64.lower(feeRateSvb)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeBitcoinSendPreview.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
      * Fetch confirmation status for a UTXO chain transaction.
      * Returns JSON `{"txid","confirmed","block_height","block_time"}`.
      * Supported chain_ids: 0 (BTC), 3 (DOGE), 5 (LTC), 6 (BCH), 22 (BSV).
@@ -3722,6 +3712,28 @@ nonisolated open func fetchUtxoTxStatus(chainId: UInt32, txid: String)async thro
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
             liftFunc: FfiConverterString.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Typed variant of `fetch_utxo_tx_status` — returns the decoded record
+     * directly so Swift can read the `confirmed`/`block_height`/`confirmations`
+     * fields without bouncing through JSON.
+     */
+nonisolated open func fetchUtxoTxStatusTyped(chainId: UInt32, txid: String)async throws  -> UtxoTxStatus  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_fetch_utxo_tx_status_typed(
+                    self.uniffiClonePointer(),
+                    FfiConverterUInt32.lower(chainId),FfiConverterString.lower(txid)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeUtxoTxStatus_lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -3753,29 +3765,7 @@ nonisolated open func historyNextPage(chainId: UInt32, walletId: String) -> UInt
 }
     
     /**
-     * Seed the in-memory wallet list from a JSON array of WalletSummary
-     * objects.  Called once at startup after `load_wallet_snapshot`.
-     */
-nonisolated open func initWalletState(walletsJson: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_init_wallet_state(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(walletsJson)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_void,
-            completeFunc: ffi_spectra_core_rust_future_complete_void,
-            freeFunc: ffi_spectra_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
      * Seed the in-memory wallet list from typed `WalletSummary` records.
-     * Preferred over `init_wallet_state` — avoids JSON serialization overhead.
      */
 nonisolated open func initWalletStateDirect(wallets: [WalletSummary])async throws   {
     return
@@ -3792,28 +3782,6 @@ nonisolated open func initWalletStateDirect(wallets: [WalletSummary])async throw
             liftFunc: { $0 },
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
-}
-    
-    /**
-     * Evict a specific cached balance (call after a send completes).
-     */
-nonisolated open func invalidateCachedBalance(chainId: UInt32, address: String)  {try! rustCall() {
-    uniffi_spectra_core_fn_method_walletservice_invalidate_cached_balance(self.uniffiClonePointer(),
-        FfiConverterUInt32.lower(chainId),
-        FfiConverterString.lower(address),$0
-    )
-}
-}
-    
-    /**
-     * Evict the history cache entry for `(chain_id, address)`.
-     */
-nonisolated open func invalidateCachedHistory(chainId: UInt32, address: String)  {try! rustCall() {
-    uniffi_spectra_core_fn_method_walletservice_invalidate_cached_history(self.uniffiClonePointer(),
-        FfiConverterUInt32.lower(chainId),
-        FfiConverterString.lower(address),$0
-    )
-}
 }
     
     /**
@@ -3841,48 +3809,6 @@ nonisolated open func listBuiltinTokens(chainId: UInt32)async throws  -> String 
                 uniffi_spectra_core_fn_method_walletservice_list_builtin_tokens(
                     self.uniffiClonePointer(),
                     FfiConverterUInt32.lower(chainId)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Return all wallets as a JSON array of WalletSummary objects.
-     */
-nonisolated open func listWalletsJson()async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_list_wallets_json(
-                    self.uniffiClonePointer()
-                    
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Bulk-load ALL keypool state across all wallets and chains.
-     * Returns a JSON object: `{ "Bitcoin": { "<uuid>": { state }, … }, … }`.
-     * Used at app startup to restore the in-memory keypool dictionaries.
-     */
-nonisolated open func loadAllKeypoolState(dbPath: String)async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_load_all_keypool_state(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
@@ -3948,26 +3874,6 @@ nonisolated open func loadAllOwnedAddressesTyped(dbPath: String)async throws  ->
         )
 }
     
-    /**
-     * Load app settings. Returns `"{}"` if not yet saved.
-     */
-nonisolated open func loadAppSettings(dbPath: String)async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_load_app_settings(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
 nonisolated open func loadAppSettingsTyped(dbPath: String)async throws  -> PersistedAppSettings?  {
     return
         try  await uniffiRustCallAsync(
@@ -3981,26 +3887,6 @@ nonisolated open func loadAppSettingsTyped(dbPath: String)async throws  -> Persi
             completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
             liftFunc: FfiConverterOptionTypePersistedAppSettings.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Load keypool state for one (wallet_id, chain_name). Returns `null` JSON if not found.
-     */
-nonisolated open func loadKeypoolState(dbPath: String, walletId: String, chainName: String)async throws  -> String?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_load_keypool_state(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterString.lower(walletId),FfiConverterString.lower(chainName)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionString.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -4049,56 +3935,15 @@ nonisolated open func loadState(dbPath: String, key: String)async throws  -> Str
 }
     
     /**
-     * Load the wallet-list snapshot. Returns `"[]"` if no snapshot has been
-     * saved yet (first launch or after a reset).
+     * Atomically replace ALL history records with the provided batch.
      */
-nonisolated open func loadWalletSnapshot(dbPath: String)async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_load_wallet_snapshot(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Remove a wallet by ID.  Returns the updated wallet list as JSON.
-     */
-nonisolated open func removeWalletJson(walletId: String)async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_remove_wallet_json(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(walletId)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Atomically replace ALL history records with the provided JSON array.
-     */
-nonisolated open func replaceAllHistoryRecords(dbPath: String, recordsJson: String)async throws   {
+nonisolated open func replaceAllHistoryRecords(dbPath: String, records: [HistoryRecordEncodeInput])async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_spectra_core_fn_method_walletservice_replace_all_history_records(
                     self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterString.lower(recordsJson)
+                    FfiConverterString.lower(dbPath),FfiConverterSequenceTypeHistoryRecordEncodeInput.lower(records)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_void,
@@ -4196,27 +4041,6 @@ nonisolated open func resolveEnsNameTyped(name: String)async throws  -> String? 
         )
 }
     
-    /**
-     * Persist arbitrary app settings as a JSON blob. Separate from the wallet
-     * snapshot so each can be saved independently.
-     */
-nonisolated open func saveAppSettings(dbPath: String, settingsJson: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_save_app_settings(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterString.lower(settingsJson)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_void,
-            completeFunc: ffi_spectra_core_rust_future_complete_void,
-            freeFunc: ffi_spectra_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
 nonisolated open func saveAppSettingsTyped(dbPath: String, settings: PersistedAppSettings)async throws   {
     return
         try  await uniffiRustCallAsync(
@@ -4224,27 +4048,6 @@ nonisolated open func saveAppSettingsTyped(dbPath: String, settings: PersistedAp
                 uniffi_spectra_core_fn_method_walletservice_save_app_settings_typed(
                     self.uniffiClonePointer(),
                     FfiConverterString.lower(dbPath),FfiConverterTypePersistedAppSettings_lower(settings)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_void,
-            completeFunc: ffi_spectra_core_rust_future_complete_void,
-            freeFunc: ffi_spectra_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Persist keypool state for one (wallet_id, chain_name) pair.
-     * `state_json` encodes `KeypoolState` (nextExternalIndex, nextChangeIndex, reservedReceiveIndex).
-     */
-nonisolated open func saveKeypoolState(dbPath: String, walletId: String, chainName: String, stateJson: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_save_keypool_state(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterString.lower(walletId),FfiConverterString.lower(chainName),FfiConverterString.lower(stateJson)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_void,
@@ -4338,28 +4141,6 @@ nonisolated open func saveState(dbPath: String, key: String, stateJson: String)a
 }
     
     /**
-     * Persist the full wallet-list snapshot as a JSON string. Swift calls this
-     * whenever the wallet list changes so Rust/SQLite is always up-to-date.
-     * Key is fixed ("wallets.snapshot.v1") so old values are overwritten.
-     */
-nonisolated open func saveWalletSnapshot(dbPath: String, snapshotJson: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_save_wallet_snapshot(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterString.lower(snapshotJson)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_void,
-            completeFunc: ffi_spectra_core_rust_future_complete_void,
-            freeFunc: ffi_spectra_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
      * Explicitly mark a (chain, wallet) pair as exhausted or not. Used when
      * Swift detects an empty page without going through `advance_history_*`.
      */
@@ -4385,27 +4166,6 @@ nonisolated open func setHistoryPage(chainId: UInt32, walletId: String, page: UI
         FfiConverterUInt32.lower(page),$0
     )
 }
-}
-    
-    /**
-     * Set the native balance for a wallet directly (for import-time seeding
-     * where the caller already decoded the Double from Rust fetch JSON).
-     */
-nonisolated open func setNativeBalance(walletId: String, chainId: UInt32, amount: Double)async throws  -> String?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_set_native_balance(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(walletId),FfiConverterUInt32.lower(chainId),FfiConverterDouble.lower(amount)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
 }
     
     /**
@@ -4516,83 +4276,17 @@ nonisolated open func updateEndpointsTyped(endpoints: [ChainEndpoints])async thr
 }
     
     /**
-     * Parse a chain-specific balance JSON blob (the same format produced by
-     * `fetch_balance`) and upsert the native `AssetHolding` for the given
-     * wallet.  Returns the updated `WalletSummary` JSON so Swift can apply
-     * the new amount in one round-trip without holding a stale copy.
-     *
-     * If the wallet is not yet in the in-memory state the call is a no-op
-     * and returns `null`.
+     * Upsert a batch of transaction history records. `records[*].payload_json`
+     * is the raw PersistedTransactionRecord JSON; Rust base64-encodes it into
+     * the stored `payload` column to match the `HistoryRecord` schema.
      */
-nonisolated open func updateNativeBalance(walletId: String, chainId: UInt32, balanceJson: String)async throws  -> String?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_update_native_balance(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(walletId),FfiConverterUInt32.lower(chainId),FfiConverterString.lower(balanceJson)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-nonisolated open func updateNativeBalanceTyped(walletId: String, chainId: UInt32, balanceJson: String)async throws  -> WalletSummary?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_update_native_balance_typed(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(walletId),FfiConverterUInt32.lower(chainId),FfiConverterString.lower(balanceJson)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionTypeWalletSummary.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Upsert a batch of `AssetHolding` objects into a wallet's holdings.
-     * Each holding is matched by contract_address (for tokens) or by
-     * (chain_name, symbol) for native coins.  Non-matching existing holdings
-     * are preserved.  Returns the updated WalletSummary JSON, or null if the
-     * wallet was not found.
-     */
-nonisolated open func upsertAssetHoldings(walletId: String, holdingsJson: String)async throws  -> String?  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_upsert_asset_holdings(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(walletId),FfiConverterString.lower(holdingsJson)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterOptionString.lift,
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Upsert a batch of transaction records. `records_json` is a JSON array of
-     * HistoryRecord objects (id, walletId, chainName, txHash, createdAt, payload).
-     */
-nonisolated open func upsertHistoryRecords(dbPath: String, recordsJson: String)async throws   {
+nonisolated open func upsertHistoryRecords(dbPath: String, records: [HistoryRecordEncodeInput])async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_spectra_core_fn_method_walletservice_upsert_history_records(
                     self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterString.lower(recordsJson)
+                    FfiConverterString.lower(dbPath),FfiConverterSequenceTypeHistoryRecordEncodeInput.lower(records)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_void,
@@ -4605,7 +4299,6 @@ nonisolated open func upsertHistoryRecords(dbPath: String, recordsJson: String)a
     
     /**
      * Add or replace a wallet from a typed `WalletSummary` record.
-     * Preferred over `upsert_wallet_json` — avoids JSON round-trip.
      */
 nonisolated open func upsertWalletDirect(wallet: WalletSummary)async throws   {
     return
@@ -4620,27 +4313,6 @@ nonisolated open func upsertWalletDirect(wallet: WalletSummary)async throws   {
             completeFunc: ffi_spectra_core_rust_future_complete_void,
             freeFunc: ffi_spectra_core_rust_future_free_void,
             liftFunc: { $0 },
-            errorHandler: FfiConverterTypeSpectraBridgeError_lift
-        )
-}
-    
-    /**
-     * Add or replace a wallet (matched by `id`).  Returns the updated wallet
-     * list as a JSON array so Swift can sync in one round-trip.
-     */
-nonisolated open func upsertWalletJson(walletJson: String)async throws  -> String  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_spectra_core_fn_method_walletservice_upsert_wallet_json(
-                    self.uniffiClonePointer(),
-                    FfiConverterString.lower(walletJson)
-                )
-            },
-            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterString.lift,
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
 }
@@ -5220,7 +4892,7 @@ nonisolated public func FfiConverterTypeAppCoreBroadcastProviderOption_lower(_ v
 nonisolated public struct AppCoreChainBackend {
     public var chainName: String
     public var supportedSymbols: [String]
-    public var integrationState: String
+    public var integrationState: AppCoreChainIntegrationState
     public var supportsSeedImport: Bool
     public var supportsBalanceRefresh: Bool
     public var supportsReceiveAddress: Bool
@@ -5228,7 +4900,7 @@ nonisolated public struct AppCoreChainBackend {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    nonisolated public init(chainName: String, supportedSymbols: [String], integrationState: String, supportsSeedImport: Bool, supportsBalanceRefresh: Bool, supportsReceiveAddress: Bool, supportsSend: Bool) {
+    nonisolated public init(chainName: String, supportedSymbols: [String], integrationState: AppCoreChainIntegrationState, supportsSeedImport: Bool, supportsBalanceRefresh: Bool, supportsReceiveAddress: Bool, supportsSend: Bool) {
         self.chainName = chainName
         self.supportedSymbols = supportedSymbols
         self.integrationState = integrationState
@@ -5292,7 +4964,7 @@ nonisolated public struct FfiConverterTypeAppCoreChainBackend: FfiConverterRustB
             try AppCoreChainBackend(
                 chainName: FfiConverterString.read(from: &buf), 
                 supportedSymbols: FfiConverterSequenceString.read(from: &buf), 
-                integrationState: FfiConverterString.read(from: &buf), 
+                integrationState: FfiConverterTypeAppCoreChainIntegrationState.read(from: &buf), 
                 supportsSeedImport: FfiConverterBool.read(from: &buf), 
                 supportsBalanceRefresh: FfiConverterBool.read(from: &buf), 
                 supportsReceiveAddress: FfiConverterBool.read(from: &buf), 
@@ -5303,7 +4975,7 @@ nonisolated public struct FfiConverterTypeAppCoreChainBackend: FfiConverterRustB
     public static func write(_ value: AppCoreChainBackend, into buf: inout [UInt8]) {
         FfiConverterString.write(value.chainName, into: &buf)
         FfiConverterSequenceString.write(value.supportedSymbols, into: &buf)
-        FfiConverterString.write(value.integrationState, into: &buf)
+        FfiConverterTypeAppCoreChainIntegrationState.write(value.integrationState, into: &buf)
         FfiConverterBool.write(value.supportsSeedImport, into: &buf)
         FfiConverterBool.write(value.supportsBalanceRefresh, into: &buf)
         FfiConverterBool.write(value.supportsReceiveAddress, into: &buf)
@@ -6009,16 +5681,16 @@ nonisolated public func FfiConverterTypeAppCorePathPreset_lower(_ value: AppCore
 
 nonisolated public struct AppCoreRequestCompilationPreset {
     public var chain: String
-    public var derivationAlgorithm: String
-    public var addressAlgorithm: String
-    public var publicKeyFormat: String
-    public var scriptPolicy: String
-    public var fixedScriptType: String?
-    public var bitcoinPurposeScriptMap: [String: String]?
+    public var derivationAlgorithm: AppCoreDerivationAlgorithm
+    public var addressAlgorithm: AppCoreAddressAlgorithm
+    public var publicKeyFormat: AppCorePublicKeyFormat
+    public var scriptPolicy: AppCoreScriptPolicy
+    public var fixedScriptType: AppCoreScriptType?
+    public var bitcoinPurposeScriptMap: [String: AppCoreScriptType]?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    nonisolated public init(chain: String, derivationAlgorithm: String, addressAlgorithm: String, publicKeyFormat: String, scriptPolicy: String, fixedScriptType: String?, bitcoinPurposeScriptMap: [String: String]?) {
+    nonisolated public init(chain: String, derivationAlgorithm: AppCoreDerivationAlgorithm, addressAlgorithm: AppCoreAddressAlgorithm, publicKeyFormat: AppCorePublicKeyFormat, scriptPolicy: AppCoreScriptPolicy, fixedScriptType: AppCoreScriptType?, bitcoinPurposeScriptMap: [String: AppCoreScriptType]?) {
         self.chain = chain
         self.derivationAlgorithm = derivationAlgorithm
         self.addressAlgorithm = addressAlgorithm
@@ -6081,23 +5753,23 @@ nonisolated public struct FfiConverterTypeAppCoreRequestCompilationPreset: FfiCo
         return
             try AppCoreRequestCompilationPreset(
                 chain: FfiConverterString.read(from: &buf), 
-                derivationAlgorithm: FfiConverterString.read(from: &buf), 
-                addressAlgorithm: FfiConverterString.read(from: &buf), 
-                publicKeyFormat: FfiConverterString.read(from: &buf), 
-                scriptPolicy: FfiConverterString.read(from: &buf), 
-                fixedScriptType: FfiConverterOptionString.read(from: &buf), 
-                bitcoinPurposeScriptMap: FfiConverterOptionDictionaryStringString.read(from: &buf)
+                derivationAlgorithm: FfiConverterTypeAppCoreDerivationAlgorithm.read(from: &buf), 
+                addressAlgorithm: FfiConverterTypeAppCoreAddressAlgorithm.read(from: &buf), 
+                publicKeyFormat: FfiConverterTypeAppCorePublicKeyFormat.read(from: &buf), 
+                scriptPolicy: FfiConverterTypeAppCoreScriptPolicy.read(from: &buf), 
+                fixedScriptType: FfiConverterOptionTypeAppCoreScriptType.read(from: &buf), 
+                bitcoinPurposeScriptMap: FfiConverterOptionDictionaryStringTypeAppCoreScriptType.read(from: &buf)
         )
     }
 
     public static func write(_ value: AppCoreRequestCompilationPreset, into buf: inout [UInt8]) {
         FfiConverterString.write(value.chain, into: &buf)
-        FfiConverterString.write(value.derivationAlgorithm, into: &buf)
-        FfiConverterString.write(value.addressAlgorithm, into: &buf)
-        FfiConverterString.write(value.publicKeyFormat, into: &buf)
-        FfiConverterString.write(value.scriptPolicy, into: &buf)
-        FfiConverterOptionString.write(value.fixedScriptType, into: &buf)
-        FfiConverterOptionDictionaryStringString.write(value.bitcoinPurposeScriptMap, into: &buf)
+        FfiConverterTypeAppCoreDerivationAlgorithm.write(value.derivationAlgorithm, into: &buf)
+        FfiConverterTypeAppCoreAddressAlgorithm.write(value.addressAlgorithm, into: &buf)
+        FfiConverterTypeAppCorePublicKeyFormat.write(value.publicKeyFormat, into: &buf)
+        FfiConverterTypeAppCoreScriptPolicy.write(value.scriptPolicy, into: &buf)
+        FfiConverterOptionTypeAppCoreScriptType.write(value.fixedScriptType, into: &buf)
+        FfiConverterOptionDictionaryStringTypeAppCoreScriptType.write(value.bitcoinPurposeScriptMap, into: &buf)
     }
 }
 
@@ -12268,6 +11940,80 @@ nonisolated public func FfiConverterTypeEthereumTokenTransferHistoryDiagnostics_
 }
 
 
+/**
+ * Light-weight EVM address probe output. Used by chain-risk warnings to
+ * decide whether a destination looks "fresh" (zero balance + zero nonce).
+ */
+nonisolated public struct EvmAddressProbe {
+    public var nonce: Int64
+    public var balanceEth: Double
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(nonce: Int64, balanceEth: Double) {
+        self.nonce = nonce
+        self.balanceEth = balanceEth
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension EvmAddressProbe: Sendable {}
+#endif
+
+
+nonisolated extension EvmAddressProbe: Equatable, Hashable {
+    public static func ==(lhs: EvmAddressProbe, rhs: EvmAddressProbe) -> Bool {
+        if lhs.nonce != rhs.nonce {
+            return false
+        }
+        if lhs.balanceEth != rhs.balanceEth {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(nonce)
+        hasher.combine(balanceEth)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeEvmAddressProbe: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EvmAddressProbe {
+        return
+            try EvmAddressProbe(
+                nonce: FfiConverterInt64.read(from: &buf), 
+                balanceEth: FfiConverterDouble.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EvmAddressProbe, into buf: inout [UInt8]) {
+        FfiConverterInt64.write(value.nonce, into: &buf)
+        FfiConverterDouble.write(value.balanceEth, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeEvmAddressProbe_lift(_ buf: RustBuffer) throws -> EvmAddressProbe {
+    return try FfiConverterTypeEvmAddressProbe.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeEvmAddressProbe_lower(_ value: EvmAddressProbe) -> RustBuffer {
+    return FfiConverterTypeEvmAddressProbe.lower(value)
+}
+
+
 nonisolated public struct EvmCustomFeeConfiguration {
     public var maxFeePerGasGwei: Double
     public var maxPriorityFeePerGasGwei: Double
@@ -14929,9 +14675,10 @@ nonisolated public func FfiConverterTypeHistoryRecord_lower(_ value: HistoryReco
 
 
 /**
- * Typed input for `core_encode_history_records_json`. `payload_json` is the
- * full `PersistedTransactionRecord` JSON blob (unencoded); Rust base64-encodes it
- * into the resulting HistoryRecord payload.
+ * Typed input for the history persistence endpoints (`upsert_history_records`
+ * and `replace_all_history_records`). `payload_json` is the full
+ * `PersistedTransactionRecord` JSON blob (unencoded); Rust base64-encodes it
+ * into the stored HistoryRecord `payload` column.
  */
 nonisolated public struct HistoryRecordEncodeInput {
     public var id: String
@@ -16718,6 +16465,89 @@ nonisolated public func FfiConverterTypeMoneroSendPreview_lift(_ buf: RustBuffer
 #endif
 nonisolated public func FfiConverterTypeMoneroSendPreview_lower(_ value: MoneroSendPreview) -> RustBuffer {
     return FfiConverterTypeMoneroSendPreview.lower(value)
+}
+
+
+/**
+ * Unified per-chain native balance projection used by `fetch_native_balance_summary`.
+ * `smallest_unit` is a base-10 integer string (sats, lamports, wei, yocto-NEAR, ...);
+ * `amount_display` is the chain's human-readable native amount (e.g. "0.005").
+ */
+nonisolated public struct NativeBalanceSummary {
+    public var smallestUnit: String
+    public var amountDisplay: String
+    public var utxoCount: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(smallestUnit: String, amountDisplay: String, utxoCount: UInt32) {
+        self.smallestUnit = smallestUnit
+        self.amountDisplay = amountDisplay
+        self.utxoCount = utxoCount
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension NativeBalanceSummary: Sendable {}
+#endif
+
+
+nonisolated extension NativeBalanceSummary: Equatable, Hashable {
+    public static func ==(lhs: NativeBalanceSummary, rhs: NativeBalanceSummary) -> Bool {
+        if lhs.smallestUnit != rhs.smallestUnit {
+            return false
+        }
+        if lhs.amountDisplay != rhs.amountDisplay {
+            return false
+        }
+        if lhs.utxoCount != rhs.utxoCount {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(smallestUnit)
+        hasher.combine(amountDisplay)
+        hasher.combine(utxoCount)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeNativeBalanceSummary: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> NativeBalanceSummary {
+        return
+            try NativeBalanceSummary(
+                smallestUnit: FfiConverterString.read(from: &buf), 
+                amountDisplay: FfiConverterString.read(from: &buf), 
+                utxoCount: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: NativeBalanceSummary, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.smallestUnit, into: &buf)
+        FfiConverterString.write(value.amountDisplay, into: &buf)
+        FfiConverterUInt32.write(value.utxoCount, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeNativeBalanceSummary_lift(_ buf: RustBuffer) throws -> NativeBalanceSummary {
+    return try FfiConverterTypeNativeBalanceSummary.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeNativeBalanceSummary_lower(_ value: NativeBalanceSummary) -> RustBuffer {
+    return FfiConverterTypeNativeBalanceSummary.lower(value)
 }
 
 
@@ -18575,6 +18405,84 @@ nonisolated public func FfiConverterTypePolkadotSendPreview_lift(_ buf: RustBuff
 #endif
 nonisolated public func FfiConverterTypePolkadotSendPreview_lower(_ value: PolkadotSendPreview) -> RustBuffer {
     return FfiConverterTypePolkadotSendPreview.lower(value)
+}
+
+
+nonisolated public struct PreparedBroadcastPayload {
+    public var chainId: UInt32
+    public var broadcastPayload: String
+    public var resultField: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(chainId: UInt32, broadcastPayload: String, resultField: String) {
+        self.chainId = chainId
+        self.broadcastPayload = broadcastPayload
+        self.resultField = resultField
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension PreparedBroadcastPayload: Sendable {}
+#endif
+
+
+nonisolated extension PreparedBroadcastPayload: Equatable, Hashable {
+    public static func ==(lhs: PreparedBroadcastPayload, rhs: PreparedBroadcastPayload) -> Bool {
+        if lhs.chainId != rhs.chainId {
+            return false
+        }
+        if lhs.broadcastPayload != rhs.broadcastPayload {
+            return false
+        }
+        if lhs.resultField != rhs.resultField {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(chainId)
+        hasher.combine(broadcastPayload)
+        hasher.combine(resultField)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypePreparedBroadcastPayload: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PreparedBroadcastPayload {
+        return
+            try PreparedBroadcastPayload(
+                chainId: FfiConverterUInt32.read(from: &buf), 
+                broadcastPayload: FfiConverterString.read(from: &buf), 
+                resultField: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: PreparedBroadcastPayload, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.chainId, into: &buf)
+        FfiConverterString.write(value.broadcastPayload, into: &buf)
+        FfiConverterString.write(value.resultField, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypePreparedBroadcastPayload_lift(_ buf: RustBuffer) throws -> PreparedBroadcastPayload {
+    return try FfiConverterTypePreparedBroadcastPayload.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypePreparedBroadcastPayload_lower(_ value: PreparedBroadcastPayload) -> RustBuffer {
+    return FfiConverterTypePreparedBroadcastPayload.lower(value)
 }
 
 
@@ -21111,16 +21019,12 @@ nonisolated public func FfiConverterTypeSimpleAddressHistoryEntry_lower(_ value:
 
 
 nonisolated public struct SimpleChainRiskProbeConfig {
-    public var balanceField: String
-    public var divisor: Double
     public var displayChainName: String
     public var balanceLabel: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    nonisolated public init(balanceField: String, divisor: Double, displayChainName: String, balanceLabel: String) {
-        self.balanceField = balanceField
-        self.divisor = divisor
+    nonisolated public init(displayChainName: String, balanceLabel: String) {
         self.displayChainName = displayChainName
         self.balanceLabel = balanceLabel
     }
@@ -21133,12 +21037,6 @@ nonisolated extension SimpleChainRiskProbeConfig: Sendable {}
 
 nonisolated extension SimpleChainRiskProbeConfig: Equatable, Hashable {
     public static func ==(lhs: SimpleChainRiskProbeConfig, rhs: SimpleChainRiskProbeConfig) -> Bool {
-        if lhs.balanceField != rhs.balanceField {
-            return false
-        }
-        if lhs.divisor != rhs.divisor {
-            return false
-        }
         if lhs.displayChainName != rhs.displayChainName {
             return false
         }
@@ -21149,8 +21047,6 @@ nonisolated extension SimpleChainRiskProbeConfig: Equatable, Hashable {
     }
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(balanceField)
-        hasher.combine(divisor)
         hasher.combine(displayChainName)
         hasher.combine(balanceLabel)
     }
@@ -21165,16 +21061,12 @@ nonisolated public struct FfiConverterTypeSimpleChainRiskProbeConfig: FfiConvert
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SimpleChainRiskProbeConfig {
         return
             try SimpleChainRiskProbeConfig(
-                balanceField: FfiConverterString.read(from: &buf), 
-                divisor: FfiConverterDouble.read(from: &buf), 
                 displayChainName: FfiConverterString.read(from: &buf), 
                 balanceLabel: FfiConverterString.read(from: &buf)
         )
     }
 
     public static func write(_ value: SimpleChainRiskProbeConfig, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.balanceField, into: &buf)
-        FfiConverterDouble.write(value.divisor, into: &buf)
         FfiConverterString.write(value.displayChainName, into: &buf)
         FfiConverterString.write(value.balanceLabel, into: &buf)
     }
@@ -25586,6 +25478,109 @@ nonisolated public func FfiConverterTypeUtxoSpendPlanRequest_lower(_ value: Utxo
 }
 
 
+/**
+ * Unified tx confirmation status returned by all UTXO chains.
+ */
+nonisolated public struct UtxoTxStatus {
+    public var txid: String
+    public var confirmed: Bool
+    public var blockHeight: UInt64?
+    public var blockTime: UInt64?
+    /**
+     * Number of confirmations (populated by Blockbook-backed chains; None for Esplora/WoC).
+     */
+    public var confirmations: UInt64?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(txid: String, confirmed: Bool, blockHeight: UInt64?, blockTime: UInt64?, 
+        /**
+         * Number of confirmations (populated by Blockbook-backed chains; None for Esplora/WoC).
+         */confirmations: UInt64?) {
+        self.txid = txid
+        self.confirmed = confirmed
+        self.blockHeight = blockHeight
+        self.blockTime = blockTime
+        self.confirmations = confirmations
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension UtxoTxStatus: Sendable {}
+#endif
+
+
+nonisolated extension UtxoTxStatus: Equatable, Hashable {
+    public static func ==(lhs: UtxoTxStatus, rhs: UtxoTxStatus) -> Bool {
+        if lhs.txid != rhs.txid {
+            return false
+        }
+        if lhs.confirmed != rhs.confirmed {
+            return false
+        }
+        if lhs.blockHeight != rhs.blockHeight {
+            return false
+        }
+        if lhs.blockTime != rhs.blockTime {
+            return false
+        }
+        if lhs.confirmations != rhs.confirmations {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(txid)
+        hasher.combine(confirmed)
+        hasher.combine(blockHeight)
+        hasher.combine(blockTime)
+        hasher.combine(confirmations)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeUtxoTxStatus: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UtxoTxStatus {
+        return
+            try UtxoTxStatus(
+                txid: FfiConverterString.read(from: &buf), 
+                confirmed: FfiConverterBool.read(from: &buf), 
+                blockHeight: FfiConverterOptionUInt64.read(from: &buf), 
+                blockTime: FfiConverterOptionUInt64.read(from: &buf), 
+                confirmations: FfiConverterOptionUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: UtxoTxStatus, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.txid, into: &buf)
+        FfiConverterBool.write(value.confirmed, into: &buf)
+        FfiConverterOptionUInt64.write(value.blockHeight, into: &buf)
+        FfiConverterOptionUInt64.write(value.blockTime, into: &buf)
+        FfiConverterOptionUInt64.write(value.confirmations, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeUtxoTxStatus_lift(_ buf: RustBuffer) throws -> UtxoTxStatus {
+    return try FfiConverterTypeUtxoTxStatus.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeUtxoTxStatus_lower(_ value: UtxoTxStatus) -> RustBuffer {
+    return FfiConverterTypeUtxoTxStatus.lower(value)
+}
+
+
 nonisolated public struct WalletAddress {
     public var chainName: String
     public var address: String
@@ -27642,6 +27637,550 @@ nonisolated public func FfiConverterTypeXRPSendPreview_lift(_ buf: RustBuffer) t
 nonisolated public func FfiConverterTypeXRPSendPreview_lower(_ value: XrpSendPreview) -> RustBuffer {
     return FfiConverterTypeXRPSendPreview.lower(value)
 }
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+nonisolated public enum AppCoreAddressAlgorithm {
+    
+    case bitcoin
+    case evm
+    case solana
+}
+
+
+#if compiler(>=6)
+nonisolated extension AppCoreAddressAlgorithm: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeAppCoreAddressAlgorithm: FfiConverterRustBuffer {
+    typealias SwiftType = AppCoreAddressAlgorithm
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AppCoreAddressAlgorithm {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .bitcoin
+        
+        case 2: return .evm
+        
+        case 3: return .solana
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AppCoreAddressAlgorithm, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .bitcoin:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .evm:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .solana:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreAddressAlgorithm_lift(_ buf: RustBuffer) throws -> AppCoreAddressAlgorithm {
+    return try FfiConverterTypeAppCoreAddressAlgorithm.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreAddressAlgorithm_lower(_ value: AppCoreAddressAlgorithm) -> RustBuffer {
+    return FfiConverterTypeAppCoreAddressAlgorithm.lower(value)
+}
+
+
+nonisolated extension AppCoreAddressAlgorithm: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+nonisolated public enum AppCoreChainIntegrationState {
+    
+    case live
+    case planned
+}
+
+
+#if compiler(>=6)
+nonisolated extension AppCoreChainIntegrationState: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeAppCoreChainIntegrationState: FfiConverterRustBuffer {
+    typealias SwiftType = AppCoreChainIntegrationState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AppCoreChainIntegrationState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .live
+        
+        case 2: return .planned
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AppCoreChainIntegrationState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .live:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .planned:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreChainIntegrationState_lift(_ buf: RustBuffer) throws -> AppCoreChainIntegrationState {
+    return try FfiConverterTypeAppCoreChainIntegrationState.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreChainIntegrationState_lower(_ value: AppCoreChainIntegrationState) -> RustBuffer {
+    return FfiConverterTypeAppCoreChainIntegrationState.lower(value)
+}
+
+
+nonisolated extension AppCoreChainIntegrationState: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+nonisolated public enum AppCoreDerivationAlgorithm {
+    
+    case bip32Secp256k1
+    case slip10Ed25519
+}
+
+
+#if compiler(>=6)
+nonisolated extension AppCoreDerivationAlgorithm: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeAppCoreDerivationAlgorithm: FfiConverterRustBuffer {
+    typealias SwiftType = AppCoreDerivationAlgorithm
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AppCoreDerivationAlgorithm {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .bip32Secp256k1
+        
+        case 2: return .slip10Ed25519
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AppCoreDerivationAlgorithm, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .bip32Secp256k1:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .slip10Ed25519:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreDerivationAlgorithm_lift(_ buf: RustBuffer) throws -> AppCoreDerivationAlgorithm {
+    return try FfiConverterTypeAppCoreDerivationAlgorithm.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreDerivationAlgorithm_lower(_ value: AppCoreDerivationAlgorithm) -> RustBuffer {
+    return FfiConverterTypeAppCoreDerivationAlgorithm.lower(value)
+}
+
+
+nonisolated extension AppCoreDerivationAlgorithm: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Endpoint-table slot for a given chain. Mirrors `chains::registry::EndpointSlot`
+ * so the Swift side can ask Rust for the right `chain_id + offset` instead of
+ * reimplementing the offset arithmetic.
+ */
+
+nonisolated public enum AppCoreEndpointSlot {
+    
+    case primary
+    case secondary
+    case explorer
+}
+
+
+#if compiler(>=6)
+nonisolated extension AppCoreEndpointSlot: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeAppCoreEndpointSlot: FfiConverterRustBuffer {
+    typealias SwiftType = AppCoreEndpointSlot
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AppCoreEndpointSlot {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .primary
+        
+        case 2: return .secondary
+        
+        case 3: return .explorer
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AppCoreEndpointSlot, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .primary:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .secondary:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .explorer:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreEndpointSlot_lift(_ buf: RustBuffer) throws -> AppCoreEndpointSlot {
+    return try FfiConverterTypeAppCoreEndpointSlot.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreEndpointSlot_lower(_ value: AppCoreEndpointSlot) -> RustBuffer {
+    return FfiConverterTypeAppCoreEndpointSlot.lower(value)
+}
+
+
+nonisolated extension AppCoreEndpointSlot: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+nonisolated public enum AppCorePublicKeyFormat {
+    
+    case compressed
+    case uncompressed
+    case xOnly
+    case raw
+}
+
+
+#if compiler(>=6)
+nonisolated extension AppCorePublicKeyFormat: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeAppCorePublicKeyFormat: FfiConverterRustBuffer {
+    typealias SwiftType = AppCorePublicKeyFormat
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AppCorePublicKeyFormat {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .compressed
+        
+        case 2: return .uncompressed
+        
+        case 3: return .xOnly
+        
+        case 4: return .raw
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AppCorePublicKeyFormat, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .compressed:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .uncompressed:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .xOnly:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .raw:
+            writeInt(&buf, Int32(4))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCorePublicKeyFormat_lift(_ buf: RustBuffer) throws -> AppCorePublicKeyFormat {
+    return try FfiConverterTypeAppCorePublicKeyFormat.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCorePublicKeyFormat_lower(_ value: AppCorePublicKeyFormat) -> RustBuffer {
+    return FfiConverterTypeAppCorePublicKeyFormat.lower(value)
+}
+
+
+nonisolated extension AppCorePublicKeyFormat: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+nonisolated public enum AppCoreScriptPolicy {
+    
+    case bitcoinPurpose
+    case fixed
+}
+
+
+#if compiler(>=6)
+nonisolated extension AppCoreScriptPolicy: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeAppCoreScriptPolicy: FfiConverterRustBuffer {
+    typealias SwiftType = AppCoreScriptPolicy
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AppCoreScriptPolicy {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .bitcoinPurpose
+        
+        case 2: return .fixed
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AppCoreScriptPolicy, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .bitcoinPurpose:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .fixed:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreScriptPolicy_lift(_ buf: RustBuffer) throws -> AppCoreScriptPolicy {
+    return try FfiConverterTypeAppCoreScriptPolicy.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreScriptPolicy_lower(_ value: AppCoreScriptPolicy) -> RustBuffer {
+    return FfiConverterTypeAppCoreScriptPolicy.lower(value)
+}
+
+
+nonisolated extension AppCoreScriptPolicy: Equatable, Hashable {}
+
+
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+nonisolated public enum AppCoreScriptType {
+    
+    case p2pkh
+    case p2shP2wpkh
+    case p2wpkh
+    case p2tr
+    case account
+}
+
+
+#if compiler(>=6)
+nonisolated extension AppCoreScriptType: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeAppCoreScriptType: FfiConverterRustBuffer {
+    typealias SwiftType = AppCoreScriptType
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AppCoreScriptType {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .p2pkh
+        
+        case 2: return .p2shP2wpkh
+        
+        case 3: return .p2wpkh
+        
+        case 4: return .p2tr
+        
+        case 5: return .account
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: AppCoreScriptType, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .p2pkh:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .p2shP2wpkh:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .p2wpkh:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .p2tr:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .account:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreScriptType_lift(_ buf: RustBuffer) throws -> AppCoreScriptType {
+    return try FfiConverterTypeAppCoreScriptType.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeAppCoreScriptType_lower(_ value: AppCoreScriptType) -> RustBuffer {
+    return FfiConverterTypeAppCoreScriptType.lower(value)
+}
+
+
+nonisolated extension AppCoreScriptType: Equatable, Hashable {}
+
+
+
+
+
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
@@ -31538,6 +32077,30 @@ fileprivate struct FfiConverterOptionTypeXRPSendPreview: FfiConverterRustBuffer 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeAppCoreScriptType: FfiConverterRustBuffer {
+    typealias SwiftType = AppCoreScriptType?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeAppCoreScriptType.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeAppCoreScriptType.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeCoreTransactionStatus: FfiConverterRustBuffer {
     typealias SwiftType = CoreTransactionStatus?
 
@@ -31610,8 +32173,8 @@ fileprivate struct FfiConverterOptionSequenceTypeDerivationPathSegment: FfiConve
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionDictionaryStringString: FfiConverterRustBuffer {
-    typealias SwiftType = [String: String]?
+fileprivate struct FfiConverterOptionDictionaryStringTypeAppCoreScriptType: FfiConverterRustBuffer {
+    typealias SwiftType = [String: AppCoreScriptType]?
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
         guard let value = value else {
@@ -31619,13 +32182,13 @@ fileprivate struct FfiConverterOptionDictionaryStringString: FfiConverterRustBuf
             return
         }
         writeInt(&buf, Int8(1))
-        FfiConverterDictionaryStringString.write(value, into: &buf)
+        FfiConverterDictionaryStringTypeAppCoreScriptType.write(value, into: &buf)
     }
 
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
-        case 1: return try FfiConverterDictionaryStringString.read(from: &buf)
+        case 1: return try FfiConverterDictionaryStringTypeAppCoreScriptType.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -34152,6 +34715,32 @@ fileprivate struct FfiConverterDictionaryStringTypeXRPHistoryDiagnostics: FfiCon
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterDictionaryStringTypeAppCoreScriptType: FfiConverterRustBuffer {
+    public static func write(_ value: [String: AppCoreScriptType], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for (key, value) in value {
+            FfiConverterString.write(key, into: &buf)
+            FfiConverterTypeAppCoreScriptType.write(value, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String: AppCoreScriptType] {
+        let len: Int32 = try readInt(&buf)
+        var dict = [String: AppCoreScriptType]()
+        dict.reserveCapacity(Int(len))
+        for _ in 0..<len {
+            let key = try FfiConverterString.read(from: &buf)
+            let value = try FfiConverterTypeAppCoreScriptType.read(from: &buf)
+            dict[key] = value
+        }
+        return dict
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterDictionaryStringSequenceTypeChainSelfTestResult: FfiConverterRustBuffer {
     public static func write(_ value: [String: [ChainSelfTestResult]], into buf: inout [UInt8]) {
         let len = Int32(value.count)
@@ -34272,22 +34861,9 @@ nonisolated public func appCoreAppChainDescriptors() -> [AppCoreAppChainDescript
     )
 })
 }
-nonisolated public func appCoreAppChainDescriptorsJson()throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_app_chain_descriptors_json($0
-    )
-})
-}
 nonisolated public func appCoreBitcoinEsploraBaseUrls(network: String)throws  -> [String]  {
     return try  FfiConverterSequenceString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_app_core_bitcoin_esplora_base_urls(
-        FfiConverterString.lower(network),$0
-    )
-})
-}
-nonisolated public func appCoreBitcoinEsploraBaseUrlsJson(network: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_bitcoin_esplora_base_urls_json(
         FfiConverterString.lower(network),$0
     )
 })
@@ -34299,23 +34875,9 @@ nonisolated public func appCoreBitcoinWalletStoreDefaultBaseUrls(network: String
     )
 })
 }
-nonisolated public func appCoreBitcoinWalletStoreDefaultBaseUrlsJson(network: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_bitcoin_wallet_store_default_base_urls_json(
-        FfiConverterString.lower(network),$0
-    )
-})
-}
 nonisolated public func appCoreBroadcastProviderOptions(chainName: String) -> [AppCoreBroadcastProviderOption]  {
     return try!  FfiConverterSequenceTypeAppCoreBroadcastProviderOption.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_app_core_broadcast_provider_options(
-        FfiConverterString.lower(chainName),$0
-    )
-})
-}
-nonisolated public func appCoreBroadcastProviderOptionsJson(chainName: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_broadcast_provider_options_json(
         FfiConverterString.lower(chainName),$0
     )
 })
@@ -34326,34 +34888,15 @@ nonisolated public func appCoreChainBackends() -> [AppCoreChainBackend]  {
     )
 })
 }
-nonisolated public func appCoreChainBackendsJson()throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_chain_backends_json($0
-    )
-})
-}
 nonisolated public func appCoreChainPresets()throws  -> [AppCoreChainPreset]  {
     return try  FfiConverterSequenceTypeAppCoreChainPreset.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_app_core_chain_presets($0
     )
 })
 }
-nonisolated public func appCoreChainPresetsJson()throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_chain_presets_json($0
-    )
-})
-}
 nonisolated public func appCoreDerivationPathsForPreset(accountIndex: UInt32)throws  -> CoreSeedDerivationPaths  {
     return try  FfiConverterTypeCoreSeedDerivationPaths_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_app_core_derivation_paths_for_preset(
-        FfiConverterUInt32.lower(accountIndex),$0
-    )
-})
-}
-nonisolated public func appCoreDerivationPathsForPresetJson(accountIndex: UInt32)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_derivation_paths_for_preset_json(
         FfiConverterUInt32.lower(accountIndex),$0
     )
 })
@@ -34365,23 +34908,9 @@ nonisolated public func appCoreDiagnosticsChecks(chainName: String)throws  -> [A
     )
 })
 }
-nonisolated public func appCoreDiagnosticsChecksJson(chainName: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_diagnostics_checks_json(
-        FfiConverterString.lower(chainName),$0
-    )
-})
-}
 nonisolated public func appCoreEndpointForId(id: String)throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_app_core_endpoint_for_id(
-        FfiConverterString.lower(id),$0
-    )
-})
-}
-nonisolated public func appCoreEndpointForIdJson(id: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_endpoint_for_id_json(
         FfiConverterString.lower(id),$0
     )
 })
@@ -34395,12 +34924,6 @@ nonisolated public func appCoreEndpointRecordsForChain(chainName: String, roleMa
     )
 })
 }
-nonisolated public func appCoreEndpointRecordsJson()throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_endpoint_records_json($0
-    )
-})
-}
 nonisolated public func appCoreEndpointsForIds(ids: [String])throws  -> [String]  {
     return try  FfiConverterSequenceString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_app_core_endpoints_for_ids(
@@ -34408,23 +34931,9 @@ nonisolated public func appCoreEndpointsForIds(ids: [String])throws  -> [String]
     )
 })
 }
-nonisolated public func appCoreEndpointsForIdsJson(idsJson: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_endpoints_for_ids_json(
-        FfiConverterString.lower(idsJson),$0
-    )
-})
-}
 nonisolated public func appCoreEvmRpcEndpoints(chainName: String)throws  -> [String]  {
     return try  FfiConverterSequenceString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_app_core_evm_rpc_endpoints(
-        FfiConverterString.lower(chainName),$0
-    )
-})
-}
-nonisolated public func appCoreEvmRpcEndpointsJson(chainName: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_evm_rpc_endpoints_json(
         FfiConverterString.lower(chainName),$0
     )
 })
@@ -34436,23 +34945,9 @@ nonisolated public func appCoreExplorerSupplementalEndpoints(chainName: String)t
     )
 })
 }
-nonisolated public func appCoreExplorerSupplementalEndpointsJson(chainName: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_explorer_supplemental_endpoints_json(
-        FfiConverterString.lower(chainName),$0
-    )
-})
-}
 nonisolated public func appCoreGroupedSettingsEntries(chainName: String)throws  -> [AppCoreGroupedSettingsEntry]  {
     return try  FfiConverterSequenceTypeAppCoreGroupedSettingsEntry.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_app_core_grouped_settings_entries(
-        FfiConverterString.lower(chainName),$0
-    )
-})
-}
-nonisolated public func appCoreGroupedSettingsEntriesJson(chainName: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_grouped_settings_entries_json(
         FfiConverterString.lower(chainName),$0
     )
 })
@@ -34463,36 +34958,16 @@ nonisolated public func appCoreLiveChainNames() -> [String]  {
     )
 })
 }
-nonisolated public func appCoreLiveChainNamesJson()throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_live_chain_names_json($0
-    )
-})
-}
 nonisolated public func appCoreRequestCompilationPresets()throws  -> [AppCoreRequestCompilationPreset]  {
     return try  FfiConverterSequenceTypeAppCoreRequestCompilationPreset.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_app_core_request_compilation_presets($0
     )
 })
 }
-nonisolated public func appCoreRequestCompilationPresetsJson()throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_request_compilation_presets_json($0
-    )
-})
-}
-nonisolated public func appCoreResolveDerivationPath(chain: UInt32, derivationPath: String)throws  -> AppCoreDerivationPathResolution  {
+nonisolated public func appCoreResolveDerivationPath(chain: String, derivationPath: String)throws  -> AppCoreDerivationPathResolution  {
     return try  FfiConverterTypeAppCoreDerivationPathResolution_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_app_core_resolve_derivation_path(
-        FfiConverterUInt32.lower(chain),
-        FfiConverterString.lower(derivationPath),$0
-    )
-})
-}
-nonisolated public func appCoreResolveDerivationPathJson(chain: UInt32, derivationPath: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_resolve_derivation_path_json(
-        FfiConverterUInt32.lower(chain),
+        FfiConverterString.lower(chain),
         FfiConverterString.lower(derivationPath),$0
     )
 })
@@ -34504,13 +34979,6 @@ nonisolated public func appCoreTransactionExplorerEntry(chainName: String)throws
     )
 })
 }
-nonisolated public func appCoreTransactionExplorerEntryJson(chainName: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_app_core_transaction_explorer_entry_json(
-        FfiConverterString.lower(chainName),$0
-    )
-})
-}
 /**
  * Return the package portion of a (possibly-normalized) aptos identifier.
  */
@@ -34518,13 +34986,6 @@ nonisolated public func aptosPackageIdentifier(value: String?) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_aptos_package_identifier(
         FfiConverterOptionString.lower(value),$0
-    )
-})
-}
-nonisolated public func balanceDecoderEvmNativeBalance(json: String) -> Double?  {
-    return try!  FfiConverterOptionDouble.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_balance_decoder_evm_native_balance(
-        FfiConverterString.lower(json),$0
     )
 })
 }
@@ -34544,56 +35005,10 @@ nonisolated public func balanceDecoderFirstElementStringField(field: String, jso
     )
 })
 }
-nonisolated public func balanceDecoderHasField(field: String, json: String) -> Bool  {
-    return try!  FfiConverterBool.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_balance_decoder_has_field(
-        FfiConverterString.lower(field),
-        FfiConverterString.lower(json),$0
-    )
-})
-}
 nonisolated public func balanceDecoderI64Field(field: String, json: String) -> Int64?  {
     return try!  FfiConverterOptionInt64.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_balance_decoder_i64_field(
         FfiConverterString.lower(field),
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-nonisolated public func balanceDecoderJsonArrayIsNonEmpty(json: String) -> Bool  {
-    return try!  FfiConverterBool.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_balance_decoder_json_array_is_non_empty(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-nonisolated public func balanceDecoderStringField(field: String, json: String) -> String?  {
-    return try!  FfiConverterOptionString.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_balance_decoder_string_field(
-        FfiConverterString.lower(field),
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-nonisolated public func balanceDecoderU128StringFieldAsF64(field: String, json: String) -> Double?  {
-    return try!  FfiConverterOptionDouble.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_balance_decoder_u128_string_field_as_f64(
-        FfiConverterString.lower(field),
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-nonisolated public func balanceDecoderU64Field(field: String, json: String) -> UInt64?  {
-    return try!  FfiConverterOptionUInt64.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_balance_decoder_u64_field(
-        FfiConverterString.lower(field),
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-nonisolated public func balanceDecoderYoctoNearToDouble(json: String) -> Double?  {
-    return try!  FfiConverterOptionDouble.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_balance_decoder_yocto_near_to_double(
         FfiConverterString.lower(json),$0
     )
 })
@@ -34626,14 +35041,6 @@ nonisolated public func buildAptosSendPayload(from: String, to: String, amountAp
         FfiConverterDouble.lower(amountApt),
         FfiConverterString.lower(privateKeyHex),
         FfiConverterString.lower(publicKeyHex),$0
-    )
-})
-}
-nonisolated public func buildBitcoinHdSendPreviewRecord(balanceJson: String, feeJson: String) -> BitcoinSendPreview?  {
-    return try!  FfiConverterOptionTypeBitcoinSendPreview.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_build_bitcoin_hd_send_preview_record(
-        FfiConverterString.lower(balanceJson),
-        FfiConverterString.lower(feeJson),$0
     )
 })
 }
@@ -34671,15 +35078,6 @@ nonisolated public func buildDogeSendPayload(from: String, to: String, amountDog
     )
 })
 }
-nonisolated public func buildDogecoinSendPreviewRecord(json: String, requestedAmount: Double, feePriority: String) -> DogecoinSendPreview?  {
-    return try!  FfiConverterOptionTypeDogecoinSendPreview.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_build_dogecoin_send_preview_record(
-        FfiConverterString.lower(json),
-        FfiConverterDouble.lower(requestedAmount),
-        FfiConverterString.lower(feePriority),$0
-    )
-})
-}
 /**
  * Build the JSON payload for a native EVM send. `overrides_fragment` is the
  * comma-prefixed string from `build_evm_overrides_json_fragment` (may be empty).
@@ -34700,13 +35098,6 @@ nonisolated public func buildEvmOverridesJsonFragment(nonce: Int64?, customFees:
     uniffi_spectra_core_fn_func_build_evm_overrides_json_fragment(
         FfiConverterOptionInt64.lower(nonce),
         FfiConverterOptionTypeEvmCustomFeeConfiguration.lower(customFees),$0
-    )
-})
-}
-nonisolated public func buildEvmSendPreviewRecord(input: EvmPreviewDecodeInput) -> EthereumSendPreview?  {
-    return try!  FfiConverterOptionTypeEthereumSendPreview.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_build_evm_send_preview_record(
-        FfiConverterTypeEvmPreviewDecodeInput_lower(input),$0
     )
 })
 }
@@ -34784,14 +35175,6 @@ nonisolated public func buildPolkadotSendPayload(from: String, to: String, amoun
     )
 })
 }
-nonisolated public func buildSimpleChainPreview(json: String, chain: SimpleChain) -> SimpleChainPreview  {
-    return try!  FfiConverterTypeSimpleChainPreview_lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_build_simple_chain_preview(
-        FfiConverterString.lower(json),
-        FfiConverterTypeSimpleChain_lower(chain),$0
-    )
-})
-}
 nonisolated public func buildSolanaNativeSendPayload(fromPubkeyHex: String, to: String, amountSol: Double, privateKeyHex: String) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_build_solana_native_send_payload(
@@ -34858,13 +35241,6 @@ nonisolated public func buildTronNativeSendPayload(from: String, to: String, amo
     )
 })
 }
-nonisolated public func buildTronSendPreviewRecord(json: String) -> TronSendPreview?  {
-    return try!  FfiConverterOptionTypeTronSendPreview.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_build_tron_send_preview_record(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
 nonisolated public func buildTronTokenSendPayload(from: String, contract: String, to: String, amount: Double, decimals: UInt32, privateKeyHex: String) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_build_tron_token_send_payload(
@@ -34885,13 +35261,6 @@ nonisolated public func buildUtxoSatSendPayload(fromAddress: String, toAddress: 
         FfiConverterUInt64.lower(amountSat),
         FfiConverterUInt64.lower(feeSat),
         FfiConverterString.lower(privateKeyHex),$0
-    )
-})
-}
-nonisolated public func buildUtxoSendPreviewRecord(json: String) -> BitcoinSendPreview?  {
-    return try!  FfiConverterOptionTypeBitcoinSendPreview.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_build_utxo_send_preview_record(
-        FfiConverterString.lower(json),$0
     )
 })
 }
@@ -34925,13 +35294,6 @@ nonisolated public func chainSupportsPrivateKeyImport(chainName: String) -> Bool
     return try!  FfiConverterBool.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_chain_supports_private_key_import(
         FfiConverterString.lower(chainName),$0
-    )
-})
-}
-nonisolated public func classifyEvmReceiptJson(json: String) -> EvmReceiptClassification?  {
-    return try!  FfiConverterOptionTypeEvmReceiptClassification.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_classify_evm_receipt_json(
-        FfiConverterString.lower(json),$0
     )
 })
 }
@@ -34985,6 +35347,13 @@ nonisolated public func coreBuildPersistedSnapshot(appState: CoreAppState, secre
     )
 })
 }
+nonisolated public func coreChainIdForName(name: String) -> UInt32?  {
+    return try!  FfiConverterOptionUInt32.lift(try! rustCall() {
+    uniffi_spectra_core_fn_func_core_chain_id_for_name(
+        FfiConverterString.lower(name),$0
+    )
+})
+}
 nonisolated public func coreChainRefreshPlans(request: ChainRefreshPlanRequest) -> [ChainRefreshPlan]  {
     return try!  FfiConverterSequenceTypeChainRefreshPlan.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_core_chain_refresh_plans(
@@ -34992,8 +35361,8 @@ nonisolated public func coreChainRefreshPlans(request: ChainRefreshPlanRequest) 
     )
 })
 }
-nonisolated public func coreCompileScriptType(preset: AppCoreRequestCompilationPreset, derivationPath: String?)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
+nonisolated public func coreCompileScriptType(preset: AppCoreRequestCompilationPreset, derivationPath: String?)throws  -> AppCoreScriptType  {
+    return try  FfiConverterTypeAppCoreScriptType_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_core_compile_script_type(
         FfiConverterTypeAppCoreRequestCompilationPreset_lower(preset),
         FfiConverterOptionString.lower(derivationPath),$0
@@ -35025,10 +35394,24 @@ nonisolated public func coreDerivationPathString(segments: [DerivationPathSegmen
     )
 })
 }
-nonisolated public func coreEncodeHistoryRecordsJson(records: [HistoryRecordEncodeInput])throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_core_encode_history_records_json(
-        FfiConverterSequenceTypeHistoryRecordEncodeInput.lower(records),$0
+/**
+ * Returns true iff the given diagnostics JSON string parses as an object that
+ * contains the top-level `history` and `endpoints` keys produced by
+ * `diagnostics_build_evm_json`. Used by the Swift self-test to verify the
+ * bundle shape without doing any JSON parsing on the Swift side.
+ */
+nonisolated public func coreDiagnosticsEvmJsonShapeOk(json: String) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_spectra_core_fn_func_core_diagnostics_evm_json_shape_ok(
+        FfiConverterString.lower(json),$0
+    )
+})
+}
+nonisolated public func coreEndpointId(chainId: UInt32, slot: AppCoreEndpointSlot) -> UInt32?  {
+    return try!  FfiConverterOptionUInt32.lift(try! rustCall() {
+    uniffi_spectra_core_fn_func_core_endpoint_id(
+        FfiConverterUInt32.lower(chainId),
+        FfiConverterTypeAppCoreEndpointSlot_lower(slot),$0
     )
 })
 }
@@ -35067,13 +35450,6 @@ nonisolated public func coreEvmChainContextTag(chainName: String, ethereumNetwor
     )
 })
 }
-nonisolated public func coreEvmHasContractCode(code: String) -> Bool  {
-    return try!  FfiConverterBool.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_core_evm_has_contract_code(
-        FfiConverterString.lower(code),$0
-    )
-})
-}
 nonisolated public func coreEvmReplacementFeeBump(existingMaxFeeGwei: String?, existingPriorityFeeGwei: String?, defaultMaxFeeGwei: Double, defaultPriorityFeeGwei: Double) -> EvmReplacementFeeBump  {
     return try!  FfiConverterTypeEvmReplacementFeeBump_lift(try! rustCall() {
     uniffi_spectra_core_fn_func_core_evm_replacement_fee_bump(
@@ -35081,6 +35457,19 @@ nonisolated public func coreEvmReplacementFeeBump(existingMaxFeeGwei: String?, e
         FfiConverterOptionString.lower(existingPriorityFeeGwei),
         FfiConverterDouble.lower(defaultMaxFeeGwei),
         FfiConverterDouble.lower(defaultPriorityFeeGwei),$0
+    )
+})
+}
+/**
+ * EVM derivation source mapping: BNB Chain reuses Ethereum's seed derivation
+ * path (BIP-44 coin type 60), while every other supported EVM chain derives
+ * against its own coin type. Returns the `SeedDerivationChain` raw string the
+ * Swift side should use (its enum raw values are the chain display names).
+ */
+nonisolated public func coreEvmSeedDerivationChainName(chainName: String) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_spectra_core_fn_func_core_evm_seed_derivation_chain_name(
+        FfiConverterString.lower(chainName),$0
     )
 })
 }
@@ -35361,6 +35750,14 @@ nonisolated public func coreRebroadcastDispatchForFormat(format: String)throws  
     )
 })
 }
+nonisolated public func coreRebroadcastPreparePayload(format: String, rawPayload: String)throws  -> PreparedBroadcastPayload  {
+    return try  FfiConverterTypePreparedBroadcastPayload_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
+    uniffi_spectra_core_fn_func_core_rebroadcast_prepare_payload(
+        FfiConverterString.lower(format),
+        FfiConverterString.lower(rawPayload),$0
+    )
+})
+}
 nonisolated public func coreRouteSendAsset(request: SendAssetRoutingInput) -> SendAssetRoutingPlan  {
     return try!  FfiConverterTypeSendAssetRoutingPlan_lift(try! rustCall() {
     uniffi_spectra_core_fn_func_core_route_send_asset(
@@ -35408,6 +35805,20 @@ nonisolated public func coreSupportsDeepUtxoDiscovery(chainName: String) -> Bool
     return try!  FfiConverterBool.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_core_supports_deep_utxo_discovery(
         FfiConverterString.lower(chainName),$0
+    )
+})
+}
+/**
+ * Build the full transaction-explorer URL for a chain. Encapsulates the
+ * per-chain URL format (Aptos appends `?network=mainnet`, every other chain
+ * just concatenates the hash to the base URL). Returns `None` when the chain
+ * has no explorer entry.
+ */
+nonisolated public func coreTransactionExplorerUrl(chainName: String, transactionHash: String)throws  -> String?  {
+    return try  FfiConverterOptionString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
+    uniffi_spectra_core_fn_func_core_transaction_explorer_url(
+        FfiConverterString.lower(chainName),
+        FfiConverterString.lower(transactionHash),$0
     )
 })
 }
@@ -35551,20 +35962,6 @@ nonisolated public func derivationBuildMaterialFromPrivateKey(request: UniFfiPri
     )
 })
 }
-nonisolated public func derivationBuildMaterialFromPrivateKeyJson(requestJson: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_derivation_build_material_from_private_key_json(
-        FfiConverterString.lower(requestJson),$0
-    )
-})
-}
-nonisolated public func derivationBuildMaterialJson(requestJson: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_derivation_build_material_json(
-        FfiConverterString.lower(requestJson),$0
-    )
-})
-}
 nonisolated public func derivationDerive(request: UniFfiDerivationRequest)throws  -> UniFfiDerivationResponse  {
     return try  FfiConverterTypeUniFFIDerivationResponse_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_derivation_derive(
@@ -35580,42 +35977,10 @@ nonisolated public func derivationDeriveAllAddresses(seedPhrase: String, chainPa
     )
 })
 }
-/**
- * Derive addresses for multiple chains in a single call.
- *
- * `chain_paths_json` — JSON object mapping chain display name to derivation path:
- * `{"Bitcoin": "m/84'/0'/0'/0/0", "Ethereum": "m/44'/60'/0'/0/0", ...}`
- *
- * Returns a JSON object mapping each chain name to its derived address (or `null`
- * when the chain name is unrecognised or derivation fails):
- * `{"Bitcoin": "bc1q...", "Ethereum": "0x...", ...}`
- */
-nonisolated public func derivationDeriveAllAddressesJson(seedPhrase: String, chainPathsJson: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_derivation_derive_all_addresses_json(
-        FfiConverterString.lower(seedPhrase),
-        FfiConverterString.lower(chainPathsJson),$0
-    )
-})
-}
 nonisolated public func derivationDeriveFromPrivateKey(request: UniFfiPrivateKeyDerivationRequest)throws  -> UniFfiDerivationResponse  {
     return try  FfiConverterTypeUniFFIDerivationResponse_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_derivation_derive_from_private_key(
         FfiConverterTypeUniFFIPrivateKeyDerivationRequest_lower(request),$0
-    )
-})
-}
-nonisolated public func derivationDeriveFromPrivateKeyJson(requestJson: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_derivation_derive_from_private_key_json(
-        FfiConverterString.lower(requestJson),$0
-    )
-})
-}
-nonisolated public func derivationDeriveJson(requestJson: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_derivation_derive_json(
-        FfiConverterString.lower(requestJson),$0
     )
 })
 }
@@ -35835,18 +36200,6 @@ nonisolated public func diagnosticsDetailIndicatesLiveSuccess(detail: String) ->
     )
 })
 }
-/**
- * Count entries in the `native` array of an EVM history-page JSON
- * response (the shape returned by `WalletServiceBridge.fetchEVMHistoryPageJSON`).
- * Returns 0 when the key is missing or the payload is malformed.
- */
-nonisolated public func diagnosticsEvmHistoryNativeCount(json: String) -> UInt32  {
-    return try!  FfiConverterUInt32.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_diagnostics_evm_history_native_count(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
 nonisolated public func diagnosticsGetAptos(walletId: String) -> AptosHistoryDiagnostics?  {
     return try!  FfiConverterOptionTypeAptosHistoryDiagnostics.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_diagnostics_get_aptos(
@@ -36016,32 +36369,6 @@ nonisolated public func diagnosticsGetXrp(walletId: String) -> XrpHistoryDiagnos
 })
 }
 /**
- * Return the set of confirmed `txid`s from a Rust-shaped history
- * JSON payload, lowercased and trimmed. Used by
- * `refreshPendingRustHistoryChainTransactions` to mark known-confirmed
- * transactions.
- */
-nonisolated public func diagnosticsHistoryConfirmedTxids(json: String) -> [String]  {
-    return try!  FfiConverterSequenceString.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_diagnostics_history_confirmed_txids(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-/**
- * Count top-level entries in a Rust-shaped history JSON payload
- * (an array of `{ "txid": "...", ... }` records). Returns 0 for
- * any parse failure or non-array payload — matching Swift's
- * `(try? JSONSerialization...).map { ... } ?? 0` semantics.
- */
-nonisolated public func diagnosticsHistoryEntryCount(json: String) -> UInt32  {
-    return try!  FfiConverterUInt32.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_diagnostics_history_entry_count(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-/**
  * Convenience for Swift call sites: partition a history JSON payload
  * into (entry_count, confirmed_txids) in one FFI hop. Useful where
  * callers need both (e.g. UTXO diagnostics + pending-refresh).
@@ -36054,18 +36381,6 @@ nonisolated public func diagnosticsHistorySummary(json: String) -> HistorySummar
 })
 }
 /**
- * EVM diagnostics record seeded when a refresh failed. `error_description`
- * is the message the caller would normally surface (e.g. `error.localizedDescription`).
- */
-nonisolated public func diagnosticsMakeEvmError(address: String, errorDescription: String) -> EthereumTokenTransferHistoryDiagnostics  {
-    return try!  FfiConverterTypeEthereumTokenTransferHistoryDiagnostics_lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_diagnostics_make_evm_error(
-        FfiConverterString.lower(address),
-        FfiConverterString.lower(errorDescription),$0
-    )
-})
-}
-/**
  * EVM diagnostics record seeded to the "running" placeholder shown
  * while a refresh is in flight.
  */
@@ -36073,19 +36388,6 @@ nonisolated public func diagnosticsMakeEvmRunning(address: String) -> EthereumTo
     return try!  FfiConverterTypeEthereumTokenTransferHistoryDiagnostics_lift(try! rustCall() {
     uniffi_spectra_core_fn_func_diagnostics_make_evm_running(
         FfiConverterString.lower(address),$0
-    )
-})
-}
-/**
- * Build an EVM diagnostics record from an EVM history-page JSON
- * payload (`fetchEVMHistoryPageJSON`). Equivalent to the Swift
- * `rustEVMHistoryDiagnostics` helper, minus the bridge call.
- */
-nonisolated public func diagnosticsMakeEvmSuccess(address: String, historyJson: String) -> EthereumTokenTransferHistoryDiagnostics  {
-    return try!  FfiConverterTypeEthereumTokenTransferHistoryDiagnostics_lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_diagnostics_make_evm_success(
-        FfiConverterString.lower(address),
-        FfiConverterString.lower(historyJson),$0
     )
 })
 }
@@ -36833,44 +37135,6 @@ nonisolated public func historyAggregateDogecoin(input: DogecoinAggregateInput) 
     )
 })
 }
-nonisolated public func historyDecodeBitcoinRawSnapshots(json: String) -> [CoreBitcoinHistorySnapshot]  {
-    return try!  FfiConverterSequenceTypeCoreBitcoinHistorySnapshot.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_history_decode_bitcoin_raw_snapshots(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-nonisolated public func historyDecodeEvmPage(json: String) -> EvmHistoryPageDecoded  {
-    return try!  FfiConverterTypeEvmHistoryPageDecoded_lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_history_decode_evm_page(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-/**
- * Extract the `address` field from each entry in a JSON array of
- * `{ "address": ..., ... }` objects (the shape returned by
- * `derive_bitcoin_hd_addresses_json`). Non-string/missing entries are skipped.
- */
-nonisolated public func historyDecodeHdAddresses(json: String) -> [String]  {
-    return try!  FfiConverterSequenceString.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_history_decode_hd_addresses(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-/**
- * Decode the JSON string returned by `fetch_normalized_history_json`
- * into a typed list. Empty vec on any parse failure, matching the
- * `try?` semantics of the Swift caller.
- */
-nonisolated public func historyDecodeNormalized(json: String) -> [NormalizedHistoryItem]  {
-    return try!  FfiConverterSequenceTypeNormalizedHistoryItem.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_history_decode_normalized(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
 /**
  * Native asset name/symbol for an EVM `chain_name`. Returns `None` when
  * the chain name is not a known EVM chain.
@@ -37139,22 +37403,9 @@ nonisolated public func selfTestsRunAll() -> [String: [ChainSelfTestResult]]  {
     )
 })
 }
-nonisolated public func selfTestsRunAllJson()throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_self_tests_run_all_json($0
-    )
-})
-}
 nonisolated public func selfTestsRunChain(chainKey: String) -> [ChainSelfTestResult]  {
     return try!  FfiConverterSequenceTypeChainSelfTestResult.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_self_tests_run_chain(
-        FfiConverterString.lower(chainKey),$0
-    )
-})
-}
-nonisolated public func selfTestsRunChainJson(chainKey: String)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_self_tests_run_chain_json(
         FfiConverterString.lower(chainKey),$0
     )
 })
@@ -37264,115 +37515,58 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_app_core_app_chain_descriptors() != 20465) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_app_chain_descriptors_json() != 54368) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_app_core_bitcoin_esplora_base_urls() != 43749) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_app_core_bitcoin_esplora_base_urls_json() != 26092) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_app_core_bitcoin_wallet_store_default_base_urls() != 46977) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_bitcoin_wallet_store_default_base_urls_json() != 38298) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_app_core_broadcast_provider_options() != 39520) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_app_core_broadcast_provider_options_json() != 16945) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_app_core_chain_backends() != 22163) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_chain_backends_json() != 24259) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_app_core_chain_presets() != 54728) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_app_core_chain_presets_json() != 30664) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_app_core_derivation_paths_for_preset() != 27458) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_derivation_paths_for_preset_json() != 2452) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_app_core_diagnostics_checks() != 57729) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_app_core_diagnostics_checks_json() != 9064) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_app_core_endpoint_for_id() != 6810) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_endpoint_for_id_json() != 28856) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_app_core_endpoint_records_for_chain() != 28044) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_app_core_endpoint_records_json() != 50633) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_app_core_endpoints_for_ids() != 2515) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_endpoints_for_ids_json() != 10623) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_app_core_evm_rpc_endpoints() != 608) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_app_core_evm_rpc_endpoints_json() != 8381) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_app_core_explorer_supplemental_endpoints() != 14636) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_explorer_supplemental_endpoints_json() != 57760) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_app_core_grouped_settings_entries() != 63572) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_app_core_grouped_settings_entries_json() != 49760) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_app_core_live_chain_names() != 15888) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_live_chain_names_json() != 51425) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_app_core_request_compilation_presets() != 44296) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_request_compilation_presets_json() != 36250) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_app_core_resolve_derivation_path() != 12387) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_app_core_resolve_derivation_path_json() != 44755) {
+    if (uniffi_spectra_core_checksum_func_app_core_resolve_derivation_path() != 18803) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_app_core_transaction_explorer_entry() != 24990) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_app_core_transaction_explorer_entry_json() != 49842) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_aptos_package_identifier() != 5855) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_balance_decoder_evm_native_balance() != 49904) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_balance_decoder_f64_field() != 1475) {
@@ -37381,25 +37575,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_balance_decoder_first_element_string_field() != 43497) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_balance_decoder_has_field() != 38321) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_balance_decoder_i64_field() != 46301) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_balance_decoder_json_array_is_non_empty() != 62656) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_balance_decoder_string_field() != 58703) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_balance_decoder_u128_string_field_as_f64() != 13076) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_balance_decoder_u64_field() != 16533) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_balance_decoder_yocto_near_to_double() != 37090) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_bip39_english_wordlist() != 13972) {
@@ -37411,9 +37587,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_build_aptos_send_payload() != 12853) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_build_bitcoin_hd_send_preview_record() != 31075) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_build_btc_send_payload() != 42) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -37423,16 +37596,10 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_build_doge_send_payload() != 16988) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_build_dogecoin_send_preview_record() != 60313) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_build_evm_native_send_payload() != 57789) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_build_evm_overrides_json_fragment() != 45126) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_build_evm_send_preview_record() != 63418) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_build_evm_token_send_payload() != 63851) {
@@ -37456,9 +37623,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_build_polkadot_send_payload() != 32978) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_build_simple_chain_preview() != 26779) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_build_solana_native_send_payload() != 20437) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -37477,16 +37641,10 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_build_tron_native_send_payload() != 26830) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_build_tron_send_preview_record() != 11286) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_build_tron_token_send_payload() != 52032) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_build_utxo_sat_send_payload() != 33833) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_build_utxo_send_preview_record() != 26399) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_build_xrp_send_payload() != 24462) {
@@ -37496,9 +37654,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_chain_supports_private_key_import() != 17622) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_classify_evm_receipt_json() != 16820) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_classify_send_broadcast_result() != 22308) {
@@ -37519,10 +37674,13 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_core_build_persisted_snapshot() != 10621) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_func_core_chain_id_for_name() != 53777) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_func_core_chain_refresh_plans() != 25588) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_core_compile_script_type() != 55844) {
+    if (uniffi_spectra_core_checksum_func_core_compile_script_type() != 24266) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_derivation_path_replacing_last_two() != 34351) {
@@ -37534,7 +37692,10 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_core_derivation_path_string() != 55070) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_core_encode_history_records_json() != 54860) {
+    if (uniffi_spectra_core_checksum_func_core_diagnostics_evm_json_shape_ok() != 45089) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_func_core_endpoint_id() != 58890) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_endpoint_role_mask() != 12861) {
@@ -37549,10 +37710,10 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_core_evm_chain_context_tag() != 36726) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_core_evm_has_contract_code() != 27630) {
+    if (uniffi_spectra_core_checksum_func_core_evm_replacement_fee_bump() != 58628) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_core_evm_replacement_fee_bump() != 58628) {
+    if (uniffi_spectra_core_checksum_func_core_evm_seed_derivation_chain_name() != 6371) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_history_refresh_plans() != 34758) {
@@ -37666,6 +37827,9 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_core_rebroadcast_dispatch_for_format() != 30671) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_func_core_rebroadcast_prepare_payload() != 24836) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_func_core_route_send_asset() != 39821) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -37685,6 +37849,9 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_supports_deep_utxo_discovery() != 34918) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_func_core_transaction_explorer_url() != 44843) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_validate_address() != 54910) {
@@ -37741,28 +37908,13 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_derivation_build_material_from_private_key() != 38775) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_derivation_build_material_from_private_key_json() != 63430) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_derivation_build_material_json() != 55281) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_derivation_derive() != 51508) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_derivation_derive_all_addresses() != 8607) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_derivation_derive_all_addresses_json() != 45566) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_derivation_derive_from_private_key() != 51826) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_derivation_derive_from_private_key_json() != 55895) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_derivation_derive_json() != 31030) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_diagnostics_all_aptos() != 7350) {
@@ -37861,9 +38013,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_diagnostics_detail_indicates_live_success() != 7787) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_diagnostics_evm_history_native_count() != 42954) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_diagnostics_get_aptos() != 43771) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -37936,22 +38085,10 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_diagnostics_get_xrp() != 52538) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_diagnostics_history_confirmed_txids() != 30844) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_diagnostics_history_entry_count() != 25801) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_diagnostics_history_summary() != 11760) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_diagnostics_make_evm_error() != 12446) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_diagnostics_make_evm_running() != 42629) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_diagnostics_make_evm_success() != 1888) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_diagnostics_normalize_degraded_detail() != 1025) {
@@ -38233,18 +38370,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_history_aggregate_dogecoin() != 48199) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_history_decode_bitcoin_raw_snapshots() != 32246) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_history_decode_evm_page() != 5287) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_history_decode_hd_addresses() != 16077) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_history_decode_normalized() != 48136) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_history_evm_native_asset() != 6132) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -38323,13 +38448,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_self_tests_run_all() != 3339) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_self_tests_run_all_json() != 1698) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_self_tests_run_chain() != 32423) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_self_tests_run_chain_json() != 54070) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_self_tests_run_ethereum_rpc() != 1252) {
@@ -38353,7 +38472,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_wallet_display_name() != 10522) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_balanceobserver_on_balance_updated() != 13154) {
+    if (uniffi_spectra_core_checksum_method_balanceobserver_on_balance_updated() != 46563) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_balanceobserver_on_refresh_cycle_complete() != 42067) {
@@ -38407,37 +38526,22 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_advance_history_page() != 24122) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_apply_native_amount_internal() != 27572) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_method_walletservice_apply_native_amount_typed() != 50188) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_broadcast_raw() != 5151) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_broadcast_raw_extract() != 21346) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_build_execute_send_payload() != 25572) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_cache_balance() != 6092) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_cache_history() != 32845) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_cached_balance() != 42786) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_cached_history() != 24455) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_clear_all_history_records() != 6065) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_delete_history_records() != 46738) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_delete_history_records_for_wallet() != 46852) {
+    if (uniffi_spectra_core_checksum_method_walletservice_delete_history_records() != 17690) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_delete_keypool_for_chain() != 1246) {
@@ -38461,16 +38565,13 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_derive_bitcoin_account_xpub_typed() != 19135) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_derive_bitcoin_hd_address_strings() != 27054) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_derive_bitcoin_hd_addresses() != 42449) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_evict_expired_balance_cache() != 16039) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_method_walletservice_execute_send() != 23959) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_all_history_records() != 44606) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_all_history_records_typed() != 28113) {
@@ -38482,34 +38583,49 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_balance_auto() != 51741) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_balance_cached() != 9598) {
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_bitcoin_hd_send_preview_typed() != 25621) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_bitcoin_history_snapshots() != 3189) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_bitcoin_next_unused_address() != 15560) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_bitcoin_next_unused_address_typed() != 62957) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_bitcoin_xpub_balance() != 24512) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_dogecoin_send_preview_typed() != 23538) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_erc20_balance_typed() != 7323) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_address_probe() != 59643) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_code() != 20726) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_history_page() != 4718) {
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_has_contract_code() != 17347) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_history_page_typed() != 55975) {
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_history_diagnostics() != 14921) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_receipt() != 39868) {
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_history_page() != 21822) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_receipt_classification() != 43270) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_send_preview() != 36938) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_token_balances_batch() != 25780) {
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_send_preview_typed() != 60796) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_token_balances_batch_typed() != 56340) {
@@ -38521,9 +38637,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_evm_tx_nonce_typed() != 60889) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_fee_estimate() != 51549) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_fiat_rates() != 26039) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -38533,16 +38646,22 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_history() != 22475) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_history_cached() != 2734) {
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_history_confirmed_txids() != 14007) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_history_entry_count() != 60271) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_history_has_activity() != 29581) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_native_balance_summary() != 5641) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_near_balance_typed() != 62095) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_normalized_history() != 226) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_normalized_history_json() != 13684) {
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_normalized_history() != 50340) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_prices() != 48802) {
@@ -38554,25 +38673,34 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_simple_chain_send_preview() != 39294) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_simple_chain_send_preview_typed() != 3630) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_solana_balance_typed() != 11340) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_token_balance() != 33632) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_token_balances() != 63126) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_token_balances_typed() != 13624) {
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_token_balances() != 31056) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_tron_send_preview() != 20604) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_tron_send_preview_typed() != 38265) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_utxo_fee_preview() != 33457) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_utxo_fee_preview_typed() != 9723) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_utxo_tx_status() != 44295) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_utxo_tx_status_typed() != 990) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_history_next_cursor() != 48283) {
@@ -38581,28 +38709,13 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_history_next_page() != 4626) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_init_wallet_state() != 33403) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_init_wallet_state_direct() != 60457) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_invalidate_cached_balance() != 31993) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_invalidate_cached_history() != 3454) {
+    if (uniffi_spectra_core_checksum_method_walletservice_init_wallet_state_direct() != 4903) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_is_history_exhausted() != 7687) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_list_builtin_tokens() != 39339) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_list_wallets_json() != 64179) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_load_all_keypool_state() != 53098) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_load_all_keypool_state_typed() != 16635) {
@@ -38614,13 +38727,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_load_all_owned_addresses_typed() != 59869) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_load_app_settings() != 59472) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_method_walletservice_load_app_settings_typed() != 23566) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_load_keypool_state() != 47596) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_load_owned_addresses() != 23493) {
@@ -38629,13 +38736,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_load_state() != 44182) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_load_wallet_snapshot() != 1780) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_remove_wallet_json() != 48333) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_replace_all_history_records() != 20397) {
+    if (uniffi_spectra_core_checksum_method_walletservice_replace_all_history_records() != 5572) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_reset_all_history() != 12907) {
@@ -38656,13 +38757,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_resolve_ens_name_typed() != 15070) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_save_app_settings() != 28429) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_method_walletservice_save_app_settings_typed() != 64257) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_save_keypool_state() != 14277) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_save_keypool_state_typed() != 57325) {
@@ -38677,16 +38772,10 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_save_state() != 52684) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_save_wallet_snapshot() != 11325) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_method_walletservice_set_history_exhausted() != 57823) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_set_history_page() != 60448) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_set_native_balance() != 16796) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_set_secret_store() != 36955) {
@@ -38704,22 +38793,10 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_update_endpoints_typed() != 33680) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_update_native_balance() != 25362) {
+    if (uniffi_spectra_core_checksum_method_walletservice_upsert_history_records() != 15384) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_update_native_balance_typed() != 61143) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_upsert_asset_holdings() != 4923) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_upsert_history_records() != 42922) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_upsert_wallet_direct() != 22272) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_method_walletservice_upsert_wallet_json() != 42995) {
+    if (uniffi_spectra_core_checksum_method_walletservice_upsert_wallet_direct() != 55100) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_constructor_balancerefreshengine_new() != 14430) {

@@ -204,11 +204,8 @@ struct SeedDerivationResolution: Equatable {
 }
 extension SeedDerivationChain {
     func resolve(path rawPath: String) -> SeedDerivationResolution {
-        guard let ffiChain = WalletRustFFIChain(chain: self) else {
-            fatalError("Rust derivation path resolution failed for \(rawValue): unsupported chain")
-        }
         do {
-            let raw = try appCoreResolveDerivationPath(chain: ffiChain.rawValue, derivationPath: rawPath)
+            let raw = try appCoreResolveDerivationPath(chain: rawValue, derivationPath: rawPath)
             return SeedDerivationResolution(
                 chain: SeedDerivationChain(rawValue: raw.chain) ?? self,
                 normalizedPath: raw.normalizedPath,

@@ -1,11 +1,5 @@
 import Foundation
 
-// MARK: - Pure JSON helpers (no store state)
-
-func rustField(_ key: String, from json: String) -> String {
-    extractJsonStringField(json: json, key: key)
-}
-
 private func evmOverridesJSONFragment(nonce: Int?, customFees: EthereumCustomFeeConfiguration?) -> String {
     let customDTO: EvmCustomFeeConfiguration? = customFees.map {
         EvmCustomFeeConfiguration(maxFeePerGasGwei: $0.maxFeePerGasGwei, maxPriorityFeePerGasGwei: $0.maxPriorityFeePerGasGwei)
@@ -377,7 +371,7 @@ extension AppState {
                         walletID: wallet.id, kind: .send, status: .pending, walletName: wallet.name, assetName: holding.name,
                         symbol: holding.symbol, chainName: holding.chainName, amount: amount, address: destinationAddress,
                         transactionHash: result.transactionHash, signedTransactionPayload: result.resultJson,
-                        signedTransactionPayloadFormat: "tron.rust_json"
+                        signedTransactionPayloadFormat: result.payloadFormat
                     ), holding: holding)
                 recordPendingSentTransaction(transaction)
                 await runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)
@@ -451,7 +445,7 @@ extension AppState {
                         walletID: wallet.id, kind: .send, status: .pending, walletName: wallet.name, assetName: holding.name,
                         symbol: holding.symbol, chainName: holding.chainName, amount: amount, address: destinationAddress,
                         transactionHash: result.transactionHash, signedTransactionPayload: result.resultJson,
-                        signedTransactionPayloadFormat: "solana.rust_json"
+                        signedTransactionPayloadFormat: result.payloadFormat
                     ), holding: holding)
                 recordPendingSentTransaction(transaction)
                 await runPostSendRefreshActions(for: holding.chainName, verificationStatus: .verified)

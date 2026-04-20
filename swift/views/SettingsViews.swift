@@ -3,55 +3,48 @@ import PhotosUI
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
-private func localizedSettingsString(_ key: String) -> String {
-    AppLocalization.string(key)
-}
-private func localizedSettingsFormat(_ key: String, _ arguments: CVarArg...) -> String {
-    let format = AppLocalization.string(key)
-    return String(format: format, locale: AppLocalization.locale, arguments: arguments)
-}
 struct PricingSettingsView: View {
-    let store: AppState
+    @Bindable var store: AppState
     private var copy: SettingsContentCopy { .current }
     var body: some View {
         Form {
             Section {
                 Text(copy.pricingIntro).font(.caption).foregroundStyle(.secondary)
             }
-            Section(localizedSettingsString("Provider")) {
-                Picker(selection: Binding(get: { store.pricingProvider }, set: { store.pricingProvider = $0 })) {
+            Section(AppLocalization.string("Provider")) {
+                Picker(selection: $store.pricingProvider) {
                     ForEach(PricingProvider.allCases) { provider in Text(provider.rawValue).tag(provider) }
                 } label: {
                     EmptyView()
                 }.pickerStyle(.inline).labelsHidden()
             }
-            Section(localizedSettingsString("Display Currency")) {
+            Section(AppLocalization.string("Display Currency")) {
                 Picker(
-                    localizedSettingsString("Currency"),
-                    selection: Binding(get: { store.selectedFiatCurrency }, set: { store.selectedFiatCurrency = $0 })
+                    AppLocalization.string("Currency"),
+                    selection: $store.selectedFiatCurrency
                 ) {
                     ForEach(FiatCurrency.allCases) { currency in Text(currency.displayName).tag(currency) }
                 }.pickerStyle(.menu)
             }
-            Section(localizedSettingsString("Fiat Rate Provider")) {
+            Section(AppLocalization.string("Fiat Rate Provider")) {
                 Picker(
-                    localizedSettingsString("Provider"),
-                    selection: Binding(get: { store.fiatRateProvider }, set: { store.fiatRateProvider = $0 })
+                    AppLocalization.string("Provider"),
+                    selection: $store.fiatRateProvider
                 ) {
                     ForEach(FiatRateProvider.allCases) { provider in Text(provider.rawValue).tag(provider) }
                 }.pickerStyle(.menu)
                 Text(copy.fiatRateProviderNote).font(.caption).foregroundStyle(.secondary)
             }
             if store.pricingProvider == .coinGecko {
-                Section(localizedSettingsString("CoinGecko")) {
+                Section(AppLocalization.string("CoinGecko")) {
                     TextField(
-                        localizedSettingsString("CoinGecko Pro API Key (Optional)"),
-                        text: Binding(get: { store.coinGeckoAPIKey }, set: { store.coinGeckoAPIKey = $0 })
+                        AppLocalization.string("CoinGecko Pro API Key (Optional)"),
+                        text: $store.coinGeckoAPIKey
                     ).textInputAutocapitalization(.never).autocorrectionDisabled()
                     Text(copy.coinGeckoNote).font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Section(localizedSettingsString("Provider Notes")) {
+                Section(AppLocalization.string("Provider Notes")) {
                     Text(copy.publicProviderNote).font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -65,11 +58,11 @@ struct PricingSettingsView: View {
                     Text(fiatRatesRefreshError).font(.caption).foregroundStyle(.red)
                 }
             }
-        }.navigationTitle(localizedSettingsString("Pricing"))
+        }.navigationTitle(AppLocalization.string("Pricing"))
     }
 }
 struct PriceAlertsView: View {
-    let store: AppState
+    @Bindable var store: AppState
     @State private var selectedHoldingKey: String = ""
     @State private var selectedCondition: PriceAlertCondition = .above
     @State private var targetPriceText: String = ""
@@ -82,55 +75,55 @@ struct PriceAlertsView: View {
         Form {
             Section {
                 Text(
-                    localizedSettingsString(
+                    AppLocalization.string(
                         "Create alert rules for imported assets. When the current price reaches your target, Spectra sends a local notification. Alerts depend on price refreshes from your selected pricing source and fall back to built-in prices when live data is unavailable. Spectra refreshes prices when the app becomes active and on a repeating in-app watch cycle while it stays open."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
             }
-            Section(localizedSettingsString("Notifications")) {
+            Section(AppLocalization.string("Notifications")) {
                 Toggle(
-                    localizedSettingsString("Enable Price Alerts"),
-                    isOn: Binding(get: { store.usePriceAlerts }, set: { store.usePriceAlerts = $0 })
+                    AppLocalization.string("Enable Price Alerts"),
+                    isOn: $store.usePriceAlerts
                 )
                 Text(
-                    localizedSettingsString(
+                    AppLocalization.string(
                         "You can keep rules configured even when alerts are disabled. Re-enable this later to resume notifications.")
                 ).font(.caption).foregroundStyle(.secondary)
             }
-            Section(localizedSettingsString("New Alert")) {
+            Section(AppLocalization.string("New Alert")) {
                 if store.alertableCoins.isEmpty {
                     Text(
-                        localizedSettingsString(
+                        AppLocalization.string(
                             "Import a wallet with assets first. Alerts are created from assets currently in your portfolio.")
                     ).font(.caption).foregroundStyle(.secondary)
                 } else {
-                    Picker(localizedSettingsString("Asset"), selection: $selectedHoldingKey) {
+                    Picker(AppLocalization.string("Asset"), selection: $selectedHoldingKey) {
                         ForEach(store.alertableCoins, id: \.holdingKey) { coin in
-                            Text(localizedSettingsFormat("%@ on %@", coin.symbol, store.displayChainTitle(for: coin.chainName))).tag(
+                            Text(AppLocalization.format("%@ on %@", coin.symbol, store.displayChainTitle(for: coin.chainName))).tag(
                                 coin.holdingKey)
                         }
                     }
-                    Picker(localizedSettingsString("Condition"), selection: $selectedCondition) {
+                    Picker(AppLocalization.string("Condition"), selection: $selectedCondition) {
                         ForEach(PriceAlertCondition.allCases) { condition in Text(condition.displayName).tag(condition) }
                     }.pickerStyle(.segmented)
-                    TextField(localizedSettingsFormat("Target Price (%@)", store.selectedFiatCurrency.rawValue), text: $targetPriceText)
+                    TextField(AppLocalization.format("Target Price (%@)", store.selectedFiatCurrency.rawValue), text: $targetPriceText)
                         .keyboardType(.decimalPad)
                     if let selectedCoin {
                         Text(
-                            localizedSettingsFormat(
+                            AppLocalization.format(
                                 "Current price: %@",
                                 store.formattedFiatAmountOrUnavailable(fromUSD: store.currentPriceIfAvailable(for: selectedCoin)))
                         ).font(.caption).foregroundStyle(.secondary).spectraNumericTextLayout()
                     }
                     if let formMessage { Text(formMessage).font(.caption).foregroundStyle(isDuplicateDraftAlert ? .orange : .secondary) }
-                    Button(localizedSettingsString("Add Alert")) {
+                    Button(AppLocalization.string("Add Alert")) {
                         addAlert()
                     }.disabled(!canAddAlert)
                 }
             }
-            Section(localizedSettingsString("Active Alerts")) {
+            Section(AppLocalization.string("Active Alerts")) {
                 if store.priceAlerts.isEmpty {
-                    Text(localizedSettingsString("No alerts configured yet.")).font(.caption).foregroundStyle(.secondary)
+                    Text(AppLocalization.string("No alerts configured yet.")).font(.caption).foregroundStyle(.secondary)
                 } else {
                     ForEach(store.priceAlerts) { alert in
                         VStack(alignment: .leading, spacing: 8) {
@@ -147,11 +140,11 @@ struct PriceAlertsView: View {
                                 ).background(statusColor(for: alert).opacity(0.18), in: Capsule()).foregroundStyle(statusColor(for: alert))
                             }
                             HStack {
-                                Button(alert.isEnabled ? localizedSettingsString("Pause") : localizedSettingsString("Resume")) {
+                                Button(alert.isEnabled ? AppLocalization.string("Pause") : AppLocalization.string("Resume")) {
                                     store.togglePriceAlertEnabled(id: alert.id)
                                 }.buttonStyle(.borderless)
                                 Spacer()
-                                Button(localizedSettingsString("Remove"), role: .destructive) {
+                                Button(AppLocalization.string("Remove"), role: .destructive) {
                                     store.removePriceAlert(id: alert.id)
                                 }.buttonStyle(.borderless)
                             }.font(.caption)
@@ -159,7 +152,7 @@ struct PriceAlertsView: View {
                     }
                 }
             }
-        }.navigationTitle(localizedSettingsString("Price Alerts")).onAppear {
+        }.navigationTitle(AppLocalization.string("Price Alerts")).onAppear {
             syncSelection()
         }.onChange(of: store.walletsRevision) { _, _ in
             syncSelection()
@@ -189,13 +182,13 @@ struct PriceAlertsView: View {
     private func addAlert() {
         guard let selectedCoin, let targetPrice = normalizedDraftTargetPrice, targetPrice > 0 else { return }
         guard !isDuplicateDraftAlert else {
-            formMessage = localizedSettingsString("An identical alert already exists for this asset.")
+            formMessage = AppLocalization.string("An identical alert already exists for this asset.")
             return
         }
         store.addPriceAlert(for: selectedCoin, targetPrice: targetPrice, condition: selectedCondition)
         targetPriceText = ""
         selectedCondition = .above
-        formMessage = localizedSettingsString("Alert added. Spectra will notify you when this target is hit.")
+        formMessage = AppLocalization.string("Alert added. Spectra will notify you when this target is hit.")
     }
     private func syncSelection() {
         if !alertableHoldingKeys.contains(selectedHoldingKey) { selectedHoldingKey = store.alertableCoins.first?.holdingKey ?? "" }
@@ -240,7 +233,7 @@ struct AddressBookView: View {
     }
     private var addressValidationMessage: String {
         if store.isDuplicateAddressBookAddress(address, chainName: selectedChainName) {
-            return localizedSettingsFormat("This %@ address is already saved.", selectedChainName)
+            return AppLocalization.format("This %@ address is already saved.", selectedChainName)
         }
         return store.addressBookAddressValidationMessage(for: address, chainName: selectedChainName)
     }
@@ -257,30 +250,30 @@ struct AddressBookView: View {
         Form {
             Section {
                 Text(
-                    localizedSettingsString(
+                    AppLocalization.string(
                         "Save trusted recipient addresses here so you can reuse them in Send without retyping. Spectra currently supports address book validation for Bitcoin, Litecoin, Dogecoin, Ethereum, Ethereum Classic, Arbitrum, Optimism, BNB Chain, Avalanche, Hyperliquid, Tron, Solana, Cardano, XRP Ledger, Monero, Sui, Aptos, TON, Internet Computer, NEAR, Polkadot, and Stellar."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
             }
-            Section(localizedSettingsString("New Contact")) {
-                TextField(localizedSettingsString("Name"), text: $contactName).textInputAutocapitalization(.words).autocorrectionDisabled()
-                Picker(localizedSettingsString("Chain"), selection: $selectedChainName) {
+            Section(AppLocalization.string("New Contact")) {
+                TextField(AppLocalization.string("Name"), text: $contactName).textInputAutocapitalization(.words).autocorrectionDisabled()
+                Picker(AppLocalization.string("Chain"), selection: $selectedChainName) {
                     ForEach(supportedChains, id: \.self) { chainName in Text(chainName).tag(chainName) }
                 }
                 TextField(addressPrompt, text: $address).textInputAutocapitalization(.never).autocorrectionDisabled()
                 Text(addressValidationMessage).font(.caption).foregroundStyle(addressValidationColor)
-                TextField(localizedSettingsString("Note (Optional)"), text: $note).textInputAutocapitalization(.sentences)
+                TextField(AppLocalization.string("Note (Optional)"), text: $note).textInputAutocapitalization(.sentences)
                 if let formMessage {
                     Text(formMessage).font(.caption).foregroundStyle(.secondary).foregroundColor(
                         store.canSaveAddressBookEntry(name: contactName, address: address, chainName: selectedChainName) ? nil : .red)
                 }
-                Button(localizedSettingsString("Save Contact")) {
+                Button(AppLocalization.string("Save Contact")) {
                     saveContact()
                 }.disabled(!store.canSaveAddressBookEntry(name: contactName, address: address, chainName: selectedChainName))
             }
-            Section(localizedSettingsString("Saved Addresses")) {
+            Section(AppLocalization.string("Saved Addresses")) {
                 if store.addressBook.isEmpty {
-                    Text(localizedSettingsString("No saved recipients yet.")).font(.caption).foregroundStyle(.secondary)
+                    Text(AppLocalization.string("No saved recipients yet.")).font(.caption).foregroundStyle(.secondary)
                 } else {
                     ForEach(store.addressBook) { entry in
                         VStack(alignment: .leading, spacing: 4) {
@@ -296,50 +289,50 @@ struct AddressBookView: View {
                                     copiedEntryID = entry.id
                                 } label: {
                                     Label(
-                                        copiedEntryID == entry.id ? localizedSettingsString("Copied") : localizedSettingsString("Copy"),
+                                        copiedEntryID == entry.id ? AppLocalization.string("Copied") : AppLocalization.string("Copy"),
                                         systemImage: copiedEntryID == entry.id ? "checkmark" : "doc.on.doc"
                                     ).font(.caption.weight(.semibold))
                                 }.buttonStyle(.borderless)
                             }
                         }.padding(.vertical, 4).swipeActions {
-                            Button(localizedSettingsString("Edit")) {
+                            Button(AppLocalization.string("Edit")) {
                                 editingEntry = entry
                                 editedName = entry.name
                             }
-                            Button(localizedSettingsString("Delete"), role: .destructive) {
+                            Button(AppLocalization.string("Delete"), role: .destructive) {
                                 store.removeAddressBookEntry(id: entry.id)
                             }
                         }
                     }
                 }
             }
-        }.navigationTitle(localizedSettingsString("Address Book")).sheet(item: $editingEntry) { entry in
+        }.navigationTitle(AppLocalization.string("Address Book")).sheet(item: $editingEntry) { entry in
             NavigationView {
                 Form {
                     Section {
                         Text(
-                            localizedSettingsString(
+                            AppLocalization.string(
                                 "You can update the label for this saved address. The chain, address, and note stay fixed.")
                         ).font(.caption).foregroundStyle(.secondary)
                     }
-                    Section(localizedSettingsString("Saved Address")) {
+                    Section(AppLocalization.string("Saved Address")) {
                         Text(entry.chainName)
                         Text(entry.address).font(.caption.monospaced()).textSelection(.enabled)
                         if !entry.note.isEmpty { Text(entry.note).font(.caption).foregroundStyle(.secondary) }
                     }
-                    Section(localizedSettingsString("Label")) {
-                        TextField(localizedSettingsString("Name"), text: $editedName).textInputAutocapitalization(.words)
+                    Section(AppLocalization.string("Label")) {
+                        TextField(AppLocalization.string("Name"), text: $editedName).textInputAutocapitalization(.words)
                             .autocorrectionDisabled()
                     }
-                }.navigationTitle(localizedSettingsString("Edit Label")).toolbar {
+                }.navigationTitle(AppLocalization.string("Edit Label")).toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
-                        Button(localizedSettingsString("Cancel")) {
+                        Button(AppLocalization.string("Cancel")) {
                             editingEntry = nil
                             editedName = ""
                         }
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button(localizedSettingsString("Save")) {
+                        Button(AppLocalization.string("Save")) {
                             store.renameAddressBookEntry(id: entry.id, to: editedName)
                             editingEntry = nil
                             editedName = ""
@@ -351,14 +344,14 @@ struct AddressBookView: View {
     }
     private func saveContact() {
         guard store.canSaveAddressBookEntry(name: contactName, address: address, chainName: selectedChainName) else {
-            formMessage = localizedSettingsFormat("Enter a unique valid %@ address and a contact name.", selectedChainName)
+            formMessage = AppLocalization.format("Enter a unique valid %@ address and a contact name.", selectedChainName)
             return
         }
         store.addAddressBookEntry(name: contactName, address: address, chainName: selectedChainName, note: note)
         contactName = ""
         address = ""
         note = ""
-        formMessage = localizedSettingsString("Address saved.")
+        formMessage = AppLocalization.string("Address saved.")
     }
 }
 struct AboutView: View {
@@ -374,7 +367,7 @@ struct AboutView: View {
                     aboutNarrativeCard
                 }.padding(20)
             }
-        }.navigationTitle(localizedSettingsString("About Spectra")).navigationBarTitleDisplayMode(.inline).onAppear {
+        }.navigationTitle(AppLocalization.string("About Spectra")).navigationBarTitleDisplayMode(.inline).onAppear {
             isAnimatingHero = true
         }
     }
@@ -422,45 +415,45 @@ struct AboutView: View {
     }
 }
 struct BackgroundSyncSettingsView: View {
-    let store: AppState
+    @Bindable var store: AppState
     var body: some View {
         Form {
-            Section(localizedSettingsString("Refresh Frequency")) {
-                Text(localizedSettingsString("Choose how often Spectra refreshes balances automatically while the app is active.")).font(
+            Section(AppLocalization.string("Refresh Frequency")) {
+                Text(AppLocalization.string("Choose how often Spectra refreshes balances automatically while the app is active.")).font(
                     .caption
                 ).foregroundStyle(.secondary)
                 Stepper(
-                    value: Binding(get: { store.automaticRefreshFrequencyMinutes }, set: { store.automaticRefreshFrequencyMinutes = $0 }),
+                    value: $store.automaticRefreshFrequencyMinutes,
                     in: 5...60, step: 5
                 ) {
-                    LabeledContent(localizedSettingsString("Active app refresh"), value: "\(store.automaticRefreshFrequencyMinutes) min")
+                    LabeledContent(AppLocalization.string("Active app refresh"), value: "\(store.automaticRefreshFrequencyMinutes) min")
                 }
             }
-            Section(localizedSettingsString("Current Timing")) {
+            Section(AppLocalization.string("Current Timing")) {
                 LabeledContent(
-                    localizedSettingsString("Active app balance refresh"), value: "\(store.automaticRefreshFrequencyMinutes) min")
+                    AppLocalization.string("Active app balance refresh"), value: "\(store.automaticRefreshFrequencyMinutes) min")
                 LabeledContent(
-                    localizedSettingsString("Background balance refresh"), value: "\(store.backgroundBalanceRefreshFrequencyMinutes) min")
+                    AppLocalization.string("Background balance refresh"), value: "\(store.backgroundBalanceRefreshFrequencyMinutes) min")
             }
-            Section(localizedSettingsString("Hint")) {
+            Section(AppLocalization.string("Hint")) {
                 Label(
-                    localizedSettingsString("Lower refresh times can increase battery usage and network traffic."),
+                    AppLocalization.string("Lower refresh times can increase battery usage and network traffic."),
                     systemImage: "bolt.batteryblock.fill"
                 ).foregroundStyle(.orange)
-                Text(localizedSettingsString("Choose a longer interval if you want lower background activity and less battery impact."))
+                Text(AppLocalization.string("Choose a longer interval if you want lower background activity and less battery impact."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             if isTooFrequent(store.automaticRefreshFrequencyMinutes) {
-                Section(localizedSettingsString("Warning")) {
+                Section(AppLocalization.string("Warning")) {
                     Label(
-                        localizedSettingsString("This refresh speed can increase battery usage and network traffic."),
+                        AppLocalization.string("This refresh speed can increase battery usage and network traffic."),
                         systemImage: "exclamationmark.triangle.fill"
                     ).foregroundStyle(.orange)
-                    Text(localizedSettingsString("Use this mode only if you need near-real-time updates.")).font(.caption).foregroundStyle(
+                    Text(AppLocalization.string("Use this mode only if you need near-real-time updates.")).font(.caption).foregroundStyle(
                         .secondary)
                 }
             }
-        }.navigationTitle(localizedSettingsString("Background Sync"))
+        }.navigationTitle(AppLocalization.string("Background Sync"))
     }
     private func isTooFrequent(_ minutes: Int) -> Bool { minutes <= 10 }
 }
@@ -475,9 +468,9 @@ struct ChainFeePrioritySettingsView: View {
     var body: some View {
         Form {
             ForEach(chainFeePrioritySettings) { item in
-                Section(localizedSettingsString(item.chainName)) {
+                Section(AppLocalization.string(item.chainName)) {
                     Picker(
-                        localizedSettingsString(item.title),
+                        AppLocalization.string(item.title),
                         selection: Binding(
                             get: { store.feePriorityOption(for: item.chainName) },
                             set: { store.setFeePriorityOption($0, for: item.chainName) }
@@ -485,10 +478,10 @@ struct ChainFeePrioritySettingsView: View {
                     ) {
                         ForEach(ChainFeePriorityOption.allCases) { priority in Text(priority.displayName).tag(priority) }
                     }.pickerStyle(.segmented)
-                    Text(localizedSettingsString(item.detail)).font(.caption).foregroundStyle(.secondary)
+                    Text(AppLocalization.string(item.detail)).font(.caption).foregroundStyle(.secondary)
                 }
             }
-        }.navigationTitle(localizedSettingsString("Fee Priorities"))
+        }.navigationTitle(AppLocalization.string("Fee Priorities"))
     }
     private var chainFeePrioritySettings: [ChainFeePrioritySetting] {
         func std(_ chain: String) -> ChainFeePrioritySetting {
@@ -517,7 +510,7 @@ struct ChainFeePrioritySettingsView: View {
     }
 }
 struct SettingsView: View {
-    let store: AppState
+    @Bindable var store: AppState
     @State private var isShowingResetWalletWarning: Bool = false
     private enum Route: Hashable {
         case addressBook
@@ -541,100 +534,100 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section(localizedSettingsString("Wallet & Transfers")) {
+                Section(AppLocalization.string("Wallet & Transfers")) {
                     NavigationLink(value: Route.addressBook) {
-                        Label(localizedSettingsString("Address Book"), systemImage: "book.closed")
+                        Label(AppLocalization.string("Address Book"), systemImage: "book.closed")
                     }
                     NavigationLink(value: Route.trackedTokens) {
-                        Label(localizedSettingsString("Tracked Tokens"), systemImage: "bitcoinsign.bank.building")
+                        Label(AppLocalization.string("Tracked Tokens"), systemImage: "bitcoinsign.bank.building")
                     }
                     NavigationLink(value: Route.feePriorities) {
-                        Label(localizedSettingsString("Fee Priorities"), systemImage: "dial.medium")
+                        Label(AppLocalization.string("Fee Priorities"), systemImage: "dial.medium")
                     }
                 }
-                Section(localizedSettingsString("Display")) {
+                Section(AppLocalization.string("Display")) {
                     NavigationLink(value: Route.iconStyles) {
-                        Label(localizedSettingsString("Icon Styles"), systemImage: "photo.on.rectangle")
+                        Label(AppLocalization.string("Icon Styles"), systemImage: "photo.on.rectangle")
                     }
-                    Toggle(isOn: Binding(get: { store.hideBalances }, set: { store.hideBalances = $0 })) {
-                        Label(localizedSettingsString("Hide balances"), systemImage: "eye.slash")
+                    Toggle(isOn: $store.hideBalances) {
+                        Label(AppLocalization.string("Hide balances"), systemImage: "eye.slash")
                     }
                     NavigationLink(value: Route.decimalDisplay) {
-                        Label(localizedSettingsString("Decimal Display"), systemImage: "number")
+                        Label(AppLocalization.string("Decimal Display"), systemImage: "number")
                     }
                 }
-                Section(localizedSettingsString("Sync & Automation")) {
+                Section(AppLocalization.string("Sync & Automation")) {
                     NavigationLink(value: Route.refreshFrequency) {
-                        Label(localizedSettingsString("Refresh Frequency"), systemImage: "arrow.triangle.2.circlepath")
+                        Label(AppLocalization.string("Refresh Frequency"), systemImage: "arrow.triangle.2.circlepath")
                     }
                 }
-                Section(localizedSettingsString("Notifications")) {
+                Section(AppLocalization.string("Notifications")) {
                     NavigationLink(value: Route.priceAlerts) {
-                        Label(localizedSettingsString("Price Alerts"), systemImage: "bell.badge")
+                        Label(AppLocalization.string("Price Alerts"), systemImage: "bell.badge")
                     }
                     Toggle(
                         isOn: Binding(
                             get: { store.useTransactionStatusNotifications }, set: { store.useTransactionStatusNotifications = $0 })
                     ) {
-                        Label(localizedSettingsString("Transaction Status Updates"), systemImage: "clock.badge.checkmark")
+                        Label(AppLocalization.string("Transaction Status Updates"), systemImage: "clock.badge.checkmark")
                     }
                     NavigationLink(value: Route.largeMovementAlerts) {
-                        Label(localizedSettingsString("Large Movement Alerts"), systemImage: "chart.line.uptrend.xyaxis")
+                        Label(AppLocalization.string("Large Movement Alerts"), systemImage: "chart.line.uptrend.xyaxis")
                     }
                 }
-                Section(localizedSettingsString("Security & Privacy")) {
-                    Toggle(isOn: Binding(get: { store.useFaceID }, set: { store.useFaceID = $0 })) {
-                        Label(localizedSettingsString("Use Face ID"), systemImage: "faceid")
+                Section(AppLocalization.string("Security & Privacy")) {
+                    Toggle(isOn: $store.useFaceID) {
+                        Label(AppLocalization.string("Use Face ID"), systemImage: "faceid")
                     }
-                    Toggle(isOn: Binding(get: { store.useAutoLock }, set: { store.useAutoLock = $0 })) {
-                        Label(localizedSettingsString("Auto Lock"), systemImage: "lock")
+                    Toggle(isOn: $store.useAutoLock) {
+                        Label(AppLocalization.string("Auto Lock"), systemImage: "lock")
                     }.disabled(!store.useFaceID)
                 }
-                Section(localizedSettingsString("Data & Connectivity")) {
+                Section(AppLocalization.string("Data & Connectivity")) {
                     NavigationLink(value: Route.pricing) {
-                        Label(localizedSettingsString("Pricing"), systemImage: "dollarsign.circle")
+                        Label(AppLocalization.string("Pricing"), systemImage: "dollarsign.circle")
                     }
                     NavigationLink(value: Route.endpoints) {
-                        Label(localizedSettingsString("Endpoints"), systemImage: "network")
+                        Label(AppLocalization.string("Endpoints"), systemImage: "network")
                     }
                 }
-                Section(localizedSettingsString("Diagnostics & Support")) {
+                Section(AppLocalization.string("Diagnostics & Support")) {
                     NavigationLink(value: Route.diagnostics) {
-                        Label(localizedSettingsString("Diagnostics"), systemImage: "waveform.path.ecg.rectangle")
+                        Label(AppLocalization.string("Diagnostics"), systemImage: "waveform.path.ecg.rectangle")
                     }
                     NavigationLink(value: Route.operationalLogs) {
-                        Label(localizedSettingsString("Operational Logs"), systemImage: "doc.text.magnifyingglass")
+                        Label(AppLocalization.string("Operational Logs"), systemImage: "doc.text.magnifyingglass")
                     }
                     NavigationLink(value: Route.reportProblem) {
-                        Label(localizedSettingsString("Report a Problem"), systemImage: "exclamationmark.bubble")
+                        Label(AppLocalization.string("Report a Problem"), systemImage: "exclamationmark.bubble")
                     }
                 }
-                Section(localizedSettingsString("Help")) {
+                Section(AppLocalization.string("Help")) {
                     NavigationLink(value: Route.buyCryptoHelp) {
-                        Label(localizedSettingsString("Where can I buy crypto?"), systemImage: "creditcard")
+                        Label(AppLocalization.string("Where can I buy crypto?"), systemImage: "creditcard")
                     }
                 }
-                Section(localizedSettingsString("About")) {
+                Section(AppLocalization.string("About")) {
                     NavigationLink(value: Route.about) {
-                        Label(localizedSettingsString("About Spectra"), systemImage: "info.circle")
+                        Label(AppLocalization.string("About Spectra"), systemImage: "info.circle")
                     }
                     NavigationLink(value: Route.chainWiki) {
-                        Label(localizedSettingsString("Chain Wiki"), systemImage: "books.vertical")
+                        Label(AppLocalization.string("Chain Wiki"), systemImage: "books.vertical")
                     }
                 }
-                Section(localizedSettingsString("Advanced")) {
+                Section(AppLocalization.string("Advanced")) {
                     NavigationLink(value: Route.advanced) {
-                        Label(localizedSettingsString("Advanced"), systemImage: "slider.horizontal.3")
+                        Label(AppLocalization.string("Advanced"), systemImage: "slider.horizontal.3")
                     }
                 }
-                Section(localizedSettingsString("Reset")) {
+                Section(AppLocalization.string("Reset")) {
                     Button {
                         isShowingResetWalletWarning = true
                     } label: {
-                        Label(localizedSettingsString("Reset Wallet"), systemImage: "trash")
+                        Label(AppLocalization.string("Reset Wallet"), systemImage: "trash")
                     }.foregroundColor(.red)
                 }
-            }.navigationTitle(localizedSettingsString("Settings")).navigationDestination(for: Route.self) { route in
+            }.navigationTitle(AppLocalization.string("Settings")).navigationDestination(for: Route.self) { route in
                 switch route {
                 case .addressBook: AddressBookView(store: store)
                 case .trackedTokens: TokenRegistrySettingsView(store: store)
@@ -668,13 +661,13 @@ struct ReportProblemView: View {
             Section {
                 Text(copy.reportProblemDescription).font(.caption).foregroundStyle(.secondary)
             }
-            Section(localizedSettingsString("Support Link")) {
+            Section(AppLocalization.string("Support Link")) {
                 Link(destination: reportProblemURL) {
                     Label(copy.reportProblemActionTitle, systemImage: "arrow.up.right.square")
                 }
                 Text(reportProblemURL.absoluteString).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
             }
-        }.navigationTitle(localizedSettingsString("Report a Problem"))
+        }.navigationTitle(AppLocalization.string("Report a Problem"))
     }
 }
 struct BuyCryptoHelpView: View {
@@ -695,7 +688,7 @@ struct BuyCryptoHelpView: View {
             Section {
                 Text(copy.buyProvidersIntro).font(.caption).foregroundStyle(.secondary)
             }
-            Section(localizedSettingsString("Options")) {
+            Section(AppLocalization.string("Options")) {
                 ForEach(providers) { provider in
                     VStack(alignment: .leading, spacing: 8) {
                         Link(destination: provider.url) {
@@ -706,12 +699,12 @@ struct BuyCryptoHelpView: View {
                     }.padding(.vertical, 4)
                 }
             }
-            Section(localizedSettingsString("Reminder")) { Text(copy.buyWarning).font(.caption).foregroundStyle(.secondary) }
-        }.navigationTitle(localizedSettingsString("Where can I buy crypto?"))
+            Section(AppLocalization.string("Reminder")) { Text(copy.buyWarning).font(.caption).foregroundStyle(.secondary) }
+        }.navigationTitle(AppLocalization.string("Where can I buy crypto?"))
     }
 }
 struct AdvancedSettingsView: View {
-    let store: AppState
+    @Bindable var store: AppState
     @State private var isRunningMaintenance = false
     @State private var maintenanceNotice: String?
     @State private var isShowingDiagnosticsImporter = false
@@ -723,39 +716,39 @@ struct AdvancedSettingsView: View {
     ]
     var body: some View {
         Form {
-            Section(localizedSettingsString("Security")) {
+            Section(AppLocalization.string("Security")) {
                 Toggle(
-                    localizedSettingsString("Biometric Confirmation For Send Actions"),
+                    AppLocalization.string("Biometric Confirmation For Send Actions"),
                     isOn: Binding(
                         get: { store.requireBiometricForSendActions }, set: { store.requireBiometricForSendActions = $0 }
                     )
                 )
                 Toggle(
-                    localizedSettingsString("Strict RPC Only (Disable Ledger Fallback)"),
-                    isOn: Binding(get: { store.useStrictRPCOnly }, set: { store.useStrictRPCOnly = $0 })
+                    AppLocalization.string("Strict RPC Only (Disable Ledger Fallback)"),
+                    isOn: $store.useStrictRPCOnly
                 )
-                Text(localizedSettingsString("When enabled, balances only come from live RPC responses.")).font(.caption).foregroundStyle(
+                Text(AppLocalization.string("When enabled, balances only come from live RPC responses.")).font(.caption).foregroundStyle(
                     .secondary)
-                Button(localizedSettingsString("Lock App Now")) {
+                Button(AppLocalization.string("Lock App Now")) {
                     store.isAppLocked = true
-                    maintenanceNotice = localizedSettingsString("App locked.")
+                    maintenanceNotice = AppLocalization.string("App locked.")
                 }
             }
-            Section(localizedSettingsString("Quick Maintenance")) {
+            Section(AppLocalization.string("Quick Maintenance")) {
                 Button(
                     isRunningMaintenance
-                        ? localizedSettingsString("Refreshing...") : localizedSettingsString("Refresh Now (Balances + History)")
+                        ? AppLocalization.string("Refreshing...") : AppLocalization.string("Refresh Now (Balances + History)")
                 ) {
                     Task {
                         isRunningMaintenance = true
                         await store.performUserInitiatedRefresh()
                         isRunningMaintenance = false
-                        maintenanceNotice = localizedSettingsString("Manual refresh completed.")
+                        maintenanceNotice = AppLocalization.string("Manual refresh completed.")
                     }
                 }.disabled(isRunningMaintenance)
                 Button(
                     isRunningMaintenance
-                        ? localizedSettingsString("Running Diagnostics...") : localizedSettingsString("Run All Endpoint Checks")
+                        ? AppLocalization.string("Running Diagnostics...") : AppLocalization.string("Run All Endpoint Checks")
                 ) {
                     Task {
                         isRunningMaintenance = true
@@ -782,7 +775,7 @@ struct AdvancedSettingsView: View {
                         await store.runPolkadotEndpointReachabilityDiagnostics()
                         await store.runStellarEndpointReachabilityDiagnostics()
                         isRunningMaintenance = false
-                        maintenanceNotice = localizedSettingsString("Endpoint checks completed.")
+                        maintenanceNotice = AppLocalization.string("Endpoint checks completed.")
                     }
                 }.disabled(isRunningMaintenance)
                 ForEach(singleChainRefreshNames, id: \.self) { chainName in
@@ -792,38 +785,38 @@ struct AdvancedSettingsView: View {
                 }
                 if let maintenanceNotice { Text(maintenanceNotice).font(.caption).foregroundStyle(.secondary) }
             }
-            Section(localizedSettingsString("Diagnostics Bundle")) {
-                Button(localizedSettingsString("Export Diagnostics Bundle")) {
+            Section(AppLocalization.string("Diagnostics Bundle")) {
+                Button(AppLocalization.string("Export Diagnostics Bundle")) {
                     do {
                         let url = try store.exportDiagnosticsBundle()
                         lastExportedDiagnosticsURL = url
-                        maintenanceNotice = localizedSettingsFormat("Diagnostics exported to %@", url.lastPathComponent)
+                        maintenanceNotice = AppLocalization.format("Diagnostics exported to %@", url.lastPathComponent)
                     } catch {
-                        maintenanceNotice = localizedSettingsFormat("Export failed: %@", error.localizedDescription)
+                        maintenanceNotice = AppLocalization.format("Export failed: %@", error.localizedDescription)
                     }
                 }
-                Button(localizedSettingsString("Past Exports")) {
+                Button(AppLocalization.string("Past Exports")) {
                     isShowingDiagnosticsExportsBrowser = true
                 }
                 if let lastExportedDiagnosticsURL {
                     ShareLink(item: lastExportedDiagnosticsURL) {
-                        Label(localizedSettingsString("Share Last Export"), systemImage: "square.and.arrow.up")
+                        Label(AppLocalization.string("Share Last Export"), systemImage: "square.and.arrow.up")
                     }
                 }
-                Button(localizedSettingsString("Import Diagnostics Bundle")) {
+                Button(AppLocalization.string("Import Diagnostics Bundle")) {
                     isShowingDiagnosticsImporter = true
                 }
             }
-            Section(localizedSettingsString("Status")) {
+            Section(AppLocalization.string("Status")) {
                 Text(store.networkSyncStatusText).font(.caption).foregroundStyle(.secondary)
                 if let pendingRefresh = store.pendingTransactionRefreshStatusText {
                     Text(pendingRefresh).font(.caption).foregroundStyle(.secondary)
                 }
-                Text(localizedSettingsFormat("Wallets: %lld", store.wallets.count)).font(.caption).foregroundStyle(.secondary)
-                Text(localizedSettingsFormat("Tracked token checks enabled: %lld", store.tokenPreferences.filter { $0.isEnabled }.count))
+                Text(AppLocalization.format("Wallets: %lld", store.wallets.count)).font(.caption).foregroundStyle(.secondary)
+                Text(AppLocalization.format("Tracked token checks enabled: %lld", store.tokenPreferences.filter { $0.isEnabled }.count))
                     .font(.caption).foregroundStyle(.secondary)
             }
-        }.navigationTitle(localizedSettingsString("Advanced")).sheet(isPresented: $isShowingDiagnosticsExportsBrowser) {
+        }.navigationTitle(AppLocalization.string("Advanced")).sheet(isPresented: $isShowingDiagnosticsExportsBrowser) {
             DiagnosticsExportsBrowserView(store: store)
         }.fileImporter(
             isPresented: $isShowingDiagnosticsImporter, allowedContentTypes: [UTType.json], allowsMultipleSelection: false
@@ -835,10 +828,10 @@ struct AdvancedSettingsView: View {
                     if didAccess { fileURL.stopAccessingSecurityScopedResource() }
                 }
                 let payload = try store.importDiagnosticsBundle(from: fileURL)
-                maintenanceNotice = localizedSettingsFormat(
+                maintenanceNotice = AppLocalization.format(
                     "Imported diagnostics bundle (%@).", payload.generatedAt.formatted(date: .abbreviated, time: .shortened))
             } catch {
-                maintenanceNotice = localizedSettingsFormat("Import failed: %@", error.localizedDescription)
+                maintenanceNotice = AppLocalization.format("Import failed: %@", error.localizedDescription)
             }
         }
     }
@@ -847,12 +840,12 @@ struct AdvancedSettingsView: View {
             isRunningMaintenance = true
             await store.performUserInitiatedRefresh(forChain: chainName)
             isRunningMaintenance = false
-            maintenanceNotice = localizedSettingsFormat("%@ refresh completed.", chainName)
+            maintenanceNotice = AppLocalization.format("%@ refresh completed.", chainName)
         }
     }
     private func refreshButtonTitle(for chainName: String, label: String? = nil) -> String {
         let title = label ?? chainName
-        return isRunningMaintenance ? localizedSettingsFormat("Refreshing %@...", title) : localizedSettingsFormat("Refresh %@", title)
+        return isRunningMaintenance ? AppLocalization.format("Refreshing %@...", title) : AppLocalization.format("Refresh %@", title)
     }
 }
 struct DiagnosticsExportsBrowserView: View {
@@ -863,21 +856,21 @@ struct DiagnosticsExportsBrowserView: View {
         NavigationStack {
             List {
                 if exportURLs.isEmpty {
-                    Text(localizedSettingsString("No diagnostics exports yet.")).foregroundStyle(.secondary)
+                    Text(AppLocalization.string("No diagnostics exports yet.")).foregroundStyle(.secondary)
                 } else {
                     ForEach(exportURLs, id: \.self) { url in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(url.lastPathComponent).font(.subheadline.weight(.semibold))
                             Text(exportTimestamp(for: url)).font(.caption).foregroundStyle(.secondary)
                             ShareLink(item: url) {
-                                Label(localizedSettingsString("Share"), systemImage: "square.and.arrow.up")
+                                Label(AppLocalization.string("Share"), systemImage: "square.and.arrow.up")
                             }.font(.caption)
                         }.padding(.vertical, 4)
                     }.onDelete(perform: deleteExports)
                 }
-            }.navigationTitle(localizedSettingsString("Past Exports")).navigationBarTitleDisplayMode(.inline).toolbar {
+            }.navigationTitle(AppLocalization.string("Past Exports")).navigationBarTitleDisplayMode(.inline).toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(localizedSettingsString("Done")) {
+                    Button(AppLocalization.string("Done")) {
                         dismiss()
                     }
                 }
@@ -894,28 +887,28 @@ struct DiagnosticsExportsBrowserView: View {
     }
     private func exportTimestamp(for url: URL) -> String {
         let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date.distantPast
-        return date == .distantPast ? localizedSettingsString("Unknown date") : date.formatted(date: .abbreviated, time: .shortened)
+        return date == .distantPast ? AppLocalization.string("Unknown date") : date.formatted(date: .abbreviated, time: .shortened)
     }
 }
 struct LargeMovementAlertsSettingsView: View {
-    let store: AppState
+    @Bindable var store: AppState
     var body: some View {
         Form {
-            Section(localizedSettingsString("Notifications")) {
-                Toggle(isOn: Binding(get: { store.useLargeMovementNotifications }, set: { store.useLargeMovementNotifications = $0 })) {
-                    Label(localizedSettingsString("Large Portfolio Movement Alerts"), systemImage: "chart.line.uptrend.xyaxis")
+            Section(AppLocalization.string("Notifications")) {
+                Toggle(isOn: $store.useLargeMovementNotifications) {
+                    Label(AppLocalization.string("Large Portfolio Movement Alerts"), systemImage: "chart.line.uptrend.xyaxis")
                 }
                 Text(
                     store.useLargeMovementNotifications
-                        ? localizedSettingsString(
+                        ? AppLocalization.string(
                             "Spectra can notify you when your total portfolio moves beyond your configured thresholds.")
-                        : localizedSettingsString("Large movement notifications are currently off.")
+                        : AppLocalization.string("Large movement notifications are currently off.")
                 ).font(.caption).foregroundStyle(.secondary)
             }
-            Section(localizedSettingsString("Alert Controls")) {
+            Section(AppLocalization.string("Alert Controls")) {
                 Stepper(
                     String(
-                        format: localizedSettingsString("Large movement threshold: %@"),
+                        format: AppLocalization.string("Large movement threshold: %@"),
                         (store.largeMovementAlertPercentThreshold / 100).formatted(.percent.precision(.fractionLength(0)))
                     ),
                     value: Binding(
@@ -923,7 +916,7 @@ struct LargeMovementAlertsSettingsView: View {
                     ), in: 1...90, step: 1
                 ).disabled(!store.useLargeMovementNotifications)
                 Stepper(
-                    localizedSettingsFormat("Large movement minimum: %lld USD", Int(store.largeMovementAlertUSDThreshold)),
+                    AppLocalization.format("Large movement minimum: %lld USD", Int(store.largeMovementAlertUSDThreshold)),
                     value: Binding(
                         get: { store.largeMovementAlertUSDThreshold }, set: { store.largeMovementAlertUSDThreshold = $0 }
                     ), in: 1...100_000, step: 5
@@ -931,11 +924,11 @@ struct LargeMovementAlertsSettingsView: View {
             }
             Section {
                 Text(
-                    localizedSettingsString(
+                    AppLocalization.string(
                         "These controls tune when portfolio movement notifications are sent during portfolio balance refreshes.")
                 ).font(.caption).foregroundStyle(.secondary)
             }
-        }.navigationTitle(localizedSettingsString("Large Movement Alerts"))
+        }.navigationTitle(AppLocalization.string("Large Movement Alerts"))
     }
 }
 private enum TokenRegistryGrouping {
@@ -962,7 +955,7 @@ struct TokenRegistrySettingsView: View {
         case near
         case tron
         var id: Self { self }
-        var title: String { chain?.filterDisplayName ?? localizedSettingsString("All") }
+        var title: String { chain?.filterDisplayName ?? AppLocalization.string("All") }
         var chain: TokenTrackingChain? {
             switch self {
             case .all: return nil
@@ -988,9 +981,9 @@ struct TokenRegistrySettingsView: View {
         var id: Self { self }
         var title: String {
             switch self {
-            case .all: return localizedSettingsString("All")
-            case .builtIn: return localizedSettingsString("Built-In")
-            case .custom: return localizedSettingsString("Custom")
+            case .all: return AppLocalization.string("All")
+            case .builtIn: return AppLocalization.string("Built-In")
+            case .custom: return AppLocalization.string("Custom")
             }
         }
     }
@@ -1003,22 +996,22 @@ struct TokenRegistrySettingsView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 10) {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField(localizedSettingsString("Search name, symbol, chain, or address"), text: $searchText)
+                        TextField(AppLocalization.string("Search name, symbol, chain, or address"), text: $searchText)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                     }.padding(.horizontal, 12).padding(.vertical, 10).background(
                         .thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     VStack(spacing: 10) {
-                        Picker(localizedSettingsString("Network"), selection: $chainFilter) {
+                        Picker(AppLocalization.string("Network"), selection: $chainFilter) {
                             ForEach(TokenRegistryChainFilter.allCases) { filter in Text(filter.title).tag(filter) }
                         }.pickerStyle(.menu).frame(maxWidth: .infinity, alignment: .leading)
-                        Picker(localizedSettingsString("Source"), selection: $sourceFilter) {
+                        Picker(AppLocalization.string("Source"), selection: $sourceFilter) {
                             ForEach(TokenRegistrySourceFilter.allCases) { filter in Text(filter.title).tag(filter) }
                         }.pickerStyle(.menu).frame(maxWidth: .infinity, alignment: .leading)
                     }
                     if chainFilter != .all || sourceFilter != .all || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         HStack {
                             Spacer(minLength: 0)
-                            Button(localizedSettingsString("Clear")) {
+                            Button(AppLocalization.string("Clear")) {
                                 chainFilter = .all
                                 sourceFilter = .all
                                 searchText = ""
@@ -1027,12 +1020,12 @@ struct TokenRegistrySettingsView: View {
                     }
                 }
             }
-            Section(localizedSettingsString("Tracked Tokens")) {
+            Section(AppLocalization.string("Tracked Tokens")) {
                 if filteredGroups.isEmpty {
                     Text(
                         searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? localizedSettingsString("No tracked tokens match the selected filters.")
-                            : localizedSettingsString("No matching tokens.")
+                            ? AppLocalization.string("No tracked tokens match the selected filters.")
+                            : AppLocalization.string("No matching tokens.")
                     ).font(.caption).foregroundStyle(.secondary)
                 } else {
                     ForEach(filteredGroups) { group in
@@ -1052,12 +1045,12 @@ struct TokenRegistrySettingsView: View {
                     }
                 }
             }
-        }.navigationTitle(localizedSettingsString("Tracked Tokens")).toolbar {
+        }.navigationTitle(AppLocalization.string("Tracked Tokens")).toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 NavigationLink {
                     AddCustomTokenView(store: store)
                 } label: {
-                    Text(localizedSettingsString("New Token"))
+                    Text(AppLocalization.string("New Token"))
                 }
             }
         }
@@ -1128,9 +1121,9 @@ struct TokenRegistryDetailView: View {
                     Section {
                         HStack(spacing: 12) {
                             CoinBadge(
-                                assetIdentifier: settingsTokenAssetIdentifier(for: representativeEntry),
-                                fallbackText: settingsTokenFallbackMark(for: representativeEntry),
-                                color: settingsTokenTint(for: representativeEntry.chain), size: 42
+                                assetIdentifier: representativeEntry.settingsAssetIdentifier,
+                                fallbackText: representativeEntry.settingsFallbackMark,
+                                color: representativeEntry.chain.settingsIconTint, size: 42
                             )
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(representativeEntry.name).font(.headline)
@@ -1138,7 +1131,7 @@ struct TokenRegistryDetailView: View {
                             }
                         }.padding(.vertical, 4)
                     }
-                    Section(localizedSettingsString("Chain Support")) {
+                    Section(AppLocalization.string("Chain Support")) {
                         ForEach(groupEntries) { entry in
                             TokenRegistryEntryCardView(
                                 entry: entry, setEnabled: { store.setTokenPreferenceEnabled(id: entry.id, isEnabled: $0) },
@@ -1149,7 +1142,7 @@ struct TokenRegistryDetailView: View {
                     }
                 }.navigationTitle(representativeEntry.symbol)
             } else {
-                ContentUnavailableView(localizedSettingsString("Token Not Found"), systemImage: "questionmark.circle")
+                ContentUnavailableView(AppLocalization.string("Token Not Found"), systemImage: "questionmark.circle")
             }
         }
     }
@@ -1167,27 +1160,27 @@ struct AddCustomTokenView: View {
         Form {
             Section {
                 Text(
-                    localizedSettingsString(
+                    AppLocalization.string(
                         "Add a custom token contract, mint address, coin type, package address, account ID, or jetton master address for Ethereum, Arbitrum, Optimism, BNB Chain, Avalanche, Hyperliquid, Solana, Sui, Aptos, TON, NEAR, or Tron."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
             }
-            Section(localizedSettingsString("Token Details")) {
-                Picker(localizedSettingsString("Chain"), selection: $selectedChain) {
+            Section(AppLocalization.string("Token Details")) {
+                Picker(AppLocalization.string("Chain"), selection: $selectedChain) {
                     ForEach(TokenTrackingChain.allCases) { chain in Text(chain.rawValue).tag(chain) }
                 }
-                TextField(localizedSettingsString("Symbol"), text: $symbolInput).textInputAutocapitalization(.characters)
+                TextField(AppLocalization.string("Symbol"), text: $symbolInput).textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
-                TextField(localizedSettingsString("Name"), text: $nameInput)
+                TextField(AppLocalization.string("Name"), text: $nameInput)
                 TextField(selectedChain.contractAddressPrompt, text: $contractInput).textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                Stepper(localizedSettingsFormat("Token Supports: %lld decimals", decimalsInput), value: $decimalsInput, in: 0...30, step: 1)
-                TextField(localizedSettingsString("CoinGecko ID (Optional)"), text: $coinGeckoIdInput).textInputAutocapitalization(.never)
+                Stepper(AppLocalization.format("Token Supports: %lld decimals", decimalsInput), value: $decimalsInput, in: 0...30, step: 1)
+                TextField(AppLocalization.string("CoinGecko ID (Optional)"), text: $coinGeckoIdInput).textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             }
             Section {
                 if let formMessage { Text(formMessage).font(.caption).foregroundStyle(.secondary) }
-                Button(localizedSettingsString("Add Token")) {
+                Button(AppLocalization.string("Add Token")) {
                     let message = store.addCustomTokenPreference(
                         chain: selectedChain, symbol: symbolInput, name: nameInput, contractAddress: contractInput, marketDataId: "0",
                         coinGeckoId: coinGeckoIdInput, decimals: decimalsInput
@@ -1195,7 +1188,7 @@ struct AddCustomTokenView: View {
                     if let message {
                         formMessage = message
                     } else {
-                        formMessage = localizedSettingsString("Token added.")
+                        formMessage = AppLocalization.string("Token added.")
                         symbolInput = ""
                         nameInput = ""
                         contractInput = ""
@@ -1203,7 +1196,7 @@ struct AddCustomTokenView: View {
                     }
                 }
             }
-        }.navigationTitle(localizedSettingsString("New Token"))
+        }.navigationTitle(AppLocalization.string("New Token"))
     }
 }
 struct DecimalDisplaySettingsView: View {
@@ -1219,28 +1212,28 @@ struct DecimalDisplaySettingsView: View {
         Form {
             Section {
                 Text(
-                    localizedSettingsString(
+                    AppLocalization.string(
                         "Search native assets and tracked tokens, then adjust how many decimals Spectra shows in portfolio and wallet views."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField(localizedSettingsString("Search symbol, name, chain, or address"), text: $searchText)
+                    TextField(AppLocalization.string("Search symbol, name, chain, or address"), text: $searchText)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                 }.padding(.horizontal, 12).padding(.vertical, 10).background(
                     .thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            Section(localizedSettingsString("Native Asset Display")) {
+            Section(AppLocalization.string("Native Asset Display")) {
                 Text(
-                    localizedSettingsString(
+                    AppLocalization.string(
                         "Adjust how many decimals are shown for each chain's native asset. Very small values switch to a threshold marker instead of rounding to zero."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
-                Button(localizedSettingsString("Reset Native Asset Display")) {
+                Button(AppLocalization.string("Reset Native Asset Display")) {
                     store.resetNativeAssetDisplayDecimals()
                 }
                 if filteredDecimalExamples.isEmpty {
-                    Text(localizedSettingsString("No matching native assets.")).font(.caption).foregroundStyle(.secondary)
+                    Text(AppLocalization.string("No matching native assets.")).font(.caption).foregroundStyle(.secondary)
                 } else {
                     ForEach(filteredDecimalExamples, id: \.symbol) { example in
                         let currentDisplayDecimals = store.assetDisplayDecimalPlaces(for: example.chainName)
@@ -1249,7 +1242,7 @@ struct DecimalDisplaySettingsView: View {
                             assetIdentifier: Coin.iconIdentifier(symbol: example.symbol, chainName: example.chainName),
                             fallbackText: Coin.displayMark(for: example.symbol), tint: Coin.displayColor(for: example.symbol),
                             title: example.chainName, subtitle: example.symbol, currentDisplayDecimals: currentDisplayDecimals,
-                            supportedDecimals: supportedDecimals, supportedLabel: localizedSettingsString("Asset supports"),
+                            supportedDecimals: supportedDecimals, supportedLabel: AppLocalization.string("Asset supports"),
                             onDecrease: {
                                 store.setAssetDisplayDecimalPlaces(currentDisplayDecimals - 1, for: example.chainName)
                             },
@@ -1260,20 +1253,20 @@ struct DecimalDisplaySettingsView: View {
                     }
                 }
             }
-            Section(localizedSettingsString("Tracked Token Decimals")) {
+            Section(AppLocalization.string("Tracked Token Decimals")) {
                 Text(
-                    localizedSettingsString(
+                    AppLocalization.string(
                         "ERC-20 and TRC-20 tokens expose decimals on the contract, and Solana tokens store decimals on the mint account. Manage tracked token decimal support separately from native asset display precision."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
-                Button(localizedSettingsString("Reset Tracked Token Display")) {
+                Button(AppLocalization.string("Reset Tracked Token Display")) {
                     store.resetTrackedTokenDisplayDecimals()
                 }
                 if filteredTokenDecimalEntries.isEmpty {
                     Text(
                         store.enabledTrackedTokenPreferences.isEmpty
-                            ? localizedSettingsString("No tokens are currently enabled for tracking.")
-                            : localizedSettingsString("No matching tracked tokens.")
+                            ? AppLocalization.string("No tokens are currently enabled for tracking.")
+                            : AppLocalization.string("No matching tracked tokens.")
                     ).font(.caption).foregroundStyle(.secondary)
                 } else {
                     ForEach(filteredTokenDecimalEntries, id: \.id) { entry in
@@ -1284,7 +1277,7 @@ struct DecimalDisplaySettingsView: View {
                             fallbackText: String(entry.symbol.prefix(2)).uppercased(), tint: decimalTokenTint(for: entry.chain),
                             title: entry.name, subtitle: "\(entry.chain.rawValue) · \(entry.symbol)",
                             currentDisplayDecimals: currentDisplayDecimals, supportedDecimals: supportedDecimals,
-                            supportedLabel: localizedSettingsString("Token supports"), detailText: entry.contractAddress,
+                            supportedLabel: AppLocalization.string("Token supports"), detailText: entry.contractAddress,
                             onDecrease: {
                                 store.updateTokenPreferenceDisplayDecimals(id: entry.id, decimals: currentDisplayDecimals - 1)
                             },
@@ -1295,7 +1288,7 @@ struct DecimalDisplaySettingsView: View {
                     }
                 }
             }
-        }.navigationTitle(localizedSettingsString("Decimal Display"))
+        }.navigationTitle(AppLocalization.string("Decimal Display"))
     }
     private var filteredDecimalExamples: [(symbol: String, chainName: String)] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -1345,7 +1338,7 @@ struct DecimalDisplaySettingsView: View {
             HStack {
                 Text(supportedLabel)
                 Spacer()
-                Text(localizedSettingsFormat("%lld decimals", supportedDecimals)).foregroundStyle(.secondary)
+                Text(AppLocalization.format("%lld decimals", supportedDecimals)).foregroundStyle(.secondary)
             }.font(.caption)
         }.padding(.vertical, 4)
     }
@@ -1388,11 +1381,11 @@ struct LogsView: View {
         var id: Self { self }
         var title: String {
             switch self {
-            case .all: return localizedSettingsString("All")
-            case .debug: return localizedSettingsString("Debug")
-            case .info: return localizedSettingsString("Info")
-            case .warning: return localizedSettingsString("Warning")
-            case .error: return localizedSettingsString("Error")
+            case .all: return AppLocalization.string("All")
+            case .debug: return AppLocalization.string("Debug")
+            case .info: return AppLocalization.string("Info")
+            case .warning: return AppLocalization.string("Warning")
+            case .error: return AppLocalization.string("Error")
             }
         }
     }
@@ -1433,35 +1426,35 @@ struct LogsView: View {
         let infoCount = filteredLogs.filter { $0.level == .info }.count
         let warningCount = filteredLogs.filter { $0.level == .warning }.count
         let errorCount = filteredLogs.filter { $0.level == .error }.count
-        return localizedSettingsFormat(
+        return AppLocalization.format(
             "Showing %lld logs • D:%lld I:%lld W:%lld E:%lld", filteredLogs.count, debugCount, infoCount, warningCount, errorCount)
     }
     var body: some View {
         List {
-            Section(localizedSettingsString("Status")) {
-                Text(store.pendingTransactionRefreshStatusText ?? localizedSettingsString("No refresh status yet")).font(.caption)
+            Section(AppLocalization.string("Status")) {
+                Text(store.pendingTransactionRefreshStatusText ?? AppLocalization.string("No refresh status yet")).font(.caption)
                     .foregroundStyle(.secondary)
                 Text(store.networkSyncStatusText).font(.caption).foregroundStyle(.secondary)
                 Text(summaryText).font(.caption).foregroundStyle(.secondary)
                 if let copiedNotice { Text(copiedNotice).font(.caption).foregroundStyle(.secondary) }
             }
-            Section(localizedSettingsString("Filters")) {
-                Picker(localizedSettingsString("Level"), selection: $selectedLevelFilter) {
+            Section(AppLocalization.string("Filters")) {
+                Picker(AppLocalization.string("Level"), selection: $selectedLevelFilter) {
                     ForEach(LogLevelFilter.allCases) { level in Text(level.title).tag(level) }
                 }
-                Picker(localizedSettingsString("Category"), selection: $selectedCategoryFilter) {
+                Picker(AppLocalization.string("Category"), selection: $selectedCategoryFilter) {
                     ForEach(availableCategories, id: \.self) { category in
-                        let label: String = category == allCategoryFilter ? localizedSettingsString("All") : category
+                        let label: String = category == allCategoryFilter ? AppLocalization.string("All") : category
                         Text(label).tag(category)
                     }
                 }
             }
             if filteredLogs.isEmpty {
-                Section(localizedSettingsString("Events")) {
-                    Text(localizedSettingsString("No operational events yet.")).font(.caption).foregroundStyle(.secondary)
+                Section(AppLocalization.string("Events")) {
+                    Text(AppLocalization.string("No operational events yet.")).font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Section(localizedSettingsString("Events")) {
+                Section(AppLocalization.string("Events")) {
                     ForEach(filteredLogs) { event in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 8) {
@@ -1473,14 +1466,14 @@ struct LogsView: View {
                             }
                             Text(event.message).font(.subheadline)
                             if let source = event.source, !source.isEmpty {
-                                Text(localizedSettingsFormat("source: %@", source)).font(.caption.monospaced()).foregroundStyle(.secondary)
+                                Text(AppLocalization.format("source: %@", source)).font(.caption.monospaced()).foregroundStyle(.secondary)
                             }
                             if let chainName = event.chainName, !chainName.isEmpty {
-                                Text(localizedSettingsFormat("chain: %@", chainName)).font(.caption.monospaced()).foregroundStyle(
+                                Text(AppLocalization.format("chain: %@", chainName)).font(.caption.monospaced()).foregroundStyle(
                                     .secondary)
                             }
                             if let walletID = event.walletID {
-                                Text(localizedSettingsFormat("wallet: %@", walletID)).font(.caption.monospaced()).foregroundStyle(
+                                Text(AppLocalization.format("wallet: %@", walletID)).font(.caption.monospaced()).foregroundStyle(
                                     .secondary
                                 ).textSelection(.enabled)
                             }
@@ -1494,8 +1487,8 @@ struct LogsView: View {
                     }
                 }
             }
-        }.navigationTitle(localizedSettingsString("Logs")).searchable(
-            text: $searchText, prompt: localizedSettingsString("Search message, chain, tx hash, wallet")
+        }.navigationTitle(AppLocalization.string("Logs")).searchable(
+            text: $searchText, prompt: AppLocalization.string("Search message, chain, tx hash, wallet")
         ).onAppear {
             rebuildLogPresentation()
         }.onChange(of: diagnosticsState.operationalLogsRevision) { _, _ in
@@ -1514,13 +1507,13 @@ struct LogsView: View {
             }
         }.toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(localizedSettingsString("Copy")) {
+                Button(AppLocalization.string("Copy")) {
                     UIPasteboard.general.string = store.exportOperationalLogsText(events: filteredLogs)
-                    copiedNotice = localizedSettingsFormat("Copied %lld log entries", filteredLogs.count)
+                    copiedNotice = AppLocalization.format("Copied %lld log entries", filteredLogs.count)
                 }.disabled(filteredLogs.isEmpty)
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button(localizedSettingsString("Clear"), role: .destructive) {
+                Button(AppLocalization.string("Clear"), role: .destructive) {
                     store.clearOperationalLogs()
                 }.disabled(diagnosticsState.operationalLogs.isEmpty)
             }
@@ -1552,18 +1545,18 @@ struct ResetWalletWarningView: View {
             Form {
                 Section {
                     Text(
-                        localizedSettingsString(
+                        AppLocalization.string(
                             "Choose which categories to remove from this device. Selected items are deleted locally and some options also clear secure keychain data."
                         )
                     ).font(.body)
                     Text(
-                        localizedSettingsString(
+                        AppLocalization.string(
                             "You must have your seed phrase backed up. Without it, you cannot recover your funds after reset.")
                     ).font(.body.weight(.semibold)).foregroundStyle(.red)
                 } header: {
-                    Text(localizedSettingsString("Before You Continue"))
+                    Text(AppLocalization.string("Before You Continue"))
                 }
-                Section(localizedSettingsString("Choose What To Reset")) {
+                Section(AppLocalization.string("Choose What To Reset")) {
                     ForEach(AppState.ResetScope.allCases) { scope in
                         Toggle(isOn: binding(for: scope)) {
                             VStack(alignment: .leading, spacing: 3) {
@@ -1573,50 +1566,50 @@ struct ResetWalletWarningView: View {
                         }
                     }
                 }
-                Section(localizedSettingsString("Selected Reset Summary")) {
+                Section(AppLocalization.string("Selected Reset Summary")) {
                     if selectedScopes.contains(.walletsAndSecrets) {
                         Label(
-                            localizedSettingsString("Imported wallets, watched addresses, and secure seed material"),
+                            AppLocalization.string("Imported wallets, watched addresses, and secure seed material"),
                             systemImage: "wallet.pass")
                     }
                     if selectedScopes.contains(.historyAndCache) {
                         Label(
-                            localizedSettingsString("Transaction history, chain snapshots, diagnostics, and network caches"),
+                            AppLocalization.string("Transaction history, chain snapshots, diagnostics, and network caches"),
                             systemImage: "clock.arrow.circlepath")
                     }
                     if selectedScopes.contains(.alertsAndContacts) {
                         Label(
-                            localizedSettingsString("Price alerts, notification rules, and address book recipients"),
+                            AppLocalization.string("Price alerts, notification rules, and address book recipients"),
                             systemImage: "bell.slash")
                     }
                     if selectedScopes.contains(.settingsAndEndpoints) {
                         Label(
-                            localizedSettingsString("Tracked tokens, API keys, endpoint settings, preferences, and custom icons"),
+                            AppLocalization.string("Tracked tokens, API keys, endpoint settings, preferences, and custom icons"),
                             systemImage: "slider.horizontal.3")
                     }
                     if selectedScopes.contains(.dashboardCustomization) {
-                        Label(localizedSettingsString("Pinned assets and dashboard customization choices"), systemImage: "square.grid.2x2")
+                        Label(AppLocalization.string("Pinned assets and dashboard customization choices"), systemImage: "square.grid.2x2")
                     }
                     if selectedScopes.contains(.providerState) {
                         Label(
-                            localizedSettingsString("Provider selections, reliability memory, and low-level network state"),
+                            AppLocalization.string("Provider selections, reliability memory, and low-level network state"),
                             systemImage: "network")
                     }
                     if selectedScopes.isEmpty {
-                        Text(localizedSettingsString("Select at least one category to enable reset.")).foregroundStyle(.secondary)
+                        Text(AppLocalization.string("Select at least one category to enable reset.")).foregroundStyle(.secondary)
                     }
                 }
                 Section {
-                    Button(localizedSettingsString("Reset Selected Data"), role: .destructive) {
+                    Button(AppLocalization.string("Reset Selected Data"), role: .destructive) {
                         Task {
                             await store.resetSelectedData(scopes: selectedScopes)
                             dismiss()
                         }
                     }.disabled(selectedScopes.isEmpty)
                 }
-            }.navigationTitle(localizedSettingsString("Reset Wallet")).toolbar {
+            }.navigationTitle(AppLocalization.string("Reset Wallet")).toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(localizedSettingsString("Cancel")) {
+                    Button(AppLocalization.string("Cancel")) {
                         dismiss()
                     }
                 }
@@ -1658,18 +1651,18 @@ struct TokenIconSettingsView: View {
             Section {
                 ForEach(filteredSettings) { setting in TokenIconCustomizationRow(setting: setting) }
             } header: {
-                Text(localizedSettingsString("Token Icons"))
+                Text(AppLocalization.string("Token Icons"))
             } footer: {
                 Text(
-                    localizedSettingsString(
+                    AppLocalization.string(
                         "Choose custom artwork, your own photo, or the classic generated badge style. Uploaded images must be 3 MB or smaller."
                     ))
             }
-        }.navigationTitle(localizedSettingsString("Icon Styles")).searchable(
-            text: $searchText, prompt: localizedSettingsString("Search icons")
+        }.navigationTitle(AppLocalization.string("Icon Styles")).searchable(
+            text: $searchText, prompt: AppLocalization.string("Search icons")
         ).toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(localizedSettingsString("Reset")) {
+                Button(AppLocalization.string("Reset")) {
                     tokenIconPreferencesStorage = ""
                 }.disabled(tokenIconPreferencesStorage.isEmpty)
             }
@@ -1681,19 +1674,19 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $store.selectedMainTab) {
             DashboardView(store: store).tabItem {
-                Label(localizedSettingsString("Home"), systemImage: "chart.pie.fill")
+                Label(AppLocalization.string("Home"), systemImage: "chart.pie.fill")
             }.tag(MainAppTab.home)
             HistoryView(store: store).tabItem {
-                Label(localizedSettingsString("History"), systemImage: "clock.arrow.circlepath")
+                Label(AppLocalization.string("History"), systemImage: "clock.arrow.circlepath")
             }.tag(MainAppTab.history)
             StakingView().tabItem {
-                Label(localizedSettingsString("Staking"), systemImage: "link.circle.fill")
+                Label(AppLocalization.string("Staking"), systemImage: "link.circle.fill")
             }.tag(MainAppTab.staking)
             DonationsView().tabItem {
-                Label(localizedSettingsString("Donate"), systemImage: "heart.fill")
+                Label(AppLocalization.string("Donate"), systemImage: "heart.fill")
             }.tag(MainAppTab.donate)
             SettingsView(store: store).tabItem {
-                Label(localizedSettingsString("Settings"), systemImage: "gearshape.fill")
+                Label(AppLocalization.string("Settings"), systemImage: "gearshape.fill")
             }.tag(MainAppTab.settings)
         }
     }

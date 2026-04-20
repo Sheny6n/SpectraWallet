@@ -1,7 +1,4 @@
 import SwiftUI
-private func localizedChainWikiString(_ key: String) -> String {
-    AppLocalization.string(key)
-}
 struct ChainWikiEntry: Identifiable, Codable, Equatable {
     let id: String
     let name: String
@@ -53,7 +50,7 @@ struct ChainWikiLibraryView: View {
                     }
                 }
             }.padding(.horizontal, 20).padding(.vertical, 18)
-        }.background(Color(uiColor: .systemGroupedBackground)).navigationTitle(localizedChainWikiString("Chain Wiki"))
+        }.background(Color(uiColor: .systemGroupedBackground)).navigationTitle(AppLocalization.string("Chain Wiki"))
     }
 }
 struct ChainWikiDetailView: View {
@@ -62,22 +59,22 @@ struct ChainWikiDetailView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 18) {
                 ChainWikiHeroCard(chain: chain)
-                ChainWikiSectionCard(title: localizedChainWikiString("Primary Use")) {
+                ChainWikiSectionCard(title: AppLocalization.string("Primary Use")) {
                     Text(chain.primaryUse).font(.body).foregroundStyle(Color.primary.opacity(0.86))
                 }
-                ChainWikiSectionCard(title: localizedChainWikiString("Identity")) {
+                ChainWikiSectionCard(title: AppLocalization.string("Identity")) {
                     VStack(spacing: 12) {
-                        ChainWikiKeyValueRow(title: localizedChainWikiString("Ticker"), value: chain.symbol)
-                        ChainWikiKeyValueRow(title: localizedChainWikiString("Family"), value: chain.family)
-                        ChainWikiKeyValueRow(title: localizedChainWikiString("Consensus"), value: chain.consensus)
-                        ChainWikiKeyValueRow(title: localizedChainWikiString("State Model"), value: chain.stateModel)
+                        ChainWikiKeyValueRow(title: AppLocalization.string("Ticker"), value: chain.symbol)
+                        ChainWikiKeyValueRow(title: AppLocalization.string("Family"), value: chain.family)
+                        ChainWikiKeyValueRow(title: AppLocalization.string("Consensus"), value: chain.consensus)
+                        ChainWikiKeyValueRow(title: AppLocalization.string("State Model"), value: chain.stateModel)
                     }
                 }
-                ChainWikiSectionCard(title: localizedChainWikiString("Derivation In Spectra")) {
+                ChainWikiSectionCard(title: AppLocalization.string("Derivation In Spectra")) {
                     VStack(alignment: .leading, spacing: 14) {
-                        ChainWikiKeyValueRow(title: localizedChainWikiString("SLIP44 Coin Type"), value: chain.slip44CoinType)
+                        ChainWikiKeyValueRow(title: AppLocalization.string("SLIP44 Coin Type"), value: chain.slip44CoinType)
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(localizedChainWikiString("Default Path")).font(.caption.weight(.semibold)).foregroundStyle(
+                            Text(AppLocalization.string("Default Path")).font(.caption.weight(.semibold)).foregroundStyle(
                                 Color.primary.opacity(0.58))
                             Text(chain.derivationPath).font(.body.monospaced()).foregroundStyle(Color.primary).textSelection(.enabled)
                         }.frame(maxWidth: .infinity, alignment: .leading).padding(14).background(
@@ -88,10 +85,10 @@ struct ChainWikiDetailView: View {
                         }
                     }
                 }
-                ChainWikiSectionCard(title: localizedChainWikiString("Circulation Model")) {
+                ChainWikiSectionCard(title: AppLocalization.string("Circulation Model")) {
                     Text(chain.totalCirculationModel).font(.body).foregroundStyle(Color.primary.opacity(0.86))
                 }
-                ChainWikiSectionCard(title: localizedChainWikiString("Technical Notes")) {
+                ChainWikiSectionCard(title: AppLocalization.string("Technical Notes")) {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(Array(chain.notableDetails.enumerated()), id: \.offset) { index, detail in
                             HStack(alignment: .top, spacing: 10) {
@@ -171,16 +168,16 @@ private extension Array where Element == ChainWikiEntry {
 private struct ChainWikiIntroCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(localizedChainWikiString("Protocol Reference")).font(.title3.weight(.bold)).foregroundStyle(Color.primary)
+            Text(AppLocalization.string("Protocol Reference")).font(.title3.weight(.bold)).foregroundStyle(Color.primary)
             Text(
-                localizedChainWikiString(
+                AppLocalization.string(
                     "Browse Spectra's supported chains, default derivation paths, registered SLIP44 coin types, and protocol-level notes in a cleaner reference format."
                 )
             ).font(.subheadline).foregroundStyle(Color.primary.opacity(0.74))
             HStack(spacing: 10) {
-                ChainWikiPill(text: "\(ChainWikiEntry.all.count) \(localizedChainWikiString("Chains"))")
-                ChainWikiPill(text: localizedChainWikiString("Derivation Paths"))
-                ChainWikiPill(text: localizedChainWikiString("SLIP44"))
+                ChainWikiPill(text: "\(ChainWikiEntry.all.count) \(AppLocalization.string("Chains"))")
+                ChainWikiPill(text: AppLocalization.string("Derivation Paths"))
+                ChainWikiPill(text: AppLocalization.string("SLIP44"))
             }
         }.frame(maxWidth: .infinity, alignment: .leading).padding(20).background(
             RoundedRectangle(cornerRadius: 26, style: .continuous).fill(
@@ -203,7 +200,7 @@ private struct ChainWikiTagFilterBar: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ChainWikiFilterChip(
-                    text: localizedChainWikiString("Chains"), tint: .orange, isSelected: selectedTag == nil, action: { onSelect("") }
+                    text: AppLocalization.string("Chains"), tint: .orange, isSelected: selectedTag == nil, action: { onSelect("") }
                 )
                 ForEach(tags, id: \.self) { tag in
                     ChainWikiFilterChip(
@@ -258,10 +255,10 @@ private struct ChainWikiHeroCard: View {
             }
             HStack(spacing: 12) {
                 ChainWikiMetricCard(
-                    title: localizedChainWikiString("SLIP44"),
+                    title: AppLocalization.string("SLIP44"),
                     value: chain.slip44CoinType.components(separatedBy: " ").first ?? chain.slip44CoinType, tint: chain.accentColor
                 )
-                ChainWikiMetricCard(title: localizedChainWikiString("State"), value: chain.stateModel, tint: chain.secondaryAccentColor)
+                ChainWikiMetricCard(title: AppLocalization.string("State"), value: chain.stateModel, tint: chain.secondaryAccentColor)
             }
         }.padding(20).background(
             RoundedRectangle(cornerRadius: 28, style: .continuous).fill(

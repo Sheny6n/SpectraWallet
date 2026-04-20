@@ -9,9 +9,9 @@ final class WalletDiagnosticsState {
     private static let operationalLogTimestampFormatter = ISO8601DateFormatter()
     private static let chainSyncPersistenceDelay: TimeInterval = 0.15
     private static let operationalLogsPersistenceDelay: TimeInterval = 0.35
-    private var pendingChainSyncPersistence: Task<Void, Never>?
-    private var pendingOperationalLogsPersistence: Task<Void, Never>?
-    private var suspendPersistenceScheduling = false
+    @ObservationIgnored private var pendingChainSyncPersistence: Task<Void, Never>?
+    @ObservationIgnored private var pendingOperationalLogsPersistence: Task<Void, Never>?
+    @ObservationIgnored private var suspendPersistenceScheduling = false
     private var chainDegradedMessagesByID: [WalletChainID: String] = [:] {
         didSet {
             scheduleChainSyncPersistence()
