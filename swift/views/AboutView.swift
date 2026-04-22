@@ -1,14 +1,10 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct AboutView: View {
     @State private var isAnimatingHero = false
     private var copy: SettingsContentCopy { .current }
     var body: some View {
         ZStack {
-            SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 22) {
                     aboutHero

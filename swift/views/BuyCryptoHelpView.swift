@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct BuyCryptoHelpView: View {
     private var copy: SettingsContentCopy { .current }
     private struct BuyCryptoProvider: Identifiable {

@@ -214,7 +214,7 @@ extension AppState {
         }
     }
     func evmChainContext(for chainName: String) -> EVMChainContext? {
-        switch coreEvmChainContextTag(chainName: chainName, ethereumNetworkMode: ethereumNetworkMode.rawValue) {
+        switch CachedCoreHelpers.evmChainContextTag(chainName: chainName, ethereumNetworkMode: ethereumNetworkMode.rawValue) {
         case "ethereum": return .ethereum
         case "ethereum_sepolia": return .ethereumSepolia
         case "ethereum_hoodi": return .ethereumHoodi
@@ -666,12 +666,20 @@ extension AppState {
     }
     func setAppIsActive(_ isActive: Bool) {
         appIsActive = isActive
-        if !isActive, useFaceID, useAutoLock { isAppLocked = true; appLockError = nil }
-        if !isActive { maintenanceTask?.cancel(); maintenanceTask = nil; return }
+        if !isActive, preferences.useFaceID, preferences.useAutoLock { isAppLocked = true; appLockError = nil }
+        if !isActive {
+            maintenanceTask?.cancel(); maintenanceTask = nil
+            // Stop the Rust balance-refresh engine so it isn't firing
+            // network requests while the app is in the background.
+            Task { await restartBalanceRefreshForCurrentConfiguration() }
+            return
+        }
         startMaintenanceLoopIfNeeded()
+        // Resume balance refresh with the current frequency preference.
+        Task { await restartBalanceRefreshForCurrentConfiguration() }
     }
     func unlockApp() async {
-        guard useFaceID else { isAppLocked = false; appLockError = nil; return }
+        guard preferences.useFaceID else { isAppLocked = false; appLockError = nil; return }
         if await authenticateForSensitiveAction(reason: "Authenticate to unlock Spectra") { isAppLocked = false; appLockError = nil }
     }
     func startMaintenanceLoopIfNeeded() {
@@ -697,7 +705,7 @@ extension AppState {
         await performBackgroundMaintenanceTick()
     }
     func authenticateForSensitiveAction(reason: String, allowWhenAuthenticationUnavailable: Bool = false) async -> Bool {
-        guard useFaceID, requireBiometricForSendActions else { return true }
+        guard preferences.useFaceID, preferences.requireBiometricForSendActions else { return true }
         let context = LAContext(); var authError: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &authError) else {
             if allowWhenAuthenticationUnavailable { return true }
@@ -1087,7 +1095,7 @@ extension AppState {
         }
     }
     func seedDerivationChain(for chainName: String) -> SeedDerivationChain? {
-        coreSeedDerivationChainRaw(chainName: chainName).flatMap(SeedDerivationChain.init(rawValue:))
+        CachedCoreHelpers.seedDerivationChainRaw(chainName: chainName).flatMap(SeedDerivationChain.init(rawValue:))
     }
     func walletHasAddress(for wallet: ImportedWallet, chainName: String) -> Bool {
         resolvedAddress(for: wallet, chainName: chainName) != nil

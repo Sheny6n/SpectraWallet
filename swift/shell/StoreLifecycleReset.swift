@@ -67,48 +67,54 @@ extension AppState {
         chainOperationalEventsByChain = loadChainOperationalEvents()
         syncChainOwnedAddressManagementState()
         if UserDefaults.standard.object(forKey: Self.hideBalancesDefaultsKey) != nil {
-            hideBalances = UserDefaults.standard.bool(forKey: Self.hideBalancesDefaultsKey)
+            preferences.hideBalances = UserDefaults.standard.bool(forKey: Self.hideBalancesDefaultsKey)
         }
         if let storedAssetDisplayDecimalsByChain = loadAssetDisplayDecimalsByChain() {
             assetDisplayDecimalsByChain = storedAssetDisplayDecimalsByChain
         }
         if UserDefaults.standard.object(forKey: Self.useFaceIDDefaultsKey) != nil {
-            useFaceID = UserDefaults.standard.bool(forKey: Self.useFaceIDDefaultsKey)
+            preferences.useFaceID = UserDefaults.standard.bool(forKey: Self.useFaceIDDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: Self.useAutoLockDefaultsKey) != nil {
-            useAutoLock = UserDefaults.standard.bool(forKey: Self.useAutoLockDefaultsKey)
+            preferences.useAutoLock = UserDefaults.standard.bool(forKey: Self.useAutoLockDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: Self.useStrictRPCOnlyDefaultsKey) != nil {
-            useStrictRPCOnly = UserDefaults.standard.bool(forKey: Self.useStrictRPCOnlyDefaultsKey)
+            preferences.useStrictRPCOnly = UserDefaults.standard.bool(forKey: Self.useStrictRPCOnlyDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: Self.requireBiometricForSendActionsDefaultsKey) != nil {
-            requireBiometricForSendActions = UserDefaults.standard.bool(forKey: Self.requireBiometricForSendActionsDefaultsKey)
+            preferences.requireBiometricForSendActions = UserDefaults.standard.bool(
+                forKey: Self.requireBiometricForSendActionsDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: Self.usePriceAlertsDefaultsKey) != nil {
-            usePriceAlerts = UserDefaults.standard.bool(forKey: Self.usePriceAlertsDefaultsKey)
+            preferences.usePriceAlerts = UserDefaults.standard.bool(forKey: Self.usePriceAlertsDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: Self.useTransactionStatusNotificationsDefaultsKey) != nil {
-            useTransactionStatusNotifications = UserDefaults.standard.bool(forKey: Self.useTransactionStatusNotificationsDefaultsKey)
+            preferences.useTransactionStatusNotifications = UserDefaults.standard.bool(
+                forKey: Self.useTransactionStatusNotificationsDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: Self.useLargeMovementNotificationsDefaultsKey) != nil {
-            useLargeMovementNotifications = UserDefaults.standard.bool(forKey: Self.useLargeMovementNotificationsDefaultsKey)
+            preferences.useLargeMovementNotifications = UserDefaults.standard.bool(
+                forKey: Self.useLargeMovementNotificationsDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey) != nil {
-            automaticRefreshFrequencyMinutes = UserDefaults.standard.integer(forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey)
+            preferences.automaticRefreshFrequencyMinutes = UserDefaults.standard.integer(
+                forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey)
         } else if let rawSyncProfile = UserDefaults.standard.string(forKey: Self.backgroundSyncProfileDefaultsKey),
             let profile = BackgroundSyncProfile(rawValue: rawSyncProfile)
         {
             backgroundSyncProfile = profile
             switch profile {
-            case .conservative: automaticRefreshFrequencyMinutes = 10
-            case .balanced, .aggressive: automaticRefreshFrequencyMinutes = 5
+            case .conservative: preferences.automaticRefreshFrequencyMinutes = 10
+            case .balanced, .aggressive: preferences.automaticRefreshFrequencyMinutes = 5
             }
         }
         if UserDefaults.standard.object(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey) != nil {
-            largeMovementAlertPercentThreshold = UserDefaults.standard.double(forKey: Self.largeMovementAlertPercentThresholdDefaultsKey)
+            preferences.largeMovementAlertPercentThreshold = UserDefaults.standard.double(
+                forKey: Self.largeMovementAlertPercentThresholdDefaultsKey)
         }
         if UserDefaults.standard.object(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey) != nil {
-            largeMovementAlertUSDThreshold = UserDefaults.standard.double(forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
+            preferences.largeMovementAlertUSDThreshold = UserDefaults.standard.double(
+                forKey: Self.largeMovementAlertUSDThresholdDefaultsKey)
         }
         if let storedFeePrioritySelections = UserDefaults.standard.dictionary(forKey: Self.selectedFeePriorityOptionsByChainDefaultsKey)
             as? [String: String]
@@ -471,18 +477,8 @@ extension AppState {
         bitcoinFeePriority = .normal
         dogecoinFeePriority = .normal
         selectedFeePriorityOptionRawByChain = [:]
-        hideBalances = false
-        useFaceID = true
-        useAutoLock = false
-        useStrictRPCOnly = false
-        requireBiometricForSendActions = true
-        usePriceAlerts = true
-        useTransactionStatusNotifications = true
-        useLargeMovementNotifications = true
-        automaticRefreshFrequencyMinutes = 5
+        preferences.resetToDefaults()
         backgroundSyncProfile = .balanced
-        largeMovementAlertPercentThreshold = 10
-        largeMovementAlertUSDThreshold = 50
     }
     private func resetProviderState() async {
         clearNetworkAndTransportCaches()

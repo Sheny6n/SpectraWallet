@@ -4,7 +4,6 @@ struct AddWalletEntryView: View {
     @State private var setupMode: SetupModeChoice = .simple
     var body: some View {
         ZStack {
-            SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 14) {
                     setupModePicker
@@ -58,8 +57,7 @@ struct AddWalletEntryView: View {
                     ? AppLocalization.string("Recommended defaults and fewer required choices.")
                     : AppLocalization.string("Configure derivation paths, networks, and power-user overrides.")
             ).font(.caption).foregroundStyle(Color.primary.opacity(0.68))
-        }.padding(16).frame(maxWidth: .infinity, alignment: .leading).glassEffect(
-            .regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 22))
+        }.padding(16).frame(maxWidth: .infinity, alignment: .leading).spectraCardFill(cornerRadius: 22)
     }
     private func actionCard(
         title: String, subtitle: String, icon: String, tint: Color, action: @escaping () -> Void
@@ -75,6 +73,6 @@ struct AddWalletEntryView: View {
                 Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(Color.primary.opacity(0.38)).padding(
                     .top, 4)
             }.padding(16).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-        }.buttonStyle(.plain).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 22))
+        }.buttonStyle(.plain).spectraBubbleFill().spectraCardFill(cornerRadius: 22)
     }
 }

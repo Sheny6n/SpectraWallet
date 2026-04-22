@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct AddCustomTokenView: View {
     let store: AppState
     @State private var selectedChain: TokenTrackingChain = .ethereum

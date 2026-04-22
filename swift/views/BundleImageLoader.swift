@@ -13,7 +13,11 @@ enum BundleImageLoader {
     #if canImport(UIKit)
         private static let imageCache: NSCache<NSString, UIImage> = {
             let cache = NSCache<NSString, UIImage>()
-            cache.countLimit = 256
+            cache.countLimit = 64
+            // Bound by total pixel cost too — prevents the resident-memory
+            // footprint from scaling linearly with countLimit when icons are
+            // high-res bitmaps. 16 MB is plenty for 64 token icons at 256×256.
+            cache.totalCostLimit = 16 * 1024 * 1024
             return cache
         }()
         private final class CachedURL {
@@ -58,12 +62,20 @@ enum BundleImageLoader {
             let key = name as NSString
             if let cached = imageCache.object(forKey: key) { return cached }
             guard let url = url(forImageNamed: name), let image = UIImage(contentsOfFile: url.path) else { return nil }
-            imageCache.setObject(image, forKey: key)
+            let cost = approximateByteCost(for: image)
+            imageCache.setObject(image, forKey: key, cost: cost)
             return image
         #else
             return nil
         #endif
     }
+
+    #if canImport(UIKit)
+        private static func approximateByteCost(for image: UIImage) -> Int {
+            let scale = image.scale
+            return Int(image.size.width * scale * image.size.height * scale * 4)
+        }
+    #endif
 
     /// Returns true when a bundle image exists for the given name.
     static func hasImage(named name: String) -> Bool { url(forImageNamed: name) != nil }

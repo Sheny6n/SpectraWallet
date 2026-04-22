@@ -50,6 +50,6 @@ enum WalletDerivationLayer {
         return address
     }
     static func evmSeedDerivationChain(for chainName: String) -> SeedDerivationChain? {
-        coreEvmSeedDerivationChainName(chainName: chainName).flatMap(SeedDerivationChain.init(rawValue:))
+        CachedCoreHelpers.evmSeedDerivationChainName(chainName: chainName).flatMap(SeedDerivationChain.init(rawValue:))
     }
 }

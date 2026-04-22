@@ -1,18 +1,16 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct LargeMovementAlertsSettingsView: View {
     @Bindable var store: AppState
     var body: some View {
-        Form {
+        @Bindable var preferences = store.preferences
+        return Form {
             Section(AppLocalization.string("Notifications")) {
-                Toggle(isOn: $store.useLargeMovementNotifications) {
+                Toggle(isOn: $preferences.useLargeMovementNotifications) {
                     Label(AppLocalization.string("Large Portfolio Movement Alerts"), systemImage: "chart.line.uptrend.xyaxis")
                 }
                 Text(
-                    store.useLargeMovementNotifications
+                    preferences.useLargeMovementNotifications
                         ? AppLocalization.string(
                             "Spectra can notify you when your total portfolio moves beyond your configured thresholds.")
                         : AppLocalization.string("Large movement notifications are currently off.")
@@ -22,18 +20,18 @@ struct LargeMovementAlertsSettingsView: View {
                 Stepper(
                     String(
                         format: AppLocalization.string("Large movement threshold: %@"),
-                        (store.largeMovementAlertPercentThreshold / 100).formatted(.percent.precision(.fractionLength(0)))
+                        (preferences.largeMovementAlertPercentThreshold / 100).formatted(.percent.precision(.fractionLength(0)))
                     ),
                     value: Binding(
-                        get: { store.largeMovementAlertPercentThreshold }, set: { store.largeMovementAlertPercentThreshold = $0 }
+                        get: { preferences.largeMovementAlertPercentThreshold }, set: { preferences.largeMovementAlertPercentThreshold = $0 }
                     ), in: 1...90, step: 1
-                ).disabled(!store.useLargeMovementNotifications)
+                ).disabled(!preferences.useLargeMovementNotifications)
                 Stepper(
-                    AppLocalization.format("Large movement minimum: %lld USD", Int(store.largeMovementAlertUSDThreshold)),
+                    AppLocalization.format("Large movement minimum: %lld USD", Int(preferences.largeMovementAlertUSDThreshold)),
                     value: Binding(
-                        get: { store.largeMovementAlertUSDThreshold }, set: { store.largeMovementAlertUSDThreshold = $0 }
+                        get: { preferences.largeMovementAlertUSDThreshold }, set: { preferences.largeMovementAlertUSDThreshold = $0 }
                     ), in: 1...100_000, step: 5
-                ).disabled(!store.useLargeMovementNotifications)
+                ).disabled(!preferences.useLargeMovementNotifications)
             }
             Section {
                 Text(

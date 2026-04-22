@@ -78,7 +78,7 @@ extension AppState {
         }
         let isEvm = isEVMChain(receiveCoin.chainName)
         let chainAddress: String?
-        switch corePlanReceiveAddressResolver(symbol: receiveCoin.symbol, chainName: receiveCoin.chainName, isEvmChain: isEvm) {
+        switch CachedCoreHelpers.receiveAddressResolver(symbol: receiveCoin.symbol, chainName: receiveCoin.chainName, isEvmChain: isEvm) {
         case .bitcoinLegacy: chainAddress = wallet.bitcoinAddress
         case .bitcoinCash: chainAddress = resolvedBitcoinCashAddress(for: wallet)
         case .bitcoinSv: chainAddress = resolvedBitcoinSVAddress(for: wallet)
@@ -305,7 +305,7 @@ extension AppState {
         let resolvedNearAddress = res(wantsNearImport, typedNearAddress)
         let resolvedPolkadotAddress = res(wantsPolkadotImport, typedPolkadotAddress)
         if isPrivateKeyImport {
-            guard corePrivateKeyHexIsLikely(rawValue: trimmedPrivateKey) else {
+            guard CachedCoreHelpers.privateKeyHexIsLikely(rawValue: trimmedPrivateKey) else {
                 importError = "Enter a valid 32-byte hex key."
                 return
             }
@@ -874,7 +874,7 @@ extension AppState {
     }
     var refreshableChainNames: Set<String> { cachedRefreshableChainNames }
     var refreshableChainIDs: Set<WalletChainID> { Set(refreshableChainNames.compactMap(WalletChainID.init)) }
-    var backgroundBalanceRefreshFrequencyMinutes: Int { max(automaticRefreshFrequencyMinutes * 3, 15) }
+    var backgroundBalanceRefreshFrequencyMinutes: Int { max(preferences.automaticRefreshFrequencyMinutes * 3, 15) }
     func refreshForForegroundIfNeeded() async {
         guard shouldPerformForegroundFullRefresh else { return }
         await performUserInitiatedRefresh(forceChainRefresh: false)

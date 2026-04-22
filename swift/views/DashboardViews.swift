@@ -28,7 +28,6 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                SpectraBackdrop()
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 22) {
                         portfolioHeader
@@ -87,28 +86,7 @@ struct DashboardView: View {
         }
     }
     private var portfolioHeader: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    SpectraLogo(size: 36)
-                    Text(AppLocalization.string("Portfolio")).font(.headline).foregroundStyle(Color.primary.opacity(0.82))
-                }
-                Text(store.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.totalBalanceIfAvailable)).font(
-                    .system(size: 42, weight: .black, design: .rounded)
-                ).foregroundStyle(Color.primary).lineLimit(1).minimumScaleFactor(0.45).allowsTightening(true)
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 8) {
-                NavigationLink {
-                    PortfolioWalletSelectionView(store: store)
-                } label: {
-                    Image(systemName: "chevron.right.circle.fill").font(.system(size: 24, weight: .semibold)).foregroundStyle(
-                        Color.primary.opacity(0.88))
-                }.buttonStyle(.plain)
-                Text(AppLocalization.format("%lld in total", store.cachedIncludedPortfolioWallets.count)).font(.caption2).foregroundStyle(
-                    Color.primary.opacity(0.72))
-            }
-        }.padding(20).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 30)).padding(.top, 12)
+        DashboardPortfolioHeader(store: store)
     }
     private var noticeToolbarLabel: some View {
         let notices = activeNotices
@@ -128,22 +106,7 @@ struct DashboardView: View {
         )
     }
     private var actionButtons: some View {
-        let canSend = store.canBeginSend
-        let canReceive = store.canBeginReceive
-        return HStack(spacing: 12) {
-            Button {
-                store.beginSend()
-            } label: {
-                Label(AppLocalization.string("Send"), systemImage: "arrow.up.right").font(.headline).frame(maxWidth: .infinity).padding(
-                    .vertical, 14)
-            }.buttonStyle(.glass).disabled(!canSend).opacity(canSend ? 1.0 : 0.5)
-            Button {
-                store.beginReceive()
-            } label: {
-                Label(AppLocalization.string("Receive"), systemImage: "arrow.down.left").font(.headline).frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-            }.buttonStyle(.glassProminent).disabled(!canReceive).opacity(canReceive ? 1.0 : 0.5)
-        }
+        DashboardActionButtons(store: store)
     }
     private var dashboardCardSection: some View {
         let wallets = store.wallets
@@ -160,9 +123,9 @@ struct DashboardView: View {
             case .wallets: walletsSectionContent(wallets: wallets).transition(dashboardContentTransition)
             case .assets: assetsSectionContent(portfolio: portfolio).transition(dashboardContentTransition)
             }
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(20).spectraBubbleFill().glassEffect(
-            .regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 30)
-        ).contentShape(Rectangle()).animation(.easeOut(duration: 0.16), value: dashboardPage)
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(20).spectraBubbleFill()
+            .spectraCardFill(cornerRadius: 30)
+            .contentShape(Rectangle()).animation(.easeOut(duration: 0.16), value: dashboardPage)
     }
     @ViewBuilder
     private func walletsSectionContent(wallets: [ImportedWallet]) -> some View {
@@ -172,8 +135,7 @@ struct DashboardView: View {
                     Text(AppLocalization.string("No wallets yet")).font(.headline).foregroundStyle(Color.primary)
                     Text(AppLocalization.string("Tap the + button in the top right to add your first wallet.")).font(.subheadline)
                         .foregroundStyle(Color.primary.opacity(0.76))
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).glassEffect(
-                    .regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).spectraCardFill(cornerRadius: 24)
             } else {
                 let safePageIndex = min(max(walletPageIndex, 0), max(wallets.count - 1, 0))
                 TabView(selection: Binding(get: { safePageIndex }, set: { walletPageIndex = $0 })) {
@@ -185,7 +147,7 @@ struct DashboardView: View {
                             WalletCardView(
                                 presentation: WalletCardView.Presentation(
                                     walletName: wallet.name, chainTitleText: store.displayChainTitle(for: wallet),
-                                    totalValueText: store.hideBalances
+                                    totalValueText: store.preferences.hideBalances
                                         ? "••••••"
                                         : store.formattedFiatAmountOrZero(fromUSD: store.currentTotalIfAvailable(for: wallet)),
                                     assetCountText: AppLocalization.format(
@@ -231,8 +193,7 @@ struct DashboardView: View {
                     Text(AppLocalization.string("No assets to display yet")).font(.headline).foregroundStyle(Color.primary)
                     Text(AppLocalization.string("Import a wallet or pull to refresh to load chain balances.")).font(.subheadline)
                         .foregroundStyle(Color.primary.opacity(0.76))
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).glassEffect(
-                    .regular.tint(.white.opacity(0.02)), in: .rect(cornerRadius: 20))
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).spectraCardFill(cornerRadius: 20)
             } else {
                 ForEach(visibleAssetPresentations(portfolio: portfolio)) { presentation in
                     Button {
@@ -248,7 +209,7 @@ struct DashboardView: View {
     }
     private var visiblePortfolio: [DashboardAssetGroup] { store.cachedDashboardAssetGroups }
     private func visibleAssetPresentations(portfolio: [DashboardAssetGroup]) -> [DashboardAssetRowPresentation] {
-        let hideBalances = store.hideBalances
+        let hideBalances = store.preferences.hideBalances
         return portfolio.map { assetGroup in
             DashboardAssetRowPresentation(
                 assetGroup: assetGroup,
@@ -408,7 +369,7 @@ struct AssetGroupDetailView: View {
                         label: AppLocalization.string("Total Value"),
                         value: store.formattedFiatAmountOrZero(fromUSD: assetGroup.totalValueUSD))
                     DashboardDetailRow(label: AppLocalization.string("Chains"), value: "\(assetGroup.chainEntries.count)")
-                }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text(AppLocalization.string("Chain Breakdown")).font(.headline).foregroundStyle(Color.primary)
@@ -445,9 +406,9 @@ struct AssetGroupDetailView: View {
                                 "This asset view merges balances across chains while preserving the per-chain token standard details here.")
                         ).font(.caption).foregroundStyle(Color.primary.opacity(0.62))
                     }
-                }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
             }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
-        }.background(SpectraBackdrop()).navigationTitle(assetGroup.symbol).navigationBarTitleDisplayMode(.inline).toolbar {
+        }.navigationTitle(assetGroup.symbol).navigationBarTitleDisplayMode(.inline).toolbar {
             if !supportedTokenEntries.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink(AppLocalization.string("Details")) {
@@ -478,7 +439,7 @@ struct AssetContractsDetailView: View {
                         }
                     }
                     DashboardDetailRow(label: AppLocalization.string("Supported Chains"), value: "\(supportedTokenEntries.count)")
-                }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                 VStack(alignment: .leading, spacing: 12) {
                     Text(AppLocalization.string("Contracts")).font(.headline).foregroundStyle(Color.primary)
                     if supportedTokenEntries.isEmpty {
@@ -499,9 +460,9 @@ struct AssetContractsDetailView: View {
                             }.padding(.vertical, 4)
                         }
                     }
-                }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
             }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
-        }.background(SpectraBackdrop()).navigationTitle(AppLocalization.format("%@ Details", assetGroup.symbol)).navigationBarTitleDisplayMode(
+        }.navigationTitle(AppLocalization.format("%@ Details", assetGroup.symbol)).navigationBarTitleDisplayMode(
             .inline)
     }
 }
@@ -653,7 +614,7 @@ struct DashboardAssetRowView: View, Equatable {
                 Text(presentation.priceText).font(.caption).foregroundStyle(Color.primary.opacity(0.68)).spectraNumericTextLayout()
             }
             Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.42))
-        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+        }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
     }
 }
 struct DashboardPinnedAssetRowView: View, Equatable {
@@ -704,4 +665,55 @@ struct DashboardNoticeCardView: View {
 private func dashboardComponentsLocalizedFormat(_ key: String, _ arguments: CVarArg...) -> String {
     let format = AppLocalization.string(key)
     return String(format: format, locale: AppLocalization.locale, arguments: arguments)
+}
+
+// ── Dashboard top-level sections ────────────────────────────────────────
+// Each section is a standalone `View` struct so its internal TupleView
+// types don't cascade into `DashboardView.body`'s opaque return. This
+// matches the SetupView refactor and Apple's preferred pattern of many
+// focused `View` structs rather than long computed-var bodies.
+
+private struct DashboardPortfolioHeader: View {
+    @Bindable var store: AppState
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    Text(AppLocalization.string("Portfolio")).font(.headline).foregroundStyle(Color.primary.opacity(0.82))
+                }
+                Text(store.preferences.hideBalances ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.totalBalanceIfAvailable)).font(
+                    .system(size: 42, weight: .black, design: .rounded)
+                ).foregroundStyle(Color.primary).lineLimit(1).minimumScaleFactor(0.45).allowsTightening(true)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 8) {
+                NavigationLink {
+                    PortfolioWalletSelectionView(store: store)
+                } label: {
+                    Image(systemName: "chevron.right.circle.fill").font(.system(size: 24, weight: .semibold)).foregroundStyle(
+                        Color.primary.opacity(0.88))
+                }.buttonStyle(.plain)
+                Text(AppLocalization.format("%lld in total", store.cachedIncludedPortfolioWallets.count)).font(.caption2).foregroundStyle(
+                    Color.primary.opacity(0.72))
+            }
+        }.padding(20).spectraBubbleFill().spectraCardFill(cornerRadius: 30).padding(.top, 12)
+    }
+}
+
+private struct DashboardActionButtons: View {
+    @Bindable var store: AppState
+    var body: some View {
+        let canSend = store.canBeginSend
+        let canReceive = store.canBeginReceive
+        return HStack(spacing: 12) {
+            Button { store.beginSend() } label: {
+                Label(AppLocalization.string("Send"), systemImage: "arrow.up.right").font(.headline).frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+            }.buttonStyle(.glass).disabled(!canSend).opacity(canSend ? 1.0 : 0.5)
+            Button { store.beginReceive() } label: {
+                Label(AppLocalization.string("Receive"), systemImage: "arrow.down.left").font(.headline).frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+            }.buttonStyle(.glassProminent).disabled(!canReceive).opacity(canReceive ? 1.0 : 0.5)
+        }
+    }
 }

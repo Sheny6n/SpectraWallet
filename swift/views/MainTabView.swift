@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct MainTabView: View {
     @Bindable var store: AppState
     var body: some View {

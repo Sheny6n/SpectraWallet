@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct ReportProblemView: View {
     private var copy: SettingsContentCopy { .current }
     private var reportProblemURL: URL { URL(string: copy.reportProblemURL) ?? URL(string: "https://example.com/spectra/report-problem")! }

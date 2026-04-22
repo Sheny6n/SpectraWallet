@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 enum TokenRegistryGrouping {
     nonisolated static func key(for entry: TokenPreferenceEntry) -> String {
         let geckoID = entry.coinGeckoId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

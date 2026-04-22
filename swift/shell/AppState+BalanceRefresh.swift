@@ -99,14 +99,29 @@ extension AppState {
         Task { try? await WalletServiceBridge.shared.setRefreshEntriesTyped(entries) }
     }
 
+    /// Install the Rust balance-refresh observer and start the periodic
+    /// refresh loop. Interval is driven by the user's
+    /// `automaticRefreshFrequencyMinutes` preference (default 5 min) — NOT a
+    /// hardcoded 30 s, which was firing at 10× the requested rate and
+    /// keeping the phone warm with constant radio activity.
     func setupRustRefreshEngine() {
         let observer = WalletBalanceObserver(noPointer: .init())
         observer.store = self
-        Task {
+        Task { [weak self] in
             try? await WalletServiceBridge.shared.setBalanceObserver(observer)
-            try? await WalletServiceBridge.shared.startBalanceRefresh(intervalSecs: 30)
+            await self?.restartBalanceRefreshForCurrentConfiguration()
         }
         updateRefreshEngineEntries()
+    }
+    /// Stop-then-start the refresh engine using the current effective
+    /// interval. Called at startup, when the refresh-frequency preference
+    /// changes, and when the app transitions active/inactive.
+    func restartBalanceRefreshForCurrentConfiguration() async {
+        try? await WalletServiceBridge.shared.stopBalanceRefresh()
+        guard appIsActive else { return }
+        let minutes = max(1, preferences.automaticRefreshFrequencyMinutes)
+        let intervalSecs = UInt64(minutes * 60)
+        try? await WalletServiceBridge.shared.startBalanceRefresh(intervalSecs: intervalSecs)
     }
 
     private func resolvedRefreshAddress(for wallet: ImportedWallet) -> String? {

@@ -38,8 +38,7 @@ private struct HistoryTransactionRowView: View, Equatable {
             if let metadataText = row.metadataText {
                 Text(metadataText).font(.caption2).foregroundStyle(Color.primary.opacity(0.62)).lineLimit(1)
             }
-        }.padding(16).frame(maxWidth: .infinity, alignment: .leading).glassEffect(
-            .regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 22))
+        }.padding(16).frame(maxWidth: .infinity, alignment: .leading).spectraCardFill(cornerRadius: 22)
     }
 }
 private struct HistoryPresentationSection: Identifiable {
@@ -60,7 +59,6 @@ struct HistoryView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ZStack {
-                    SpectraBackdrop()
                     ScrollView(showsIndicators: false) {
                         LazyVStack(alignment: .leading, spacing: 18) {
                             Color.clear.frame(height: 1).id("history-top")
@@ -69,8 +67,7 @@ struct HistoryView: View {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(emptyStateTitle).font(.headline).foregroundStyle(Color.primary)
                                     Text(emptyStateMessage).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
-                                }.padding(18).spectraBubbleFill().glassEffect(
-                                    .regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+                                }.padding(18).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                             } else {
                                 ForEach(groupedSections) { section in
                                     VStack(alignment: .leading, spacing: 12) {
@@ -113,19 +110,19 @@ struct HistoryView: View {
                                                 }
                                             }
                                         }
-                                    }.padding(18).frame(maxWidth: .infinity, alignment: .leading).glassEffect(
-                                        .regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+                                    }.padding(18).frame(maxWidth: .infinity, alignment: .leading).spectraCardFill(cornerRadius: 24)
                                 }
                             }
                             if shouldShowPagingControls { historyPagingControls }
                         }.padding(20)
-                    }.refreshable {
-                        await store.performUserInitiatedRefresh()
-                    }.scrollBounceBehavior(.always)
-                }.onChange(of: pendingScrollToTopToken) { _, _ in
+                }.refreshable {
+                    await store.performUserInitiatedRefresh()
+                }.scrollBounceBehavior(.always)
+                .onChange(of: pendingScrollToTopToken) { _, _ in
                     withAnimation(.easeInOut(duration: 0.2)) {
                         proxy.scrollTo("history-top", anchor: .top)
                     }
+                }
                 }
             }.navigationTitle(AppLocalization.string("History")).navigationBarTitleDisplayMode(.inline).onChange(of: selectedFilter) { _, _ in
                 resetPaging()
@@ -141,57 +138,15 @@ struct HistoryView: View {
         }
     }
     private var controlsCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            TextField(AppLocalization.string("Search wallet, asset, symbol, or address"), text: $searchText).textInputAutocapitalization(
-                .never
-            ).autocorrectionDisabled().padding(.horizontal, 14).padding(.vertical, 12).spectraInputFieldStyle(cornerRadius: 16)
-                .foregroundStyle(Color.primary)
-            HStack(spacing: 10) {
-                Menu {
-                    Picker(AppLocalization.string("Wallet"), selection: $selectedWalletID) {
-                        Text(AppLocalization.string("All Wallets")).tag(Optional<UUID>.none)
-                        ForEach(store.wallets) { wallet in Text(wallet.name).tag(Optional(wallet.id)) }
-                    }
-                } label: {
-                    filterCapsuleLabel(
-                        title: AppLocalization.string("Wallet"), value: selectedWalletName, systemImage: "wallet.pass"
-                    )
-                }
-                Menu {
-                    Picker(AppLocalization.string("Type"), selection: $selectedFilter) {
-                        ForEach(HistoryFilter.allCases) { filter in Text(filter.localizedTitle).tag(filter) }
-                    }
-                } label: {
-                    filterCapsuleLabel(
-                        title: AppLocalization.string("Type"), value: selectedFilter.localizedTitle,
-                        systemImage: "line.3.horizontal.decrease.circle"
-                    )
-                }
-                Menu {
-                    Picker(AppLocalization.string("Sort"), selection: $selectedSortOrder) {
-                        ForEach(HistorySortOrder.allCases) { sortOrder in Text(sortOrder.localizedTitle).tag(sortOrder) }
-                    }
-                } label: {
-                    filterCapsuleLabel(
-                        title: AppLocalization.string("Sort"), value: selectedSortOrder.localizedTitle,
-                        systemImage: "arrow.up.arrow.down.circle"
-                    )
-                }
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            if selectedWalletID != nil || selectedFilter != .all || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                HStack(spacing: 8) {
-                    Text(AppLocalization.format("%lld results", visibleTransactions.count)).font(.caption.weight(.semibold)).foregroundStyle(
-                        Color.primary.opacity(0.8))
-                    Spacer()
-                    Button(AppLocalization.string("Clear Filters")) {
-                        selectedWalletID = nil
-                        selectedFilter = .all
-                        selectedSortOrder = .newest
-                        searchText = ""
-                    }.font(.caption.weight(.semibold)).foregroundStyle(.mint).buttonStyle(.plain)
-                }
-            }
-        }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+        HistoryControlsCard(
+            store: store,
+            searchText: $searchText,
+            selectedWalletID: $selectedWalletID,
+            selectedFilter: $selectedFilter,
+            selectedSortOrder: $selectedSortOrder,
+            visibleTransactionCount: visibleTransactions.count,
+            selectedWalletName: selectedWalletName
+        )
     }
     private var clampedPageIndex: Int {
         guard totalLoadedPages > 0 else { return 0 }
@@ -321,8 +276,8 @@ struct HistoryView: View {
                 }.font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
             }.buttonStyle(.plain).disabled((!hasNextLoadedPage && !canLoadMoreVisibleHistory) || store.isLoadingMoreOnChainHistory).opacity(
                 ((!hasNextLoadedPage && !canLoadMoreVisibleHistory) || store.isLoadingMoreOnChainHistory) ? 0.4 : 1)
-        }.padding(.horizontal, 16).padding(.vertical, 12).frame(maxWidth: .infinity).glassEffect(
-            .regular.tint(.white.opacity(0.028)), in: .capsule)
+        }.padding(.horizontal, 16).padding(.vertical, 12).frame(maxWidth: .infinity)
+            .background(Color.primary.opacity(0.06), in: Capsule())
     }
     private var emptyStateTitle: String {
         store.normalizedHistoryIndex.isEmpty
@@ -373,5 +328,83 @@ struct HistoryView: View {
         case .receive: return .mint
         case .send: return .red
         }
+    }
+}
+
+private struct HistoryControlsCard: View {
+    let store: AppState
+    @Binding var searchText: String
+    @Binding var selectedWalletID: String?
+    @Binding var selectedFilter: HistoryFilter
+    @Binding var selectedSortOrder: HistorySortOrder
+    let visibleTransactionCount: Int
+    let selectedWalletName: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            TextField(AppLocalization.string("Search wallet, asset, symbol, or address"), text: $searchText)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .spectraInputFieldStyle(cornerRadius: 16).foregroundStyle(Color.primary)
+            filterMenus
+            resultsFooter
+        }.padding(18).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
+    }
+    private var filterMenus: some View {
+        HStack(spacing: 10) {
+            Menu {
+                Picker(AppLocalization.string("Wallet"), selection: $selectedWalletID) {
+                    Text(AppLocalization.string("All Wallets")).tag(Optional<UUID>.none)
+                    ForEach(store.wallets) { wallet in Text(wallet.name).tag(Optional(wallet.id)) }
+                }
+            } label: {
+                filterCapsuleLabel(title: AppLocalization.string("Wallet"), value: selectedWalletName, systemImage: "wallet.pass")
+            }
+            Menu {
+                Picker(AppLocalization.string("Type"), selection: $selectedFilter) {
+                    ForEach(HistoryFilter.allCases) { filter in Text(filter.localizedTitle).tag(filter) }
+                }
+            } label: {
+                filterCapsuleLabel(
+                    title: AppLocalization.string("Type"), value: selectedFilter.localizedTitle,
+                    systemImage: "line.3.horizontal.decrease.circle")
+            }
+            Menu {
+                Picker(AppLocalization.string("Sort"), selection: $selectedSortOrder) {
+                    ForEach(HistorySortOrder.allCases) { sortOrder in Text(sortOrder.localizedTitle).tag(sortOrder) }
+                }
+            } label: {
+                filterCapsuleLabel(
+                    title: AppLocalization.string("Sort"), value: selectedSortOrder.localizedTitle,
+                    systemImage: "arrow.up.arrow.down.circle")
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+    }
+    @ViewBuilder
+    private var resultsFooter: some View {
+        if selectedWalletID != nil || selectedFilter != .all
+            || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            HStack(spacing: 8) {
+                Text(AppLocalization.format("%lld results", visibleTransactionCount)).font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.primary.opacity(0.8))
+                Spacer()
+                Button(AppLocalization.string("Clear Filters")) {
+                    selectedWalletID = nil
+                    selectedFilter = .all
+                    selectedSortOrder = .newest
+                    searchText = ""
+                }.font(.caption.weight(.semibold)).foregroundStyle(.mint).buttonStyle(.plain)
+            }
+        }
+    }
+    private func filterCapsuleLabel(title: String, value: String, systemImage: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage).font(.caption.weight(.semibold))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.caption2).foregroundStyle(Color.primary.opacity(0.62))
+                Text(value).font(.caption.weight(.semibold)).foregroundStyle(Color.primary).lineLimit(1)
+            }
+            Image(systemName: "chevron.down").font(.caption2.weight(.bold)).foregroundStyle(Color.primary.opacity(0.62))
+        }.padding(.horizontal, 14).padding(.vertical, 10).background(Color.white.opacity(0.06), in: Capsule())
     }
 }

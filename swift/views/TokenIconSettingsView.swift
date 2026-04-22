@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct TokenIconSettingsView: View {
     private let availableSettings: [TokenIconSetting] =
         ChainRegistryEntry.all.map {

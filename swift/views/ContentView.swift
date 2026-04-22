@@ -32,7 +32,7 @@ func spectraDetailCard(title: String? = nil, @ViewBuilder content: () -> some Vi
     VStack(alignment: .leading, spacing: 12) {
         if let title { Text(AppLocalization.string(title)).font(.headline.weight(.semibold)).foregroundStyle(Color.primary) }
         VStack(alignment: .leading, spacing: 12) { content() }
-    }.padding(18).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+    }.padding(18).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
 }
 struct ContentView: View {
     @State private var store: AppState

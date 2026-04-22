@@ -5,7 +5,30 @@ private enum LocalizationCatalogReferenceKeeper {
 }
 enum StaticContentCatalog {
     private final class BundleMarker {}
+    // Memoize decoded resources across the app. `XxxContentCopy.current` is
+    // accessed from inside view bodies (hot path) and each lookup used to hit
+    // Rust FFI + JSON decode. Keyed by `(localeSignature, baseName, typeID)`
+    // so a language switch invalidates automatically on the next read.
+    private static var decodedResourceCache: [String: Any] = [:]
+    private static func cacheKey(baseName: String, typeID: String) -> String {
+        let signature = AppLocalization.preferredLocalizationIdentifiers().joined(separator: ",")
+        return "\(signature)|\(baseName)|\(typeID)"
+    }
     static func loadRequiredResource<T: Decodable>(_ baseName: String, as type: T.Type) -> T {
+        let key = cacheKey(baseName: baseName, typeID: String(describing: type))
+        if let cached = decodedResourceCache[key] as? T { return cached }
+        let value: T = loadRequiredResourceUncached(baseName, as: type)
+        decodedResourceCache[key] = value
+        return value
+    }
+    static func loadResource<T: Decodable>(_ baseName: String, as type: T.Type) -> T? {
+        let key = cacheKey(baseName: baseName, typeID: String(describing: type))
+        if let cached = decodedResourceCache[key] as? T { return cached }
+        guard let value: T = loadResourceUncached(baseName, as: type) else { return nil }
+        decodedResourceCache[key] = value
+        return value
+    }
+    private static func loadRequiredResourceUncached<T: Decodable>(_ baseName: String, as type: T.Type) -> T {
         if let value: T = loadFromRustCore(baseName) { return value }
         let decoder = JSONDecoder()
         let localeIdentifiers = AppLocalization.preferredLocalizationIdentifiers()
@@ -15,7 +38,7 @@ enum StaticContentCatalog {
         }
         fatalError("Missing required resource: \(baseName).json")
     }
-    static func loadResource<T: Decodable>(_ baseName: String, as type: T.Type) -> T? {
+    private static func loadResourceUncached<T: Decodable>(_ baseName: String, as type: T.Type) -> T? {
         if let value: T = loadFromRustCore(baseName) { return value }
         let decoder = JSONDecoder()
         let localeIdentifiers = AppLocalization.preferredLocalizationIdentifiers()

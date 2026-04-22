@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct ChainFeePrioritySettingsView: View {
     let store: AppState
     private struct ChainFeePrioritySetting: Identifiable {

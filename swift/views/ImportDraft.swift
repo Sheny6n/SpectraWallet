@@ -345,7 +345,7 @@ final class WalletImportDraft {
                 isCreateMode: isCreateMode,
                 hasValidWalletName: !walletName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                 hasValidSeedPhrase: hasValidSeedPhrase,
-                hasValidPrivateKeyHex: corePrivateKeyHexIsLikely(rawValue: privateKeyInput),
+                hasValidPrivateKeyHex: CachedCoreHelpers.privateKeyHexIsLikely(rawValue: privateKeyInput),
                 isBackupVerificationComplete: isBackupVerificationComplete,
                 requiresBackupVerification: requiresBackupVerification,
                 watchOnlyEntries: watchEntries

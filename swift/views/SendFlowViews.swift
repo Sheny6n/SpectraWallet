@@ -442,7 +442,6 @@ struct SendView: View {
     var body: some View {
         let selectedCoin = selectedNetworkSendCoin
         ZStack {
-            SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     SendPrimarySectionsView(
@@ -451,7 +450,7 @@ struct SendView: View {
                     )
                     if hasNetworkSendSections(for: selectedCoin) {
                         VStack(alignment: .leading, spacing: 18) { networkSendSections(selectedCoin: selectedCoin) }.padding(18)
-                            .spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+                            .spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                     }
                     sendStatusSections
                 }.padding(20)

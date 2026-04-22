@@ -102,17 +102,17 @@ extension AppState {
             moneroBackendAPIKey = settings.moneroBackendApiKey
             bitcoinEsploraEndpoints = settings.bitcoinEsploraEndpoints
             bitcoinStopGap = Int(settings.bitcoinStopGap)
-            hideBalances = settings.hideBalances
-            useFaceID = settings.useFaceId
-            useAutoLock = settings.useAutoLock
-            useStrictRPCOnly = settings.useStrictRpcOnly
-            requireBiometricForSendActions = settings.requireBiometricForSendActions
-            usePriceAlerts = settings.usePriceAlerts
-            useTransactionStatusNotifications = settings.useTransactionStatusNotifications
-            useLargeMovementNotifications = settings.useLargeMovementNotifications
-            automaticRefreshFrequencyMinutes = Int(settings.automaticRefreshFrequencyMinutes)
-            largeMovementAlertPercentThreshold = settings.largeMovementAlertPercentThreshold
-            largeMovementAlertUSDThreshold = settings.largeMovementAlertUsdThreshold
+            preferences.hideBalances = settings.hideBalances
+            preferences.useFaceID = settings.useFaceId
+            preferences.useAutoLock = settings.useAutoLock
+            preferences.useStrictRPCOnly = settings.useStrictRpcOnly
+            preferences.requireBiometricForSendActions = settings.requireBiometricForSendActions
+            preferences.usePriceAlerts = settings.usePriceAlerts
+            preferences.useTransactionStatusNotifications = settings.useTransactionStatusNotifications
+            preferences.useLargeMovementNotifications = settings.useLargeMovementNotifications
+            preferences.automaticRefreshFrequencyMinutes = Int(settings.automaticRefreshFrequencyMinutes)
+            preferences.largeMovementAlertPercentThreshold = settings.largeMovementAlertPercentThreshold
+            preferences.largeMovementAlertUSDThreshold = settings.largeMovementAlertUsdThreshold
             if !settings.pinnedDashboardAssetSymbols.isEmpty { cachedPinnedDashboardAssetSymbols = settings.pinnedDashboardAssetSymbols }
         } else {
             // No SQLite settings yet — persist current (UserDefaults-loaded) values to SQLite for future launches
@@ -259,18 +259,18 @@ extension AppState {
             bitcoinStopGap: Int32(bitcoinStopGap),
             bitcoinFeePriority: bitcoinFeePriority.rawValue,
             dogecoinFeePriority: dogecoinFeePriority.rawValue,
-            hideBalances: hideBalances,
-            useFaceId: useFaceID,
-            useAutoLock: useAutoLock,
-            useStrictRpcOnly: useStrictRPCOnly,
-            requireBiometricForSendActions: requireBiometricForSendActions,
-            usePriceAlerts: usePriceAlerts,
-            useTransactionStatusNotifications: useTransactionStatusNotifications,
-            useLargeMovementNotifications: useLargeMovementNotifications,
-            automaticRefreshFrequencyMinutes: Int32(automaticRefreshFrequencyMinutes),
+            hideBalances: preferences.hideBalances,
+            useFaceId: preferences.useFaceID,
+            useAutoLock: preferences.useAutoLock,
+            useStrictRpcOnly: preferences.useStrictRPCOnly,
+            requireBiometricForSendActions: preferences.requireBiometricForSendActions,
+            usePriceAlerts: preferences.usePriceAlerts,
+            useTransactionStatusNotifications: preferences.useTransactionStatusNotifications,
+            useLargeMovementNotifications: preferences.useLargeMovementNotifications,
+            automaticRefreshFrequencyMinutes: Int32(preferences.automaticRefreshFrequencyMinutes),
             backgroundSyncProfile: backgroundSyncProfile.rawValue,
-            largeMovementAlertPercentThreshold: largeMovementAlertPercentThreshold,
-            largeMovementAlertUsdThreshold: largeMovementAlertUSDThreshold,
+            largeMovementAlertPercentThreshold: preferences.largeMovementAlertPercentThreshold,
+            largeMovementAlertUsdThreshold: preferences.largeMovementAlertUSDThreshold,
             pinnedDashboardAssetSymbols: cachedPinnedDashboardAssetSymbols
         )
         Task { try? await WalletServiceBridge.shared.saveAppSettingsTyped(settings: settings) }

@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct DecimalDisplaySettingsView: View {
     let store: AppState
     @State private var searchText: String = ""

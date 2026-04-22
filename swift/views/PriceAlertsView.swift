@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct PriceAlertsView: View {
     @Bindable var store: AppState
     @State private var selectedHoldingKey: String = ""
@@ -14,7 +11,8 @@ struct PriceAlertsView: View {
         store.alertableCoins.first(where: { $0.holdingKey == selectedHoldingKey })
     }
     var body: some View {
-        Form {
+        @Bindable var preferences = store.preferences
+        return Form {
             Section {
                 Text(
                     AppLocalization.string(
@@ -25,7 +23,7 @@ struct PriceAlertsView: View {
             Section(AppLocalization.string("Notifications")) {
                 Toggle(
                     AppLocalization.string("Enable Price Alerts"),
-                    isOn: $store.usePriceAlerts
+                    isOn: $preferences.usePriceAlerts
                 )
                 Text(
                     AppLocalization.string(

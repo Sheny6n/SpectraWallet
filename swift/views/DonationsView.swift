@@ -10,19 +10,16 @@ struct DonationsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                SpectraBackdrop()
                 ScrollView(showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: 18) {
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 12) {
-                                SpectraLogo(size: 58)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(copy.heroTitle).font(.title2.bold()).foregroundStyle(Color.primary)
                                     Text(copy.heroSubtitle).foregroundStyle(Color.primary.opacity(0.76))
                                 }
                             }
-                        }.padding(20).frame(maxWidth: .infinity, alignment: .leading).glassEffect(
-                            .regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 28))
+                        }.padding(20).frame(maxWidth: .infinity, alignment: .leading).spectraCardFill(cornerRadius: 28)
                         VStack(alignment: .leading, spacing: 12) {
                             ForEach(copy.destinations, id: \.address) { destination in
                                 donationRow(
@@ -30,11 +27,12 @@ struct DonationsView: View {
                                 )
                             }
                         }
-                    }.padding(20)
-                }
-            }.navigationTitle(copy.navigationTitle).navigationBarTitleDisplayMode(.inline).sheet(item: $selectedDonation) { donation in
-                DonationQRCodeView(donation: donation)
+                }.padding(20)
             }
+            }.navigationTitle(copy.navigationTitle).navigationBarTitleDisplayMode(.inline)
+                .sheet(item: $selectedDonation) { donation in
+                    DonationQRCodeView(donation: donation)
+                }
         }
     }
     @ViewBuilder
@@ -68,7 +66,6 @@ struct DonationsView: View {
                 }
             }
             Text(address).font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.72)).textSelection(.enabled)
-        }.padding().frame(maxWidth: .infinity, alignment: .leading).glassEffect(
-            .regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 22))
+        }.padding().frame(maxWidth: .infinity, alignment: .leading).spectraCardFill(cornerRadius: 22)
     }
 }

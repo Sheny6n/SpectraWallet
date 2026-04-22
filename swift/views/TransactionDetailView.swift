@@ -45,7 +45,6 @@ struct HistoryDetailView: View {
     }
     var body: some View {
         ZStack {
-            SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -69,7 +68,7 @@ struct HistoryDetailView: View {
                             Text(amountText).font(.system(size: 30, weight: .black, design: .rounded)).foregroundStyle(Color.primary)
                                 .spectraNumericTextLayout(minimumScaleFactor: 0.5)
                         }
-                    }.padding(20).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.033)), in: .rect(cornerRadius: 28))
+                    }.padding(20).spectraBubbleFill().spectraCardFill(cornerRadius: 28)
                     spectraDetailCard(title: "Overview") {
                         detailRow(label: "Type", value: displayedTransaction.kind == .send ? AppLocalization.string("Send") : AppLocalization.string("Receive"))
                         detailRow(label: "Status", value: displayedTransaction.statusText)

@@ -17,26 +17,24 @@ struct CoinBadge: View {
     let color: Color
     var size: CGFloat = 40
     @Bindable private var preferences = TokenIconPreferences.shared
-    private var resolvedAssetIdentifier: String {
-        if let assetIdentifier { return Coin.normalizedIconIdentifier(assetIdentifier) }
-        return "generic:\(fallbackText.lowercased())"
-    }
-    private var tokenIconAssetName: String? {
-        if let nativeDescriptor = Coin.nativeChainIconDescriptor(forAssetIdentifier: resolvedAssetIdentifier) {
-            return nativeDescriptor.assetName
-        }
-        return TokenVisualRegistryEntry.entry(matchingAssetIdentifier: resolvedAssetIdentifier)?.assetName
-    }
-    private var preferredIconStyle: TokenIconStyle {
-        preferences.style(for: resolvedAssetIdentifier)
-    }
     var body: some View {
-        ZStack {
-            if preferredIconStyle == .customPhoto, let customImage = customTokenImage {
+        // Resolve once per body eval — this used to be a computed property
+        // that recomputed (and re-hit the memoized icon-identifier Rust
+        // helper) 3× per cell; locking to one `let` keeps a body eval at
+        // one cache read.
+        let identifier: String =
+            assetIdentifier.map(Coin.normalizedIconIdentifier) ?? "generic:\(fallbackText.lowercased())"
+        let style = preferences.style(for: identifier)
+        let assetName: String? = {
+            if let nativeDescriptor = Coin.nativeChainIconDescriptor(forAssetIdentifier: identifier) {
+                return nativeDescriptor.assetName
+            }
+            return TokenVisualRegistryEntry.entry(matchingAssetIdentifier: identifier)?.assetName
+        }()
+        return ZStack {
+            if style == .customPhoto, let customImage = customTokenImage(for: identifier) {
                 Image(uiImage: customImage).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size)
-            } else if preferredIconStyle == .artwork, let assetName = tokenIconAssetName,
-                let bundleImage = BundleImageLoader.image(named: assetName)
-            {
+            } else if style == .artwork, let assetName, let bundleImage = BundleImageLoader.image(named: assetName) {
                 Image(uiImage: bundleImage).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size)
             } else {
                 RoundedRectangle(cornerRadius: size * 0.3, style: .continuous).fill(
@@ -52,10 +50,10 @@ struct CoinBadge: View {
             }
         }.shadow(color: color.opacity(0.18), radius: 6, y: 3)
     }
-    private var customTokenImage: UIImage? {
+    private func customTokenImage(for identifier: String) -> UIImage? {
         #if canImport(UIKit)
             _ = TokenIconImageRevision.shared.tick
-            return TokenIconImageStore.image(for: resolvedAssetIdentifier)
+            return TokenIconImageStore.image(for: identifier)
         #else
             return nil
         #endif
@@ -118,9 +116,17 @@ enum TokenIconImageStore {
     #if canImport(UIKit)
         private static let imageCache: NSCache<NSString, UIImage> = {
             let cache = NSCache<NSString, UIImage>()
-            cache.countLimit = 128
+            cache.countLimit = 32
+            // Cost-bound the cache too — users typically have few custom icons,
+            // but each one is a 256×256 RGBA UIImage (~256 KB decoded). 8 MB
+            // ceiling keeps this cache from becoming a Jetsam-kill source.
+            cache.totalCostLimit = 8 * 1024 * 1024
             return cache
         }()
+        private static func approximateByteCost(for image: UIImage) -> Int {
+            let scale = image.scale
+            return Int(image.size.width * scale * image.size.height * scale * 4)
+        }
     #endif
     enum IconError: LocalizedError {
         case imageTooLarge
@@ -145,7 +151,7 @@ enum TokenIconImageStore {
             guard let url = customImageURL(for: identifier), FileManager.default.fileExists(atPath: url.path),
                 let image = UIImage(contentsOfFile: url.path)
             else { return nil }
-            imageCache.setObject(image, forKey: key)
+            imageCache.setObject(image, forKey: key, cost: approximateByteCost(for: image))
             return image
         }
         static func saveImageData(_ data: Data, for identifier: String) throws {
@@ -221,6 +227,9 @@ struct ChainToggleLabel: View {
         }
     }
 }
+/// Colorful layered-blur backdrop. Currently unused across screens — the app
+/// renders against the system background for performance — but kept here so
+/// the styling can be restored on a per-screen basis if desired.
 struct SpectraBackdrop: View {
     @Environment(\.colorScheme) private var colorScheme
     var body: some View {
@@ -248,6 +257,14 @@ struct SpectraBackdrop: View {
 extension View {
     func spectraNumericTextLayout(minimumScaleFactor: CGFloat = 0.62) -> some View {
         lineLimit(1).minimumScaleFactor(minimumScaleFactor).allowsTightening(true)
+    }
+    /// Flat card fill used in place of `.glassEffect(...)` on non-hero
+    /// cards. Uses a subtle primary-tinted overlay that adapts to light/dark
+    /// with zero Metal-shader cost (unlike Liquid Glass or Materials, which
+    /// are GPU-blur passes). Keep `.glassEffect` only for hero surfaces
+    /// (1-2 per screen at most).
+    func spectraCardFill(cornerRadius: CGFloat = 24) -> some View {
+        background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 struct SpectraLogo: View {

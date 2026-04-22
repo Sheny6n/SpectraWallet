@@ -1,8 +1,6 @@
 import Foundation
-import PhotosUI
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 struct LogsView: View {
     let store: AppState
     @State private var searchText: String = ""

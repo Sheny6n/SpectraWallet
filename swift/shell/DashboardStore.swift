@@ -73,14 +73,14 @@ extension AppState {
         rebuildDashboardDerivedState()
     }
     private func dashboardAssetGroupingKey(for coin: Coin) -> String {
-        formattingDashboardAssetGroupingKey(
+        CachedCoreHelpers.dashboardAssetGroupingKey(
             chainIdentity: runtimeChainIdentity(for: coin.chainName),
             coinGeckoId: coin.coinGeckoId,
             symbol: coin.symbol
         )
     }
     private func prototypeCoinForTrackedEntry(_ entry: TokenPreferenceEntry) -> Coin {
-        let price: Double = formattingStablecoinFallbackPriceUsd(symbol: entry.symbol)
+        let price: Double = CachedCoreHelpers.stablecoinFallbackPriceUsd(symbol: entry.symbol)
         let contractAddress: String? = entry.contractAddress
         let mark: String = Coin.displayMark(for: entry.symbol)
         let name: String = entry.name

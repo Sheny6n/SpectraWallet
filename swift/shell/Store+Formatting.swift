@@ -34,10 +34,19 @@ extension AppState {
         guard let amountUSD else { return "—" }
         return formattedFiatAmountIfAvailable(fromUSD: amountUSD) ?? "—"
     }
+    /// Memoized accessor for the Rust-side fiat formatting rules. Pure,
+    /// input-only function on the Rust side, so we can cache forever.
+    private func fiatAmountRules(for currency: FiatCurrency) -> FiatAmountRules {
+        let key = currency.rawValue
+        if let cached = cachedFiatAmountRules[key] { return cached }
+        let rules = formattingFiatAmountRules(currencyCode: key)
+        cachedFiatAmountRules[key] = rules
+        return rules
+    }
     private func fiatFormatter(for currency: FiatCurrency) -> NumberFormatter {
         let key = currency.rawValue
         if let formatter = cachedCurrencyFormatters[key] { return formatter }
-        let rules = formattingFiatAmountRules(currencyCode: currency.rawValue)
+        let rules = fiatAmountRules(for: currency)
         let decimals = Int(rules.decimals)
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
@@ -60,7 +69,10 @@ extension AppState {
     }
     private func formatFiatAmount(amount: Double, currency: FiatCurrency) -> String {
         let formatter = fiatFormatter(for: currency)
-        let minimumVisibleAmount = formattingFiatAmountRules(currencyCode: currency.rawValue).minimumVisible
+        // Previously called `formattingFiatAmountRules` again here on every
+        // fiat render (thousands of times on the dashboard). Read from the
+        // memoized cache instead.
+        let minimumVisibleAmount = fiatAmountRules(for: currency).minimumVisible
         if amount > 0, amount < minimumVisibleAmount, let thresholdString = formatter.string(from: NSNumber(value: minimumVisibleAmount)) {
             return "<\(thresholdString)"
         }
@@ -73,13 +85,17 @@ extension AppState {
         return formattedFiatAmountIfAvailable(fromUSD: amountUSD)
     }
     func formattedAssetAmount(_ amount: Double, symbol: String, chainName: String) -> String {
-        let supportedDecimals = supportedDecimalPlaces(for: symbol, chainName: chainName)
-        let visibleDecimals = min(displayDecimalPlaces(for: symbol, chainName: chainName), supportedDecimals)
+        // One FFI call (memoized) instead of two: `supportedDecimalPlaces`
+        // and `displayDecimalPlaces` both hit the same Rust helper, so read
+        // it once and reuse both fields.
+        let resolution = assetDecimalsResolution(symbol: symbol, chainName: chainName)
+        let supportedDecimals = Int(resolution.supported)
+        let visibleDecimals = min(Int(resolution.display), supportedDecimals)
         let formatter = decimalFormatter(
             minimumFractionDigits: 0, maximumFractionDigits: visibleDecimals, usesGroupingSeparator: false
         )
         if amount > 0, visibleDecimals > 0 {
-            let threshold = formattingAssetMinimumVisibleAmount(visibleDecimals: UInt32(visibleDecimals))
+            let threshold = assetMinimumVisibleAmount(visibleDecimals: UInt32(visibleDecimals))
             if amount < threshold {
                 let thresholdFormatter = decimalFormatter(
                     minimumFractionDigits: visibleDecimals, maximumFractionDigits: visibleDecimals, usesGroupingSeparator: false
@@ -135,15 +151,31 @@ extension AppState {
     func runtimeChainIdentity(for chainName: String) -> String { displayChainTitle(for: chainName) }
     func assetIdentityKey(for coin: Coin) -> String { "\(runtimeChainIdentity(for: coin.chainName))|\(coin.symbol)" }
     func isPricedChain(_ chainName: String) -> Bool {
-        corePlanPricedChain(
-            chainName: chainName, bitcoinNetworkModeRaw: bitcoinNetworkMode.rawValue, ethereumNetworkModeRaw: ethereumNetworkMode.rawValue
+        // Hot path: called per-coin during portfolio totals and per-row in
+        // the dashboard. Memoize the Rust result on a composite key; the
+        // network-mode `didSet`s drop the cache when the inputs can change.
+        let key = "\(chainName)|\(bitcoinNetworkMode.rawValue)|\(ethereumNetworkMode.rawValue)"
+        if let cached = cachedPricedChainByKey[key] { return cached }
+        let result = corePlanPricedChain(
+            chainName: chainName, bitcoinNetworkModeRaw: bitcoinNetworkMode.rawValue,
+            ethereumNetworkModeRaw: ethereumNetworkMode.rawValue
         )
+        cachedPricedChainByKey[key] = result
+        return result
     }
     func isPricedAsset(_ coin: Coin) -> Bool { isPricedChain(coin.chainName) }
     private func walletChainInputs(from walletByID: [String: ImportedWallet]) -> [WalletChainInput] {
         walletByID.map { WalletChainInput(walletId: $0.key, selectedChain: $0.value.selectedChain) }
     }
     func rebuildNormalizedHistoryIndex() {
+        // Fast path: with no transactions, there's nothing to normalize. Skip
+        // the Rust hash+FFI roundtrip and the perf-log that was flooding the
+        // console on every balance-refresh tick.
+        if transactions.isEmpty {
+            if !normalizedHistoryIndex.isEmpty { normalizedHistoryIndex = [] }
+            lastNormalizedHistorySignature = 0
+            return
+        }
         let walletByID = cachedWalletByID.isEmpty ? Dictionary(uniqueKeysWithValues: wallets.map { ($0.id, $0) }) : cachedWalletByID
         let signatureInputs = transactions.map { transaction in
             NormalizedHistorySignatureTransaction(
@@ -199,15 +231,24 @@ extension AppState {
         return "\(formattedValue) \(symbol)"
     }
     func tokenPreferenceLookupKey(chainName: String, symbol: String) -> String {
-        formattingTokenPreferenceLookupKey(chainName: chainName, symbol: symbol)
+        let cacheKey = "\(chainName)|\(symbol)"
+        if let cached = cachedTokenPreferenceLookupKeys[cacheKey] { return cached }
+        let value = formattingTokenPreferenceLookupKey(chainName: chainName, symbol: symbol)
+        cachedTokenPreferenceLookupKeys[cacheKey] = value
+        return value
     }
     private func supportedDecimalPlaces(for symbol: String, chainName: String) -> Int {
-        Int(rustAssetDecimalsResolution(symbol: symbol, chainName: chainName).supported)
+        Int(assetDecimalsResolution(symbol: symbol, chainName: chainName).supported)
     }
     private func displayDecimalPlaces(for symbol: String, chainName: String) -> Int {
-        Int(rustAssetDecimalsResolution(symbol: symbol, chainName: chainName).display)
+        Int(assetDecimalsResolution(symbol: symbol, chainName: chainName).display)
     }
-    private func rustAssetDecimalsResolution(symbol: String, chainName: String) -> (supported: UInt32, display: UInt32) {
+    /// Memoized wrapper over the Rust `formattingResolveAssetDecimals` FFI.
+    /// Invalidated by `assetDisplayDecimalsByChain.didSet` (display prefs
+    /// change) and `tokenPreferences.didSet` (custom token decimals change).
+    func assetDecimalsResolution(symbol: String, chainName: String) -> (supported: UInt32, display: UInt32) {
+        let cacheKey = "\(chainName)|\(symbol)"
+        if let cached = cachedAssetDecimalsResolutions[cacheKey] { return cached }
         let assetDisplay = UInt32(min(max(assetDisplayDecimalPlaces(for: chainName), 0), 30))
         let tokenOverride = cachedTokenPreferenceByChainAndSymbol[tokenPreferenceLookupKey(chainName: chainName, symbol: symbol)].map {
             entry in
@@ -223,14 +264,24 @@ extension AppState {
                 assetDisplayDecimals: assetDisplay,
                 tokenOverride: tokenOverride
             ))
-        return (result.supported, result.display)
+        let pair: (supported: UInt32, display: UInt32) = (result.supported, result.display)
+        cachedAssetDecimalsResolutions[cacheKey] = pair
+        return pair
+    }
+    /// Memoized wrapper over `formattingAssetMinimumVisibleAmount`. Pure
+    /// function of `visibleDecimals`, so cache for app lifetime.
+    private func assetMinimumVisibleAmount(visibleDecimals: UInt32) -> Double {
+        if let cached = cachedAssetMinimumVisibleAmounts[visibleDecimals] { return cached }
+        let value = formattingAssetMinimumVisibleAmount(visibleDecimals: visibleDecimals)
+        cachedAssetMinimumVisibleAmounts[visibleDecimals] = value
+        return value
     }
     func defaultAssetDisplayDecimalsByChain(defaultValue: Int = 3) -> [String: Int] {
         let normalized = UInt32(min(max(defaultValue, 0), 30))
-        return formattingDefaultAssetDisplayDecimalsByChain(defaultValue: normalized).mapValues { Int($0) }
+        return CachedCoreHelpers.defaultAssetDisplayDecimalsByChain(defaultValue: normalized).mapValues { Int($0) }
     }
     private func nativeAssetDisplaySettingsKey(for chainName: String) -> String {
-        formattingNativeAssetDisplaySettingsKey(chainName: chainName)
+        CachedCoreHelpers.nativeAssetDisplaySettingsKey(chainName: chainName)
     }
     private func rebuildNormalizedHistoryIndexUsingRust(walletByID: [String: ImportedWallet]) -> [NormalizedHistoryEntry] {
         let request = NormalizeHistoryRequest(

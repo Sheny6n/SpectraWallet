@@ -1,26 +1,24 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct BackgroundSyncSettingsView: View {
     @Bindable var store: AppState
     var body: some View {
-        Form {
+        @Bindable var preferences = store.preferences
+        return Form {
             Section(AppLocalization.string("Refresh Frequency")) {
                 Text(AppLocalization.string("Choose how often Spectra refreshes balances automatically while the app is active.")).font(
                     .caption
                 ).foregroundStyle(.secondary)
                 Stepper(
-                    value: $store.automaticRefreshFrequencyMinutes,
+                    value: $preferences.automaticRefreshFrequencyMinutes,
                     in: 5...60, step: 5
                 ) {
-                    LabeledContent(AppLocalization.string("Active app refresh"), value: "\(store.automaticRefreshFrequencyMinutes) min")
+                    LabeledContent(AppLocalization.string("Active app refresh"), value: "\(preferences.automaticRefreshFrequencyMinutes) min")
                 }
             }
             Section(AppLocalization.string("Current Timing")) {
                 LabeledContent(
-                    AppLocalization.string("Active app balance refresh"), value: "\(store.automaticRefreshFrequencyMinutes) min")
+                    AppLocalization.string("Active app balance refresh"), value: "\(preferences.automaticRefreshFrequencyMinutes) min")
                 LabeledContent(
                     AppLocalization.string("Background balance refresh"), value: "\(store.backgroundBalanceRefreshFrequencyMinutes) min")
             }
@@ -32,7 +30,7 @@ struct BackgroundSyncSettingsView: View {
                 Text(AppLocalization.string("Choose a longer interval if you want lower background activity and less battery impact."))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            if isTooFrequent(store.automaticRefreshFrequencyMinutes) {
+            if isTooFrequent(preferences.automaticRefreshFrequencyMinutes) {
                 Section(AppLocalization.string("Warning")) {
                     Label(
                         AppLocalization.string("This refresh speed can increase battery usage and network traffic."),

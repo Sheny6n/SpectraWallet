@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct SettingsView: View {
     @Bindable var store: AppState
     @State private var isShowingResetWalletWarning: Bool = false
@@ -26,7 +23,8 @@ struct SettingsView: View {
         case advanced
     }
     var body: some View {
-        NavigationStack {
+        @Bindable var preferences = store.preferences
+        return NavigationStack {
             Form {
                 Section(AppLocalization.string("Wallet & Transfers")) {
                     NavigationLink(value: Route.addressBook) {
@@ -43,7 +41,7 @@ struct SettingsView: View {
                     NavigationLink(value: Route.iconStyles) {
                         Label(AppLocalization.string("Icon Styles"), systemImage: "photo.on.rectangle")
                     }
-                    Toggle(isOn: $store.hideBalances) {
+                    Toggle(isOn: $preferences.hideBalances) {
                         Label(AppLocalization.string("Hide balances"), systemImage: "eye.slash")
                     }
                     NavigationLink(value: Route.decimalDisplay) {
@@ -61,7 +59,7 @@ struct SettingsView: View {
                     }
                     Toggle(
                         isOn: Binding(
-                            get: { store.useTransactionStatusNotifications }, set: { store.useTransactionStatusNotifications = $0 })
+                            get: { preferences.useTransactionStatusNotifications }, set: { preferences.useTransactionStatusNotifications = $0 })
                     ) {
                         Label(AppLocalization.string("Transaction Status Updates"), systemImage: "clock.badge.checkmark")
                     }
@@ -70,12 +68,12 @@ struct SettingsView: View {
                     }
                 }
                 Section(AppLocalization.string("Security & Privacy")) {
-                    Toggle(isOn: $store.useFaceID) {
+                    Toggle(isOn: $preferences.useFaceID) {
                         Label(AppLocalization.string("Use Face ID"), systemImage: "faceid")
                     }
-                    Toggle(isOn: $store.useAutoLock) {
+                    Toggle(isOn: $preferences.useAutoLock) {
                         Label(AppLocalization.string("Auto Lock"), systemImage: "lock")
-                    }.disabled(!store.useFaceID)
+                    }.disabled(!preferences.useFaceID)
                 }
                 Section(AppLocalization.string("Data & Connectivity")) {
                     NavigationLink(value: Route.pricing) {

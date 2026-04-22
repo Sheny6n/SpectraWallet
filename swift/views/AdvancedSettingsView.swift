@@ -1,7 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
 import UniformTypeIdentifiers
 struct AdvancedSettingsView: View {
     @Bindable var store: AppState
@@ -15,17 +13,18 @@ struct AdvancedSettingsView: View {
         "Tron", "Solana", "Cardano", "XRP Ledger", "Monero", "Sui", "Aptos", "TON", "Internet Computer", "NEAR", "Polkadot", "Stellar",
     ]
     var body: some View {
-        Form {
+        @Bindable var preferences = store.preferences
+        return Form {
             Section(AppLocalization.string("Security")) {
                 Toggle(
                     AppLocalization.string("Biometric Confirmation For Send Actions"),
                     isOn: Binding(
-                        get: { store.requireBiometricForSendActions }, set: { store.requireBiometricForSendActions = $0 }
+                        get: { preferences.requireBiometricForSendActions }, set: { preferences.requireBiometricForSendActions = $0 }
                     )
                 )
                 Toggle(
                     AppLocalization.string("Strict RPC Only (Disable Ledger Fallback)"),
-                    isOn: $store.useStrictRPCOnly
+                    isOn: $preferences.useStrictRPCOnly
                 )
                 Text(AppLocalization.string("When enabled, balances only come from live RPC responses.")).font(.caption).foregroundStyle(
                     .secondary)

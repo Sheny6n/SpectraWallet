@@ -127,7 +127,7 @@ struct WalletCardView: View, Equatable {
                 }
                 Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.42))
             }
-        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+        }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
     }
 }
 struct QRCodeRenderer {
@@ -169,7 +169,6 @@ struct DonationQRCodeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                SpectraBackdrop()
                 VStack(spacing: 24) {
                     CoinBadge(
                         assetIdentifier: donation.assetIdentifier, fallbackText: donation.mark, color: donation.color, size: 54
@@ -267,7 +266,7 @@ struct WalletDetailView: View {
             HoldingPresentation(
                 coin: entry.coin,
                 amountText: store.formattedAssetAmount(entry.coin.amount, symbol: entry.coin.symbol, chainName: entry.coin.chainName),
-                valueText: store.hideBalances
+                valueText: store.preferences.hideBalances
                     ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: entry.quotedValue >= 0 ? entry.quotedValue : nil)
             )
         }
@@ -282,7 +281,7 @@ struct WalletDetailView: View {
             .first, derivationPathsText: derivationPathsText(for: wallet),
             walletBadge: Coin.nativeChainBadge(chainName: wallet.selectedChain) ?? (nil, "W", .mint),
             visibleHoldingPresentations: holdingPresentations,
-            walletTotalValueText: store.hideBalances
+            walletTotalValueText: store.preferences.hideBalances
                 ? "••••••" : store.formattedFiatAmountOrZero(fromUSD: store.currentTotalIfAvailable(for: wallet))
         )
     }
@@ -347,8 +346,7 @@ struct WalletDetailView: View {
                         Text(store.displayChainTitle(for: detailPresentation.wallet)).font(.subheadline).foregroundStyle(
                             Color.primary.opacity(0.75))
                     }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).spectraBubbleFill().glassEffect(
-                    .regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                 VStack(alignment: .leading, spacing: 12) {
                     detailRow(
                         label: "Mode",
@@ -358,7 +356,7 @@ struct WalletDetailView: View {
                     detailRow(label: "Current Value", value: detailPresentation.walletTotalValueText)
                     detailRow(label: "Asset Count", value: "\(detailPresentation.nonZeroAssetCount)")
                     detailRow(label: "First Activity", value: firstActivityDateText)
-                }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text(localizedWalletFlowString("Holdings")).font(.headline).foregroundStyle(Color.primary)
@@ -374,7 +372,7 @@ struct WalletDetailView: View {
                             holdingRow(holding)
                         }
                     }
-                }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                 if let walletAddress = detailPresentation.walletAddress {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -391,7 +389,7 @@ struct WalletDetailView: View {
                             }.buttonStyle(.borderless).foregroundStyle(Color.primary)
                         }
                         Text(walletAddress).font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.8)).textSelection(.enabled)
-                    }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                    }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                 }
                 VStack(spacing: 10) {
                     Button {
@@ -433,7 +431,7 @@ struct WalletDetailView: View {
                     }.buttonStyle(.glass)
                 }
             }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
-        }.background(SpectraBackdrop()).refreshable {
+        }.refreshable {
             await store.refreshWalletBalance(wallet.id)
         }.navigationTitle(localizedWalletFlowString("Wallet Details")).navigationBarTitleDisplayMode(.inline).toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -487,7 +485,6 @@ struct WalletDetailView: View {
         ) {
             NavigationStack {
                 ZStack {
-                    SpectraBackdrop()
                     VStack(alignment: .leading, spacing: 16) {
                         Text(
                             localizedWalletFlowString(
@@ -523,7 +520,6 @@ struct WalletDetailView: View {
         ) {
             NavigationStack {
                 ZStack {
-                    SpectraBackdrop()
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 16) {
                             Text(
@@ -532,7 +528,7 @@ struct WalletDetailView: View {
                             ).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
                             Text(revealedSeedPhrase).font(.body.monospaced()).foregroundStyle(Color.primary).privacySensitive().padding(12)
                                 .frame(maxWidth: .infinity, alignment: .leading).spectraInputFieldStyle(cornerRadius: 16)
-                        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 24))
+                        }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                             .padding(20)
                     }
                 }.navigationTitle(localizedWalletFlowString("Seed Phrase")).navigationBarTitleDisplayMode(.inline).toolbar {
@@ -588,13 +584,12 @@ private struct WalletAdvancedDetailsView: View {
     let derivationPathsText: String?
     var body: some View {
         ZStack {
-            SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 12) {
                         WalletDetailRow(label: "Wallet ID", value: walletID)
                         if let derivationPathsText { WalletDetailRow(label: "Derivation Paths", value: derivationPathsText) }
-                    }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 24))
+                    }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                 }.padding(20)
             }
         }.navigationTitle(localizedWalletFlowString("Advanced")).navigationBarTitleDisplayMode(.inline)

@@ -12,7 +12,7 @@ extension AppState {
             backgroundSyncProfile: backgroundSyncProfile.rawValue, balancedInterval: Self.activePendingRefreshInterval
         )
     }
-    func activePriceRefreshIntervalForProfile() -> TimeInterval { TimeInterval(automaticRefreshFrequencyMinutes * 60) }
+    func activePriceRefreshIntervalForProfile() -> TimeInterval { TimeInterval(preferences.automaticRefreshFrequencyMinutes * 60) }
     func baseBackgroundMaintenanceInterval() -> TimeInterval { TimeInterval(backgroundBalanceRefreshFrequencyMinutes * 60) }
     func backgroundMaintenanceInterval(now _: Date = Date()) -> TimeInterval {
         computeBackgroundMaintenanceInterval(
@@ -34,7 +34,7 @@ extension AppState {
         )
     }
     func maybeSendLargeMovementNotification(previousTotalUSD: Double, currentTotalUSD: Double) {
-        guard useLargeMovementNotifications else { return }
+        guard preferences.useLargeMovementNotifications else { return }
         guard !appIsActive else { return }
         let currentCompositionSignature = portfolioCompositionSignature()
         guard lastObservedPortfolioCompositionSignature == currentCompositionSignature else {
@@ -44,7 +44,7 @@ extension AppState {
         guard previousTotalUSD > 0 else { return }
         let evaluation = coreEvaluateLargeMovement(
             previousTotalUsd: previousTotalUSD, currentTotalUsd: currentTotalUSD,
-            usdThreshold: largeMovementAlertUSDThreshold, percentThreshold: largeMovementAlertPercentThreshold
+            usdThreshold: preferences.largeMovementAlertUSDThreshold, percentThreshold: preferences.largeMovementAlertPercentThreshold
         )
         guard evaluation.shouldAlert else { return }
         let direction = evaluation.directionUp ? "up" : "down"

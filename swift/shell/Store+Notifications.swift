@@ -7,7 +7,7 @@ extension AppState {
         return corePlanMergeBuiltInTokenPreferences(builtIns: builtIns, persisted: persisted)
     }
     func evaluatePriceAlerts() {
-        guard usePriceAlerts, !priceAlerts.isEmpty else { return }
+        guard preferences.usePriceAlerts, !priceAlerts.isEmpty else { return }
         let alertsByID = Dictionary(uniqueKeysWithValues: priceAlerts.map { ($0.id.uuidString, $0) })
         let ffiAlerts: [PriceAlertEvaluationAlert] = priceAlerts.map { alert in
             PriceAlertEvaluationAlert(
@@ -52,7 +52,7 @@ extension AppState {
     func requestPriceAlertNotificationPermission() { requestStandardNotificationPermission() }
     func requestNotificationPermissionIfNeeded() { requestStandardNotificationPermission() }
     func requestTransactionStatusNotificationPermission() {
-        guard useTransactionStatusNotifications || useLargeMovementNotifications else { return }
+        guard preferences.useTransactionStatusNotifications || preferences.useLargeMovementNotifications else { return }
         requestNotificationPermissionIfNeeded()
     }
     func shouldRebuildDashboardForLivePriceChange(from oldPrices: [String: Double], to newPrices: [String: Double]) -> Bool {
@@ -82,7 +82,7 @@ extension AppState {
         )
     }
     func sendTransactionStatusNotification(for transaction: TransactionRecord, newStatus: TransactionStatus) {
-        guard useTransactionStatusNotifications else { return }
+        guard preferences.useTransactionStatusNotifications else { return }
         let title: String
         let body: String
         switch newStatus {

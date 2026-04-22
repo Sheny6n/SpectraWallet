@@ -230,14 +230,59 @@ extension AppState {
         )
     }
 }
+/// Pure-function cache for `coreValidateAddress` / `coreValidateStringIdentifier`.
+///
+/// `AddressValidation.isValid` / `normalized` used to hit a Rust FFI call
+/// **per keystroke** in the watch-only setup flow, the address-book form,
+/// the send form, etc. — via SwiftUI body re-evaluations even when the
+/// input text didn't actually change. Results are deterministic in their
+/// inputs, so we memoize them and cap the cache at a small size so user
+/// input can't grow it unbounded.
+nonisolated private final class AddressValidationCache: @unchecked Sendable {
+    static let shared = AddressValidationCache()
+    private let lock = NSLock()
+    private var addressCache: [String: AddressValidationResult] = [:]
+    private var stringCache: [String: StringValidationResult] = [:]
+    private static let maxEntries = 512
+    private init() {}
+    func address(_ address: String, kind: String, networkMode: String?) -> AddressValidationResult {
+        let key = "\(kind)|\(networkMode ?? "")|\(address)"
+        lock.lock()
+        if let cached = addressCache[key] { lock.unlock(); return cached }
+        lock.unlock()
+        let result = coreValidateAddress(request: AddressValidationRequest(kind: kind, value: address, networkMode: networkMode))
+        lock.lock()
+        defer { lock.unlock() }
+        if addressCache.count > Self.maxEntries {
+            addressCache.removeAll(keepingCapacity: true)
+        }
+        addressCache[key] = result
+        return result
+    }
+    func string(_ value: String, kind: String) -> StringValidationResult {
+        let key = "\(kind)|\(value)"
+        lock.lock()
+        if let cached = stringCache[key] { lock.unlock(); return cached }
+        lock.unlock()
+        let result = coreValidateStringIdentifier(request: StringValidationRequest(kind: kind, value: value))
+        lock.lock()
+        defer { lock.unlock() }
+        if stringCache.count > Self.maxEntries {
+            stringCache.removeAll(keepingCapacity: true)
+        }
+        stringCache[key] = result
+        return result
+    }
+}
+
 enum AddressValidation {
     nonisolated static func isValid(_ address: String, kind: String, networkMode: String? = nil) -> Bool {
-        coreValidateAddress(request: AddressValidationRequest(kind: kind, value: address, networkMode: networkMode)).isValid
+        AddressValidationCache.shared.address(address, kind: kind, networkMode: networkMode).isValid
     }
     nonisolated static func normalized(_ address: String, kind: String, networkMode: String? = nil) -> String? {
-        coreValidateAddress(request: AddressValidationRequest(kind: kind, value: address, networkMode: networkMode)).normalizedValue
+        AddressValidationCache.shared.address(address, kind: kind, networkMode: networkMode).normalizedValue
     }
     nonisolated static func isValidAptosTokenType(_ value: String) -> Bool {
-        coreValidateStringIdentifier(request: StringValidationRequest(kind: "aptosTokenType", value: value)).isValid
+        AddressValidationCache.shared.string(value, kind: "aptosTokenType").isValid
     }
 }

@@ -6,23 +6,6 @@ import UIKit
     import Network
 #endif
 
-/// Thread-safe once-only flag for observation callbacks that may fire from
-/// arbitrary actors. Used by `startWalletCollectionObservation` to guard its
-/// continuation against double-resume when `withObservationTracking`'s
-/// `onChange` fires more than once.
-nonisolated private final class AtomicFlag: @unchecked Sendable {
-    private var raised = false
-    private let lock = NSLock()
-    init() {}
-    func tryRaise() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !raised else { return false }
-        raised = true
-        return true
-    }
-}
-
 @MainActor
 @Observable
 final class AppState {
@@ -88,7 +71,27 @@ final class AppState {
     // Nested value types (event records, persisted-store schemas, keypool / diagnostic
     // structs and associated typealiases) moved to Shell/AppStateTypes.swift.
     var wallets: [ImportedWallet] = [] {
-        didSet { walletsRevision &+= 1 }
+        didSet {
+            walletsRevision &+= 1
+            scheduleWalletCollectionSideEffects()
+        }
+    }
+    @ObservationIgnored private var walletSideEffectsDebounceTask: Task<Void, Never>?
+    /// Debounced trigger for `applyWalletCollectionSideEffects`. Replaces the
+    /// old `withObservationTracking`-based observation loop, which leaked
+    /// `self` on cancel (its `withCheckedContinuation` never resumed when the
+    /// task was cancelled mid-wait). Driving side-effects directly off
+    /// `wallets.didSet` is the native Apple pattern and lets `deinit` release
+    /// cleanly.
+    private func scheduleWalletCollectionSideEffects() {
+        walletSideEffectsDebounceTask?.cancel()
+        walletSideEffectsDebounceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 30_000_000)
+            guard !Task.isCancelled, let self else { return }
+            if !self.suppressWalletSideEffects {
+                self.applyWalletCollectionSideEffects()
+            }
+        }
     }
     private(set) var walletsRevision: UInt64 = 0
     // Derived caches. Recomputed by `applyWalletCollectionSideEffects`,
@@ -313,14 +316,14 @@ final class AppState {
         didSet {
             guard selectedFiatCurrency != oldValue else { return }
             persistAppSettings()
-            Task { @MainActor in await refreshFiatExchangeRatesIfNeeded(force: true) }
+            Task { @MainActor [weak self] in await self?.refreshFiatExchangeRatesIfNeeded(force: true) }
         }
     }
     var fiatRateProvider: FiatRateProvider = .openER {
         didSet {
             guard fiatRateProvider != oldValue else { return }
             persistAppSettings()
-            Task { @MainActor in await refreshFiatExchangeRatesIfNeeded(force: true) }
+            Task { @MainActor [weak self] in await self?.refreshFiatExchangeRatesIfNeeded(force: true) }
         }
     }
     var coinGeckoAPIKey: String = "" {
@@ -339,6 +342,7 @@ final class AppState {
         didSet {
             guard ethereumNetworkMode != oldValue else { return }
             persistAppSettings()
+            cachedPricedChainByKey = [:]  // Rust `isPricedChain` answer depends on this
             WalletServiceBridge.shared.resetHistoryForChain(chainId: 1)
         }
     }
@@ -384,6 +388,9 @@ final class AppState {
     var tokenPreferences: [TokenPreferenceEntry] = [] {
         didSet {
             persistTokenPreferences()
+            // Token-decimals overrides feed into the Rust asset-decimals
+            // resolver, so drop the memoized cache when the overrides change.
+            cachedAssetDecimalsResolutions = [:]
             tokenPreferenceRebuildTask?.cancel()
             tokenPreferenceRebuildTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(nanoseconds: 30_000_000)  // 30ms debounce
@@ -430,6 +437,23 @@ final class AppState {
     var cachedTokenPreferenceByChainAndSymbol: [String: TokenPreferenceEntry] = [:] { didSet { bumpCachesRevision() } }
     @ObservationIgnored var cachedCurrencyFormatters: [String: NumberFormatter] = [:]
     @ObservationIgnored var cachedDecimalFormatters: [String: NumberFormatter] = [:]
+    // ── Memoized Rust-FFI lookups (hot path). Every asset row / wallet card
+    // / transaction row used to cross the Swift→Rust boundary 2-4 times per
+    // body eval via these helpers; we now cache the pure results and only
+    // invalidate when the inputs (display-decimals prefs, token prefs,
+    // selected fiat currency) change.
+    @ObservationIgnored var cachedFiatAmountRules: [String: FiatAmountRules] = [:]
+    @ObservationIgnored var cachedAssetMinimumVisibleAmounts: [UInt32: Double] = [:]
+    @ObservationIgnored var cachedAssetDecimalsResolutions: [String: (supported: UInt32, display: UInt32)] = [:]
+    /// Memoizes `corePlanPricedChain`. Called once per coin per body render
+    /// via `isPricedAsset` (portfolio totals, asset rows, wallet cards). Key
+    /// composes chain name + both network modes because the Rust answer
+    /// depends on all three. Invalidated from the network-mode `didSet`s.
+    @ObservationIgnored var cachedPricedChainByKey: [String: Bool] = [:]
+    /// Memoizes `formattingTokenPreferenceLookupKey`. Keyed by
+    /// `chainName|symbol`; the Rust side is a pure function of those two
+    /// inputs, so the cache is good for the app lifetime.
+    @ObservationIgnored var cachedTokenPreferenceLookupKeys: [String: String] = [:]
     var useCustomEthereumFees: Bool = false
     var customEthereumMaxFeeGwei: String = ""
     var customEthereumPriorityFeeGwei: String = ""
@@ -443,6 +467,7 @@ final class AppState {
     var bitcoinNetworkMode: BitcoinNetworkMode = .mainnet {
         didSet {
             persistAppSettings()
+            cachedPricedChainByKey = [:]  // Rust `isPricedChain` answer depends on this
             WalletServiceBridge.shared.resetHistoryForChain(chainId: 0)
             Task {
                 try? await WalletServiceBridge.shared.deleteKeypoolForChain(chainName: "Bitcoin")
@@ -491,12 +516,10 @@ final class AppState {
             persistAppSettings()
         }
     }
-    var hideBalances: Bool = false {
-        didSet {
-            guard hideBalances != oldValue else { return }
-            persistAppSettings()
-        }
-    }
+    /// User-facing preferences (UI / security / notifications / refresh cadence).
+    /// Split out so views that only care about preferences stop getting
+    /// invalidated whenever wallets / balances / transactions mutate.
+    let preferences = AppUserPreferences()
     var assetDisplayDecimalsByChain: [String: Int] = [:] {
         didSet {
             let normalized = assetDisplayDecimalsByChain.mapValues { min(max($0, 0), 30) }
@@ -506,90 +529,12 @@ final class AppState {
             }
             persistAssetDisplayDecimalsByChain()
             cachedDecimalFormatters = [:]
-        }
-    }
-    var useFaceID: Bool = true {
-        didSet {
-            guard useFaceID != oldValue else { return }
-            persistAppSettings()
-            if !useFaceID {
-                isAppLocked = false
-                appLockError = nil
-            }
-        }
-    }
-    var useAutoLock: Bool = false {
-        didSet {
-            guard useAutoLock != oldValue else { return }
-            persistAppSettings()
-        }
-    }
-    var useStrictRPCOnly: Bool = false {
-        didSet {
-            guard useStrictRPCOnly != oldValue else { return }
-            persistAppSettings()
-        }
-    }
-    var requireBiometricForSendActions: Bool = true {
-        didSet {
-            guard requireBiometricForSendActions != oldValue else { return }
-            persistAppSettings()
-        }
-    }
-    var usePriceAlerts: Bool = true {
-        didSet {
-            guard usePriceAlerts != oldValue else { return }
-            persistAppSettings()
-        }
-    }
-    var useTransactionStatusNotifications: Bool = true {
-        didSet {
-            guard useTransactionStatusNotifications != oldValue else { return }
-            persistAppSettings()
-            if useTransactionStatusNotifications { requestNotificationPermissionIfNeeded() }
-        }
-    }
-    var useLargeMovementNotifications: Bool = true {
-        didSet {
-            guard useLargeMovementNotifications != oldValue else { return }
-            persistAppSettings()
-            if useLargeMovementNotifications { requestNotificationPermissionIfNeeded() }
-        }
-    }
-    var automaticRefreshFrequencyMinutes: Int = 5 {
-        didSet {
-            let clamped = min(max(automaticRefreshFrequencyMinutes, 5), 60)
-            if clamped != automaticRefreshFrequencyMinutes {
-                automaticRefreshFrequencyMinutes = clamped
-                return
-            }
-            guard automaticRefreshFrequencyMinutes != oldValue else { return }
-            persistAppSettings()
+            cachedAssetDecimalsResolutions = [:]
         }
     }
     var backgroundSyncProfile: BackgroundSyncProfile = .balanced {
         didSet {
             guard backgroundSyncProfile != oldValue else { return }
-            persistAppSettings()
-        }
-    }
-    var largeMovementAlertPercentThreshold: Double = 10.0 {
-        didSet {
-            let clamped = min(max(largeMovementAlertPercentThreshold, 1), 90)
-            if clamped != largeMovementAlertPercentThreshold {
-                largeMovementAlertPercentThreshold = clamped
-                return
-            }
-            persistAppSettings()
-        }
-    }
-    var largeMovementAlertUSDThreshold: Double = 50.0 {
-        didSet {
-            let clamped = min(max(largeMovementAlertUSDThreshold, 1), 100_000)
-            if clamped != largeMovementAlertUSDThreshold {
-                largeMovementAlertUSDThreshold = clamped
-                return
-            }
             persistAppSettings()
         }
     }
@@ -640,7 +585,6 @@ final class AppState {
     @ObservationIgnored var maintenanceTask: Task<Void, Never>?
     @ObservationIgnored var lastObservedPortfolioTotalUSD: Double?
     @ObservationIgnored var lastObservedPortfolioCompositionSignature: String?
-    @ObservationIgnored private var walletObservationTask: Task<Void, Never>?
     #if canImport(Network)
         let networkPathMonitor = NWPathMonitor()
         let networkPathMonitorQueue = DispatchQueue(label: "spectra.network.monitor")
@@ -877,17 +821,36 @@ final class AppState {
             "perf \(operation, privacy: .public) \(durationMS, format: .fixed(precision: 2))ms \(metadata ?? "", privacy: .public)")
     }
     init() {
+        // Wire preferences' side-effect closures back to AppState. Using
+        // closures (rather than an observation loop) keeps the coupling
+        // explicit and keeps the preferences class cleanly isolated.
+        preferences.persistHandler = { [weak self] in self?.persistAppSettings() }
+        preferences.useFaceIDDisabledHandler = { [weak self] in
+            self?.isAppLocked = false
+            self?.appLockError = nil
+        }
+        preferences.notificationPermissionRequestHandler = { [weak self] in
+            self?.requestNotificationPermissionIfNeeded()
+        }
+        preferences.refreshFrequencyChangedHandler = { [weak self] in
+            guard let self else { return }
+            Task { await self.restartBalanceRefreshForCurrentConfiguration() }
+        }
         clearPersistedSecureDataOnFreshInstallIfNeeded()
-        startWalletCollectionObservation()
         restorePersistedRuntimeConfigurationAndState()
-        Task { @MainActor in
-            rebuildTransactionDerivedState()
-            startMaintenanceLoopIfNeeded()
+        // Use [weak self] so that if SwiftUI/Xcode discards this AppState
+        // while the init task is still awaiting SQLite / HTTP, the old
+        // instance can release promptly instead of being pinned alive by a
+        // strong capture on `self` through the awaited method calls.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.rebuildTransactionDerivedState()
+            self.startMaintenanceLoopIfNeeded()
             SpectraSecretStoreAdapter.registerWithBridge()
-            setupRustRefreshEngine()
+            self.setupRustRefreshEngine()
             // Network I/O runs concurrently — neither depends on the other.
-            async let sqliteReload: () = reloadPersistedStateFromSQLite()
-            async let fiatRefresh: () = refreshFiatExchangeRates()
+            async let sqliteReload: () = self.reloadPersistedStateFromSQLite()
+            async let fiatRefresh: () = self.refreshFiatExchangeRates()
             _ = await (sqliteReload, fiatRefresh)
         }
     }
@@ -896,34 +859,10 @@ final class AppState {
         userInitiatedRefreshTask?.cancel()
         importRefreshTask?.cancel()
         walletSideEffectsTask?.cancel()
-        walletObservationTask?.cancel()
+        walletSideEffectsDebounceTask?.cancel()
         #if canImport(Network)
             networkPathMonitor.cancel()
         #endif
-    }
-    private func startWalletCollectionObservation() {
-        walletObservationTask?.cancel()
-        walletObservationTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            while !Task.isCancelled {
-                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                    // `onChange` can fire from any actor, while the continuation
-                    // is resumed from that same closure — the flag needs to be
-                    // Sendable and atomic.
-                    let didResume = AtomicFlag()
-                    withObservationTracking {
-                        _ = self.wallets
-                    } onChange: {
-                        if didResume.tryRaise() { continuation.resume() }
-                    }
-                }
-                try? await Task.sleep(nanoseconds: 30_000_000)
-                if Task.isCancelled { return }
-                if !self.suppressWalletSideEffects {
-                    self.applyWalletCollectionSideEffects()
-                }
-            }
-        }
     }
     func withSuspendedTransactionSideEffects(_ body: () -> Void) {
         let previous = suppressSideEffects

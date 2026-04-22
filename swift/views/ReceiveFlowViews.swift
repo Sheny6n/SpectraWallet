@@ -36,7 +36,6 @@ struct ReceiveView: View {
     }
     var body: some View {
         ZStack {
-            SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     spectraDetailCard(title: "Wallet") {
@@ -109,13 +108,12 @@ struct ReceiveView: View {
                     Text(AppLocalization.string("Spectra is resolving the current address for this wallet.")).font(.caption).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
-            }.frame(maxWidth: .infinity).padding(18).spectraBubbleFill().glassEffect(
-                .regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+            }.frame(maxWidth: .infinity).padding(18).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
         }
         spectraDetailCard(title: "Address") {
             Text(presentation.resolvedAddress).font(.body.monospaced()).textSelection(.enabled).padding(14).frame(
                 maxWidth: .infinity, alignment: .leading
-            ).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.025)), in: .rect(cornerRadius: 18))
+            ).spectraBubbleFill().spectraCardFill(cornerRadius: 18)
             if didCopyReceiveAddress {
                 Label(AppLocalization.string("Address copied to clipboard."), systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(
                     .green)

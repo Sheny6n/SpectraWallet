@@ -175,7 +175,7 @@ struct SetupView: View {
         let hasChains = !draft.selectedChainNames.isEmpty
         if draft.isPrivateKeyImportMode {
             return hasChains
-                && corePrivateKeyHexIsLikely(rawValue: draft.privateKeyInput)
+                && CachedCoreHelpers.privateKeyHexIsLikely(rawValue: draft.privateKeyInput)
                 && draft.unsupportedPrivateKeyChainNames.isEmpty
                 && draft.selectedChainNames.count == 1
                 && !store.isImportingWallet
@@ -249,9 +249,11 @@ struct SetupView: View {
         ).padding(10).spectraInputFieldStyle().foregroundStyle(Color.primary)
     }
     @ViewBuilder
-    private func setupCard(glassOpacity: Double = 0.028, @ViewBuilder content: () -> some View) -> some View {
-        content().padding(16).spectraBubbleFill().glassEffect(
-            .regular.tint(.white.opacity(glassOpacity)), in: .rect(cornerRadius: setupCardCornerRadius))
+    private func setupCard<Content: View>(glassOpacity: Double = 0.028, @ViewBuilder content: () -> Content) -> some View {
+        // `glassOpacity` kept for call-site compatibility but no longer used —
+        // flat fill replaces the Liquid Glass pass to avoid ~10 stacked shader
+        // passes on the setup screen.
+        content().padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: setupCardCornerRadius)
     }
     @ViewBuilder
     private var walletPasswordStepSection: some View {
@@ -395,7 +397,6 @@ struct SetupView: View {
         setupCard(glassOpacity: 0.033) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 12) {
-                    SpectraLogo(size: 56)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(setupTitle).font(.system(size: 28, weight: .black, design: .rounded)).foregroundStyle(Color.primary)
                             .lineLimit(2).minimumScaleFactor(0.8).allowsTightening(true).layoutPriority(1).fixedSize(
@@ -657,7 +658,6 @@ struct SetupView: View {
                 HStack {
                     Text(primaryActionTitle).font(.headline)
                     Spacer()
-                    SpectraLogo(size: 28)
                 }.foregroundStyle(Color.primary).padding().frame(maxWidth: .infinity)
             }.buttonStyle(.glassProminent).disabled(!isPrimaryActionEnabled).opacity(isPrimaryActionEnabled ? 1.0 : 0.55)
         }
@@ -927,7 +927,7 @@ struct SetupView: View {
                         "Private key import is not available for: %@.", draft.unsupportedPrivateKeyChainNames.joined(separator: ", "))
                 ).font(.footnote).foregroundStyle(.orange.opacity(0.9))
             } else if !draft.privateKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                !corePrivateKeyHexIsLikely(rawValue: draft.privateKeyInput)
+                !CachedCoreHelpers.privateKeyHexIsLikely(rawValue: draft.privateKeyInput)
             {
                 Text(AppLocalization.string("Enter a valid 32-byte hex private key.")).font(.footnote).foregroundStyle(.red.opacity(0.9))
             }
@@ -981,11 +981,10 @@ struct SetupView: View {
                     Text(copy.backupVerificationHint).font(.footnote).foregroundStyle(Color.primary.opacity(0.7))
                 }
             }
-        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.028)), in: .rect(cornerRadius: 24))
+        }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
     }
     var body: some View {
         ZStack {
-            SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     setupHeaderCard
@@ -1204,7 +1203,6 @@ private struct AllChainsSelectionView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                SpectraBackdrop()
                 ScrollView(showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: 18) {
                         VStack(alignment: .leading, spacing: 14) {
@@ -1221,7 +1219,7 @@ private struct AllChainsSelectionView: View {
                                     ForEach(filteredDescriptors) { descriptor in row(for: descriptor) }
                                 }
                             }
-                        }.padding(16).spectraBubbleFill().glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 24))
+                        }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
                     }.padding(.horizontal, 20).padding(.vertical, 20)
                 }
             }.navigationTitle(AppLocalization.string("import_flow.all_chains_title")).navigationBarTitleDisplayMode(.inline).toolbar {

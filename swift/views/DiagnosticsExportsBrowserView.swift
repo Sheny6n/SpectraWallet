@@ -1,8 +1,5 @@
 import Foundation
-import PhotosUI
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 struct DiagnosticsExportsBrowserView: View {
     let store: AppState
     @Environment(\.dismiss) private var dismiss
