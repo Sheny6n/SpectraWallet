@@ -436,9 +436,28 @@ extension AppState {
                 let chainPaths: [String: String] = Dictionary(
                     uniqueKeysWithValues: chainPathCandidates.compactMap { $0.0 ? ($0.1, $0.2) : nil })
                 do {
-                    let derived = try WalletRustDerivationBridge.deriveAllAddresses(
-                        seedPhrase: trimmedSeedPhrase, chainPaths: chainPaths
-                    )
+                    let overrides = draft.resolvedDerivationOverrides
+                    let derived: [String: String]
+                    if overrides.isEmpty {
+                        // Fast path: Rust batch-derives all chains with preset defaults.
+                        derived = try WalletRustDerivationBridge.deriveAllAddresses(
+                            seedPhrase: trimmedSeedPhrase, chainPaths: chainPaths)
+                    } else {
+                        // Advanced mode: re-derive each chain individually so the power-user
+                        // overrides (passphrase / wordlist / iteration count / algorithm
+                        // overrides) actually affect the produced addresses.
+                        var perChain: [String: String] = [:]
+                        for (chainName, path) in chainPaths {
+                            guard let chain = SeedDerivationChain(rawValue: chainName) else { continue }
+                            if let address = try? WalletDerivationLayer.deriveAddress(
+                                seedPhrase: trimmedSeedPhrase, chain: chain, network: .mainnet,
+                                derivationPath: path, overrides: overrides
+                            ) {
+                                perChain[chainName] = address
+                            }
+                        }
+                        derived = perChain
+                    }
                     if wantsBitcoinImport {
                         guard let bitcoinWalletID else {
                             importError = "Bitcoin wallet initialization failed."
@@ -592,7 +611,9 @@ extension AppState {
                 guard let walletID = UUID(uuidString: plannedWallet.walletId) else { return nil }
                 return walletForPlannedImport(
                     id: walletID, plan: plannedWallet, seedDerivationPreset: selectedDerivationPreset,
-                    seedDerivationPaths: selectedDerivationPaths, holdings: coins
+                    seedDerivationPaths: selectedDerivationPaths,
+                    derivationOverrides: draft.resolvedDerivationOverrides,
+                    holdings: coins
                 )
             }
             for instruction in importPlan.secretInstructions {
@@ -639,7 +660,7 @@ extension AppState {
             cardanoAddress: wallet.cardanoAddress, suiAddress: wallet.suiAddress, aptosAddress: wallet.aptosAddress,
             tonAddress: wallet.tonAddress, icpAddress: wallet.icpAddress, nearAddress: wallet.nearAddress,
             polkadotAddress: wallet.polkadotAddress, seedDerivationPreset: wallet.seedDerivationPreset,
-            seedDerivationPaths: wallet.seedDerivationPaths, selectedChain: wallet.selectedChain, holdings: wallet.holdings,
+            seedDerivationPaths: wallet.seedDerivationPaths, derivationOverrides: wallet.derivationOverrides, selectedChain: wallet.selectedChain, holdings: wallet.holdings,
             includeInPortfolioTotal: wallet.includeInPortfolioTotal
         )
         finishWalletImportFlow()
@@ -744,7 +765,12 @@ extension AppState {
         bitcoinSvAddress: String?, litecoinAddress: String?, dogecoinAddress: String?, ethereumAddress: String?, tronAddress: String?,
         solanaAddress: String?, xrpAddress: String?, stellarAddress: String?, moneroAddress: String?, cardanoAddress: String?,
         suiAddress: String?, aptosAddress: String?, tonAddress: String?, icpAddress: String?, nearAddress: String?,
-        polkadotAddress: String?, seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths, holdings: [Coin]
+        polkadotAddress: String?, seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths,
+        derivationOverrides: CoreWalletDerivationOverrides = CoreWalletDerivationOverrides(
+            passphrase: nil, mnemonicWordlist: nil, iterationCount: nil, saltPrefix: nil, hmacKey: nil,
+            curve: nil, derivationAlgorithm: nil, addressAlgorithm: nil, publicKeyFormat: nil, scriptType: nil
+        ),
+        holdings: [Coin]
     ) -> ImportedWallet {
         ImportedWallet(
             id: id.uuidString, name: name, bitcoinNetworkMode: chainName == "Bitcoin" ? bitcoinNetworkMode : .mainnet,
@@ -763,12 +789,17 @@ extension AppState {
             aptosAddress: chainName == "Aptos" ? aptosAddress : nil, tonAddress: chainName == "TON" ? tonAddress : nil,
             icpAddress: chainName == "Internet Computer" ? icpAddress : nil, nearAddress: chainName == "NEAR" ? nearAddress : nil,
             polkadotAddress: chainName == "Polkadot" ? polkadotAddress : nil, seedDerivationPreset: seedDerivationPreset,
-            seedDerivationPaths: seedDerivationPaths, selectedChain: chainName, holdings: holdings.filter { $0.chainName == chainName },
+            seedDerivationPaths: seedDerivationPaths, derivationOverrides: derivationOverrides,
+            selectedChain: chainName, holdings: holdings.filter { $0.chainName == chainName },
             includeInPortfolioTotal: true
         )
     }
     func walletForPlannedImport(
         id: UUID, plan: PlannedWallet, seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths,
+        derivationOverrides: CoreWalletDerivationOverrides = CoreWalletDerivationOverrides(
+            passphrase: nil, mnemonicWordlist: nil, iterationCount: nil, saltPrefix: nil, hmacKey: nil,
+            curve: nil, derivationAlgorithm: nil, addressAlgorithm: nil, publicKeyFormat: nil, scriptType: nil
+        ),
         holdings: [Coin]
     ) -> ImportedWallet {
         walletForSingleChain(
@@ -783,7 +814,8 @@ extension AppState {
             moneroAddress: plan.addresses.moneroAddress, cardanoAddress: plan.addresses.cardanoAddress,
             suiAddress: plan.addresses.suiAddress, aptosAddress: plan.addresses.aptosAddress, tonAddress: plan.addresses.tonAddress,
             icpAddress: plan.addresses.icpAddress, nearAddress: plan.addresses.nearAddress, polkadotAddress: plan.addresses.polkadotAddress,
-            seedDerivationPreset: seedDerivationPreset, seedDerivationPaths: seedDerivationPaths, holdings: holdings
+            seedDerivationPreset: seedDerivationPreset, seedDerivationPaths: seedDerivationPaths,
+            derivationOverrides: derivationOverrides, holdings: holdings
         )
     }
     func walletByReplacingHoldings(_ wallet: ImportedWallet, with holdings: [Coin]) -> ImportedWallet {
@@ -796,7 +828,7 @@ extension AppState {
             xrpAddress: wallet.xrpAddress, moneroAddress: wallet.moneroAddress, cardanoAddress: wallet.cardanoAddress,
             suiAddress: wallet.suiAddress, aptosAddress: wallet.aptosAddress, tonAddress: wallet.tonAddress, icpAddress: wallet.icpAddress,
             nearAddress: wallet.nearAddress, polkadotAddress: wallet.polkadotAddress, seedDerivationPreset: wallet.seedDerivationPreset,
-            seedDerivationPaths: wallet.seedDerivationPaths, selectedChain: wallet.selectedChain, holdings: holdings,
+            seedDerivationPaths: wallet.seedDerivationPaths, derivationOverrides: wallet.derivationOverrides, selectedChain: wallet.selectedChain, holdings: holdings,
             includeInPortfolioTotal: wallet.includeInPortfolioTotal
         )
     }

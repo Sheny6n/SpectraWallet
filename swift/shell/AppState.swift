@@ -5,6 +5,24 @@ import UIKit
 #if canImport(Network)
     import Network
 #endif
+
+/// Thread-safe once-only flag for observation callbacks that may fire from
+/// arbitrary actors. Used by `startWalletCollectionObservation` to guard its
+/// continuation against double-resume when `withObservationTracking`'s
+/// `onChange` fires more than once.
+nonisolated private final class AtomicFlag: @unchecked Sendable {
+    private var raised = false
+    private let lock = NSLock()
+    init() {}
+    func tryRaise() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !raised else { return false }
+        raised = true
+        return true
+    }
+}
+
 @MainActor
 @Observable
 final class AppState {
@@ -889,13 +907,14 @@ final class AppState {
             guard let self else { return }
             while !Task.isCancelled {
                 await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                    var didResume = false
+                    // `onChange` can fire from any actor, while the continuation
+                    // is resumed from that same closure — the flag needs to be
+                    // Sendable and atomic.
+                    let didResume = AtomicFlag()
                     withObservationTracking {
                         _ = self.wallets
                     } onChange: {
-                        guard !didResume else { return }
-                        didResume = true
-                        continuation.resume()
+                        if didResume.tryRaise() { continuation.resume() }
                     }
                 }
                 try? await Task.sleep(nanoseconds: 30_000_000)

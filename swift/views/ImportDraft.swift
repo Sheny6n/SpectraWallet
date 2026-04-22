@@ -10,6 +10,21 @@ enum WalletSecretImportMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var localizedTitle: String { AppLocalization.string(rawValue) }
 }
+/// Simple vs. Advanced setup path. Chosen up-front on the Add-Wallet page
+/// (alongside the create/import/watch choice) and persisted on the draft
+/// so `SetupView` can skip its old "Choose Setup Type" page and start
+/// directly on the details step.
+enum SetupModeChoice: String, CaseIterable, Identifiable {
+    case simple
+    case advanced
+    var id: String { rawValue }
+    var localizedTitle: String {
+        switch self {
+        case .simple: return AppLocalization.string("Simple")
+        case .advanced: return AppLocalization.string("Advanced")
+        }
+    }
+}
 @MainActor
 @Observable
 final class WalletImportDraft {
@@ -36,6 +51,23 @@ final class WalletImportDraft {
     var seedDerivationPreset: SeedDerivationPreset = .standard
     var usesCustomDerivationPaths: Bool = true
     var seedDerivationPaths: SeedDerivationPaths = .defaults
+    /// User's simple/advanced selection from the Add-Wallet page. Drives
+    /// whether the Advanced derivation page is reachable from SetupView.
+    var setupModeChoice: SetupModeChoice = .simple
+    // Power-user derivation overrides (Advanced page, Option A). Each field is
+    // a user-entered string; blank/empty-picker means "use chain preset default".
+    // These are converted to CoreWalletDerivationOverrides at import time via
+    // `resolvedDerivationOverrides`.
+    var overridePassphrase: String = ""
+    var overrideMnemonicWordlist: String = ""
+    var overrideIterationCount: String = ""
+    var overrideSaltPrefix: String = ""
+    var overrideHmacKey: String = ""
+    var overrideCurve: String = ""
+    var overrideDerivationAlgorithm: String = ""
+    var overrideAddressAlgorithm: String = ""
+    var overridePublicKeyFormat: String = ""
+    var overrideScriptType: String = ""
     var seedPhraseEntries: [String] = Array(repeating: "", count: 12)
     var selectedSeedPhraseWordCount: Int = 12 {
         didSet {
@@ -234,6 +266,36 @@ final class WalletImportDraft {
     init() {
         refreshSelectionState()
     }
+    /// Compile the 10 Advanced-mode power-user override fields into a single
+    /// `CoreWalletDerivationOverrides` record. Blank strings map to `nil`
+    /// (= "use chain preset default"); populated fields are passed verbatim
+    /// to the Rust derivation pipeline, which validates them.
+    var resolvedDerivationOverrides: CoreWalletDerivationOverrides {
+        func nilIfBlank(_ raw: String) -> String? {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        let iteration: UInt32? = {
+            let trimmed = overrideIterationCount.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : UInt32(trimmed)
+        }()
+        // salt_prefix is intentionally allowed to include or consist entirely
+        // of whitespace (Rust treats `Some("")` differently from `None`), so
+        // only filter out an empty-from-the-start field.
+        let salt: String? = overrideSaltPrefix.isEmpty ? nil : overrideSaltPrefix
+        return CoreWalletDerivationOverrides(
+            passphrase: nilIfBlank(overridePassphrase),
+            mnemonicWordlist: nilIfBlank(overrideMnemonicWordlist),
+            iterationCount: iteration,
+            saltPrefix: salt,
+            hmacKey: nilIfBlank(overrideHmacKey),
+            curve: nilIfBlank(overrideCurve),
+            derivationAlgorithm: nilIfBlank(overrideDerivationAlgorithm),
+            addressAlgorithm: nilIfBlank(overrideAddressAlgorithm),
+            publicKeyFormat: nilIfBlank(overridePublicKeyFormat),
+            scriptType: nilIfBlank(overrideScriptType)
+        )
+    }
     var selectableDerivationChains: [SeedDerivationChain] {
         let selectedChainNameSet = Set(selectedChainNames)
         return SeedDerivationChain.allCases.filter { selectedChainNameSet.contains($0.rawValue) }
@@ -350,6 +412,17 @@ final class WalletImportDraft {
         seedDerivationPreset = .standard
         usesCustomDerivationPaths = true
         seedDerivationPaths = .defaults
+        setupModeChoice = .simple
+        overridePassphrase = ""
+        overrideMnemonicWordlist = ""
+        overrideIterationCount = ""
+        overrideSaltPrefix = ""
+        overrideHmacKey = ""
+        overrideCurve = ""
+        overrideDerivationAlgorithm = ""
+        overrideAddressAlgorithm = ""
+        overridePublicKeyFormat = ""
+        overrideScriptType = ""
         seedPhraseEntries = Array(repeating: "", count: 12)
         selectedSeedPhraseWordCount = 12
         isWatchOnlyMode = false

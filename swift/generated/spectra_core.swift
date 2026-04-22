@@ -7618,13 +7618,14 @@ nonisolated public struct CoreImportedWallet {
     public var polkadotAddress: String?
     public var seedDerivationPreset: CoreSeedDerivationPreset
     public var seedDerivationPaths: CoreSeedDerivationPaths
+    public var derivationOverrides: CoreWalletDerivationOverrides
     public var selectedChain: String
     public var holdings: [CoreCoin]
     public var includeInPortfolioTotal: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    nonisolated public init(id: String, name: String, bitcoinNetworkMode: CoreBitcoinNetworkMode, dogecoinNetworkMode: CoreDogecoinNetworkMode, bitcoinAddress: String?, bitcoinXpub: String?, bitcoinCashAddress: String?, bitcoinSvAddress: String?, litecoinAddress: String?, dogecoinAddress: String?, ethereumAddress: String?, tronAddress: String?, solanaAddress: String?, stellarAddress: String?, xrpAddress: String?, moneroAddress: String?, cardanoAddress: String?, suiAddress: String?, aptosAddress: String?, tonAddress: String?, icpAddress: String?, nearAddress: String?, polkadotAddress: String?, seedDerivationPreset: CoreSeedDerivationPreset, seedDerivationPaths: CoreSeedDerivationPaths, selectedChain: String, holdings: [CoreCoin], includeInPortfolioTotal: Bool) {
+    nonisolated public init(id: String, name: String, bitcoinNetworkMode: CoreBitcoinNetworkMode, dogecoinNetworkMode: CoreDogecoinNetworkMode, bitcoinAddress: String?, bitcoinXpub: String?, bitcoinCashAddress: String?, bitcoinSvAddress: String?, litecoinAddress: String?, dogecoinAddress: String?, ethereumAddress: String?, tronAddress: String?, solanaAddress: String?, stellarAddress: String?, xrpAddress: String?, moneroAddress: String?, cardanoAddress: String?, suiAddress: String?, aptosAddress: String?, tonAddress: String?, icpAddress: String?, nearAddress: String?, polkadotAddress: String?, seedDerivationPreset: CoreSeedDerivationPreset, seedDerivationPaths: CoreSeedDerivationPaths, derivationOverrides: CoreWalletDerivationOverrides, selectedChain: String, holdings: [CoreCoin], includeInPortfolioTotal: Bool) {
         self.id = id
         self.name = name
         self.bitcoinNetworkMode = bitcoinNetworkMode
@@ -7650,6 +7651,7 @@ nonisolated public struct CoreImportedWallet {
         self.polkadotAddress = polkadotAddress
         self.seedDerivationPreset = seedDerivationPreset
         self.seedDerivationPaths = seedDerivationPaths
+        self.derivationOverrides = derivationOverrides
         self.selectedChain = selectedChain
         self.holdings = holdings
         self.includeInPortfolioTotal = includeInPortfolioTotal
@@ -7738,6 +7740,9 @@ nonisolated extension CoreImportedWallet: Equatable, Hashable {
         if lhs.seedDerivationPaths != rhs.seedDerivationPaths {
             return false
         }
+        if lhs.derivationOverrides != rhs.derivationOverrides {
+            return false
+        }
         if lhs.selectedChain != rhs.selectedChain {
             return false
         }
@@ -7776,6 +7781,7 @@ nonisolated extension CoreImportedWallet: Equatable, Hashable {
         hasher.combine(polkadotAddress)
         hasher.combine(seedDerivationPreset)
         hasher.combine(seedDerivationPaths)
+        hasher.combine(derivationOverrides)
         hasher.combine(selectedChain)
         hasher.combine(holdings)
         hasher.combine(includeInPortfolioTotal)
@@ -7816,6 +7822,7 @@ nonisolated public struct FfiConverterTypeCoreImportedWallet: FfiConverterRustBu
                 polkadotAddress: FfiConverterOptionString.read(from: &buf), 
                 seedDerivationPreset: FfiConverterTypeCoreSeedDerivationPreset.read(from: &buf), 
                 seedDerivationPaths: FfiConverterTypeCoreSeedDerivationPaths.read(from: &buf), 
+                derivationOverrides: FfiConverterTypeCoreWalletDerivationOverrides.read(from: &buf), 
                 selectedChain: FfiConverterString.read(from: &buf), 
                 holdings: FfiConverterSequenceTypeCoreCoin.read(from: &buf), 
                 includeInPortfolioTotal: FfiConverterBool.read(from: &buf)
@@ -7848,6 +7855,7 @@ nonisolated public struct FfiConverterTypeCoreImportedWallet: FfiConverterRustBu
         FfiConverterOptionString.write(value.polkadotAddress, into: &buf)
         FfiConverterTypeCoreSeedDerivationPreset.write(value.seedDerivationPreset, into: &buf)
         FfiConverterTypeCoreSeedDerivationPaths.write(value.seedDerivationPaths, into: &buf)
+        FfiConverterTypeCoreWalletDerivationOverrides.write(value.derivationOverrides, into: &buf)
         FfiConverterString.write(value.selectedChain, into: &buf)
         FfiConverterSequenceTypeCoreCoin.write(value.holdings, into: &buf)
         FfiConverterBool.write(value.includeInPortfolioTotal, into: &buf)
@@ -9641,6 +9649,151 @@ nonisolated public func FfiConverterTypeCoreTransactionRecord_lift(_ buf: RustBu
 #endif
 nonisolated public func FfiConverterTypeCoreTransactionRecord_lower(_ value: CoreTransactionRecord) -> RustBuffer {
     return FfiConverterTypeCoreTransactionRecord.lower(value)
+}
+
+
+/**
+ * Power-user derivation overrides, keyed by the same string names as
+ * `core/derivation_presets.toml`. Every field is optional; `None` means
+ * "use the chain preset default." Persisted per-wallet and propagated to
+ * every derivation call (import-time preview + send-time signing) so the
+ * imported address and the re-derived signing key stay in sync.
+ *
+ * String values (rather than typed enums) keep the UniFFI record stable
+ * against future runtime-side additions; invalid values surface as runtime
+ * errors from the derivation pipeline.
+ */
+nonisolated public struct CoreWalletDerivationOverrides {
+    public var passphrase: String?
+    public var mnemonicWordlist: String?
+    public var iterationCount: UInt32?
+    public var saltPrefix: String?
+    public var hmacKey: String?
+    public var curve: String?
+    public var derivationAlgorithm: String?
+    public var addressAlgorithm: String?
+    public var publicKeyFormat: String?
+    public var scriptType: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(passphrase: String?, mnemonicWordlist: String?, iterationCount: UInt32?, saltPrefix: String?, hmacKey: String?, curve: String?, derivationAlgorithm: String?, addressAlgorithm: String?, publicKeyFormat: String?, scriptType: String?) {
+        self.passphrase = passphrase
+        self.mnemonicWordlist = mnemonicWordlist
+        self.iterationCount = iterationCount
+        self.saltPrefix = saltPrefix
+        self.hmacKey = hmacKey
+        self.curve = curve
+        self.derivationAlgorithm = derivationAlgorithm
+        self.addressAlgorithm = addressAlgorithm
+        self.publicKeyFormat = publicKeyFormat
+        self.scriptType = scriptType
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension CoreWalletDerivationOverrides: Sendable {}
+#endif
+
+
+nonisolated extension CoreWalletDerivationOverrides: Equatable, Hashable {
+    public static func ==(lhs: CoreWalletDerivationOverrides, rhs: CoreWalletDerivationOverrides) -> Bool {
+        if lhs.passphrase != rhs.passphrase {
+            return false
+        }
+        if lhs.mnemonicWordlist != rhs.mnemonicWordlist {
+            return false
+        }
+        if lhs.iterationCount != rhs.iterationCount {
+            return false
+        }
+        if lhs.saltPrefix != rhs.saltPrefix {
+            return false
+        }
+        if lhs.hmacKey != rhs.hmacKey {
+            return false
+        }
+        if lhs.curve != rhs.curve {
+            return false
+        }
+        if lhs.derivationAlgorithm != rhs.derivationAlgorithm {
+            return false
+        }
+        if lhs.addressAlgorithm != rhs.addressAlgorithm {
+            return false
+        }
+        if lhs.publicKeyFormat != rhs.publicKeyFormat {
+            return false
+        }
+        if lhs.scriptType != rhs.scriptType {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(passphrase)
+        hasher.combine(mnemonicWordlist)
+        hasher.combine(iterationCount)
+        hasher.combine(saltPrefix)
+        hasher.combine(hmacKey)
+        hasher.combine(curve)
+        hasher.combine(derivationAlgorithm)
+        hasher.combine(addressAlgorithm)
+        hasher.combine(publicKeyFormat)
+        hasher.combine(scriptType)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeCoreWalletDerivationOverrides: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CoreWalletDerivationOverrides {
+        return
+            try CoreWalletDerivationOverrides(
+                passphrase: FfiConverterOptionString.read(from: &buf), 
+                mnemonicWordlist: FfiConverterOptionString.read(from: &buf), 
+                iterationCount: FfiConverterOptionUInt32.read(from: &buf), 
+                saltPrefix: FfiConverterOptionString.read(from: &buf), 
+                hmacKey: FfiConverterOptionString.read(from: &buf), 
+                curve: FfiConverterOptionString.read(from: &buf), 
+                derivationAlgorithm: FfiConverterOptionString.read(from: &buf), 
+                addressAlgorithm: FfiConverterOptionString.read(from: &buf), 
+                publicKeyFormat: FfiConverterOptionString.read(from: &buf), 
+                scriptType: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CoreWalletDerivationOverrides, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.passphrase, into: &buf)
+        FfiConverterOptionString.write(value.mnemonicWordlist, into: &buf)
+        FfiConverterOptionUInt32.write(value.iterationCount, into: &buf)
+        FfiConverterOptionString.write(value.saltPrefix, into: &buf)
+        FfiConverterOptionString.write(value.hmacKey, into: &buf)
+        FfiConverterOptionString.write(value.curve, into: &buf)
+        FfiConverterOptionString.write(value.derivationAlgorithm, into: &buf)
+        FfiConverterOptionString.write(value.addressAlgorithm, into: &buf)
+        FfiConverterOptionString.write(value.publicKeyFormat, into: &buf)
+        FfiConverterOptionString.write(value.scriptType, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeCoreWalletDerivationOverrides_lift(_ buf: RustBuffer) throws -> CoreWalletDerivationOverrides {
+    return try FfiConverterTypeCoreWalletDerivationOverrides.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeCoreWalletDerivationOverrides_lower(_ value: CoreWalletDerivationOverrides) -> RustBuffer {
+    return FfiConverterTypeCoreWalletDerivationOverrides.lower(value)
 }
 
 
@@ -20386,6 +20539,13 @@ nonisolated public struct SendExecutionRequest {
      * Monero priority level.
      */
     public var moneroPriority: UInt32?
+    /**
+     * Power-user derivation overrides (passphrase, wordlist, curve, etc.).
+     * `None` means use chain-preset defaults. Must match the overrides used
+     * at import time, else re-derivation produces a different key and signing
+     * fails.
+     */
+    public var derivationOverrides: CoreWalletDerivationOverrides?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -20437,7 +20597,13 @@ nonisolated public struct SendExecutionRequest {
          */evmOverridesFragment: String?, 
         /**
          * Monero priority level.
-         */moneroPriority: UInt32?) {
+         */moneroPriority: UInt32?, 
+        /**
+         * Power-user derivation overrides (passphrase, wordlist, curve, etc.).
+         * `None` means use chain-preset defaults. Must match the overrides used
+         * at import time, else re-derivation produces a different key and signing
+         * fails.
+         */derivationOverrides: CoreWalletDerivationOverrides?) {
         self.chainId = chainId
         self.chainName = chainName
         self.derivationPath = derivationPath
@@ -20454,6 +20620,7 @@ nonisolated public struct SendExecutionRequest {
         self.feeAmount = feeAmount
         self.evmOverridesFragment = evmOverridesFragment
         self.moneroPriority = moneroPriority
+        self.derivationOverrides = derivationOverrides
     }
 }
 
@@ -20512,6 +20679,9 @@ nonisolated extension SendExecutionRequest: Equatable, Hashable {
         if lhs.moneroPriority != rhs.moneroPriority {
             return false
         }
+        if lhs.derivationOverrides != rhs.derivationOverrides {
+            return false
+        }
         return true
     }
 
@@ -20532,6 +20702,7 @@ nonisolated extension SendExecutionRequest: Equatable, Hashable {
         hasher.combine(feeAmount)
         hasher.combine(evmOverridesFragment)
         hasher.combine(moneroPriority)
+        hasher.combine(derivationOverrides)
     }
 }
 
@@ -20559,7 +20730,8 @@ nonisolated public struct FfiConverterTypeSendExecutionRequest: FfiConverterRust
                 gasBudget: FfiConverterOptionDouble.read(from: &buf), 
                 feeAmount: FfiConverterOptionDouble.read(from: &buf), 
                 evmOverridesFragment: FfiConverterOptionString.read(from: &buf), 
-                moneroPriority: FfiConverterOptionUInt32.read(from: &buf)
+                moneroPriority: FfiConverterOptionUInt32.read(from: &buf), 
+                derivationOverrides: FfiConverterOptionTypeCoreWalletDerivationOverrides.read(from: &buf)
         )
     }
 
@@ -20580,6 +20752,7 @@ nonisolated public struct FfiConverterTypeSendExecutionRequest: FfiConverterRust
         FfiConverterOptionDouble.write(value.feeAmount, into: &buf)
         FfiConverterOptionString.write(value.evmOverridesFragment, into: &buf)
         FfiConverterOptionUInt32.write(value.moneroPriority, into: &buf)
+        FfiConverterOptionTypeCoreWalletDerivationOverrides.write(value.derivationOverrides, into: &buf)
     }
 }
 
@@ -32556,6 +32729,30 @@ fileprivate struct FfiConverterOptionTypeChainKeypoolStateRecord: FfiConverterRu
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeChainKeypoolStateRecord.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeCoreWalletDerivationOverrides: FfiConverterRustBuffer {
+    typealias SwiftType = CoreWalletDerivationOverrides?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeCoreWalletDerivationOverrides.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeCoreWalletDerivationOverrides.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }

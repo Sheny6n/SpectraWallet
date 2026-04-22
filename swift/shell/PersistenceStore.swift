@@ -201,7 +201,9 @@ extension AppState {
             xrpAddress: wallet.xrpAddress, moneroAddress: wallet.moneroAddress, cardanoAddress: wallet.cardanoAddress,
             suiAddress: wallet.suiAddress, aptosAddress: wallet.aptosAddress, tonAddress: wallet.tonAddress, icpAddress: wallet.icpAddress,
             nearAddress: wallet.nearAddress, polkadotAddress: wallet.polkadotAddress, seedDerivationPreset: wallet.seedDerivationPreset,
-            seedDerivationPaths: wallet.seedDerivationPaths, selectedChain: wallet.selectedChain, holdings: supportedHoldings,
+            seedDerivationPaths: wallet.seedDerivationPaths,
+            derivationOverrides: wallet.derivationOverrides,
+            selectedChain: wallet.selectedChain, holdings: supportedHoldings,
             includeInPortfolioTotal: wallet.includeInPortfolioTotal
         )
     }
@@ -349,6 +351,7 @@ struct PersistedWallet: Codable {
     let polkadotAddress: String?
     let seedDerivationPreset: SeedDerivationPreset
     let seedDerivationPaths: SeedDerivationPaths
+    let derivationOverrides: CoreWalletDerivationOverrides
     let selectedChain: String
     let holdings: [PersistedCoin]
     let includeInPortfolioTotal: Bool
@@ -378,6 +381,7 @@ struct PersistedWallet: Codable {
         case polkadotAddress
         case seedDerivationPreset
         case seedDerivationPaths
+        case derivationOverrides
         case selectedChain
         case holdings
         case includeInPortfolioTotal
@@ -388,7 +392,12 @@ struct PersistedWallet: Codable {
         dogecoinAddress: String?, ethereumAddress: String?, tronAddress: String?, solanaAddress: String?, stellarAddress: String?,
         xrpAddress: String?, moneroAddress: String?, cardanoAddress: String?, suiAddress: String?, aptosAddress: String?,
         tonAddress: String?, icpAddress: String?, nearAddress: String?, polkadotAddress: String?,
-        seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths, selectedChain: String,
+        seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths,
+        derivationOverrides: CoreWalletDerivationOverrides = CoreWalletDerivationOverrides(
+            passphrase: nil, mnemonicWordlist: nil, iterationCount: nil, saltPrefix: nil, hmacKey: nil,
+            curve: nil, derivationAlgorithm: nil, addressAlgorithm: nil, publicKeyFormat: nil, scriptType: nil
+        ),
+        selectedChain: String,
         holdings: [PersistedCoin], includeInPortfolioTotal: Bool
     ) {
         self.id = id
@@ -416,6 +425,7 @@ struct PersistedWallet: Codable {
         self.polkadotAddress = polkadotAddress
         self.seedDerivationPreset = seedDerivationPreset
         self.seedDerivationPaths = seedDerivationPaths
+        self.derivationOverrides = derivationOverrides
         self.selectedChain = selectedChain
         self.holdings = holdings
         self.includeInPortfolioTotal = includeInPortfolioTotal
@@ -447,6 +457,12 @@ struct PersistedWallet: Codable {
         polkadotAddress = try container.decodeIfPresent(String.self, forKey: .polkadotAddress)
         seedDerivationPreset = try container.decode(SeedDerivationPreset.self, forKey: .seedDerivationPreset)
         seedDerivationPaths = try container.decode(SeedDerivationPaths.self, forKey: .seedDerivationPaths)
+        derivationOverrides =
+            try container.decodeIfPresent(CoreWalletDerivationOverrides.self, forKey: .derivationOverrides)
+            ?? CoreWalletDerivationOverrides(
+                passphrase: nil, mnemonicWordlist: nil, iterationCount: nil, saltPrefix: nil, hmacKey: nil,
+                curve: nil, derivationAlgorithm: nil, addressAlgorithm: nil, publicKeyFormat: nil, scriptType: nil
+            )
         selectedChain = try container.decode(String.self, forKey: .selectedChain)
         holdings = try container.decode([PersistedCoin].self, forKey: .holdings)
         includeInPortfolioTotal = try container.decode(Bool.self, forKey: .includeInPortfolioTotal)
@@ -481,6 +497,48 @@ private enum SeedDerivationPathsCodingKeys: String, CodingKey {
     case internetComputer
     case near
     case polkadot
+}
+private enum WalletDerivationOverridesCodingKeys: String, CodingKey {
+    case passphrase
+    case mnemonicWordlist
+    case iterationCount
+    case saltPrefix
+    case hmacKey
+    case curve
+    case derivationAlgorithm
+    case addressAlgorithm
+    case publicKeyFormat
+    case scriptType
+}
+extension CoreWalletDerivationOverrides: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: WalletDerivationOverridesCodingKeys.self)
+        self.init(
+            passphrase: try container.decodeIfPresent(String.self, forKey: .passphrase),
+            mnemonicWordlist: try container.decodeIfPresent(String.self, forKey: .mnemonicWordlist),
+            iterationCount: try container.decodeIfPresent(UInt32.self, forKey: .iterationCount),
+            saltPrefix: try container.decodeIfPresent(String.self, forKey: .saltPrefix),
+            hmacKey: try container.decodeIfPresent(String.self, forKey: .hmacKey),
+            curve: try container.decodeIfPresent(String.self, forKey: .curve),
+            derivationAlgorithm: try container.decodeIfPresent(String.self, forKey: .derivationAlgorithm),
+            addressAlgorithm: try container.decodeIfPresent(String.self, forKey: .addressAlgorithm),
+            publicKeyFormat: try container.decodeIfPresent(String.self, forKey: .publicKeyFormat),
+            scriptType: try container.decodeIfPresent(String.self, forKey: .scriptType)
+        )
+    }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: WalletDerivationOverridesCodingKeys.self)
+        try container.encodeIfPresent(passphrase, forKey: .passphrase)
+        try container.encodeIfPresent(mnemonicWordlist, forKey: .mnemonicWordlist)
+        try container.encodeIfPresent(iterationCount, forKey: .iterationCount)
+        try container.encodeIfPresent(saltPrefix, forKey: .saltPrefix)
+        try container.encodeIfPresent(hmacKey, forKey: .hmacKey)
+        try container.encodeIfPresent(curve, forKey: .curve)
+        try container.encodeIfPresent(derivationAlgorithm, forKey: .derivationAlgorithm)
+        try container.encodeIfPresent(addressAlgorithm, forKey: .addressAlgorithm)
+        try container.encodeIfPresent(publicKeyFormat, forKey: .publicKeyFormat)
+        try container.encodeIfPresent(scriptType, forKey: .scriptType)
+    }
 }
 extension SeedDerivationPaths: Codable {
     public init(from decoder: Decoder) throws {

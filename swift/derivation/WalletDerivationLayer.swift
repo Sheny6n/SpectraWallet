@@ -27,20 +27,25 @@ enum WalletDerivationError: LocalizedError {
 enum WalletDerivationLayer {
     static func derive(
         seedPhrase: String, chain: SeedDerivationChain, network: WalletDerivationNetwork = .mainnet,
-        derivationPath: String? = nil, requestedOutputs: WalletDerivationRequestedOutputs = .all
+        derivationPath: String? = nil, requestedOutputs: WalletDerivationRequestedOutputs = .all,
+        overrides: CoreWalletDerivationOverrides? = nil
     ) throws -> WalletRustDerivationResponseModel {
         guard !requestedOutputs.isEmpty else { throw WalletDerivationError.emptyRequestedOutputs }
         let request = try WalletRustDerivationBridge.makeRequestModel(
             chain: chain, network: network, seedPhrase: seedPhrase, derivationPath: derivationPath,
-            passphrase: nil, iterationCount: nil, hmacKeyString: nil, requestedOutputs: requestedOutputs
+            passphrase: nil, iterationCount: nil, hmacKeyString: nil, requestedOutputs: requestedOutputs,
+            overrides: overrides
         )
         return try WalletRustDerivationBridge.derive(request)
     }
-    static func deriveAddress(seedPhrase: String, chain: SeedDerivationChain, network: WalletDerivationNetwork, derivationPath: String)
-        throws -> String
+    static func deriveAddress(
+        seedPhrase: String, chain: SeedDerivationChain, network: WalletDerivationNetwork, derivationPath: String,
+        overrides: CoreWalletDerivationOverrides? = nil
+    ) throws -> String
     {
         let result = try derive(
-            seedPhrase: seedPhrase, chain: chain, network: network, derivationPath: derivationPath, requestedOutputs: .address)
+            seedPhrase: seedPhrase, chain: chain, network: network, derivationPath: derivationPath,
+            requestedOutputs: .address, overrides: overrides)
         guard let address = result.address else { throw WalletDerivationError.emptyRequestedOutputs }
         return address
     }

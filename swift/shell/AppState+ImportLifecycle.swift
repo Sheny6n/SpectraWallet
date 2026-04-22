@@ -5,8 +5,9 @@ extension AppState {
     func resetImportForm() {
         importDraft.configureForNewWallet()
     }
-    func beginWalletImport() {
+    func beginWalletImport(setupMode: SetupModeChoice = .simple) {
         importDraft.configureForNewWallet()
+        importDraft.setupModeChoice = setupMode
         importError = nil
         isImportingWallet = false
         editingWalletID = nil
@@ -14,13 +15,17 @@ extension AppState {
     }
     func beginWatchAddressesImport() {
         importDraft.configureForWatchAddressesImport()
+        // Watch mode doesn't use derivation, so the simple/advanced toggle is
+        // irrelevant — always reset to simple so the state is deterministic.
+        importDraft.setupModeChoice = .simple
         importError = nil
         isImportingWallet = false
         editingWalletID = nil
         isShowingWalletImporter = true
     }
-    func beginWalletCreation() {
+    func beginWalletCreation(setupMode: SetupModeChoice = .simple) {
         importDraft.configureForCreatedWallet()
+        importDraft.setupModeChoice = setupMode
         importError = nil
         isImportingWallet = false
         editingWalletID = nil

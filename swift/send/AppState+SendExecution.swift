@@ -126,7 +126,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: privateKey, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: nil, tokenDecimals: nil, feeRateSvb: nil, feeSat: nil, gasBudget: nil, feeAmount: nil,
-                        evmOverridesFragment: nil, moneroPriority: nil
+                        evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -210,7 +210,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: nil, tokenDecimals: nil, feeRateSvb: feeRateSvB, feeSat: nil, gasBudget: nil, feeAmount: nil,
-                        evmOverridesFragment: nil, moneroPriority: nil
+                        evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -298,7 +298,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: dogecoinAmount,
                         contractAddress: nil, tokenDecimals: nil, feeRateSvb: feeRateDogePerKb, feeSat: nil, gasBudget: nil, feeAmount: nil,
-                        evmOverridesFragment: nil, moneroPriority: nil
+                        evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -364,7 +364,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: privateKey, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: contractAddress, tokenDecimals: tokenDecimals, feeRateSvb: nil, feeSat: nil, gasBudget: nil,
-                        feeAmount: nil, evmOverridesFragment: nil, moneroPriority: nil
+                        feeAmount: nil, evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -438,7 +438,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: contractAddress, tokenDecimals: tokenDecimals, feeRateSvb: nil, feeSat: nil, gasBudget: nil,
-                        feeAmount: nil, evmOverridesFragment: nil, moneroPriority: nil
+                        feeAmount: nil, evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -548,7 +548,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: contractAddress, tokenDecimals: UInt32(decimals), feeRateSvb: nil, feeSat: nil, gasBudget: nil,
-                        feeAmount: nil, evmOverridesFragment: nil, moneroPriority: nil
+                        feeAmount: nil, evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -666,7 +666,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: privateKey, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: contractAddress, tokenDecimals: tokenDecimals, feeRateSvb: nil, feeSat: nil, gasBudget: nil,
-                        feeAmount: nil, evmOverridesFragment: overridesFragment, moneroPriority: nil
+                        feeAmount: nil, evmOverridesFragment: overridesFragment, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let evmResult = decodeEvmSendResult(
                     result.resultJson, fallbackNonce: explicitNonce.map(Int64.init) ?? ethereumSendPreview?.nonce ?? 0
@@ -740,7 +740,7 @@ extension AppState {
                     amount: amount,
                     contractAddress: nil, tokenDecimals: nil, feeRateSvb: nil, feeSat: nil,
                     gasBudget: gasBudgetFromFee ? fee : nil, feeAmount: feeAmountFromFee ? fee : nil,
-                    evmOverridesFragment: nil, moneroPriority: moneroPriority
+                    evmOverridesFragment: nil, moneroPriority: moneroPriority, derivationOverrides: wallet.derivationOverrides
                 ))
             let transaction = decoratePendingSendTransaction(
                 TransactionRecord(
@@ -789,7 +789,7 @@ extension AppState {
                     chainId: chainId, chainName: chainName, derivationPath: walletDerivationPath(for: wallet, chain: chain),
                     seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress, amount: amount,
                     contractAddress: nil, tokenDecimals: nil, feeRateSvb: nil, feeSat: feeSat, gasBudget: nil, feeAmount: nil,
-                    evmOverridesFragment: nil, moneroPriority: nil
+                    evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                 ))
             let transaction = decoratePendingSendTransaction(
                 TransactionRecord(

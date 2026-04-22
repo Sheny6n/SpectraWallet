@@ -572,6 +572,7 @@ extension ImportedWallet {
             suiAddress: snapshot.suiAddress, aptosAddress: snapshot.aptosAddress, tonAddress: snapshot.tonAddress,
             icpAddress: snapshot.icpAddress, nearAddress: snapshot.nearAddress, polkadotAddress: snapshot.polkadotAddress,
             seedDerivationPreset: snapshot.seedDerivationPreset, seedDerivationPaths: snapshot.seedDerivationPaths,
+            derivationOverrides: snapshot.derivationOverrides,
             selectedChain: snapshot.selectedChain, holdings: snapshot.holdings.map(Coin.init(snapshot:)),
             includeInPortfolioTotal: snapshot.includeInPortfolioTotal
         )
@@ -585,6 +586,7 @@ extension ImportedWallet {
             xrpAddress: xrpAddress, moneroAddress: moneroAddress, cardanoAddress: cardanoAddress, suiAddress: suiAddress,
             aptosAddress: aptosAddress, tonAddress: tonAddress, icpAddress: icpAddress, nearAddress: nearAddress,
             polkadotAddress: polkadotAddress, seedDerivationPreset: seedDerivationPreset, seedDerivationPaths: seedDerivationPaths,
+            derivationOverrides: derivationOverrides,
             selectedChain: selectedChain, holdings: holdings.map(\.persistedSnapshot), includeInPortfolioTotal: includeInPortfolioTotal
         )
     }

@@ -61,7 +61,6 @@ struct SetupView: View {
         $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
     }
     private enum SetupPage {
-        case setupModeChoice
         case details
         case watchAddresses
         case seedPhrase
@@ -69,17 +68,12 @@ struct SetupView: View {
         case advanced
         case backupVerification
     }
-    private enum SetupModeChoice {
-        case simple
-        case advanced
-    }
     private let store: AppState
     @Bindable var draft: WalletImportDraft
     private let copy = ImportFlowContent.current
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     @State private var setupPage: SetupPage
-    @State private var setupModeChoice: SetupModeChoice?
     @State private var customSeedPhraseWordCountInput: String
     @State private var chainSearchText: String = ""
     @State private var isShowingAllChainsSheet: Bool = false
@@ -94,7 +88,7 @@ struct SetupView: View {
     init(store: AppState, draft: WalletImportDraft) {
         self.store = store
         self.draft = draft
-        _setupPage = State(initialValue: draft.isEditingWallet ? .details : .setupModeChoice)
+        _setupPage = State(initialValue: .details)
         _customSeedPhraseWordCountInput = State(initialValue: String(draft.selectedSeedPhraseWordCount))
     }
     private var isEditingWallet: Bool { draft.isEditingWallet }
@@ -107,15 +101,13 @@ struct SetupView: View {
     private var isPrivateKeyImportMode: Bool { draft.isPrivateKeyImportMode }
     private var usesWatchAddressesFlow: Bool { !isEditingWallet && draft.isWatchOnlyMode }
     private var isShowingDetailsPage: Bool { setupPage == .details }
-    private var isShowingSetupModeChoicePage: Bool { setupPage == .setupModeChoice }
     private var isShowingSeedPhrasePage: Bool { setupPage == .seedPhrase }
     private var isShowingWatchAddressesPage: Bool { setupPage == .watchAddresses }
     private var isShowingPasswordPage: Bool { setupPage == .password }
     private var isShowingBackupVerificationPage: Bool { setupPage == .backupVerification }
     private var isShowingAdvancedPage: Bool { setupPage == .advanced }
-    private var isSimpleSetupSelected: Bool { setupModeChoice == .simple }
+    private var isSimpleSetupSelected: Bool { draft.setupModeChoice == .simple }
     private var setupTitle: String {
-        if isShowingSetupModeChoicePage { return AppLocalization.string("Choose Setup Type") }
         if isShowingBackupVerificationPage { return copy.backupVerificationTitle }
         if isShowingAdvancedPage { return copy.advancedTitle }
         if isShowingPasswordPage { return AppLocalization.string("import_flow.wallet_password_title") }
@@ -129,9 +121,6 @@ struct SetupView: View {
         return isWatchAddressesImportMode ? copy.watchAddressesTitle : copy.importWalletTitle
     }
     private var setupSubtitle: String {
-        if isShowingSetupModeChoicePage {
-            return AppLocalization.string("Start with a guided simple setup or continue with full advanced controls.")
-        }
         if isShowingBackupVerificationPage { return copy.backupVerificationSubtitle }
         if isShowingAdvancedPage { return copy.advancedSubtitle }
         if isShowingPasswordPage { return AppLocalization.string("import_flow.wallet_password_subtitle") }
@@ -214,7 +203,6 @@ struct SetupView: View {
         return store.canImportWallet && !store.isImportingWallet
     }
     private var primaryActionTitle: String {
-        if isShowingSetupModeChoicePage { return AppLocalization.string("import_flow.next") }
         if isShowingDetailsPage && (usesSeedPhraseFlow || usesWatchAddressesFlow) { return AppLocalization.string("import_flow.next") }
         if isShowingAdvancedPage { return "" }
         if isShowingSeedPhrasePage { return AppLocalization.string("import_flow.next") }
@@ -225,7 +213,6 @@ struct SetupView: View {
             ? AppLocalization.string("import_flow.watch_addresses") : AppLocalization.string("import_flow.import_wallet")
     }
     private var isPrimaryActionEnabled: Bool {
-        if isShowingSetupModeChoicePage { return setupModeChoice != nil && !store.isImportingWallet }
         if isShowingDetailsPage && (usesSeedPhraseFlow || usesWatchAddressesFlow) { return canAdvanceFromDetailsPage }
         if isShowingAdvancedPage { return false }
         if isShowingSeedPhrasePage { return canContinueFromSecretStep }
@@ -248,46 +235,6 @@ struct SetupView: View {
     private var chainSelectionSubtitle: String {
         if isCreateMode { return AppLocalization.string("import_flow.create_chain_selection_subtitle") }
         return AppLocalization.string("import_flow.import_chain_selection_subtitle")
-    }
-    @ViewBuilder
-    private var setupModeChoiceSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            setupModeButton(
-                title: AppLocalization.string("Simple Setup"),
-                subtitle: AppLocalization.string("Recommended defaults and fewer required choices."), iconName: "sparkles", tint: .green,
-                choice: .simple
-            )
-            setupModeButton(
-                title: AppLocalization.string("Advanced Setup"),
-                subtitle: AppLocalization.string("Configure derivation paths and network-level options."), iconName: "slider.horizontal.3",
-                tint: .orange, choice: .advanced
-            )
-        }
-    }
-    @ViewBuilder
-    private func setupModeButton(title: String, subtitle: String, iconName: String, tint: Color, choice: SetupModeChoice) -> some View {
-        let isSelected = setupModeChoice == choice
-        Button {
-            setupModeChoice = choice
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: iconName).font(.subheadline.weight(.semibold)).foregroundStyle(tint).frame(width: 28, height: 28)
-                    .background(tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
-                    Text(subtitle).font(.caption).foregroundStyle(Color.primary.opacity(0.68))
-                }
-                Spacer()
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle").font(.subheadline.weight(.semibold)).foregroundStyle(
-                    isSelected ? tint : Color.primary.opacity(0.3))
-            }.padding(.horizontal, 12).padding(.vertical, 12).background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous).fill(
-                    isSelected ? tint.opacity(0.12) : Color.white.opacity(colorScheme == .light ? 0.78 : 0.05))
-            ).overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(
-                    isSelected ? tint.opacity(0.75) : Color.primary.opacity(0.08), lineWidth: 1)
-            )
-        }.buttonStyle(.plain)
     }
     @ViewBuilder
     private func seedPhraseField(at index: Int) -> some View {
@@ -444,6 +391,322 @@ struct SetupView: View {
         }
     }
     @ViewBuilder
+    private var setupHeaderCard: some View {
+        setupCard(glassOpacity: 0.033) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 12) {
+                    SpectraLogo(size: 56)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(setupTitle).font(.system(size: 28, weight: .black, design: .rounded)).foregroundStyle(Color.primary)
+                            .lineLimit(2).minimumScaleFactor(0.8).allowsTightening(true).layoutPriority(1).fixedSize(
+                                horizontal: false, vertical: true)
+                        Text(setupSubtitle).font(.footnote).foregroundStyle(Color.primary.opacity(0.76))
+                    }
+                    Spacer()
+                }
+            }
+        }
+    }
+    @ViewBuilder
+    private var initialPageSection: some View {
+        if isShowingBackupVerificationPage {
+            backupVerificationStepSection
+        } else if !isEditingWallet && isShowingDetailsPage {
+            chainSelectionCard
+        }
+    }
+    @ViewBuilder
+    private var chainSelectionCard: some View {
+        setupCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(AppLocalization.string("Chains")).font(.headline).foregroundStyle(Color.primary)
+                    }
+                    Spacer()
+                    Text(chainSelectionSummary).font(.caption.weight(.semibold)).foregroundStyle(
+                        selectedChainCount == 0 ? Color.primary.opacity(0.68) : .orange
+                    ).padding(.horizontal, 10).padding(.vertical, 6).background(
+                        Capsule(style: .continuous).fill(
+                            selectedChainCount == 0
+                                ? Color.white.opacity(colorScheme == .light ? 0.55 : 0.08) : Color.orange.opacity(0.12))
+                    )
+                }
+                LazyVGrid(columns: chainSelectionColumns, spacing: 10) {
+                    ForEach(popularChainSelectionDescriptors) { descriptor in chainSelectionCard(descriptor) }
+                }
+                if !Self.nonPopularChainSelectionDescriptors.isEmpty {
+                    Button {
+                        chainSearchText = ""
+                        isShowingAllChainsSheet = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "square.grid.2x2").font(.subheadline.weight(.semibold)).foregroundStyle(.orange).frame(
+                                width: 26, height: 26
+                            ).background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(AppLocalization.string("See All Chains")).font(.subheadline.weight(.semibold)).foregroundStyle(
+                                    Color.primary)
+                                Text(AppLocalization.string("Browse the full chain list.")).font(.caption2).foregroundStyle(
+                                    Color.primary.opacity(0.68))
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(Color.primary.opacity(0.72))
+                        }.padding(.horizontal, 12).padding(.vertical, 10).spectraInputFieldStyle()
+                    }.buttonStyle(.plain)
+                }
+                Text(chainSelectionSubtitle).font(.caption).foregroundStyle(Color.primary.opacity(0.72))
+                chainSelectionFooterNote
+            }.tint(.orange)
+        }.sheet(isPresented: $isShowingAllChainsSheet) {
+            AllChainsSelectionView(
+                chainSearchText: $chainSearchText, descriptors: Self.sortedChainSelectionDescriptors,
+                selectedChainNames: selectedChainNameSet, toggleSelection: draft.toggleChainSelection
+            )
+        }
+    }
+    @ViewBuilder
+    private var chainSelectionFooterNote: some View {
+        if isEditingWallet {
+            Text(copy.watchOnlyFixedMessage).font(.caption).foregroundStyle(Color.primary.opacity(0.6))
+        } else if isWatchAddressesImportMode {
+            Text(copy.publicAddressOnlyMessage).font(.caption).foregroundStyle(Color.primary.opacity(0.6))
+        } else if draft.wantsMonero {
+            Text(copy.moneroWatchUnsupportedMessage).font(.caption).foregroundStyle(.orange.opacity(0.9))
+        }
+    }
+    @ViewBuilder
+    private var watchAddressesPageSection: some View {
+        if isShowingWatchAddressesPage, !isEditingWallet, draft.isWatchOnlyMode {
+            setupCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(copy.addressesToWatchTitle).font(.headline).foregroundStyle(Color.primary)
+                    Text(copy.addressesToWatchSubtitle).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
+                    watchAddressesInputsGroup
+                    watchAddressesEmptyNote
+                }
+            }
+        }
+    }
+    @ViewBuilder
+    private var watchAddressesInputsGroup: some View {
+        Group {
+            watchAddressBitcoinSection
+            conditionalWatchedAddressSection(
+                condition: draft.wantsBitcoinCash, title: "Bitcoin Cash", text: $draft.bitcoinCashAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "bitcoinCash") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsBitcoinSV, title: "Bitcoin SV", text: $draft.bitcoinSvAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "bitcoinSV") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsDogecoin, title: "Dogecoin", text: $draft.dogecoinAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "dogecoin", networkMode: store.dogecoinNetworkMode.rawValue) })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsLitecoin, title: "Litecoin", text: $draft.litecoinAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "litecoin") })
+            watchAddressEvmSection
+            conditionalWatchedAddressSection(
+                condition: draft.wantsTron, title: "Tron", text: $draft.tronAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "tron") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsSolana, title: "Solana", text: $draft.solanaAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "solana") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsXRP, title: "XRP Ledger", text: $draft.xrpAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "xrp") })
+        }
+        Group {
+            conditionalWatchedAddressSection(
+                condition: draft.wantsMonero, title: "Monero", text: $draft.moneroAddressInput)
+            conditionalWatchedAddressSection(
+                condition: draft.wantsCardano, title: "Cardano", text: $draft.cardanoAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "cardano") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsSui, title: "Sui", text: $draft.suiAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "sui") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsAptos, title: "Aptos", text: $draft.aptosAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "aptos") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsTON, title: "TON", text: $draft.tonAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "ton") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsICP, title: "Internet Computer", text: $draft.icpAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "internetComputer") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsNear, title: "NEAR", text: $draft.nearAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "near") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsPolkadot, title: "Polkadot", text: $draft.polkadotAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "polkadot") })
+            conditionalWatchedAddressSection(
+                condition: draft.wantsStellar, title: "Stellar", text: $draft.stellarAddressInput,
+                validator: { AddressValidation.isValid($0, kind: "stellar") })
+        }
+    }
+    @ViewBuilder
+    private var watchAddressBitcoinSection: some View {
+        if draft.wantsBitcoin {
+            let bitcoinAddressEntries = draft.watchOnlyEntries(from: draft.bitcoinAddressInput)
+            let bitcoinValidation = watchedAddressValidationMessage(
+                entries: bitcoinAddressEntries, assetName: "Bitcoin",
+                validator: { AddressValidation.isValid($0, kind: "bitcoin", networkMode: store.bitcoinNetworkMode.rawValue) }
+            )
+            watchedAddressSection(
+                title: "Bitcoin", text: $draft.bitcoinAddressInput, caption: copy.bitcoinWatchCaption,
+                validationMessage: bitcoinValidation.message, validationColor: bitcoinValidation.color
+            )
+            TextField("xpub... / zpub...", text: $draft.bitcoinXpubInput).textInputAutocapitalization(.never)
+                .autocorrectionDisabled().padding(14).spectraInputFieldStyle().foregroundStyle(Color.primary)
+        }
+    }
+    @ViewBuilder
+    private var watchAddressEvmSection: some View {
+        if draft.wantsEthereum || draft.wantsEthereumClassic || draft.wantsArbitrum || draft.wantsOptimism
+            || draft.wantsBNBChain || draft.wantsAvalanche || draft.wantsHyperliquid
+        {
+            let ethereumAddressEntries = draft.watchOnlyEntries(from: draft.ethereumAddressInput)
+            let evmValidation = watchedAddressValidationMessage(
+                entries: ethereumAddressEntries, assetName: "EVM",
+                validator: { AddressValidation.isValid($0, kind: "evm") }
+            )
+            watchedAddressSection(
+                title: "EVM (Ethereum / ETC / Arbitrum / Optimism / BNB Chain / Avalanche / Hyperliquid)",
+                text: $draft.ethereumAddressInput, validationMessage: evmValidation.message,
+                validationColor: evmValidation.color
+            )
+        }
+    }
+    @ViewBuilder
+    private var watchAddressesEmptyNote: some View {
+        if !draft.wantsBitcoin && !draft.wantsBitcoinCash && !draft.wantsBitcoinSV && !draft.wantsLitecoin
+            && !draft.wantsDogecoin && !draft.wantsEthereum && !draft.wantsEthereumClassic && !draft.wantsSolana
+            && !draft.wantsBNBChain && !draft.wantsTron && !draft.wantsXRP && !draft.wantsMonero
+            && !draft.wantsCardano && !draft.wantsSui && !draft.wantsAptos && !draft.wantsTON && !draft.wantsICP
+            && !draft.wantsNear && !draft.wantsPolkadot && !draft.wantsStellar
+        {
+            Text(AppLocalization.string("Select a supported chain above to enter its address to watch.")).font(.caption)
+                .foregroundStyle(.orange.opacity(0.9))
+        }
+    }
+    @ViewBuilder
+    private var walletNamePageSection: some View {
+        if isShowingDetailsPage || isEditingWallet {
+            setupCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(
+                        isEditingWallet
+                            ? AppLocalization.string("import_flow.wallet_name")
+                            : AppLocalization.string("import_flow.wallet_name_optional")
+                    ).font(.headline).foregroundStyle(Color.primary)
+                    if !isEditingWallet {
+                        Text(AppLocalization.string("import_flow.wallet_name_hint")).font(.subheadline).foregroundStyle(
+                            Color.primary.opacity(0.76))
+                    }
+                    HStack(spacing: 10) {
+                        TextField(AppLocalization.string("import_flow.wallet_name_placeholder"), text: $draft.walletName)
+                            .textInputAutocapitalization(.words).autocorrectionDisabled().foregroundStyle(Color.primary)
+                        if isEditingWallet && !draft.walletName.isEmpty {
+                            Button { draft.walletName = "" } label: {
+                                Image(systemName: "xmark.circle.fill").font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(Color.primary.opacity(0.5))
+                            }.buttonStyle(.plain).accessibilityLabel("Clear wallet name")
+                        }
+                    }.padding(14).spectraInputFieldStyle()
+                }
+            }
+        }
+    }
+    @ViewBuilder
+    private var seedPhrasePageSection: some View {
+        if isShowingSeedPhrasePage && !draft.isWatchOnlyMode {
+            setupCard {
+                VStack(alignment: .leading, spacing: 14) { walletSecretStepSection }
+            }
+        }
+    }
+    @ViewBuilder
+    private var passwordPageSection: some View {
+        if isShowingPasswordPage {
+            setupCard { walletPasswordStepSection }
+        }
+    }
+    @ViewBuilder
+    private var advancedPageSection: some View {
+        if isShowingAdvancedPage {
+            setupCard { derivationAdvancedContent }
+        }
+    }
+    @ViewBuilder
+    private var importStatusSection: some View {
+        if let importError = store.importError {
+            Text(importError).font(.footnote).foregroundStyle(.red.opacity(0.9))
+        }
+        if store.isImportingWallet {
+            HStack(spacing: 10) {
+                ProgressView().tint(.white)
+                Text(AppLocalization.string("import_flow.initializing_wallet_connections")).font(.footnote).foregroundStyle(
+                    Color.primary.opacity(0.8))
+            }.frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+    @ViewBuilder
+    private var primaryActionButton: some View {
+        if !isShowingAdvancedPage {
+            Button(action: performPrimaryAction) {
+                HStack {
+                    Text(primaryActionTitle).font(.headline)
+                    Spacer()
+                    SpectraLogo(size: 28)
+                }.foregroundStyle(Color.primary).padding().frame(maxWidth: .infinity)
+            }.buttonStyle(.glassProminent).disabled(!isPrimaryActionEnabled).opacity(isPrimaryActionEnabled ? 1.0 : 0.55)
+        }
+    }
+    private func performPrimaryAction() {
+        if isShowingDetailsPage && usesWatchAddressesFlow {
+            withAnimation { setupPage = .watchAddresses }
+            return
+        }
+        if isShowingDetailsPage && usesSeedPhraseFlow {
+            withAnimation { setupPage = .seedPhrase }
+            return
+        }
+        if isShowingSeedPhrasePage {
+            withAnimation { setupPage = .password }
+            return
+        }
+        if isShowingPasswordPage && isCreateMode {
+            draft.prepareBackupVerificationChallenge()
+            withAnimation { setupPage = .backupVerification }
+            return
+        }
+        Task { await store.importWallet() }
+    }
+    @ViewBuilder
+    private var navigationBackButton: some View {
+        if isShowingSeedPhrasePage || isShowingWatchAddressesPage {
+            navigationBackButtonStyled(titleKey: "import_flow.back", target: .details)
+        } else if isShowingDetailsPage && !isEditingWallet {
+            // Details is now the first in-SetupView page; going "back" returns
+            // to the Add-Wallet entry screen where the simple/advanced + flow
+            // selection lives.
+            Button(AppLocalization.string("import_flow.back")) {
+                store.isShowingWalletImporter = false
+            }.buttonStyle(.glass)
+        } else if isShowingAdvancedPage {
+            navigationBackButtonStyled(titleKey: "import_flow.back", target: .seedPhrase)
+        } else if isShowingPasswordPage {
+            navigationBackButtonStyled(titleKey: "import_flow.back", target: .seedPhrase)
+        } else if isShowingBackupVerificationPage {
+            navigationBackButtonStyled(titleKey: "import_flow.back_to_wallet_password", target: .password)
+        }
+    }
+    private func navigationBackButtonStyled(titleKey: String, target: SetupPage) -> some View {
+        Button(AppLocalization.string(titleKey)) {
+            withAnimation { setupPage = target }
+        }.buttonStyle(.glass)
+    }
+    @ViewBuilder
     private var derivationAdvancedContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(advancedDescriptionText).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
@@ -459,8 +722,12 @@ struct SetupView: View {
                         ), defaultPath: chain.defaultPath, presetOptions: chain.presetOptions
                     )
                 }
+                powerUserOverridesSection
             }
         }
+    }
+    private var powerUserOverridesSection: some View {
+        PowerUserOverridesSection(draft: draft)
     }
     private var advancedDescriptionText: String {
         if hasBitcoinSelection && hasEthereumSelection && hasDogecoinSelection {
@@ -721,315 +988,181 @@ struct SetupView: View {
             SpectraBackdrop()
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 16) {
-                    setupCard(glassOpacity: 0.033) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(alignment: .top, spacing: 12) {
-                                SpectraLogo(size: 56)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(setupTitle).font(.system(size: 28, weight: .black, design: .rounded)).foregroundStyle(
-                                        Color.primary
-                                    ).lineLimit(2).minimumScaleFactor(0.8).allowsTightening(true).layoutPriority(1).fixedSize(
-                                        horizontal: false, vertical: true)
-                                    Text(setupSubtitle).font(.footnote).foregroundStyle(Color.primary.opacity(0.76))
-                                }
-                                Spacer()
-                            }
-                        }
-                    }
-                    if isShowingBackupVerificationPage {
-                        backupVerificationStepSection
-                    } else if isShowingSetupModeChoicePage {
-                        setupCard {
-                            setupModeChoiceSection
-                        }
-                    } else if !isEditingWallet && isShowingDetailsPage {
-                        setupCard {
-                            VStack(alignment: .leading, spacing: 14) {
-                                HStack(alignment: .center, spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(AppLocalization.string("Chains")).font(.headline).foregroundStyle(Color.primary)
-                                    }
-                                    Spacer()
-                                    Text(chainSelectionSummary).font(.caption.weight(.semibold)).foregroundStyle(
-                                        selectedChainCount == 0 ? Color.primary.opacity(0.68) : .orange
-                                    ).padding(.horizontal, 10).padding(.vertical, 6).background(
-                                        Capsule(style: .continuous).fill(
-                                            selectedChainCount == 0
-                                                ? Color.white.opacity(colorScheme == .light ? 0.55 : 0.08) : Color.orange.opacity(0.12))
-                                    )
-                                }
-                                LazyVGrid(columns: chainSelectionColumns, spacing: 10) {
-                                    ForEach(popularChainSelectionDescriptors) { descriptor in chainSelectionCard(descriptor) }
-                                }
-                                if !Self.nonPopularChainSelectionDescriptors.isEmpty {
-                                    Button {
-                                        chainSearchText = ""
-                                        isShowingAllChainsSheet = true
-                                    } label: {
-                                        HStack(spacing: 12) {
-                                            Image(systemName: "square.grid.2x2").font(.subheadline.weight(.semibold)).foregroundStyle(
-                                                .orange
-                                            ).frame(width: 26, height: 26).background(
-                                                Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(AppLocalization.string("See All Chains")).font(.subheadline.weight(.semibold))
-                                                    .foregroundStyle(Color.primary)
-                                                Text(AppLocalization.string("Browse the full chain list.")).font(.caption2).foregroundStyle(
-                                                    Color.primary.opacity(0.68))
-                                            }
-                                            Spacer()
-                                            Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(
-                                                Color.primary.opacity(0.72))
-                                        }.padding(.horizontal, 12).padding(.vertical, 10).spectraInputFieldStyle()
-                                    }.buttonStyle(.plain)
-                                }
-                                Text(chainSelectionSubtitle).font(.caption).foregroundStyle(Color.primary.opacity(0.72))
-                                if isEditingWallet {
-                                    Text(copy.watchOnlyFixedMessage).font(.caption).foregroundStyle(Color.primary.opacity(0.6))
-                                } else if isWatchAddressesImportMode {
-                                    Text(copy.publicAddressOnlyMessage).font(.caption).foregroundStyle(Color.primary.opacity(0.6))
-                                } else if draft.wantsMonero {
-                                    Text(copy.moneroWatchUnsupportedMessage).font(.caption).foregroundStyle(.orange.opacity(0.9))
-                                }
-                            }.tint(.orange)
-                        }.sheet(isPresented: $isShowingAllChainsSheet) {
-                            AllChainsSelectionView(
-                                chainSearchText: $chainSearchText, descriptors: Self.sortedChainSelectionDescriptors,
-                                selectedChainNames: selectedChainNameSet, toggleSelection: draft.toggleChainSelection
-                            )
-                        }
-                    }
-                    if isShowingWatchAddressesPage, !isEditingWallet, draft.isWatchOnlyMode {
-                        setupCard {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Text(copy.addressesToWatchTitle).font(.headline).foregroundStyle(Color.primary)
-                                Text(copy.addressesToWatchSubtitle).font(.subheadline).foregroundStyle(Color.primary.opacity(0.76))
-                                if draft.wantsBitcoin {
-                                    let bitcoinAddressEntries = draft.watchOnlyEntries(from: draft.bitcoinAddressInput)
-                                    let bitcoinValidation = watchedAddressValidationMessage(
-                                        entries: bitcoinAddressEntries, assetName: "Bitcoin",
-                                        validator: {
-                                            AddressValidation.isValid($0, kind: "bitcoin", networkMode: store.bitcoinNetworkMode.rawValue)
-                                        }
-                                    )
-                                    watchedAddressSection(
-                                        title: "Bitcoin", text: $draft.bitcoinAddressInput, caption: copy.bitcoinWatchCaption,
-                                        validationMessage: bitcoinValidation.message, validationColor: bitcoinValidation.color
-                                    )
-                                    TextField("xpub... / zpub...", text: $draft.bitcoinXpubInput).textInputAutocapitalization(.never)
-                                        .autocorrectionDisabled().padding(14).spectraInputFieldStyle().foregroundStyle(Color.primary)
-                                }
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsBitcoinCash, title: "Bitcoin Cash", text: $draft.bitcoinCashAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "bitcoinCash") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsBitcoinSV, title: "Bitcoin SV", text: $draft.bitcoinSvAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "bitcoinSV") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsDogecoin, title: "Dogecoin", text: $draft.dogecoinAddressInput,
-                                    validator: {
-                                        AddressValidation.isValid($0, kind: "dogecoin", networkMode: store.dogecoinNetworkMode.rawValue)
-                                    })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsLitecoin, title: "Litecoin", text: $draft.litecoinAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "litecoin") })
-                                if draft.wantsEthereum || draft.wantsEthereumClassic || draft.wantsArbitrum || draft.wantsOptimism
-                                    || draft.wantsBNBChain || draft.wantsAvalanche || draft.wantsHyperliquid
-                                {
-                                    let ethereumAddressEntries = draft.watchOnlyEntries(from: draft.ethereumAddressInput)
-                                    let evmValidation = watchedAddressValidationMessage(
-                                        entries: ethereumAddressEntries, assetName: "EVM",
-                                        validator: { AddressValidation.isValid($0, kind: "evm") }
-                                    )
-                                    watchedAddressSection(
-                                        title: "EVM (Ethereum / ETC / Arbitrum / Optimism / BNB Chain / Avalanche / Hyperliquid)",
-                                        text: $draft.ethereumAddressInput, validationMessage: evmValidation.message,
-                                        validationColor: evmValidation.color
-                                    )
-                                }
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsTron, title: "Tron", text: $draft.tronAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "tron") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsSolana, title: "Solana", text: $draft.solanaAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "solana") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsXRP, title: "XRP Ledger", text: $draft.xrpAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "xrp") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsMonero, title: "Monero", text: $draft.moneroAddressInput)
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsCardano, title: "Cardano", text: $draft.cardanoAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "cardano") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsSui, title: "Sui", text: $draft.suiAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "sui") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsAptos, title: "Aptos", text: $draft.aptosAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "aptos") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsTON, title: "TON", text: $draft.tonAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "ton") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsICP, title: "Internet Computer", text: $draft.icpAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "internetComputer") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsNear, title: "NEAR", text: $draft.nearAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "near") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsPolkadot, title: "Polkadot", text: $draft.polkadotAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "polkadot") })
-                                conditionalWatchedAddressSection(
-                                    condition: draft.wantsStellar, title: "Stellar", text: $draft.stellarAddressInput,
-                                    validator: { AddressValidation.isValid($0, kind: "stellar") })
-                                if !draft.wantsBitcoin && !draft.wantsBitcoinCash && !draft.wantsBitcoinSV && !draft.wantsLitecoin
-                                    && !draft.wantsDogecoin && !draft.wantsEthereum && !draft.wantsEthereumClassic && !draft.wantsSolana
-                                    && !draft.wantsBNBChain && !draft.wantsTron && !draft.wantsXRP && !draft.wantsMonero
-                                    && !draft.wantsCardano && !draft.wantsSui && !draft.wantsAptos && !draft.wantsTON && !draft.wantsICP
-                                    && !draft.wantsNear && !draft.wantsPolkadot && !draft.wantsStellar
-                                {
-                                    Text(AppLocalization.string("Select a supported chain above to enter its address to watch.")).font(
-                                        .caption
-                                    ).foregroundStyle(.orange.opacity(0.9))
-                                }
-                            }
-                        }
-                    }
-                    if isShowingDetailsPage || isEditingWallet {
-                        setupCard {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Text(
-                                    isEditingWallet
-                                        ? AppLocalization.string("import_flow.wallet_name")
-                                        : AppLocalization.string("import_flow.wallet_name_optional")
-                                ).font(.headline).foregroundStyle(Color.primary)
-                                if !isEditingWallet {
-                                    Text(AppLocalization.string("import_flow.wallet_name_hint")).font(.subheadline).foregroundStyle(
-                                        Color.primary.opacity(0.76))
-                                }
-                                HStack(spacing: 10) {
-                                    TextField(AppLocalization.string("import_flow.wallet_name_placeholder"), text: $draft.walletName)
-                                        .textInputAutocapitalization(.words).autocorrectionDisabled().foregroundStyle(Color.primary)
-                                    if isEditingWallet && !draft.walletName.isEmpty {
-                                        Button {
-                                            draft.walletName = ""
-                                        } label: {
-                                            Image(systemName: "xmark.circle.fill").font(.system(size: 18, weight: .semibold))
-                                                .foregroundStyle(Color.primary.opacity(0.5))
-                                        }.buttonStyle(.plain).accessibilityLabel("Clear wallet name")
-                                    }
-                                }.padding(14).spectraInputFieldStyle()
-                            }
-                        }
-                    }
-                    if isShowingSeedPhrasePage && !draft.isWatchOnlyMode {
-                        setupCard {
-                            VStack(alignment: .leading, spacing: 14) { walletSecretStepSection }
-                        }
-                    }
-                    if isShowingPasswordPage {
-                        setupCard {
-                            walletPasswordStepSection
-                        }
-                    }
-                    if isShowingAdvancedPage {
-                        setupCard {
-                            derivationAdvancedContent
-                        }
-                    }
-                    if let importError = store.importError { Text(importError).font(.footnote).foregroundStyle(.red.opacity(0.9)) }
-                    if store.isImportingWallet {
-                        HStack(spacing: 10) {
-                            ProgressView().tint(.white)
-                            Text(AppLocalization.string("import_flow.initializing_wallet_connections")).font(.footnote).foregroundStyle(
-                                Color.primary.opacity(0.8))
-                        }.frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    if !isShowingAdvancedPage {
-                        Button(action: {
-                            if isShowingSetupModeChoicePage {
-                                withAnimation {
-                                    setupPage = .details
-                                }
-                                return
-                            }
-                            if isShowingDetailsPage && usesWatchAddressesFlow {
-                                withAnimation {
-                                    setupPage = .watchAddresses
-                                }
-                                return
-                            }
-                            if isShowingDetailsPage && usesSeedPhraseFlow {
-                                withAnimation {
-                                    setupPage = .seedPhrase
-                                }
-                                return
-                            }
-                            if isShowingSeedPhrasePage {
-                                withAnimation {
-                                    setupPage = .password
-                                }
-                                return
-                            }
-                            if isShowingPasswordPage && isCreateMode {
-                                draft.prepareBackupVerificationChallenge()
-                                withAnimation {
-                                    setupPage = .backupVerification
-                                }
-                                return
-                            }
-                            Task {
-                                await store.importWallet()
-                            }
-                        }) {
-                            HStack {
-                                Text(primaryActionTitle).font(.headline)
-                                Spacer()
-                                SpectraLogo(size: 28)
-                            }.foregroundStyle(Color.primary).padding().frame(maxWidth: .infinity)
-                        }.buttonStyle(.glassProminent).disabled(!isPrimaryActionEnabled).opacity(isPrimaryActionEnabled ? 1.0 : 0.55)
-                    }
-                    if isShowingSeedPhrasePage || isShowingWatchAddressesPage {
-                        Button(AppLocalization.string("import_flow.back")) {
-                            withAnimation {
-                                setupPage = .details
-                            }
-                        }.buttonStyle(.glass)
-                    } else if isShowingDetailsPage && !isEditingWallet {
-                        Button(AppLocalization.string("import_flow.back")) {
-                            withAnimation {
-                                setupPage = .setupModeChoice
-                            }
-                        }.buttonStyle(.glass)
-                    } else if isShowingAdvancedPage {
-                        Button(AppLocalization.string("import_flow.back")) {
-                            withAnimation {
-                                setupPage = .seedPhrase
-                            }
-                        }.buttonStyle(.glass)
-                    } else if isShowingPasswordPage {
-                        Button(AppLocalization.string("import_flow.back")) {
-                            withAnimation {
-                                setupPage = .seedPhrase
-                            }
-                        }.buttonStyle(.glass)
-                    } else if isShowingBackupVerificationPage {
-                        Button(AppLocalization.string("import_flow.back_to_wallet_password")) {
-                            withAnimation {
-                                setupPage = .password
-                            }
-                        }.buttonStyle(.glass)
-                    }
+                    setupHeaderCard
+                    initialPageSection
+                    watchAddressesPageSection
+                    walletNamePageSection
+                    seedPhrasePageSection
+                    passwordPageSection
+                    advancedPageSection
+                    importStatusSection
+                    primaryActionButton
+                    navigationBackButton
                 }.padding(.horizontal, 20).padding(.vertical, 24)
             }
-        }.onChange(of: draft.mode) { _, mode in
-            setupPage = draft.isEditingWallet ? .details : .setupModeChoice
-            setupModeChoice = nil
+        }.onChange(of: draft.mode) { _, _ in
+            setupPage = .details
         }.onChange(of: draft.selectedSeedPhraseWordCount) { _, newValue in
             customSeedPhraseWordCountInput = String(newValue)
         }
     }
 }
+/// Standalone `View` struct for the Advanced-mode power-user overrides section.
+/// Kept out of `SetupView` so its internal `TupleView` type doesn't cascade
+/// into `SetupView.body`'s opaque return type — that cascade is what was
+/// blowing the SwiftUI render stack.
+private struct PowerUserOverridesSection: View {
+    @Bindable var draft: WalletImportDraft
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            stage1Overrides
+            stage2Overrides
+        }.padding(14).background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.orange.opacity(0.08))
+        ).overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.orange.opacity(0.35), lineWidth: 1)
+        )
+    }
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.bold)).foregroundStyle(.orange)
+                Text(AppLocalization.string("Power-User Overrides"))
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+            }
+            Text(
+                AppLocalization.string(
+                    "These fields override chain-preset derivation defaults. Incompatible combinations (e.g., ed25519 algorithm on a secp256k1 chain) will fail at import. Leave blank to use the chain default."
+                )
+            ).font(.caption).foregroundStyle(.orange.opacity(0.9))
+        }
+    }
+    private var stage1Overrides: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            AdvancedOverrideTextField(
+                title: AppLocalization.string("Passphrase"),
+                detail: AppLocalization.string("BIP-39 passphrase (\"25th word\"). Blank = none."),
+                text: $draft.overridePassphrase, isSecure: true)
+            AdvancedOverrideTextField(
+                title: AppLocalization.string("Mnemonic Wordlist"),
+                detail: AppLocalization.string(
+                    "e.g. english, chinese_simplified, french, japanese, spanish. Blank = english."),
+                text: $draft.overrideMnemonicWordlist)
+            AdvancedOverrideTextField(
+                title: AppLocalization.string("PBKDF2 Iteration Count"),
+                detail: AppLocalization.string("BIP-39 PBKDF2 rounds. Blank = 2048 (standard)."),
+                text: $draft.overrideIterationCount, keyboard: .numberPad)
+            AdvancedOverrideTextField(
+                title: AppLocalization.string("Salt Prefix"),
+                detail: AppLocalization.string(
+                    "BIP-39 seed-derivation salt prefix. Blank = \"mnemonic\" (standard)."),
+                text: $draft.overrideSaltPrefix)
+            AdvancedOverrideTextField(
+                title: AppLocalization.string("HMAC Master Key"),
+                detail: AppLocalization.string(
+                    "BIP-32 master HMAC key string. Blank = \"Bitcoin seed\" (standard)."),
+                text: $draft.overrideHmacKey)
+        }
+    }
+    private var stage2Overrides: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            AdvancedOverridePicker(
+                title: AppLocalization.string("Curve"),
+                detail: AppLocalization.string("Override signing curve."),
+                selection: $draft.overrideCurve,
+                options: ["secp256k1", "ed25519", "sr25519"])
+            AdvancedOverridePicker(
+                title: AppLocalization.string("Derivation Algorithm"),
+                detail: AppLocalization.string("Override the seed→child-key algorithm."),
+                selection: $draft.overrideDerivationAlgorithm,
+                options: [
+                    "bip32_secp256k1", "slip10_ed25519", "direct_seed_ed25519",
+                    "ton_mnemonic", "bip32_ed25519_icarus", "substrate_bip39", "monero_bip39",
+                ])
+            AdvancedOverridePicker(
+                title: AppLocalization.string("Address Algorithm"),
+                detail: AppLocalization.string("Override the key→address encoding."),
+                selection: $draft.overrideAddressAlgorithm,
+                options: [
+                    "bitcoin", "evm", "solana", "near_hex", "ton_raw_account_id",
+                    "cardano_shelley_enterprise", "ss58", "monero_main", "ton_v4r2",
+                    "litecoin", "dogecoin", "bitcoin_cash_legacy", "bitcoin_sv_legacy",
+                    "tron_base58_check", "xrp_base58_check", "stellar_strkey",
+                    "sui_keccak", "aptos_keccak", "icp_principal",
+                ])
+            AdvancedOverridePicker(
+                title: AppLocalization.string("Public Key Format"),
+                detail: AppLocalization.string("Override the public-key encoding format."),
+                selection: $draft.overridePublicKeyFormat,
+                options: ["compressed", "uncompressed", "x_only", "raw"])
+            AdvancedOverridePicker(
+                title: AppLocalization.string("Script Type"),
+                detail: AppLocalization.string(
+                    "UTXO script type (Bitcoin only) or \"account\" for account-model chains."),
+                selection: $draft.overrideScriptType,
+                options: ["p2pkh", "p2sh_p2wpkh", "p2wpkh", "p2tr", "account"])
+        }
+    }
+}
+
+private struct AdvancedOverrideTextField: View {
+    let title: String
+    let detail: String
+    @Binding var text: String
+    var isSecure: Bool = false
+    var keyboard: UIKeyboardType = .default
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.88))
+            inputField.font(.subheadline.monospaced()).padding(.horizontal, 10).padding(.vertical, 8)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.06)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+            Text(detail).font(.caption2).foregroundStyle(Color.primary.opacity(0.6))
+        }
+    }
+    @ViewBuilder
+    private var inputField: some View {
+        if isSecure {
+            SecureField(AppLocalization.string("(default)"), text: $text)
+        } else {
+            TextField(AppLocalization.string("(default)"), text: $text)
+                .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(keyboard)
+        }
+    }
+}
+
+private struct AdvancedOverridePicker: View {
+    let title: String
+    let detail: String
+    @Binding var selection: String
+    let options: [String]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(Color.primary.opacity(0.88))
+            Menu {
+                Button(AppLocalization.string("(default)")) { selection = "" }
+                ForEach(options, id: \.self) { option in
+                    Button(option) { selection = option }
+                }
+            } label: {
+                HStack {
+                    Text(selection.isEmpty ? AppLocalization.string("(default)") : selection)
+                        .font(.subheadline.monospaced()).foregroundStyle(Color.primary)
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down").font(.caption).foregroundStyle(Color.primary.opacity(0.6))
+                }.padding(.horizontal, 10).padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.06)))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+            }.buttonStyle(.plain)
+            Text(detail).font(.caption2).foregroundStyle(Color.primary.opacity(0.6))
+        }
+    }
+}
+
 private struct AllChainsSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var chainSearchText: String
