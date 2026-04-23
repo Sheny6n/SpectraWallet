@@ -61,31 +61,17 @@ struct TokenRegistrySettingsView: View {
     @State private var sourceFilter: TokenRegistrySourceFilter = .all
     var body: some View {
         Form {
-            Section {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField(AppLocalization.string("Search name, symbol, chain, or address"), text: $searchText)
-                            .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    }.padding(.horizontal, 12).padding(.vertical, 10).background(
-                        .thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    VStack(spacing: 10) {
-                        Picker(AppLocalization.string("Network"), selection: $chainFilter) {
-                            ForEach(TokenRegistryChainFilter.allCases) { filter in Text(filter.title).tag(filter) }
-                        }.pickerStyle(.menu).frame(maxWidth: .infinity, alignment: .leading)
-                        Picker(AppLocalization.string("Source"), selection: $sourceFilter) {
-                            ForEach(TokenRegistrySourceFilter.allCases) { filter in Text(filter.title).tag(filter) }
-                        }.pickerStyle(.menu).frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    if chainFilter != .all || sourceFilter != .all || !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        HStack {
-                            Spacer(minLength: 0)
-                            Button(AppLocalization.string("Clear")) {
-                                chainFilter = .all
-                                sourceFilter = .all
-                                searchText = ""
-                            }.font(.caption.weight(.semibold)).foregroundStyle(.mint).buttonStyle(.plain)
-                        }
+            Section(AppLocalization.string("Filters")) {
+                Picker(AppLocalization.string("Network"), selection: $chainFilter) {
+                    ForEach(TokenRegistryChainFilter.allCases) { filter in Text(filter.title).tag(filter) }
+                }
+                Picker(AppLocalization.string("Source"), selection: $sourceFilter) {
+                    ForEach(TokenRegistrySourceFilter.allCases) { filter in Text(filter.title).tag(filter) }
+                }
+                if chainFilter != .all || sourceFilter != .all {
+                    Button(AppLocalization.string("Clear Filters")) {
+                        chainFilter = .all
+                        sourceFilter = .all
                     }
                 }
             }
@@ -114,15 +100,18 @@ struct TokenRegistrySettingsView: View {
                     }
                 }
             }
-        }.navigationTitle(AppLocalization.string("Tracked Tokens")).toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    AddCustomTokenView(store: store)
-                } label: {
-                    Text(AppLocalization.string("New Token"))
+        }.navigationTitle(AppLocalization.string("Tracked Tokens"))
+            .searchable(text: $searchText, prompt: AppLocalization.string("Search name, symbol, chain, or address"))
+            .textInputAutocapitalization(.never).autocorrectionDisabled()
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        AddCustomTokenView(store: store)
+                    } label: {
+                        Text(AppLocalization.string("New Token"))
+                    }
                 }
             }
-        }
     }
     private func entries(for chain: TokenTrackingChain) -> [TokenPreferenceEntry] {
         store.resolvedTokenPreferences.filter { $0.chain == chain }

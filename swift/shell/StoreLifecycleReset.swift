@@ -50,7 +50,6 @@ extension AppState {
         {
             self.dogecoinFeePriority = dogecoinFeePriority
         }
-        coinGeckoAPIKey = SecureStore.loadValue(for: Self.coinGeckoAPIKeyAccount)
         ethereumRPCEndpoint = UserDefaults.standard.string(forKey: Self.ethereumRPCEndpointDefaultsKey) ?? ""
         etherscanAPIKey = UserDefaults.standard.string(forKey: Self.etherscanAPIKeyDefaultsKey) ?? ""
         moneroBackendBaseURL = UserDefaults.standard.string(forKey: MoneroBalanceService.backendBaseURLDefaultsKey) ?? ""
@@ -139,7 +138,6 @@ extension AppState {
         for walletID in persistedWalletIDs { deleteWalletSecrets(for: walletID) }
         SecureStore.deleteValue(for: Self.walletsAccount)
         SecureStore.deleteValue(for: Self.walletsCoreSnapshotAccount)
-        SecureStore.deleteValue(for: Self.coinGeckoAPIKeyAccount)
         clearWalletSecretIndex()
         UserDefaults.standard.set(true, forKey: Self.installMarkerDefaultsKey)
     }
@@ -424,7 +422,6 @@ extension AppState {
     }
     private func resetDashboardCustomizationState() { resetPinnedDashboardAssets() }
     private func resetSettingsAndEndpointsState() {
-        SecureStore.deleteValue(for: Self.coinGeckoAPIKeyAccount)
         UserDefaults.standard.removeObject(forKey: Self.tokenPreferencesDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.pricingProviderDefaultsKey)
         UserDefaults.standard.removeObject(forKey: Self.selectedFiatCurrencyDefaultsKey)
@@ -463,7 +460,6 @@ extension AppState {
         selectedFiatCurrency = .usd
         fiatRateProvider = .openER
         assetDisplayDecimalsByChain = defaultAssetDisplayDecimalsByChain()
-        coinGeckoAPIKey = ""
         ethereumRPCEndpoint = ""
         etherscanAPIKey = ""
         ethereumNetworkMode = .mainnet

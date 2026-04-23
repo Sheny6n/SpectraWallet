@@ -175,8 +175,8 @@ struct HistoryDetailView: View {
                         spectraDetailCard(title: "Transaction Hash") {
                             Text(transactionHash).font(.body.monospaced()).foregroundStyle(.secondary).textSelection(
                                 .enabled
-                            ).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(
-                                .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            ).padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                                .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 18))
                             if let transactionExplorerURL = displayedTransaction.transactionExplorerURL,
                                 let transactionExplorerLabel = displayedTransaction.transactionExplorerLabel
                             {
@@ -192,8 +192,8 @@ struct HistoryDetailView: View {
                         spectraDetailCard(title: "Raw Transaction Hex") {
                             Text(rawTransactionHexText).font(.body.monospaced()).foregroundStyle(.secondary).textSelection(
                                 .enabled
-                            ).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(
-                                .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            ).padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                                .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 18))
                         }
                     }
                 }.padding(20)
@@ -236,7 +236,7 @@ struct HistoryDetailView: View {
             }
             Text(value).font(.body.monospaced()).foregroundStyle(.secondary).textSelection(.enabled).padding(14).frame(
                 maxWidth: .infinity, alignment: .leading
-            ).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            ).glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 18))
             Button {
                 UIPasteboard.general.string = value
                 didCopyAddress = true

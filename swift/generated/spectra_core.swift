@@ -1686,11 +1686,11 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     /**
      * Fetch USD spot prices for the supplied coins from `provider`.
      *
-     * `provider` is the Swift-side display name (e.g. "CoinGecko",
-     * "Binance Public API"). `coins` are the tracked tokens. `api_key`
-     * is only consulted by CoinGecko; pass "" for others.
+     * `provider` is the Swift-side display name (e.g. "CoinGecko").
+     * `coins` are the tracked tokens. All providers use their public
+     * endpoints — no API key plumbing.
      */
-    nonisolated func fetchPricesTyped(provider: String, coins: [PriceRequestCoin], apiKey: String) async throws  -> [String: Double]
+    nonisolated func fetchPricesTyped(provider: String, coins: [PriceRequestCoin]) async throws  -> [String: Double]
     
     /**
      * Typed simple-chain send preview: fuses `fetch_simple_chain_send_preview`
@@ -1820,6 +1820,13 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      * `db_path`. Creates the file (and the `state` table) on first use.
      */
     nonisolated func saveState(dbPath: String, key: String, stateJson: String) async throws 
+    
+    /**
+     * Swift pushes the user's Etherscan V2 API key here. Used for EVM history
+     * fetches across every indexed EVM chain (chainid is passed as a query
+     * param, so one key covers all of them).
+     */
+    nonisolated func setEtherscanApiKey(key: String) 
     
     /**
      * Explicitly mark a (chain, wallet) pair as exhausted or not. Used when
@@ -2634,17 +2641,17 @@ nonisolated open func fetchNormalizedHistory(chainId: UInt32, address: String)as
     /**
      * Fetch USD spot prices for the supplied coins from `provider`.
      *
-     * `provider` is the Swift-side display name (e.g. "CoinGecko",
-     * "Binance Public API"). `coins` are the tracked tokens. `api_key`
-     * is only consulted by CoinGecko; pass "" for others.
+     * `provider` is the Swift-side display name (e.g. "CoinGecko").
+     * `coins` are the tracked tokens. All providers use their public
+     * endpoints — no API key plumbing.
      */
-nonisolated open func fetchPricesTyped(provider: String, coins: [PriceRequestCoin], apiKey: String)async throws  -> [String: Double]  {
+nonisolated open func fetchPricesTyped(provider: String, coins: [PriceRequestCoin])async throws  -> [String: Double]  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_spectra_core_fn_method_walletservice_fetch_prices_typed(
                     self.uniffiClonePointer(),
-                    FfiConverterString.lower(provider),FfiConverterSequenceTypePriceRequestCoin.lower(coins),FfiConverterString.lower(apiKey)
+                    FfiConverterString.lower(provider),FfiConverterSequenceTypePriceRequestCoin.lower(coins)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
@@ -3078,6 +3085,18 @@ nonisolated open func saveState(dbPath: String, key: String, stateJson: String)a
             liftFunc: { $0 },
             errorHandler: FfiConverterTypeSpectraBridgeError_lift
         )
+}
+    
+    /**
+     * Swift pushes the user's Etherscan V2 API key here. Used for EVM history
+     * fetches across every indexed EVM chain (chainid is passed as a query
+     * param, so one key covers all of them).
+     */
+nonisolated open func setEtherscanApiKey(key: String)  {try! rustCall() {
+    uniffi_spectra_core_fn_method_walletservice_set_etherscan_api_key(self.uniffiClonePointer(),
+        FfiConverterString.lower(key),$0
+    )
+}
 }
     
     /**
@@ -40300,7 +40319,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_normalized_history() != 50340) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_fetch_prices_typed() != 13945) {
+    if (uniffi_spectra_core_checksum_method_walletservice_fetch_prices_typed() != 38141) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_fetch_simple_chain_send_preview_typed() != 3630) {
@@ -40373,6 +40392,9 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_save_state() != 52684) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_method_walletservice_set_etherscan_api_key() != 35706) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_set_history_exhausted() != 57823) {

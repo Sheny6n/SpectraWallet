@@ -51,13 +51,6 @@ struct AddressBookView: View {
     }
     var body: some View {
         Form {
-            Section {
-                Text(
-                    AppLocalization.string(
-                        "Save trusted recipient addresses here so you can reuse them in Send without retyping. Spectra currently supports address book validation for Bitcoin, Litecoin, Dogecoin, Ethereum, Ethereum Classic, Arbitrum, Optimism, BNB Chain, Avalanche, Hyperliquid, Tron, Solana, Cardano, XRP Ledger, Monero, Sui, Aptos, TON, Internet Computer, NEAR, Polkadot, and Stellar."
-                    )
-                ).font(.caption).foregroundStyle(.secondary)
-            }
             Section(AppLocalization.string("New Contact")) {
                 TextField(AppLocalization.string("Name"), text: $contactName).textInputAutocapitalization(.words).autocorrectionDisabled()
                 Picker(AppLocalization.string("Chain"), selection: $selectedChainName) {

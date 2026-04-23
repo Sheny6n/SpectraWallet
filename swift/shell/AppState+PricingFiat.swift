@@ -5,6 +5,7 @@ import os
 extension AppState {
     @discardableResult
     func refreshLivePrices() async -> Bool {
+        NSLog("[spectra] refreshLivePrices enter isRefreshing=\(isRefreshingLivePrices) provider=\(pricingProvider.rawValue)")
         guard !isRefreshingLivePrices else { return false }
         isRefreshingLivePrices = true
         defer {
@@ -13,6 +14,7 @@ extension AppState {
         }
         var didUpdatePrices = false
         let requestedCoins = priceRequestCoins
+        NSLog("[spectra] refreshLivePrices requestedCoins=\(requestedCoins.count)")
         guard !requestedCoins.isEmpty else {
             quoteRefreshError = nil
             return false
@@ -24,8 +26,9 @@ extension AppState {
                 )
             }
             let fetchedPrices = try await WalletServiceBridge.shared.fetchPricesViaRust(
-                provider: pricingProvider.rawValue, coins: rustInputs, apiKey: coinGeckoAPIKey
+                provider: pricingProvider.rawValue, coins: rustInputs
             )
+            NSLog("[spectra] refreshLivePrices fetched=\(fetchedPrices.count)")
             guard !fetchedPrices.isEmpty else {
                 quoteRefreshError = localizedStoreFormat("%@ returned no supported asset quotes", pricingProvider.rawValue)
                 return false
@@ -35,6 +38,7 @@ extension AppState {
             quoteRefreshError = nil
             didUpdatePrices = outcome.hadMeaningfulChange
         } catch {
+            NSLog("[spectra] refreshLivePrices FAIL: \(error)")
             quoteRefreshError = localizedStoreFormat("%@ pricing unavailable", pricingProvider.rawValue)
         }
         if didUpdatePrices { evaluatePriceAlerts() }
@@ -46,10 +50,15 @@ extension AppState {
         await refreshFiatExchangeRates()
     }
     func refreshFiatExchangeRates() async {
+        NSLog("[spectra] refreshFiatExchangeRates enter isRefreshing=\(isRefreshingFiatRates) provider=\(fiatRateProvider.rawValue) selected=\(selectedFiatCurrency.rawValue)")
+        guard !isRefreshingFiatRates else { return }
+        isRefreshingFiatRates = true
+        defer { isRefreshingFiatRates = false }
         do {
             let fetchedRates = try await WalletServiceBridge.shared.fetchFiatRatesViaRust(
                 provider: fiatRateProvider.rawValue, currencies: FiatCurrency.allCases.map(\.rawValue)
             )
+            NSLog("[spectra] refreshFiatExchangeRates fetched=\(fetchedRates.count)")
             let rates = priceMergeFiatRateUpdates(
                 fetched: fetchedRates, existing: fiatRatesFromUSD,
                 currencies: FiatCurrency.allCases.map(\.rawValue),
@@ -60,6 +69,7 @@ extension AppState {
             fiatRatesRefreshError = nil
             lastFiatRatesRefreshAt = Date()
         } catch {
+            NSLog("[spectra] refreshFiatExchangeRates FAIL: \(error)")
             if fiatRatesFromUSD.isEmpty {
                 fiatRatesFromUSD = [FiatCurrency.usd.rawValue: 1.0]
             } else {
@@ -200,8 +210,6 @@ extension AppState {
 }
 enum PricingProvider: String, CaseIterable, Identifiable {
     case coinGecko = "CoinGecko"
-    case binance = "Binance Public API"
-    case coinbaseExchange = "Coinbase Exchange API"
     case coinPaprika = "CoinPaprika"
     case coinLore = "CoinLore"
     var id: String { rawValue }

@@ -31,10 +31,12 @@ actor WalletServiceBridge {
     static let shared = WalletServiceBridge()
     private var _service: WalletService?
     nonisolated(unsafe) private static var _syncService: WalletService?
+    nonisolated(unsafe) private static var _pendingEtherscanAPIKey: String = ""
     private var _balanceRefreshEngine: BalanceRefreshEngine?
     private func service() throws -> WalletService {
         if let existing = _service { return existing }
         let svc = try WalletService.newTyped(endpoints: Self.buildEndpoints())
+        svc.setEtherscanApiKey(key: Self._pendingEtherscanAPIKey)
         _service = svc
         WalletServiceBridge._syncService = svc
         return svc
@@ -138,13 +140,17 @@ actor WalletServiceBridge {
     func fetchBitcoinNextUnusedAddressTyped(xpub: String, change: UInt32 = 0, gapLimit: UInt32 = 20) async throws -> String? {
         try await service().fetchBitcoinNextUnusedAddressTyped(xpub: xpub, change: change, gapLimit: gapLimit)
     }
-    func fetchPricesViaRust(provider: String, coins: [PriceRequestCoin], apiKey: String) async throws -> [String: Double] {
-        try await service().fetchPricesTyped(provider: provider, coins: coins, apiKey: apiKey)
+    func fetchPricesViaRust(provider: String, coins: [PriceRequestCoin]) async throws -> [String: Double] {
+        try await service().fetchPricesTyped(provider: provider, coins: coins)
     }
     func fetchFiatRatesViaRust(provider: String, currencies: [String]) async throws -> [String: Double] {
         return try await service().fetchFiatRatesTyped(provider: provider, currencies: currencies)
     }
     func registerSecretStore(_ store: SecretStore) throws { try service().setSecretStore(store: store) }
+    nonisolated func setEtherscanAPIKey(_ key: String) {
+        Self._pendingEtherscanAPIKey = key
+        Self._syncService?.setEtherscanApiKey(key: key)
+    }
 }
 extension WalletServiceBridge {
     func fetchSolanaBalance(address: String) async throws -> SolanaBalance {

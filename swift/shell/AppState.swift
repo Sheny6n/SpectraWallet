@@ -187,6 +187,7 @@ final class AppState {
     var cachedResolvedENSAddresses: [String: String] = [:] { didSet { bumpCachesRevision() } }
     @ObservationIgnored var bypassHighRiskSendConfirmation = false
     @ObservationIgnored var isRefreshingLivePrices = false
+    @ObservationIgnored var isRefreshingFiatRates = false
     @ObservationIgnored var isRefreshingChainBalances = false
     @ObservationIgnored var allowsBalanceNetworkRefresh = false
     @ObservationIgnored var isRefreshingPendingTransactions = false
@@ -333,12 +334,6 @@ final class AppState {
             Task { @MainActor [weak self] in await self?.refreshFiatExchangeRatesIfNeeded(force: true) }
         }
     }
-    var coinGeckoAPIKey: String = "" {
-        didSet {
-            guard coinGeckoAPIKey != oldValue else { return }
-            SecureStore.save(coinGeckoAPIKey, for: Self.coinGeckoAPIKeyAccount)
-        }
-    }
     var ethereumRPCEndpoint: String = "" {
         didSet {
             guard ethereumRPCEndpoint != oldValue else { return }
@@ -357,6 +352,7 @@ final class AppState {
         didSet {
             guard etherscanAPIKey != oldValue else { return }
             persistAppSettings()
+            WalletServiceBridge.shared.setEtherscanAPIKey(etherscanAPIKey)
         }
     }
     var moneroBackendBaseURL: String = "" {
@@ -600,7 +596,6 @@ final class AppState {
     static let selectedFiatCurrencyDefaultsKey = "pricing.selectedFiatCurrency"
     static let fiatRateProviderDefaultsKey = "pricing.fiatRateProvider"
     static let fiatRatesFromUSDDefaultsKey = "pricing.fiatRatesFromUSD.v1"
-    static let coinGeckoAPIKeyAccount = "coingecko.api.key"
     static let ethereumRPCEndpointDefaultsKey = "ethereum.rpc.endpoint"
     static let etherscanAPIKeyDefaultsKey = "ethereum.etherscan.apiKey"
     static let ethereumNetworkModeDefaultsKey = "ethereum.network.mode"

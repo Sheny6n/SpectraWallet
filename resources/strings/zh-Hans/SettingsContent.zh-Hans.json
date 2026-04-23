@@ -1,7 +1,6 @@
 {
   "pricingIntro": "如果你需要实时价格，请选择一个价格提供商。Spectra 会从所选提供商批量请求价格，并在实时数据不可用时回退到内置参考价格。",
   "fiatRateProviderNote": "用于 USD 到本地法币的转换。默认是 Open ER。",
-  "coinGeckoNote": "可选。Spectra 可以在有或没有密钥的情况下使用 CoinGecko 价格。当实时价格不可用时，Spectra 会使用内置参考价格。",
   "publicProviderNote": "该提供商使用公开的批量报价接口。当前构建无需 API 密钥。",
   "aboutTitle": "Spectra",
   "aboutSubtitle": "一个专注于本地控制、透明网络访问和最小信任假设的自托管多链钱包。",

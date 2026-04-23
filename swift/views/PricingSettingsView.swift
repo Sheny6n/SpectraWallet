@@ -32,18 +32,8 @@ struct PricingSettingsView: View {
                 }.pickerStyle(.menu)
                 Text(copy.fiatRateProviderNote).font(.caption).foregroundStyle(.secondary)
             }
-            if store.pricingProvider == .coinGecko {
-                Section(AppLocalization.string("CoinGecko")) {
-                    TextField(
-                        AppLocalization.string("CoinGecko Pro API Key (Optional)"),
-                        text: $store.coinGeckoAPIKey
-                    ).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Text(copy.coinGeckoNote).font(.caption).foregroundStyle(.secondary)
-                }
-            } else {
-                Section(AppLocalization.string("Provider Notes")) {
-                    Text(copy.publicProviderNote).font(.caption).foregroundStyle(.secondary)
-                }
+            Section(AppLocalization.string("Provider Notes")) {
+                Text(copy.publicProviderNote).font(.caption).foregroundStyle(.secondary)
             }
             if let quoteRefreshError = store.quoteRefreshError {
                 Section {

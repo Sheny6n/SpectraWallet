@@ -106,7 +106,6 @@ enum StaticContentCatalog {
 struct SettingsContentCopy: Decodable {
     let pricingIntro: String
     let fiatRateProviderNote: String
-    let coinGeckoNote: String
     let publicProviderNote: String
     let aboutTitle: String
     let aboutSubtitle: String

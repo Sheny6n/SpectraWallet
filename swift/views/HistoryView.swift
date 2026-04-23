@@ -113,7 +113,7 @@ struct HistoryView: View {
                 }.refreshable {
                     await store.performUserInitiatedRefresh()
                 }.scrollBounceBehavior(.always)
-            }.searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .automatic),
+            }.searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always),
                          prompt: AppLocalization.string("Search wallet, asset, symbol, or address"))
             .textInputAutocapitalization(.never).autocorrectionDisabled()
             .navigationTitle(AppLocalization.string("History")).navigationBarTitleDisplayMode(.inline)

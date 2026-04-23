@@ -11,19 +11,6 @@ struct DecimalDisplaySettingsView: View {
     ]
     var body: some View {
         Form {
-            Section {
-                Text(
-                    AppLocalization.string(
-                        "Search native assets and tracked tokens, then adjust how many decimals Spectra shows in portfolio and wallet views."
-                    )
-                ).font(.caption).foregroundStyle(.secondary)
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField(AppLocalization.string("Search symbol, name, chain, or address"), text: $searchText)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                }.padding(.horizontal, 12).padding(.vertical, 10).background(
-                    .thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
             Section(AppLocalization.string("Native Asset Display")) {
                 Text(
                     AppLocalization.string(
@@ -90,6 +77,8 @@ struct DecimalDisplaySettingsView: View {
                 }
             }
         }.navigationTitle(AppLocalization.string("Decimal Display"))
+            .searchable(text: $searchText, prompt: AppLocalization.string("Search symbol, name, chain, or address"))
+            .textInputAutocapitalization(.never).autocorrectionDisabled()
     }
     private var filteredDecimalExamples: [(symbol: String, chainName: String)] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

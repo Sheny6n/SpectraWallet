@@ -118,8 +118,7 @@ struct SendPrimarySectionsView: View {
                 }
                 HStack(spacing: 10) {
                     TextField(AppLocalization.string("Recipient address"), text: $store.sendAddress).textInputAutocapitalization(.never)
-                        .autocorrectionDisabled().padding(.horizontal, 12).padding(.vertical, 10).background(
-                            .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .autocorrectionDisabled().padding(.horizontal, 12).padding(.vertical, 10).glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 14))
                     Button {
                         guard DataScannerViewController.isSupported else {
                             qrScannerErrorMessage = AppLocalization.string("QR scanning is not supported on this device.")
@@ -155,7 +154,7 @@ struct SendPrimarySectionsView: View {
         spectraDetailCard(title: "Amount") {
             VStack(alignment: .leading, spacing: 12) {
                 TextField(AppLocalization.string("Amount"), text: $store.sendAmount).keyboardType(.decimalPad).padding(.horizontal, 12)
-                    .padding(.vertical, 10).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(.vertical, 10).glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 14))
                 if let selectedCoin = presentation.selectedCoin {
                     HStack {
                         Text(AppLocalization.string("Using")).foregroundStyle(.secondary)

@@ -1052,7 +1052,7 @@ struct SetupView: View {
                         .padding(.vertical, 10)
                 }.buttonStyle(.glassProminent).controlSize(.large).disabled(!isPrimaryActionEnabled)
                     .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 16)
-            }.background(.ultraThinMaterial)
+            }.glassEffect(.regular.tint(.white.opacity(0.04)), in: Rectangle())
         }
     }
 }
