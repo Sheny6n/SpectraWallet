@@ -22214,6 +22214,492 @@ nonisolated public func FfiConverterTypeSolanaSendPreview_lower(_ value: SolanaS
 }
 
 
+/**
+ * Amount preview for a staking action — what Swift renders before sign.
+ * Mirrors `EthereumSendPreview` etc. but with staking-specific fields.
+ */
+nonisolated public struct StakingActionPreview {
+    public var kind: StakingActionKind
+    public var validatorIdentifier: String
+    public var validatorDisplayName: String
+    /**
+     * Action amount in smallest unit, decimal string.
+     */
+    public var amountSmallestUnit: String
+    /**
+     * Display-formatted amount in the chain's native unit ("1.5 SOL").
+     */
+    public var amountDisplay: String
+    /**
+     * Estimated chain fee, smallest unit decimal string.
+     */
+    public var estimatedFeeSmallestUnit: String
+    /**
+     * Display-formatted fee.
+     */
+    public var estimatedFeeDisplay: String
+    /**
+     * Cooldown / unbonding period in seconds. 0 if instant.
+     */
+    public var unbondingPeriodSeconds: Int64
+    /**
+     * Free-form notes the UI should surface ("Activates next epoch", "Min
+     * delegation 1 SOL", "Locked for 6 months", etc.).
+     */
+    public var notes: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(kind: StakingActionKind, validatorIdentifier: String, validatorDisplayName: String, 
+        /**
+         * Action amount in smallest unit, decimal string.
+         */amountSmallestUnit: String, 
+        /**
+         * Display-formatted amount in the chain's native unit ("1.5 SOL").
+         */amountDisplay: String, 
+        /**
+         * Estimated chain fee, smallest unit decimal string.
+         */estimatedFeeSmallestUnit: String, 
+        /**
+         * Display-formatted fee.
+         */estimatedFeeDisplay: String, 
+        /**
+         * Cooldown / unbonding period in seconds. 0 if instant.
+         */unbondingPeriodSeconds: Int64, 
+        /**
+         * Free-form notes the UI should surface ("Activates next epoch", "Min
+         * delegation 1 SOL", "Locked for 6 months", etc.).
+         */notes: [String]) {
+        self.kind = kind
+        self.validatorIdentifier = validatorIdentifier
+        self.validatorDisplayName = validatorDisplayName
+        self.amountSmallestUnit = amountSmallestUnit
+        self.amountDisplay = amountDisplay
+        self.estimatedFeeSmallestUnit = estimatedFeeSmallestUnit
+        self.estimatedFeeDisplay = estimatedFeeDisplay
+        self.unbondingPeriodSeconds = unbondingPeriodSeconds
+        self.notes = notes
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension StakingActionPreview: Sendable {}
+#endif
+
+
+nonisolated extension StakingActionPreview: Equatable, Hashable {
+    public static func ==(lhs: StakingActionPreview, rhs: StakingActionPreview) -> Bool {
+        if lhs.kind != rhs.kind {
+            return false
+        }
+        if lhs.validatorIdentifier != rhs.validatorIdentifier {
+            return false
+        }
+        if lhs.validatorDisplayName != rhs.validatorDisplayName {
+            return false
+        }
+        if lhs.amountSmallestUnit != rhs.amountSmallestUnit {
+            return false
+        }
+        if lhs.amountDisplay != rhs.amountDisplay {
+            return false
+        }
+        if lhs.estimatedFeeSmallestUnit != rhs.estimatedFeeSmallestUnit {
+            return false
+        }
+        if lhs.estimatedFeeDisplay != rhs.estimatedFeeDisplay {
+            return false
+        }
+        if lhs.unbondingPeriodSeconds != rhs.unbondingPeriodSeconds {
+            return false
+        }
+        if lhs.notes != rhs.notes {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        hasher.combine(validatorIdentifier)
+        hasher.combine(validatorDisplayName)
+        hasher.combine(amountSmallestUnit)
+        hasher.combine(amountDisplay)
+        hasher.combine(estimatedFeeSmallestUnit)
+        hasher.combine(estimatedFeeDisplay)
+        hasher.combine(unbondingPeriodSeconds)
+        hasher.combine(notes)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeStakingActionPreview: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StakingActionPreview {
+        return
+            try StakingActionPreview(
+                kind: FfiConverterTypeStakingActionKind.read(from: &buf), 
+                validatorIdentifier: FfiConverterString.read(from: &buf), 
+                validatorDisplayName: FfiConverterString.read(from: &buf), 
+                amountSmallestUnit: FfiConverterString.read(from: &buf), 
+                amountDisplay: FfiConverterString.read(from: &buf), 
+                estimatedFeeSmallestUnit: FfiConverterString.read(from: &buf), 
+                estimatedFeeDisplay: FfiConverterString.read(from: &buf), 
+                unbondingPeriodSeconds: FfiConverterInt64.read(from: &buf), 
+                notes: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: StakingActionPreview, into buf: inout [UInt8]) {
+        FfiConverterTypeStakingActionKind.write(value.kind, into: &buf)
+        FfiConverterString.write(value.validatorIdentifier, into: &buf)
+        FfiConverterString.write(value.validatorDisplayName, into: &buf)
+        FfiConverterString.write(value.amountSmallestUnit, into: &buf)
+        FfiConverterString.write(value.amountDisplay, into: &buf)
+        FfiConverterString.write(value.estimatedFeeSmallestUnit, into: &buf)
+        FfiConverterString.write(value.estimatedFeeDisplay, into: &buf)
+        FfiConverterInt64.write(value.unbondingPeriodSeconds, into: &buf)
+        FfiConverterSequenceString.write(value.notes, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingActionPreview_lift(_ buf: RustBuffer) throws -> StakingActionPreview {
+    return try FfiConverterTypeStakingActionPreview.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingActionPreview_lower(_ value: StakingActionPreview) -> RustBuffer {
+    return FfiConverterTypeStakingActionPreview.lower(value)
+}
+
+
+/**
+ * One staking position held by a wallet on a given chain. A wallet can
+ * hold multiple positions if it stakes to multiple validators / pools.
+ */
+nonisolated public struct StakingPosition {
+    public var validatorIdentifier: String
+    public var validatorDisplayName: String
+    public var status: StakingPositionStatus
+    /**
+     * Active stake principal in smallest unit, decimal string.
+     */
+    public var stakedAmountSmallestUnit: String
+    /**
+     * Pending unbonded amount that's not yet withdrawable, decimal string.
+     */
+    public var unbondingAmountSmallestUnit: String
+    /**
+     * Withdrawable amount (cooldown elapsed), decimal string.
+     */
+    public var withdrawableAmountSmallestUnit: String
+    /**
+     * Outstanding rewards yet to be claimed, decimal string.
+     */
+    public var claimableRewardsSmallestUnit: String
+    /**
+     * Unix timestamp when the unbonding period ends, if applicable.
+     */
+    public var unbondingCompletesAtUnix: Int64?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(validatorIdentifier: String, validatorDisplayName: String, status: StakingPositionStatus, 
+        /**
+         * Active stake principal in smallest unit, decimal string.
+         */stakedAmountSmallestUnit: String, 
+        /**
+         * Pending unbonded amount that's not yet withdrawable, decimal string.
+         */unbondingAmountSmallestUnit: String, 
+        /**
+         * Withdrawable amount (cooldown elapsed), decimal string.
+         */withdrawableAmountSmallestUnit: String, 
+        /**
+         * Outstanding rewards yet to be claimed, decimal string.
+         */claimableRewardsSmallestUnit: String, 
+        /**
+         * Unix timestamp when the unbonding period ends, if applicable.
+         */unbondingCompletesAtUnix: Int64?) {
+        self.validatorIdentifier = validatorIdentifier
+        self.validatorDisplayName = validatorDisplayName
+        self.status = status
+        self.stakedAmountSmallestUnit = stakedAmountSmallestUnit
+        self.unbondingAmountSmallestUnit = unbondingAmountSmallestUnit
+        self.withdrawableAmountSmallestUnit = withdrawableAmountSmallestUnit
+        self.claimableRewardsSmallestUnit = claimableRewardsSmallestUnit
+        self.unbondingCompletesAtUnix = unbondingCompletesAtUnix
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension StakingPosition: Sendable {}
+#endif
+
+
+nonisolated extension StakingPosition: Equatable, Hashable {
+    public static func ==(lhs: StakingPosition, rhs: StakingPosition) -> Bool {
+        if lhs.validatorIdentifier != rhs.validatorIdentifier {
+            return false
+        }
+        if lhs.validatorDisplayName != rhs.validatorDisplayName {
+            return false
+        }
+        if lhs.status != rhs.status {
+            return false
+        }
+        if lhs.stakedAmountSmallestUnit != rhs.stakedAmountSmallestUnit {
+            return false
+        }
+        if lhs.unbondingAmountSmallestUnit != rhs.unbondingAmountSmallestUnit {
+            return false
+        }
+        if lhs.withdrawableAmountSmallestUnit != rhs.withdrawableAmountSmallestUnit {
+            return false
+        }
+        if lhs.claimableRewardsSmallestUnit != rhs.claimableRewardsSmallestUnit {
+            return false
+        }
+        if lhs.unbondingCompletesAtUnix != rhs.unbondingCompletesAtUnix {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(validatorIdentifier)
+        hasher.combine(validatorDisplayName)
+        hasher.combine(status)
+        hasher.combine(stakedAmountSmallestUnit)
+        hasher.combine(unbondingAmountSmallestUnit)
+        hasher.combine(withdrawableAmountSmallestUnit)
+        hasher.combine(claimableRewardsSmallestUnit)
+        hasher.combine(unbondingCompletesAtUnix)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeStakingPosition: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StakingPosition {
+        return
+            try StakingPosition(
+                validatorIdentifier: FfiConverterString.read(from: &buf), 
+                validatorDisplayName: FfiConverterString.read(from: &buf), 
+                status: FfiConverterTypeStakingPositionStatus.read(from: &buf), 
+                stakedAmountSmallestUnit: FfiConverterString.read(from: &buf), 
+                unbondingAmountSmallestUnit: FfiConverterString.read(from: &buf), 
+                withdrawableAmountSmallestUnit: FfiConverterString.read(from: &buf), 
+                claimableRewardsSmallestUnit: FfiConverterString.read(from: &buf), 
+                unbondingCompletesAtUnix: FfiConverterOptionInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: StakingPosition, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.validatorIdentifier, into: &buf)
+        FfiConverterString.write(value.validatorDisplayName, into: &buf)
+        FfiConverterTypeStakingPositionStatus.write(value.status, into: &buf)
+        FfiConverterString.write(value.stakedAmountSmallestUnit, into: &buf)
+        FfiConverterString.write(value.unbondingAmountSmallestUnit, into: &buf)
+        FfiConverterString.write(value.withdrawableAmountSmallestUnit, into: &buf)
+        FfiConverterString.write(value.claimableRewardsSmallestUnit, into: &buf)
+        FfiConverterOptionInt64.write(value.unbondingCompletesAtUnix, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingPosition_lift(_ buf: RustBuffer) throws -> StakingPosition {
+    return try FfiConverterTypeStakingPosition.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingPosition_lower(_ value: StakingPosition) -> RustBuffer {
+    return FfiConverterTypeStakingPosition.lower(value)
+}
+
+
+/**
+ * Validator / pool / canister metadata as it appears in the picker UI.
+ * Per-chain fields that don't fit the generic surface (commission rate,
+ * minimum delegation, identity verification) are expressed via
+ * `details` k/v pairs so the UI can show them without typing pressure.
+ */
+nonisolated public struct StakingValidator {
+    /**
+     * Stable on-chain identifier (vote account, pool ID, validator address,
+     * neuron follow target, etc.). Kept opaque to Swift.
+     */
+    public var identifier: String
+    /**
+     * Display name. Falls back to a truncated identifier if the chain has no
+     * validator naming convention.
+     */
+    public var displayName: String
+    /**
+     * Annualised reward rate as a fraction (0.06 == 6%). 0 if unknown.
+     */
+    public var apy: Double
+    /**
+     * Validator commission as a fraction (0.05 == 5%). None if not modeled.
+     */
+    public var commission: Double?
+    /**
+     * Total stake assigned to this validator, in the chain's native smallest
+     * unit, as a decimal string. None if unknown.
+     */
+    public var totalStakeSmallestUnit: String?
+    /**
+     * True if this validator is currently active in the active set.
+     */
+    public var isActive: Bool
+    /**
+     * Free-form chain-specific tags ("nomination pool", "commission 5%",
+     * "verified", "saturated", etc.) for UI badges.
+     */
+    public var tags: [String]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(
+        /**
+         * Stable on-chain identifier (vote account, pool ID, validator address,
+         * neuron follow target, etc.). Kept opaque to Swift.
+         */identifier: String, 
+        /**
+         * Display name. Falls back to a truncated identifier if the chain has no
+         * validator naming convention.
+         */displayName: String, 
+        /**
+         * Annualised reward rate as a fraction (0.06 == 6%). 0 if unknown.
+         */apy: Double, 
+        /**
+         * Validator commission as a fraction (0.05 == 5%). None if not modeled.
+         */commission: Double?, 
+        /**
+         * Total stake assigned to this validator, in the chain's native smallest
+         * unit, as a decimal string. None if unknown.
+         */totalStakeSmallestUnit: String?, 
+        /**
+         * True if this validator is currently active in the active set.
+         */isActive: Bool, 
+        /**
+         * Free-form chain-specific tags ("nomination pool", "commission 5%",
+         * "verified", "saturated", etc.) for UI badges.
+         */tags: [String]) {
+        self.identifier = identifier
+        self.displayName = displayName
+        self.apy = apy
+        self.commission = commission
+        self.totalStakeSmallestUnit = totalStakeSmallestUnit
+        self.isActive = isActive
+        self.tags = tags
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension StakingValidator: Sendable {}
+#endif
+
+
+nonisolated extension StakingValidator: Equatable, Hashable {
+    public static func ==(lhs: StakingValidator, rhs: StakingValidator) -> Bool {
+        if lhs.identifier != rhs.identifier {
+            return false
+        }
+        if lhs.displayName != rhs.displayName {
+            return false
+        }
+        if lhs.apy != rhs.apy {
+            return false
+        }
+        if lhs.commission != rhs.commission {
+            return false
+        }
+        if lhs.totalStakeSmallestUnit != rhs.totalStakeSmallestUnit {
+            return false
+        }
+        if lhs.isActive != rhs.isActive {
+            return false
+        }
+        if lhs.tags != rhs.tags {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(identifier)
+        hasher.combine(displayName)
+        hasher.combine(apy)
+        hasher.combine(commission)
+        hasher.combine(totalStakeSmallestUnit)
+        hasher.combine(isActive)
+        hasher.combine(tags)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeStakingValidator: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StakingValidator {
+        return
+            try StakingValidator(
+                identifier: FfiConverterString.read(from: &buf), 
+                displayName: FfiConverterString.read(from: &buf), 
+                apy: FfiConverterDouble.read(from: &buf), 
+                commission: FfiConverterOptionDouble.read(from: &buf), 
+                totalStakeSmallestUnit: FfiConverterOptionString.read(from: &buf), 
+                isActive: FfiConverterBool.read(from: &buf), 
+                tags: FfiConverterSequenceString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: StakingValidator, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.identifier, into: &buf)
+        FfiConverterString.write(value.displayName, into: &buf)
+        FfiConverterDouble.write(value.apy, into: &buf)
+        FfiConverterOptionDouble.write(value.commission, into: &buf)
+        FfiConverterOptionString.write(value.totalStakeSmallestUnit, into: &buf)
+        FfiConverterBool.write(value.isActive, into: &buf)
+        FfiConverterSequenceString.write(value.tags, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingValidator_lift(_ buf: RustBuffer) throws -> StakingValidator {
+    return try FfiConverterTypeStakingValidator.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingValidator_lower(_ value: StakingValidator) -> RustBuffer {
+    return FfiConverterTypeStakingValidator.lower(value)
+}
+
+
 nonisolated public struct StalePendingFailureTransactionInput {
     public var id: String
     public var createdAtUnix: Double
@@ -32191,6 +32677,333 @@ nonisolated extension SpectraBridgeError: Foundation.LocalizedError {
         String(reflecting: self)
     }
 }
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * User-facing classification of a staking action. The flow Swift asks for;
+ * each chain client maps it to the chain-native operation.
+ */
+
+nonisolated public enum StakingActionKind {
+    
+    /**
+     * Begin staking (delegate / bond / stake / lock-up).
+     */
+    case stake
+    /**
+     * Begin un-staking; rewards stop accruing immediately.
+     */
+    case unstake
+    /**
+     * After an unbonding/cooldown period, sweep withdrawable funds.
+     */
+    case withdraw
+    /**
+     * Move existing stake to a different validator/pool without unbonding.
+     */
+    case restake
+    /**
+     * Claim outstanding rewards without touching principal.
+     */
+    case claimRewards
+}
+
+
+#if compiler(>=6)
+nonisolated extension StakingActionKind: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeStakingActionKind: FfiConverterRustBuffer {
+    typealias SwiftType = StakingActionKind
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StakingActionKind {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .stake
+        
+        case 2: return .unstake
+        
+        case 3: return .withdraw
+        
+        case 4: return .restake
+        
+        case 5: return .claimRewards
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: StakingActionKind, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .stake:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .unstake:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .withdraw:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .restake:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .claimRewards:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingActionKind_lift(_ buf: RustBuffer) throws -> StakingActionKind {
+    return try FfiConverterTypeStakingActionKind.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingActionKind_lower(_ value: StakingActionKind) -> RustBuffer {
+    return FfiConverterTypeStakingActionKind.lower(value)
+}
+
+
+nonisolated extension StakingActionKind: Equatable, Hashable {}
+
+
+
+
+
+
+
+/**
+ * Errors returned by staking client operations. UniFFI-friendly; the
+ * `String` carries provider-specific detail for diagnostics.
+ */
+nonisolated public enum StakingError: Swift.Error {
+
+    
+    
+    case NotYetImplemented
+    case InvalidValidator(String
+    )
+    case AmountBelowMinimum(String
+    )
+    case InsufficientBalance(String
+    )
+    case Network(String
+    )
+    case MalformedResponse(String
+    )
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeStakingError: FfiConverterRustBuffer {
+    typealias SwiftType = StakingError
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StakingError {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        
+
+        
+        case 1: return .NotYetImplemented
+        case 2: return .InvalidValidator(
+            try FfiConverterString.read(from: &buf)
+            )
+        case 3: return .AmountBelowMinimum(
+            try FfiConverterString.read(from: &buf)
+            )
+        case 4: return .InsufficientBalance(
+            try FfiConverterString.read(from: &buf)
+            )
+        case 5: return .Network(
+            try FfiConverterString.read(from: &buf)
+            )
+        case 6: return .MalformedResponse(
+            try FfiConverterString.read(from: &buf)
+            )
+
+         default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: StakingError, into buf: inout [UInt8]) {
+        switch value {
+
+        
+
+        
+        
+        case .NotYetImplemented:
+            writeInt(&buf, Int32(1))
+        
+        
+        case let .InvalidValidator(v1):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(v1, into: &buf)
+            
+        
+        case let .AmountBelowMinimum(v1):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(v1, into: &buf)
+            
+        
+        case let .InsufficientBalance(v1):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(v1, into: &buf)
+            
+        
+        case let .Network(v1):
+            writeInt(&buf, Int32(5))
+            FfiConverterString.write(v1, into: &buf)
+            
+        
+        case let .MalformedResponse(v1):
+            writeInt(&buf, Int32(6))
+            FfiConverterString.write(v1, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingError_lift(_ buf: RustBuffer) throws -> StakingError {
+    return try FfiConverterTypeStakingError.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingError_lower(_ value: StakingError) -> RustBuffer {
+    return FfiConverterTypeStakingError.lower(value)
+}
+
+
+nonisolated extension StakingError: Equatable, Hashable {}
+
+
+
+
+nonisolated extension StakingError: Foundation.LocalizedError {
+    public var errorDescription: String? {
+        String(reflecting: self)
+    }
+}
+
+
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+nonisolated public enum StakingPositionStatus {
+    
+    case active
+    case activating
+    case unbonding
+    case withdrawable
+    case inactive
+}
+
+
+#if compiler(>=6)
+nonisolated extension StakingPositionStatus: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeStakingPositionStatus: FfiConverterRustBuffer {
+    typealias SwiftType = StakingPositionStatus
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> StakingPositionStatus {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .active
+        
+        case 2: return .activating
+        
+        case 3: return .unbonding
+        
+        case 4: return .withdrawable
+        
+        case 5: return .inactive
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: StakingPositionStatus, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .active:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .activating:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .unbonding:
+            writeInt(&buf, Int32(3))
+        
+        
+        case .withdrawable:
+            writeInt(&buf, Int32(4))
+        
+        
+        case .inactive:
+            writeInt(&buf, Int32(5))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingPositionStatus_lift(_ buf: RustBuffer) throws -> StakingPositionStatus {
+    return try FfiConverterTypeStakingPositionStatus.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeStakingPositionStatus_lower(_ value: StakingPositionStatus) -> RustBuffer {
+    return FfiConverterTypeStakingPositionStatus.lower(value)
+}
+
+
+nonisolated extension StakingPositionStatus: Equatable, Hashable {}
+
+
 
 
 

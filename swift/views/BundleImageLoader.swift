@@ -78,17 +78,14 @@ enum BundleImageLoader {
         return nil
     }
 
-    /// Returns a UIImage by name. Resolution order:
-    /// 1. UIImage cache (a previously-loaded PNG OR a previously-rendered SVG snapshot).
-    /// 2. Bundle-flat `<name>.png`. If found, it's loaded synchronously and cached.
-    /// Returns nil for SVG-only icons until the SVG cache is warmed via
-    /// `warmRasterCache()`. CoinBadge displays the colored letter fallback in
-    /// that interval, so SVG-only icons should be pre-warmed at app boot.
+    /// Synchronous lookup. Returns the cached UIImage if present, or loads a
+    /// flat-bundle PNG synchronously. Returns nil if the only available file
+    /// is an SVG that hasn't been rendered yet — call `resolveImage(named:size:)`
+    /// to render and cache it asynchronously.
     static func image(named name: String) -> UIImage? {
         #if canImport(UIKit)
             let key = name as NSString
             if let cached = imageCache.object(forKey: key) { return cached }
-            // PNG fallback. SVGs need an async render via `warmRasterCache`.
             guard let url = pngURL(forImageNamed: name), let image = UIImage(contentsOfFile: url.path) else { return nil }
             imageCache.setObject(image, forKey: key, cost: approximateByteCost(for: image))
             return image
@@ -97,14 +94,43 @@ enum BundleImageLoader {
         #endif
     }
 
-    /// Renders any SVG in the bundle that doesn't already have a PNG cached
-    /// equivalent and stores the result in the UIImage cache. Call once at
-    /// app boot — subsequent `image(named:)` calls become synchronous hits.
+    /// Asynchronous lookup. Resolution order:
+    /// 1. Cached UIImage (cache hit returns immediately).
+    /// 2. Flat-bundle `<name>.svg` — rendered via `SVGRenderer`, cached.
+    /// 3. Flat-bundle `<name>.png` — loaded synchronously, cached.
+    /// Returns nil only when no icon file exists. `targetSize` is used as the
+    /// SVG render size (UIImage then scales cleanly to any display size).
+    @MainActor
+    static func resolveImage(named name: String, targetSize: CGFloat = 256) async -> UIImage? {
+        #if canImport(UIKit)
+            let key = name as NSString
+            if let cached = imageCache.object(forKey: key) { return cached }
+            // SVG first — the user's preferred format going forward.
+            if let svg = svgURL(forImageNamed: name) {
+                let size = CGSize(width: targetSize, height: targetSize)
+                if let rendered = await SVGRenderer.render(svgURL: svg, size: size) {
+                    imageCache.setObject(rendered, forKey: key, cost: approximateByteCost(for: rendered))
+                    return rendered
+                }
+            }
+            // PNG fallback for icons not yet migrated to SVG.
+            if let url = pngURL(forImageNamed: name), let image = UIImage(contentsOfFile: url.path) {
+                imageCache.setObject(image, forKey: key, cost: approximateByteCost(for: image))
+                return image
+            }
+            return nil
+        #else
+            return nil
+        #endif
+    }
+
+    /// Renders all SVGs in the bundle into the cache. Optional warm-up that
+    /// makes the first badge render after launch already a cache hit. Most
+    /// callers should rely on `resolveImage(named:size:)` per-badge instead.
     @MainActor
     static func warmRasterCache(targetSize: CGFloat = 256) async {
         #if canImport(UIKit)
             guard let bundleURL = Bundle.main.resourceURL else { return }
-            // Scan the flat icon directories for SVG files.
             let candidateDirs: [URL] = [
                 bundleURL,
                 bundleURL.appendingPathComponent("icons", isDirectory: true),

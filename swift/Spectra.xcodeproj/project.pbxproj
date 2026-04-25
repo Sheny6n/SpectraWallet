@@ -96,6 +96,11 @@
 			path = views;
 			sourceTree = "<group>";
 		};
+		9074917A2F56D1E500D098D2 /* staking */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = staking;
+			sourceTree = "<group>";
+		};
 		9074916D2F56D1E500D098D2 /* extensions/SharedLiveActivities */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = extensions/SharedLiveActivities;
@@ -168,6 +173,7 @@
 				907491662F56D1E500D098D2 /* fetch */,
 				907491682F56D1E500D098D2 /* send */,
 				907491692F56D1E500D098D2 /* shell */,
+				9074917A2F56D1E500D098D2 /* staking */,
 				9074916C2F56D1E500D098D2 /* views */,
 				9074916D2F56D1E500D098D2 /* extensions/SharedLiveActivities */,
 				907491712F56D1E600D098D2 /* extensions/SpectraLiveActivityExtension */,
@@ -210,6 +216,7 @@
 				907491662F56D1E500D098D2 /* fetch */,
 				907491682F56D1E500D098D2 /* send */,
 				907491692F56D1E500D098D2 /* shell */,
+				9074917A2F56D1E500D098D2 /* staking */,
 				9074916A2F56D1E500D098D2 /* resources */,
 				9074916C2F56D1E500D098D2 /* views */,
 				9074916D2F56D1E500D098D2 /* extensions/SharedLiveActivities */,

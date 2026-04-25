@@ -11,6 +11,7 @@ struct CoinBadge: View {
     let fallbackText: String
     let color: Color
     var size: CGFloat = 40
+    @State private var resolvedImage: UIImage?
     var body: some View {
         // Resolve once per body eval — this used to be a computed property
         // that recomputed (and re-hit the memoized icon-identifier Rust
@@ -24,13 +25,29 @@ struct CoinBadge: View {
             }
             return TokenVisualRegistryEntry.entry(matchingAssetIdentifier: identifier)?.assetName
         }()
+        // Synchronous cache hit (PNG load, or previously-rendered SVG snapshot).
+        // The async `.task` below promotes a cold SVG into the cache and bumps
+        // `resolvedImage` so the body re-renders with the rendered bitmap.
+        let syncImage: UIImage? = assetName.flatMap { BundleImageLoader.image(named: $0) }
+        let displayImage = resolvedImage ?? syncImage
         return Group {
-            if let assetName, let bundleImage = BundleImageLoader.image(named: assetName) {
-                Image(uiImage: bundleImage).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size)
+            if let displayImage {
+                Image(uiImage: displayImage).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size)
             } else {
                 letterFallback
             }
         }.shadow(color: color.opacity(0.18), radius: 6, y: 3)
+            .task(id: assetName) {
+                guard let assetName else {
+                    resolvedImage = nil
+                    return
+                }
+                // If sync lookup already returned an image we're done.
+                if BundleImageLoader.image(named: assetName) != nil { return }
+                // Otherwise the only candidate is an unrendered SVG — render
+                // it once via WKWebView and store the snapshot in the cache.
+                resolvedImage = await BundleImageLoader.resolveImage(named: assetName)
+            }
     }
     private var letterFallback: some View {
         let letter = fallbackText.first.map { String($0).uppercased() } ?? "?"
