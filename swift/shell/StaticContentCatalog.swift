@@ -49,7 +49,9 @@ enum StaticContentCatalog {
         return nil
     }
     private static func loadFromRustCore<T: Decodable>(_ baseName: String) -> T? {
-        guard let bytes = try? coreStaticResourceJson(resourceName: baseName) else { return nil }
+        guard let json = try? coreStaticResourceJson(resourceName: baseName),
+              let bytes = json.data(using: .utf8)
+        else { return nil }
         return try? JSONDecoder().decode(T.self, from: bytes)
     }
     private static func candidateJSONURLs(for baseName: String, localeIdentifiers: [String]) -> [URL] {

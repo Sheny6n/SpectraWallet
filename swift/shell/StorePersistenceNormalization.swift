@@ -1,20 +1,16 @@
 import Foundation
-private nonisolated func historyRecordEncodeInputs(
+private nonisolated func historyRecordsTyped(
     _ snapshots: [CorePersistedTransactionRecord]
-) -> [HistoryRecordEncodeInput]? {
-    do {
-        return try snapshots.map { snap in
-            HistoryRecordEncodeInput(
-                id: snap.id.lowercased(),
-                walletId: snap.walletId?.lowercased(),
-                chainName: snap.chainName,
-                txHash: snap.transactionHash?.lowercased(),
-                createdAt: Date(timeIntervalSinceReferenceDate: snap.createdAt).timeIntervalSince1970,
-                payloadJson: try encodePersistedTransactionRecordJson(value: snap)
-            )
-        }
-    } catch {
-        return nil
+) -> [HistoryRecord] {
+    snapshots.map { snap in
+        HistoryRecord(
+            id: snap.id.lowercased(),
+            walletId: snap.walletId?.lowercased(),
+            chainName: snap.chainName,
+            txHash: snap.transactionHash?.lowercased(),
+            createdAt: Date(timeIntervalSinceReferenceDate: snap.createdAt).timeIntervalSince1970,
+            payload: snap
+        )
     }
 }
 extension AppState {
@@ -294,8 +290,7 @@ extension AppState {
     func persistTransactionsFullSync() {
         let snapshots = transactions.map(\.persistedSnapshot)
         Task.detached(priority: .utility) {
-            guard let records = historyRecordEncodeInputs(snapshots) else { return }
-            try? await WalletServiceBridge.shared.replaceAllHistoryRecords(records)
+            try? await WalletServiceBridge.shared.replaceAllHistoryRecords(historyRecordsTyped(snapshots))
         }
     }
     func persistTransactionsDelta(from oldRecords: [TransactionRecord], to newRecords: [TransactionRecord]) {
@@ -310,8 +305,7 @@ extension AppState {
         }
         if !upsertSnapshots.isEmpty {
             Task.detached(priority: .utility) {
-                guard let records = historyRecordEncodeInputs(upsertSnapshots) else { return }
-                try? await WalletServiceBridge.shared.upsertHistoryRecords(records)
+                try? await WalletServiceBridge.shared.upsertHistoryRecords(historyRecordsTyped(upsertSnapshots))
             }
         }
     }

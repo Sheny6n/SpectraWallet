@@ -622,10 +622,9 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
  * task that owns the refresh timer loop. Implementations must be
  * `Send + Sync` (UniFFI enforces this for foreign trait objects).
  *
- * As of 2026-04-19 the refresh engine applies the balance update to the
- * Rust-owned wallet state before invoking the callback, so Swift receives a
- * typed `WalletSummary` record directly instead of shuttling the raw JSON
- * back through `update_native_balance_typed`.
+ * The refresh engine applies the balance update to the Rust-owned wallet
+ * state before invoking the callback, so Swift receives a typed
+ * `WalletSummary` record directly — no JSON shuttle.
  */
 public protocol BalanceObserver: AnyObject, Sendable {
     
@@ -648,10 +647,9 @@ public protocol BalanceObserver: AnyObject, Sendable {
  * task that owns the refresh timer loop. Implementations must be
  * `Send + Sync` (UniFFI enforces this for foreign trait objects).
  *
- * As of 2026-04-19 the refresh engine applies the balance update to the
- * Rust-owned wallet state before invoking the callback, so Swift receives a
- * typed `WalletSummary` record directly instead of shuttling the raw JSON
- * back through `update_native_balance_typed`.
+ * The refresh engine applies the balance update to the Rust-owned wallet
+ * state before invoking the callback, so Swift receives a typed
+ * `WalletSummary` record directly — no JSON shuttle.
  */
 nonisolated open class BalanceObserverImpl: BalanceObserver, @unchecked Sendable {
     fileprivate let pointer: UnsafeMutableRawPointer!
@@ -1754,11 +1752,22 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      */
     nonisolated func isHistoryExhausted(chainId: UInt32, walletId: String)  -> Bool
     
+    /**
+     * Load the persisted address-book store.
+     */
+    nonisolated func loadAddressBookStore(dbPath: String, key: String) async throws  -> CorePersistedAddressBookStore?
+    
     nonisolated func loadAllKeypoolStateTyped(dbPath: String) async throws  -> [String: [String: KeypoolState]]
     
     nonisolated func loadAllOwnedAddressesTyped(dbPath: String) async throws  -> [OwnedAddressRecord]
     
     nonisolated func loadAppSettingsTyped(dbPath: String) async throws  -> PersistedAppSettings?
+    
+    /**
+     * Load the persisted price-alert store. Returns `None` if no value has
+     * been saved yet or if the on-disk shape can't be decoded.
+     */
+    nonisolated func loadPriceAlertStore(dbPath: String, key: String) async throws  -> CorePersistedPriceAlertStore?
     
     /**
      * Load the JSON state blob stored under `key` in the SQLite database at
@@ -1770,7 +1779,7 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     /**
      * Atomically replace ALL history records with the provided batch.
      */
-    nonisolated func replaceAllHistoryRecords(dbPath: String, records: [HistoryRecordEncodeInput]) async throws 
+    nonisolated func replaceAllHistoryRecords(dbPath: String, records: [HistoryRecord]) async throws 
     
     /**
      * Clear all history pagination state. Used on full account wipe / logout.
@@ -1802,6 +1811,11 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      */
     nonisolated func resolveEnsNameTyped(name: String) async throws  -> String?
     
+    /**
+     * Persist the address-book store typed.
+     */
+    nonisolated func saveAddressBookStore(dbPath: String, key: String, value: CorePersistedAddressBookStore) async throws 
+    
     nonisolated func saveAppSettingsTyped(dbPath: String, settings: PersistedAppSettings) async throws 
     
     /**
@@ -1813,6 +1827,11 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
      * Upsert a single owned address record.
      */
     nonisolated func saveOwnedAddressTyped(dbPath: String, record: OwnedAddressRecord) async throws 
+    
+    /**
+     * Persist the price-alert store typed.
+     */
+    nonisolated func savePriceAlertStore(dbPath: String, key: String, value: CorePersistedPriceAlertStore) async throws 
     
     /**
      * Persist the JSON state blob under `key` in the SQLite database at
@@ -1853,11 +1872,11 @@ public protocol WalletServiceProtocol: AnyObject, Sendable {
     nonisolated func updateEndpointsTyped(endpoints: [ChainEndpoints]) async throws 
     
     /**
-     * Upsert a batch of transaction history records. `records[*].payload_json`
-     * is the raw PersistedTransactionRecord JSON; Rust base64-encodes it into
-     * the stored `payload` column to match the `HistoryRecord` schema.
+     * Upsert a batch of transaction history records. `records[*].payload`
+     * is the typed `CorePersistedTransactionRecord`; Rust serializes to JSON
+     * for the SQLite TEXT column internally — no JSON crosses the FFI.
      */
-    nonisolated func upsertHistoryRecords(dbPath: String, records: [HistoryRecordEncodeInput]) async throws 
+    nonisolated func upsertHistoryRecords(dbPath: String, records: [HistoryRecord]) async throws 
     
     /**
      * Add or replace a wallet from a typed `WalletSummary` record.
@@ -2849,6 +2868,26 @@ nonisolated open func isHistoryExhausted(chainId: UInt32, walletId: String) -> B
 })
 }
     
+    /**
+     * Load the persisted address-book store.
+     */
+nonisolated open func loadAddressBookStore(dbPath: String, key: String)async throws  -> CorePersistedAddressBookStore?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_load_address_book_store(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(dbPath),FfiConverterString.lower(key)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeCorePersistedAddressBookStore.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
 nonisolated open func loadAllKeypoolStateTyped(dbPath: String)async throws  -> [String: [String: KeypoolState]]  {
     return
         try  await uniffiRustCallAsync(
@@ -2901,6 +2940,27 @@ nonisolated open func loadAppSettingsTyped(dbPath: String)async throws  -> Persi
 }
     
     /**
+     * Load the persisted price-alert store. Returns `None` if no value has
+     * been saved yet or if the on-disk shape can't be decoded.
+     */
+nonisolated open func loadPriceAlertStore(dbPath: String, key: String)async throws  -> CorePersistedPriceAlertStore?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_load_price_alert_store(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(dbPath),FfiConverterString.lower(key)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_spectra_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_spectra_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeCorePersistedPriceAlertStore.lift,
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
      * Load the JSON state blob stored under `key` in the SQLite database at
      * `db_path`. Returns an empty JSON object `"{}"` when no value has been
      * saved yet. Thread-safe: rusqlite is called in `spawn_blocking`.
@@ -2925,13 +2985,13 @@ nonisolated open func loadState(dbPath: String, key: String)async throws  -> Str
     /**
      * Atomically replace ALL history records with the provided batch.
      */
-nonisolated open func replaceAllHistoryRecords(dbPath: String, records: [HistoryRecordEncodeInput])async throws   {
+nonisolated open func replaceAllHistoryRecords(dbPath: String, records: [HistoryRecord])async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_spectra_core_fn_method_walletservice_replace_all_history_records(
                     self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterSequenceTypeHistoryRecordEncodeInput.lower(records)
+                    FfiConverterString.lower(dbPath),FfiConverterSequenceTypeHistoryRecord.lower(records)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_void,
@@ -3007,6 +3067,26 @@ nonisolated open func resolveEnsNameTyped(name: String)async throws  -> String? 
         )
 }
     
+    /**
+     * Persist the address-book store typed.
+     */
+nonisolated open func saveAddressBookStore(dbPath: String, key: String, value: CorePersistedAddressBookStore)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_save_address_book_store(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(dbPath),FfiConverterString.lower(key),FfiConverterTypeCorePersistedAddressBookStore_lower(value)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_void,
+            completeFunc: ffi_spectra_core_rust_future_complete_void,
+            freeFunc: ffi_spectra_core_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
 nonisolated open func saveAppSettingsTyped(dbPath: String, settings: PersistedAppSettings)async throws   {
     return
         try  await uniffiRustCallAsync(
@@ -3054,6 +3134,26 @@ nonisolated open func saveOwnedAddressTyped(dbPath: String, record: OwnedAddress
                 uniffi_spectra_core_fn_method_walletservice_save_owned_address_typed(
                     self.uniffiClonePointer(),
                     FfiConverterString.lower(dbPath),FfiConverterTypeOwnedAddressRecord_lower(record)
+                )
+            },
+            pollFunc: ffi_spectra_core_rust_future_poll_void,
+            completeFunc: ffi_spectra_core_rust_future_complete_void,
+            freeFunc: ffi_spectra_core_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeSpectraBridgeError_lift
+        )
+}
+    
+    /**
+     * Persist the price-alert store typed.
+     */
+nonisolated open func savePriceAlertStore(dbPath: String, key: String, value: CorePersistedPriceAlertStore)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_spectra_core_fn_method_walletservice_save_price_alert_store(
+                    self.uniffiClonePointer(),
+                    FfiConverterString.lower(dbPath),FfiConverterString.lower(key),FfiConverterTypeCorePersistedPriceAlertStore_lower(value)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_void,
@@ -3157,17 +3257,17 @@ nonisolated open func updateEndpointsTyped(endpoints: [ChainEndpoints])async thr
 }
     
     /**
-     * Upsert a batch of transaction history records. `records[*].payload_json`
-     * is the raw PersistedTransactionRecord JSON; Rust base64-encodes it into
-     * the stored `payload` column to match the `HistoryRecord` schema.
+     * Upsert a batch of transaction history records. `records[*].payload`
+     * is the typed `CorePersistedTransactionRecord`; Rust serializes to JSON
+     * for the SQLite TEXT column internally — no JSON crosses the FFI.
      */
-nonisolated open func upsertHistoryRecords(dbPath: String, records: [HistoryRecordEncodeInput])async throws   {
+nonisolated open func upsertHistoryRecords(dbPath: String, records: [HistoryRecord])async throws   {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
                 uniffi_spectra_core_fn_method_walletservice_upsert_history_records(
                     self.uniffiClonePointer(),
-                    FfiConverterString.lower(dbPath),FfiConverterSequenceTypeHistoryRecordEncodeInput.lower(records)
+                    FfiConverterString.lower(dbPath),FfiConverterSequenceTypeHistoryRecord.lower(records)
                 )
             },
             pollFunc: ffi_spectra_core_rust_future_poll_void,
@@ -12155,202 +12255,6 @@ nonisolated public func FfiConverterTypeEvmPlannedTransactionRecord_lower(_ valu
 }
 
 
-nonisolated public struct EvmPreviewDecodeInput {
-    public var rawJson: String
-    public var explicitNonce: Int64?
-    public var customFees: EvmCustomFeeConfiguration?
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    nonisolated public init(rawJson: String, explicitNonce: Int64?, customFees: EvmCustomFeeConfiguration?) {
-        self.rawJson = rawJson
-        self.explicitNonce = explicitNonce
-        self.customFees = customFees
-    }
-}
-
-#if compiler(>=6)
-nonisolated extension EvmPreviewDecodeInput: Sendable {}
-#endif
-
-
-nonisolated extension EvmPreviewDecodeInput: Equatable, Hashable {
-    public static func ==(lhs: EvmPreviewDecodeInput, rhs: EvmPreviewDecodeInput) -> Bool {
-        if lhs.rawJson != rhs.rawJson {
-            return false
-        }
-        if lhs.explicitNonce != rhs.explicitNonce {
-            return false
-        }
-        if lhs.customFees != rhs.customFees {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(rawJson)
-        hasher.combine(explicitNonce)
-        hasher.combine(customFees)
-    }
-}
-
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public struct FfiConverterTypeEvmPreviewDecodeInput: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EvmPreviewDecodeInput {
-        return
-            try EvmPreviewDecodeInput(
-                rawJson: FfiConverterString.read(from: &buf), 
-                explicitNonce: FfiConverterOptionInt64.read(from: &buf), 
-                customFees: FfiConverterOptionTypeEvmCustomFeeConfiguration.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: EvmPreviewDecodeInput, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.rawJson, into: &buf)
-        FfiConverterOptionInt64.write(value.explicitNonce, into: &buf)
-        FfiConverterOptionTypeEvmCustomFeeConfiguration.write(value.customFees, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeEvmPreviewDecodeInput_lift(_ buf: RustBuffer) throws -> EvmPreviewDecodeInput {
-    return try FfiConverterTypeEvmPreviewDecodeInput.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeEvmPreviewDecodeInput_lower(_ value: EvmPreviewDecodeInput) -> RustBuffer {
-    return FfiConverterTypeEvmPreviewDecodeInput.lower(value)
-}
-
-
-nonisolated public struct EvmPreviewDecoded {
-    public var nonce: Int64
-    public var gasLimit: Int64
-    public var maxFeePerGasGwei: Double
-    public var maxPriorityFeePerGasGwei: Double
-    public var estimatedNetworkFeeEth: Double
-    public var spendableBalance: Double?
-    public var feeRateDescription: String?
-    public var maxSendable: Double?
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    nonisolated public init(nonce: Int64, gasLimit: Int64, maxFeePerGasGwei: Double, maxPriorityFeePerGasGwei: Double, estimatedNetworkFeeEth: Double, spendableBalance: Double?, feeRateDescription: String?, maxSendable: Double?) {
-        self.nonce = nonce
-        self.gasLimit = gasLimit
-        self.maxFeePerGasGwei = maxFeePerGasGwei
-        self.maxPriorityFeePerGasGwei = maxPriorityFeePerGasGwei
-        self.estimatedNetworkFeeEth = estimatedNetworkFeeEth
-        self.spendableBalance = spendableBalance
-        self.feeRateDescription = feeRateDescription
-        self.maxSendable = maxSendable
-    }
-}
-
-#if compiler(>=6)
-nonisolated extension EvmPreviewDecoded: Sendable {}
-#endif
-
-
-nonisolated extension EvmPreviewDecoded: Equatable, Hashable {
-    public static func ==(lhs: EvmPreviewDecoded, rhs: EvmPreviewDecoded) -> Bool {
-        if lhs.nonce != rhs.nonce {
-            return false
-        }
-        if lhs.gasLimit != rhs.gasLimit {
-            return false
-        }
-        if lhs.maxFeePerGasGwei != rhs.maxFeePerGasGwei {
-            return false
-        }
-        if lhs.maxPriorityFeePerGasGwei != rhs.maxPriorityFeePerGasGwei {
-            return false
-        }
-        if lhs.estimatedNetworkFeeEth != rhs.estimatedNetworkFeeEth {
-            return false
-        }
-        if lhs.spendableBalance != rhs.spendableBalance {
-            return false
-        }
-        if lhs.feeRateDescription != rhs.feeRateDescription {
-            return false
-        }
-        if lhs.maxSendable != rhs.maxSendable {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(nonce)
-        hasher.combine(gasLimit)
-        hasher.combine(maxFeePerGasGwei)
-        hasher.combine(maxPriorityFeePerGasGwei)
-        hasher.combine(estimatedNetworkFeeEth)
-        hasher.combine(spendableBalance)
-        hasher.combine(feeRateDescription)
-        hasher.combine(maxSendable)
-    }
-}
-
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public struct FfiConverterTypeEvmPreviewDecoded: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EvmPreviewDecoded {
-        return
-            try EvmPreviewDecoded(
-                nonce: FfiConverterInt64.read(from: &buf), 
-                gasLimit: FfiConverterInt64.read(from: &buf), 
-                maxFeePerGasGwei: FfiConverterDouble.read(from: &buf), 
-                maxPriorityFeePerGasGwei: FfiConverterDouble.read(from: &buf), 
-                estimatedNetworkFeeEth: FfiConverterDouble.read(from: &buf), 
-                spendableBalance: FfiConverterOptionDouble.read(from: &buf), 
-                feeRateDescription: FfiConverterOptionString.read(from: &buf), 
-                maxSendable: FfiConverterOptionDouble.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: EvmPreviewDecoded, into buf: inout [UInt8]) {
-        FfiConverterInt64.write(value.nonce, into: &buf)
-        FfiConverterInt64.write(value.gasLimit, into: &buf)
-        FfiConverterDouble.write(value.maxFeePerGasGwei, into: &buf)
-        FfiConverterDouble.write(value.maxPriorityFeePerGasGwei, into: &buf)
-        FfiConverterDouble.write(value.estimatedNetworkFeeEth, into: &buf)
-        FfiConverterOptionDouble.write(value.spendableBalance, into: &buf)
-        FfiConverterOptionString.write(value.feeRateDescription, into: &buf)
-        FfiConverterOptionDouble.write(value.maxSendable, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeEvmPreviewDecoded_lift(_ buf: RustBuffer) throws -> EvmPreviewDecoded {
-    return try FfiConverterTypeEvmPreviewDecoded.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeEvmPreviewDecoded_lower(_ value: EvmPreviewDecoded) -> RustBuffer {
-    return FfiConverterTypeEvmPreviewDecoded.lower(value)
-}
-
-
 nonisolated public struct EvmReceiptClassification {
     public var isConfirmed: Bool
     public var isFailed: Bool
@@ -13192,6 +13096,81 @@ nonisolated public func FfiConverterTypeEvmSendAssemblyInput_lift(_ buf: RustBuf
 #endif
 nonisolated public func FfiConverterTypeEvmSendAssemblyInput_lower(_ value: EvmSendAssemblyInput) -> RustBuffer {
     return FfiConverterTypeEvmSendAssemblyInput.lower(value)
+}
+
+
+/**
+ * Typed EVM overrides crossing the FFI from Swift. Internal-only on the
+ * Rust side: `build_execute_send_payload` projects this into the comma-prefix
+ * JSON fragment that `build_evm_*_send_payload` expects.
+ */
+nonisolated public struct EvmSendOverridesInput {
+    public var nonce: Int64?
+    public var customFees: EvmCustomFeeConfiguration?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    nonisolated public init(nonce: Int64?, customFees: EvmCustomFeeConfiguration?) {
+        self.nonce = nonce
+        self.customFees = customFees
+    }
+}
+
+#if compiler(>=6)
+nonisolated extension EvmSendOverridesInput: Sendable {}
+#endif
+
+
+nonisolated extension EvmSendOverridesInput: Equatable, Hashable {
+    public static func ==(lhs: EvmSendOverridesInput, rhs: EvmSendOverridesInput) -> Bool {
+        if lhs.nonce != rhs.nonce {
+            return false
+        }
+        if lhs.customFees != rhs.customFees {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(nonce)
+        hasher.combine(customFees)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public struct FfiConverterTypeEvmSendOverridesInput: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> EvmSendOverridesInput {
+        return
+            try EvmSendOverridesInput(
+                nonce: FfiConverterOptionInt64.read(from: &buf), 
+                customFees: FfiConverterOptionTypeEvmCustomFeeConfiguration.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: EvmSendOverridesInput, into buf: inout [UInt8]) {
+        FfiConverterOptionInt64.write(value.nonce, into: &buf)
+        FfiConverterOptionTypeEvmCustomFeeConfiguration.write(value.customFees, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeEvmSendOverridesInput_lift(_ buf: RustBuffer) throws -> EvmSendOverridesInput {
+    return try FfiConverterTypeEvmSendOverridesInput.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+nonisolated public func FfiConverterTypeEvmSendOverridesInput_lower(_ value: EvmSendOverridesInput) -> RustBuffer {
+    return FfiConverterTypeEvmSendOverridesInput.lower(value)
 }
 
 
@@ -14171,8 +14150,10 @@ nonisolated public func FfiConverterTypeHighRiskSendWarning_lower(_ value: HighR
 
 
 /**
- * Represents one persisted transaction record.
- * `payload` is a base64-encoded JSON blob (the full `PersistedCoreTransactionRecord` from Swift).
+ * Represents one persisted transaction record. `payload` is the typed
+ * `CorePersistedTransactionRecord` directly — Rust serializes it to JSON
+ * for the SQLite TEXT column and deserializes on read, so the JSON shape
+ * never crosses the FFI as a String.
  */
 nonisolated public struct HistoryRecord {
     public var id: String
@@ -14180,11 +14161,11 @@ nonisolated public struct HistoryRecord {
     public var chainName: String
     public var txHash: String?
     public var createdAt: Double
-    public var payload: String
+    public var payload: CorePersistedTransactionRecord
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    nonisolated public init(id: String, walletId: String?, chainName: String, txHash: String?, createdAt: Double, payload: String) {
+    nonisolated public init(id: String, walletId: String?, chainName: String, txHash: String?, createdAt: Double, payload: CorePersistedTransactionRecord) {
         self.id = id
         self.walletId = walletId
         self.chainName = chainName
@@ -14246,7 +14227,7 @@ nonisolated public struct FfiConverterTypeHistoryRecord: FfiConverterRustBuffer 
                 chainName: FfiConverterString.read(from: &buf), 
                 txHash: FfiConverterOptionString.read(from: &buf), 
                 createdAt: FfiConverterDouble.read(from: &buf), 
-                payload: FfiConverterString.read(from: &buf)
+                payload: FfiConverterTypeCorePersistedTransactionRecord.read(from: &buf)
         )
     }
 
@@ -14256,7 +14237,7 @@ nonisolated public struct FfiConverterTypeHistoryRecord: FfiConverterRustBuffer 
         FfiConverterString.write(value.chainName, into: &buf)
         FfiConverterOptionString.write(value.txHash, into: &buf)
         FfiConverterDouble.write(value.createdAt, into: &buf)
-        FfiConverterString.write(value.payload, into: &buf)
+        FfiConverterTypeCorePersistedTransactionRecord.write(value.payload, into: &buf)
     }
 }
 
@@ -14273,114 +14254,6 @@ nonisolated public func FfiConverterTypeHistoryRecord_lift(_ buf: RustBuffer) th
 #endif
 nonisolated public func FfiConverterTypeHistoryRecord_lower(_ value: HistoryRecord) -> RustBuffer {
     return FfiConverterTypeHistoryRecord.lower(value)
-}
-
-
-/**
- * Typed input for the history persistence endpoints (`upsert_history_records`
- * and `replace_all_history_records`). `payload_json` is the full
- * `PersistedTransactionRecord` JSON blob (unencoded); Rust base64-encodes it
- * into the stored HistoryRecord `payload` column.
- */
-nonisolated public struct HistoryRecordEncodeInput {
-    public var id: String
-    public var walletId: String?
-    public var chainName: String
-    public var txHash: String?
-    public var createdAt: Double
-    public var payloadJson: String
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    nonisolated public init(id: String, walletId: String?, chainName: String, txHash: String?, createdAt: Double, payloadJson: String) {
-        self.id = id
-        self.walletId = walletId
-        self.chainName = chainName
-        self.txHash = txHash
-        self.createdAt = createdAt
-        self.payloadJson = payloadJson
-    }
-}
-
-#if compiler(>=6)
-nonisolated extension HistoryRecordEncodeInput: Sendable {}
-#endif
-
-
-nonisolated extension HistoryRecordEncodeInput: Equatable, Hashable {
-    public static func ==(lhs: HistoryRecordEncodeInput, rhs: HistoryRecordEncodeInput) -> Bool {
-        if lhs.id != rhs.id {
-            return false
-        }
-        if lhs.walletId != rhs.walletId {
-            return false
-        }
-        if lhs.chainName != rhs.chainName {
-            return false
-        }
-        if lhs.txHash != rhs.txHash {
-            return false
-        }
-        if lhs.createdAt != rhs.createdAt {
-            return false
-        }
-        if lhs.payloadJson != rhs.payloadJson {
-            return false
-        }
-        return true
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-        hasher.combine(walletId)
-        hasher.combine(chainName)
-        hasher.combine(txHash)
-        hasher.combine(createdAt)
-        hasher.combine(payloadJson)
-    }
-}
-
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public struct FfiConverterTypeHistoryRecordEncodeInput: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HistoryRecordEncodeInput {
-        return
-            try HistoryRecordEncodeInput(
-                id: FfiConverterString.read(from: &buf), 
-                walletId: FfiConverterOptionString.read(from: &buf), 
-                chainName: FfiConverterString.read(from: &buf), 
-                txHash: FfiConverterOptionString.read(from: &buf), 
-                createdAt: FfiConverterDouble.read(from: &buf), 
-                payloadJson: FfiConverterString.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: HistoryRecordEncodeInput, into buf: inout [UInt8]) {
-        FfiConverterString.write(value.id, into: &buf)
-        FfiConverterOptionString.write(value.walletId, into: &buf)
-        FfiConverterString.write(value.chainName, into: &buf)
-        FfiConverterOptionString.write(value.txHash, into: &buf)
-        FfiConverterDouble.write(value.createdAt, into: &buf)
-        FfiConverterString.write(value.payloadJson, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeHistoryRecordEncodeInput_lift(_ buf: RustBuffer) throws -> HistoryRecordEncodeInput {
-    return try FfiConverterTypeHistoryRecordEncodeInput.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-nonisolated public func FfiConverterTypeHistoryRecordEncodeInput_lower(_ value: HistoryRecordEncodeInput) -> RustBuffer {
-    return FfiConverterTypeHistoryRecordEncodeInput.lower(value)
 }
 
 
@@ -19487,7 +19360,8 @@ nonisolated public func FfiConverterTypeReceiveSelectionRequest_lower(_ value: R
  * One (chain, wallet, address) triple registered for periodic refresh.
  *
  * For Bitcoin HD wallets: set `address` to the xpub/ypub/zpub.
- * `WalletService::fetch_balance_auto` detects extended keys automatically.
+ * `WalletService::fetch_native_balance_summary_auto` detects extended keys
+ * automatically.
  */
 nonisolated public struct RefreshEntry {
     public var chainId: UInt32
@@ -20537,9 +20411,10 @@ nonisolated public struct SendExecutionRequest {
      */
     public var feeAmount: Double?
     /**
-     * EVM overrides JSON fragment (nonce, custom gas fees).
+     * EVM overrides (nonce, custom gas fees). Typed; Rust assembles the
+     * payload fragment internally — no JSON shuttle from Swift.
      */
-    public var evmOverridesFragment: String?
+    public var evmOverrides: EvmSendOverridesInput?
     /**
      * Monero priority level.
      */
@@ -20598,8 +20473,9 @@ nonisolated public struct SendExecutionRequest {
          * Cardano fee in ADA.
          */feeAmount: Double?, 
         /**
-         * EVM overrides JSON fragment (nonce, custom gas fees).
-         */evmOverridesFragment: String?, 
+         * EVM overrides (nonce, custom gas fees). Typed; Rust assembles the
+         * payload fragment internally — no JSON shuttle from Swift.
+         */evmOverrides: EvmSendOverridesInput?, 
         /**
          * Monero priority level.
          */moneroPriority: UInt32?, 
@@ -20623,7 +20499,7 @@ nonisolated public struct SendExecutionRequest {
         self.feeSat = feeSat
         self.gasBudget = gasBudget
         self.feeAmount = feeAmount
-        self.evmOverridesFragment = evmOverridesFragment
+        self.evmOverrides = evmOverrides
         self.moneroPriority = moneroPriority
         self.derivationOverrides = derivationOverrides
     }
@@ -20678,7 +20554,7 @@ nonisolated extension SendExecutionRequest: Equatable, Hashable {
         if lhs.feeAmount != rhs.feeAmount {
             return false
         }
-        if lhs.evmOverridesFragment != rhs.evmOverridesFragment {
+        if lhs.evmOverrides != rhs.evmOverrides {
             return false
         }
         if lhs.moneroPriority != rhs.moneroPriority {
@@ -20705,7 +20581,7 @@ nonisolated extension SendExecutionRequest: Equatable, Hashable {
         hasher.combine(feeSat)
         hasher.combine(gasBudget)
         hasher.combine(feeAmount)
-        hasher.combine(evmOverridesFragment)
+        hasher.combine(evmOverrides)
         hasher.combine(moneroPriority)
         hasher.combine(derivationOverrides)
     }
@@ -20734,7 +20610,7 @@ nonisolated public struct FfiConverterTypeSendExecutionRequest: FfiConverterRust
                 feeSat: FfiConverterOptionUInt64.read(from: &buf), 
                 gasBudget: FfiConverterOptionDouble.read(from: &buf), 
                 feeAmount: FfiConverterOptionDouble.read(from: &buf), 
-                evmOverridesFragment: FfiConverterOptionString.read(from: &buf), 
+                evmOverrides: FfiConverterOptionTypeEvmSendOverridesInput.read(from: &buf), 
                 moneroPriority: FfiConverterOptionUInt32.read(from: &buf), 
                 derivationOverrides: FfiConverterOptionTypeCoreWalletDerivationOverrides.read(from: &buf)
         )
@@ -20755,7 +20631,7 @@ nonisolated public struct FfiConverterTypeSendExecutionRequest: FfiConverterRust
         FfiConverterOptionUInt64.write(value.feeSat, into: &buf)
         FfiConverterOptionDouble.write(value.gasBudget, into: &buf)
         FfiConverterOptionDouble.write(value.feeAmount, into: &buf)
-        FfiConverterOptionString.write(value.evmOverridesFragment, into: &buf)
+        FfiConverterOptionTypeEvmSendOverridesInput.write(value.evmOverrides, into: &buf)
         FfiConverterOptionUInt32.write(value.moneroPriority, into: &buf)
         FfiConverterOptionTypeCoreWalletDerivationOverrides.write(value.derivationOverrides, into: &buf)
     }
@@ -20782,7 +20658,8 @@ nonisolated public func FfiConverterTypeSendExecutionRequest_lower(_ value: Send
  */
 nonisolated public struct SendExecutionResult {
     /**
-     * Raw JSON result from the chain signer/broadcaster.
+     * Raw JSON result from the chain signer/broadcaster. Persisted opaquely
+     * by Swift as the `signedTransactionPayload` blob — no Swift-side parsing.
      */
     public var resultJson: String
     /**
@@ -20793,22 +20670,35 @@ nonisolated public struct SendExecutionResult {
      * Payload format key (e.g. "bitcoin.rust_json").
      */
     public var payloadFormat: String
+    /**
+     * Decoded EVM-specific result (nonce, raw_tx_hex, gas_limit). Populated
+     * when the chain is EVM; `None` for non-EVM chains. Lets Swift skip the
+     * `decode_evm_send_result(json:)` round-trip.
+     */
+    public var evm: EvmSendResultDecoded?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
     nonisolated public init(
         /**
-         * Raw JSON result from the chain signer/broadcaster.
+         * Raw JSON result from the chain signer/broadcaster. Persisted opaquely
+         * by Swift as the `signedTransactionPayload` blob — no Swift-side parsing.
          */resultJson: String, 
         /**
          * Extracted transaction hash/ID.
          */transactionHash: String, 
         /**
          * Payload format key (e.g. "bitcoin.rust_json").
-         */payloadFormat: String) {
+         */payloadFormat: String, 
+        /**
+         * Decoded EVM-specific result (nonce, raw_tx_hex, gas_limit). Populated
+         * when the chain is EVM; `None` for non-EVM chains. Lets Swift skip the
+         * `decode_evm_send_result(json:)` round-trip.
+         */evm: EvmSendResultDecoded?) {
         self.resultJson = resultJson
         self.transactionHash = transactionHash
         self.payloadFormat = payloadFormat
+        self.evm = evm
     }
 }
 
@@ -20828,6 +20718,9 @@ nonisolated extension SendExecutionResult: Equatable, Hashable {
         if lhs.payloadFormat != rhs.payloadFormat {
             return false
         }
+        if lhs.evm != rhs.evm {
+            return false
+        }
         return true
     }
 
@@ -20835,6 +20728,7 @@ nonisolated extension SendExecutionResult: Equatable, Hashable {
         hasher.combine(resultJson)
         hasher.combine(transactionHash)
         hasher.combine(payloadFormat)
+        hasher.combine(evm)
     }
 }
 
@@ -20849,7 +20743,8 @@ nonisolated public struct FfiConverterTypeSendExecutionResult: FfiConverterRustB
             try SendExecutionResult(
                 resultJson: FfiConverterString.read(from: &buf), 
                 transactionHash: FfiConverterString.read(from: &buf), 
-                payloadFormat: FfiConverterString.read(from: &buf)
+                payloadFormat: FfiConverterString.read(from: &buf), 
+                evm: FfiConverterOptionTypeEvmSendResultDecoded.read(from: &buf)
         )
     }
 
@@ -20857,6 +20752,7 @@ nonisolated public struct FfiConverterTypeSendExecutionResult: FfiConverterRustB
         FfiConverterString.write(value.resultJson, into: &buf)
         FfiConverterString.write(value.transactionHash, into: &buf)
         FfiConverterString.write(value.payloadFormat, into: &buf)
+        FfiConverterOptionTypeEvmSendResultDecoded.write(value.evm, into: &buf)
     }
 }
 
@@ -32606,10 +32502,40 @@ nonisolated extension SimpleChainPreview: Equatable, Hashable {}
 
 
 
+/**
+ * Bridge error returned to Swift across UniFFI. Variants describe the broad
+ * failure category so Swift can branch on it (e.g. surface a "no internet"
+ * banner for `Network`, vs. an inline validation error for `InvalidInput`).
+ * `Failure` remains as a catch-all for legacy / un-categorised errors and is
+ * the target of the blanket `From<String>` / `From<&str>` impls so the 200+
+ * existing `.map_err(SpectraBridgeError::from)?` sites keep compiling.
+ */
 nonisolated public enum SpectraBridgeError: Swift.Error {
 
     
     
+    /**
+     * Network / RPC failure — connectivity, timeout, TLS, HTTP non-2xx, etc.
+     */
+    case Network(message: String
+    )
+    /**
+     * Response decoding / parsing failure (malformed JSON, unexpected shape,
+     * hex decode error). Distinct from `Network` so the UI can blame the
+     * provider rather than the connection.
+     */
+    case Decode(message: String
+    )
+    /**
+     * Bad caller input — empty seed phrase, invalid address, unsupported
+     * chain ID, etc. UI surfaces these inline against the offending field.
+     */
+    case InvalidInput(message: String
+    )
+    /**
+     * Catch-all for legacy errors that haven't been categorised. New code
+     * should prefer the specific variants above.
+     */
     case Failure(message: String
     )
 }
@@ -32628,7 +32554,16 @@ nonisolated public struct FfiConverterTypeSpectraBridgeError: FfiConverterRustBu
         
 
         
-        case 1: return .Failure(
+        case 1: return .Network(
+            message: try FfiConverterString.read(from: &buf)
+            )
+        case 2: return .Decode(
+            message: try FfiConverterString.read(from: &buf)
+            )
+        case 3: return .InvalidInput(
+            message: try FfiConverterString.read(from: &buf)
+            )
+        case 4: return .Failure(
             message: try FfiConverterString.read(from: &buf)
             )
 
@@ -32643,8 +32578,23 @@ nonisolated public struct FfiConverterTypeSpectraBridgeError: FfiConverterRustBu
 
         
         
-        case let .Failure(message):
+        case let .Network(message):
             writeInt(&buf, Int32(1))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .Decode(message):
+            writeInt(&buf, Int32(2))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .InvalidInput(message):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .Failure(message):
+            writeInt(&buf, Int32(4))
             FfiConverterString.write(message, into: &buf)
             
         }
@@ -33605,6 +33555,54 @@ fileprivate struct FfiConverterOptionTypeChainKeypoolStateRecord: FfiConverterRu
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeCorePersistedAddressBookStore: FfiConverterRustBuffer {
+    typealias SwiftType = CorePersistedAddressBookStore?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeCorePersistedAddressBookStore.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeCorePersistedAddressBookStore.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeCorePersistedPriceAlertStore: FfiConverterRustBuffer {
+    typealias SwiftType = CorePersistedPriceAlertStore?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeCorePersistedPriceAlertStore.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeCorePersistedPriceAlertStore.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeCoreWalletDerivationOverrides: FfiConverterRustBuffer {
     typealias SwiftType = CoreWalletDerivationOverrides?
 
@@ -33749,30 +33747,6 @@ fileprivate struct FfiConverterOptionTypeEvmNativeAsset: FfiConverterRustBuffer 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterOptionTypeEvmPreviewDecoded: FfiConverterRustBuffer {
-    typealias SwiftType = EvmPreviewDecoded?
-
-    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value = value else {
-            writeInt(&buf, Int8(0))
-            return
-        }
-        writeInt(&buf, Int8(1))
-        FfiConverterTypeEvmPreviewDecoded.write(value, into: &buf)
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
-        switch try readInt(&buf) as Int8 {
-        case 0: return nil
-        case 1: return try FfiConverterTypeEvmPreviewDecoded.read(from: &buf)
-        default: throw UniffiInternalError.unexpectedOptionalTag
-        }
-    }
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
 fileprivate struct FfiConverterOptionTypeEvmReceiptClassification: FfiConverterRustBuffer {
     typealias SwiftType = EvmReceiptClassification?
 
@@ -33789,6 +33763,54 @@ fileprivate struct FfiConverterOptionTypeEvmReceiptClassification: FfiConverterR
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeEvmReceiptClassification.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeEvmSendOverridesInput: FfiConverterRustBuffer {
+    typealias SwiftType = EvmSendOverridesInput?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeEvmSendOverridesInput.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEvmSendOverridesInput.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeEvmSendResultDecoded: FfiConverterRustBuffer {
+    typealias SwiftType = EvmSendResultDecoded?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeEvmSendResultDecoded.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeEvmSendResultDecoded.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -35859,31 +35881,6 @@ fileprivate struct FfiConverterSequenceTypeHistoryRecord: FfiConverterRustBuffer
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceTypeHistoryRecordEncodeInput: FfiConverterRustBuffer {
-    typealias SwiftType = [HistoryRecordEncodeInput]
-
-    public static func write(_ value: [HistoryRecordEncodeInput], into buf: inout [UInt8]) {
-        let len = Int32(value.count)
-        writeInt(&buf, len)
-        for item in value {
-            FfiConverterTypeHistoryRecordEncodeInput.write(item, into: &buf)
-        }
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [HistoryRecordEncodeInput] {
-        let len: Int32 = try readInt(&buf)
-        var seq = [HistoryRecordEncodeInput]()
-        seq.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            seq.append(try FfiConverterTypeHistoryRecordEncodeInput.read(from: &buf))
-        }
-        return seq
-    }
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
 fileprivate struct FfiConverterSequenceTypeHistoryTransaction: FfiConverterRustBuffer {
     typealias SwiftType = [HistoryTransaction]
 
@@ -37824,14 +37821,6 @@ nonisolated public func buildEvmNativeSendPayload(fromAddress: String, toAddress
     )
 })
 }
-nonisolated public func buildEvmOverridesJsonFragment(nonce: Int64?, customFees: EvmCustomFeeConfiguration?) -> String  {
-    return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_build_evm_overrides_json_fragment(
-        FfiConverterOptionInt64.lower(nonce),
-        FfiConverterOptionTypeEvmCustomFeeConfiguration.lower(customFees),$0
-    )
-})
-}
 nonisolated public func buildEvmTokenSendPayload(fromAddress: String, contractAddress: String, toAddress: String, amountRaw: String, privateKeyHex: String, overridesFragment: String) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_spectra_core_fn_func_build_evm_token_send_payload(
@@ -38474,8 +38463,8 @@ nonisolated public func coreSimpleChainRiskProbeConfig(chainName: String, symbol
     )
 })
 }
-nonisolated public func coreStaticResourceJson(resourceName: String)throws  -> Data  {
-    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
+nonisolated public func coreStaticResourceJson(resourceName: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_core_static_resource_json(
         FfiConverterString.lower(resourceName),$0
     )
@@ -38546,42 +38535,6 @@ nonisolated public func createPasswordVerifier(password: String)throws  -> Data 
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
     uniffi_spectra_core_fn_func_create_password_verifier(
         FfiConverterString.lower(password),$0
-    )
-})
-}
-nonisolated public func decodeEvmSendPreview(input: EvmPreviewDecodeInput) -> EvmPreviewDecoded?  {
-    return try!  FfiConverterOptionTypeEvmPreviewDecoded.lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_decode_evm_send_preview(
-        FfiConverterTypeEvmPreviewDecodeInput_lower(input),$0
-    )
-})
-}
-nonisolated public func decodeEvmSendResult(json: String, fallbackNonce: Int64) -> EvmSendResultDecoded  {
-    return try!  FfiConverterTypeEvmSendResultDecoded_lift(try! rustCall() {
-    uniffi_spectra_core_fn_func_decode_evm_send_result(
-        FfiConverterString.lower(json),
-        FfiConverterInt64.lower(fallbackNonce),$0
-    )
-})
-}
-nonisolated public func decodePersistedAddressBookStoreJson(json: String)throws  -> CorePersistedAddressBookStore  {
-    return try  FfiConverterTypeCorePersistedAddressBookStore_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_decode_persisted_address_book_store_json(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-nonisolated public func decodePersistedPriceAlertStoreJson(json: String)throws  -> CorePersistedPriceAlertStore  {
-    return try  FfiConverterTypeCorePersistedPriceAlertStore_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_decode_persisted_price_alert_store_json(
-        FfiConverterString.lower(json),$0
-    )
-})
-}
-nonisolated public func decodePersistedTransactionRecordJson(json: String)throws  -> CorePersistedTransactionRecord  {
-    return try  FfiConverterTypeCorePersistedTransactionRecord_lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_decode_persisted_transaction_record_json(
-        FfiConverterString.lower(json),$0
     )
 })
 }
@@ -39627,27 +39580,6 @@ nonisolated public func diagnosticsSetXrp(walletId: String, value: XrpHistoryDia
     )
 }
 }
-nonisolated public func encodePersistedAddressBookStoreJson(value: CorePersistedAddressBookStore)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_encode_persisted_address_book_store_json(
-        FfiConverterTypeCorePersistedAddressBookStore_lower(value),$0
-    )
-})
-}
-nonisolated public func encodePersistedPriceAlertStoreJson(value: CorePersistedPriceAlertStore)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_encode_persisted_price_alert_store_json(
-        FfiConverterTypeCorePersistedPriceAlertStore_lower(value),$0
-    )
-})
-}
-nonisolated public func encodePersistedTransactionRecordJson(value: CorePersistedTransactionRecord)throws  -> String  {
-    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeSpectraBridgeError_lift) {
-    uniffi_spectra_core_fn_func_encode_persisted_transaction_record_json(
-        FfiConverterTypeCorePersistedTransactionRecord_lower(value),$0
-    )
-})
-}
 /**
  * Encrypt a seed phrase with AES-256-GCM. `master_key_bytes` must be exactly
  * 32 bytes. Returns the JSON envelope as `Data` (compatible with Swift's
@@ -40188,9 +40120,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_build_evm_native_send_payload() != 57789) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_build_evm_overrides_json_fragment() != 45126) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_build_evm_token_send_payload() != 63851) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -40428,7 +40357,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_core_simple_chain_risk_probe_config() != 59112) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_core_static_resource_json() != 1996) {
+    if (uniffi_spectra_core_checksum_func_core_static_resource_json() != 60294) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_core_static_text_resource_utf8() != 46543) {
@@ -40453,21 +40382,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_create_password_verifier() != 63909) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_decode_evm_send_preview() != 65372) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_decode_evm_send_result() != 6530) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_decode_persisted_address_book_store_json() != 26569) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_decode_persisted_price_alert_store_json() != 48173) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_decode_persisted_transaction_record_json() != 16112) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_func_decrypt_seed_envelope() != 63104) {
@@ -40887,15 +40801,6 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_func_diagnostics_set_xrp() != 9935) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_func_encode_persisted_address_book_store_json() != 54661) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_encode_persisted_price_alert_store_json() != 12812) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_spectra_core_checksum_func_encode_persisted_transaction_record_json() != 52358) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_spectra_core_checksum_func_encrypt_seed_envelope() != 17021) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -41205,6 +41110,9 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_is_history_exhausted() != 7687) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_load_address_book_store() != 28317) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_load_all_keypool_state_typed() != 16635) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -41214,10 +41122,13 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_load_app_settings_typed() != 23566) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_load_price_alert_store() != 61978) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_load_state() != 44182) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_replace_all_history_records() != 5572) {
+    if (uniffi_spectra_core_checksum_method_walletservice_replace_all_history_records() != 42373) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_reset_all_history() != 12907) {
@@ -41235,6 +41146,9 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_resolve_ens_name_typed() != 22732) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_spectra_core_checksum_method_walletservice_save_address_book_store() != 49656) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_spectra_core_checksum_method_walletservice_save_app_settings_typed() != 64257) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -41242,6 +41156,9 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_save_owned_address_typed() != 1111) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_spectra_core_checksum_method_walletservice_save_price_alert_store() != 36903) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_save_state() != 52684) {
@@ -41262,7 +41179,7 @@ private nonisolated(unsafe) let initializationResult: InitializationResult = {
     if (uniffi_spectra_core_checksum_method_walletservice_update_endpoints_typed() != 33680) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_spectra_core_checksum_method_walletservice_upsert_history_records() != 15384) {
+    if (uniffi_spectra_core_checksum_method_walletservice_upsert_history_records() != 8196) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_spectra_core_checksum_method_walletservice_upsert_wallet_direct() != 55100) {

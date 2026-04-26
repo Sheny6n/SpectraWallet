@@ -305,106 +305,20 @@ struct WalletDetailView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 14) {
-                    CoinBadge(
-                        assetIdentifier: detailPresentation.walletBadge.assetIdentifier, fallbackText: detailPresentation.wallet.selectedChain,
-                        color: detailPresentation.walletBadge.color, size: 46
-                    )
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(detailPresentation.wallet.name).font(.title2.weight(.bold)).foregroundStyle(Color.primary)
-                            Spacer(minLength: 0)
-                            if isWatchOnly { watchOnlyBadge }
-                        }
-                        Text(store.displayChainTitle(for: detailPresentation.wallet)).font(.subheadline).foregroundStyle(.secondary)
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
-                VStack(alignment: .leading, spacing: 12) {
-                    detailRow(
-                        label: "Mode",
-                        value: isWatchOnly
-                            ? localizedWalletFlowString("Watch Addresses")
-                            : (isPrivateKeyWallet ? localizedWalletFlowString("Private Key") : localizedWalletFlowString("Seed-Based")))
-                    detailRow(label: "Current Value", value: detailPresentation.walletTotalValueText)
-                    detailRow(label: "Asset Count", value: "\(detailPresentation.nonZeroAssetCount)")
-                    detailRow(label: "First Activity", value: firstActivityDateText)
-                }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text(localizedWalletFlowString("Holdings")).font(.headline).foregroundStyle(Color.primary)
-                        Spacer()
-                        Text("\(detailPresentation.visibleHoldingPresentations.count)").font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    if detailPresentation.visibleHoldingPresentations.isEmpty {
-                        Text(localizedWalletFlowString("No assets loaded for this wallet yet.")).font(.subheadline).foregroundStyle(.secondary)
-                    } else {
-                        ForEach(detailPresentation.visibleHoldingPresentations) { holding in
-                            holdingRow(holding)
-                        }
-                    }
-                }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
+                walletHeroCard
+                walletStatsCard
+                walletHoldingsCard
                 if let walletAddress = detailPresentation.walletAddress {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text(localizedWalletFlowString("Wallet Address")).font(.headline).foregroundStyle(Color.primary)
-                            Spacer()
-                            Button {
-                                UIPasteboard.general.string = walletAddress
-                                didCopyWalletAddress = true
-                            } label: {
-                                Label(
-                                    didCopyWalletAddress ? localizedWalletFlowString("Copied") : localizedWalletFlowString("Copy"),
-                                    systemImage: didCopyWalletAddress ? "checkmark" : "doc.on.doc"
-                                ).font(.caption.weight(.semibold))
-                            }.buttonStyle(.borderless).foregroundStyle(Color.primary)
-                        }
-                        Text(walletAddress).font(.footnote.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
-                    }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
+                    walletAddressCard(walletAddress: walletAddress)
                 }
-                VStack(spacing: 10) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            store.beginEditingWallet(wallet)
-                        }
-                    } label: {
-                        Label(localizedWalletFlowString("Edit Name"), systemImage: "pencil").font(.subheadline.weight(.semibold)).frame(
-                            maxWidth: .infinity
-                        ).padding(.vertical, 9)
-                    }.buttonStyle(.glass)
-                    if !isWatchOnly && !isPrivateKeyWallet {
-                        Button {
-                            if requiresSeedPhrasePassword {
-                                seedPhrasePasswordInput = ""
-                                isShowingSeedPhrasePasswordPrompt = true
-                            } else {
-                                Task {
-                                    await revealSeedPhrase()
-                                }
-                            }
-                        } label: {
-                            Label(
-                                isRevealingSeedPhrase
-                                    ? localizedWalletFlowString("Checking Face ID...")
-                                    : (requiresSeedPhrasePassword
-                                        ? localizedWalletFlowString("Show Seed Phrase (Password)")
-                                        : localizedWalletFlowString("Show Seed Phrase")),
-                                systemImage: requiresSeedPhrasePassword ? "lock.shield" : "faceid"
-                            ).font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
-                        }.buttonStyle(.glass).disabled(isRevealingSeedPhrase || !store.canRevealSeedPhrase(for: wallet.id))
-                    }
-                    Button(role: .destructive) {
-                        isShowingDeleteWalletAlert = true
-                    } label: {
-                        Label(localizedWalletFlowString("Delete Wallet"), systemImage: "trash").font(.subheadline.weight(.semibold)).frame(
-                            maxWidth: .infinity
-                        ).padding(.vertical, 9)
-                    }.buttonStyle(.glass)
-                }
+                walletActionsStack
             }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
-        }.refreshable {
-            await store.refreshWalletBalance(wallet.id)
-        }.navigationTitle(localizedWalletFlowString("Wallet Details")).navigationBarTitleDisplayMode(.inline).toolbar {
+        }.background(SpectraBackdrop().ignoresSafeArea())
+            .refreshable {
+                await store.refreshWalletBalance(wallet.id)
+            }.navigationTitle(localizedWalletFlowString("Wallet Details")).navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(localizedWalletFlowString("Advanced")) {
                     isShowingAdvancedPage = true
@@ -510,6 +424,153 @@ struct WalletDetailView: View {
                     }
                 }
             }
+        }
+    }
+    @ViewBuilder
+    private var walletHeroCard: some View {
+        let presentation = detailPresentation
+        HStack(spacing: 14) {
+            CoinBadge(
+                assetIdentifier: presentation.walletBadge.assetIdentifier,
+                fallbackText: presentation.wallet.selectedChain,
+                color: presentation.walletBadge.color, size: 56
+            )
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(presentation.wallet.name).font(.title2.weight(.bold)).foregroundStyle(Color.primary).lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Spacer(minLength: 0)
+                    if isWatchOnly { watchOnlyBadge }
+                }
+                Text(store.displayChainTitle(for: presentation.wallet)).font(.subheadline.weight(.medium))
+                    .foregroundStyle(presentation.walletBadge.color)
+                Text(presentation.walletTotalValueText).font(.title3.weight(.semibold)).foregroundStyle(Color.primary)
+                    .spectraNumericTextLayout(minimumScaleFactor: 0.7)
+            }
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 28))
+    }
+    @ViewBuilder
+    private var walletStatsCard: some View {
+        let presentation = detailPresentation
+        let modeValue: String =
+            isWatchOnly
+            ? localizedWalletFlowString("Watch Addresses")
+            : (isPrivateKeyWallet ? localizedWalletFlowString("Private Key") : localizedWalletFlowString("Seed-Based"))
+        let modeIcon: String = isWatchOnly ? "eye.fill" : (isPrivateKeyWallet ? "key.fill" : "doc.text.fill")
+        VStack(alignment: .leading, spacing: 12) {
+            walletStatRow(label: localizedWalletFlowString("Mode"), value: modeValue, icon: modeIcon)
+            Divider().opacity(0.4)
+            walletStatRow(
+                label: localizedWalletFlowString("Asset Count"),
+                value: "\(presentation.nonZeroAssetCount)", icon: "chart.pie.fill")
+            Divider().opacity(0.4)
+            walletStatRow(label: localizedWalletFlowString("First Activity"), value: firstActivityDateText, icon: "clock.fill")
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+    @ViewBuilder
+    private func walletStatRow(label: String, value: String, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).font(.subheadline.weight(.semibold)).foregroundStyle(.orange).frame(width: 22)
+            Text(label).font(.subheadline).foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary).multilineTextAlignment(.trailing)
+                .spectraNumericTextLayout(minimumScaleFactor: 0.7)
+        }
+    }
+    @ViewBuilder
+    private var walletHoldingsCard: some View {
+        let holdings = detailPresentation.visibleHoldingPresentations
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text(localizedWalletFlowString("Holdings")).font(.headline).foregroundStyle(Color.primary)
+                Spacer()
+                if !holdings.isEmpty {
+                    Text("\(holdings.count)").font(.caption.weight(.bold)).foregroundStyle(.orange).padding(
+                        .horizontal, 8
+                    ).padding(.vertical, 3).background(Capsule(style: .continuous).fill(Color.orange.opacity(0.14)))
+                }
+            }
+            if holdings.isEmpty {
+                Text(localizedWalletFlowString("No assets loaded for this wallet yet.")).font(.subheadline).foregroundStyle(
+                    .secondary)
+            } else {
+                ForEach(holdings) { holding in
+                    holdingRow(holding)
+                    if holding.id != holdings.last?.id {
+                        Divider().opacity(0.3)
+                    }
+                }
+            }
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+    @ViewBuilder
+    private func walletAddressCard(walletAddress: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "qrcode").font(.subheadline.weight(.semibold)).foregroundStyle(.orange)
+                Text(localizedWalletFlowString("Wallet Address")).font(.headline).foregroundStyle(Color.primary)
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = walletAddress
+                    didCopyWalletAddress = true
+                } label: {
+                    Label(
+                        didCopyWalletAddress ? localizedWalletFlowString("Copied") : localizedWalletFlowString("Copy"),
+                        systemImage: didCopyWalletAddress ? "checkmark" : "doc.on.doc"
+                    ).font(.caption.weight(.semibold))
+                }.buttonStyle(.glass).tint(.orange)
+            }
+            Text(walletAddress).font(.footnote.monospaced()).foregroundStyle(Color.primary.opacity(0.85)).textSelection(
+                .enabled
+            ).padding(.horizontal, 12).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading).background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.primary.opacity(0.04))
+            )
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+    @ViewBuilder
+    private var walletActionsStack: some View {
+        VStack(spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    store.beginEditingWallet(wallet)
+                }
+            } label: {
+                Label(localizedWalletFlowString("Edit Name"), systemImage: "pencil").font(.subheadline.weight(.semibold)).frame(
+                    maxWidth: .infinity
+                ).padding(.vertical, 12)
+            }.buttonStyle(.glass).tint(.orange)
+            if !isWatchOnly && !isPrivateKeyWallet {
+                Button {
+                    if requiresSeedPhrasePassword {
+                        seedPhrasePasswordInput = ""
+                        isShowingSeedPhrasePasswordPrompt = true
+                    } else {
+                        Task {
+                            await revealSeedPhrase()
+                        }
+                    }
+                } label: {
+                    Label(
+                        isRevealingSeedPhrase
+                            ? localizedWalletFlowString("Checking Face ID...")
+                            : (requiresSeedPhrasePassword
+                                ? localizedWalletFlowString("Show Seed Phrase (Password)")
+                                : localizedWalletFlowString("Show Seed Phrase")),
+                        systemImage: requiresSeedPhrasePassword ? "lock.shield" : "faceid"
+                    ).font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 12)
+                }.buttonStyle(.glass).tint(.orange).disabled(isRevealingSeedPhrase || !store.canRevealSeedPhrase(for: wallet.id))
+            }
+            Button(role: .destructive) {
+                isShowingDeleteWalletAlert = true
+            } label: {
+                Label(localizedWalletFlowString("Delete Wallet"), systemImage: "trash").font(.subheadline.weight(.semibold)).frame(
+                    maxWidth: .infinity
+                ).padding(.vertical, 12)
+            }.buttonStyle(.glass).tint(.red)
         }
     }
     @ViewBuilder

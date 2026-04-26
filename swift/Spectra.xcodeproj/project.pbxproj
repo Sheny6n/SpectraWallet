@@ -96,11 +96,6 @@
 			path = views;
 			sourceTree = "<group>";
 		};
-		9074917A2F56D1E500D098D2 /* staking */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = staking;
-			sourceTree = "<group>";
-		};
 		9074916D2F56D1E500D098D2 /* extensions/SharedLiveActivities */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = extensions/SharedLiveActivities;
@@ -112,6 +107,11 @@
 				90F0BA0D2F5C4A76004E29F3 /* Exceptions for "extensions/SpectraLiveActivityExtension" folder in "SpectraLiveActivityExtension" target */,
 			);
 			path = extensions/SpectraLiveActivityExtension;
+			sourceTree = "<group>";
+		};
+		9074917A2F56D1E500D098D2 /* staking */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = staking;
 			sourceTree = "<group>";
 		};
 		90AA000A2F60000100BBB001 /* SharedResources */ = {
@@ -216,10 +216,10 @@
 				907491662F56D1E500D098D2 /* fetch */,
 				907491682F56D1E500D098D2 /* send */,
 				907491692F56D1E500D098D2 /* shell */,
-				9074917A2F56D1E500D098D2 /* staking */,
 				9074916A2F56D1E500D098D2 /* resources */,
 				9074916C2F56D1E500D098D2 /* views */,
 				9074916D2F56D1E500D098D2 /* extensions/SharedLiveActivities */,
+				9074917A2F56D1E500D098D2 /* staking */,
 				90AA000A2F60000100BBB001 /* SharedResources */,
 				90AA00202F60000200BBB001 /* generated */,
 				90AA00212F60000200BBB001 /* rustbridge */,

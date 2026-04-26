@@ -26,13 +26,13 @@ extension AppState {
         {
             tokenPreferences = mergeBuiltInTokenPreferences(with: tokenPrefs)
         }
-        if let alertsJSON = try? await WalletServiceBridge.shared.loadState(key: Self.priceAlertsDefaultsKey), alertsJSON != "{}",
-            let alertsPayload = try? decodePersistedPriceAlertStoreJson(json: alertsJSON), alertsPayload.version == 1
+        if let alertsPayload = try? await WalletServiceBridge.shared.loadPriceAlertStore(key: Self.priceAlertsDefaultsKey),
+            alertsPayload.version == 1
         {
             priceAlerts = alertsPayload.alerts.compactMap(PriceAlertRule.init(snapshot:))
         }
-        if let abJSON = try? await WalletServiceBridge.shared.loadState(key: Self.addressBookDefaultsKey), abJSON != "{}",
-            let abPayload = try? decodePersistedAddressBookStoreJson(json: abJSON), abPayload.version == 1
+        if let abPayload = try? await WalletServiceBridge.shared.loadAddressBookStore(key: Self.addressBookDefaultsKey),
+            abPayload.version == 1
         {
             setAddressBook(abPayload.entries.compactMap(AddressBookEntry.init(snapshot:)))
         }
@@ -122,12 +122,8 @@ extension AppState {
         if let rustRecords = try? await WalletServiceBridge.shared.fetchAllHistoryRecordsTyped(),
             !rustRecords.isEmpty
         {
-            let rustTransactions = rustRecords.compactMap { rec -> TransactionRecord? in
-                guard let payloadData = Data(base64Encoded: rec.payload),
-                    let payloadJSON = String(data: payloadData, encoding: .utf8),
-                    let persisted = try? decodePersistedTransactionRecordJson(json: payloadJSON)
-                else { return nil }
-                return TransactionRecord(snapshot: persisted)
+            let rustTransactions = rustRecords.compactMap { rec in
+                TransactionRecord(snapshot: rec.payload)
             }
             if !rustTransactions.isEmpty {
                 withSuspendedTransactionSideEffects { transactions = rustTransactions }
@@ -211,23 +207,19 @@ extension AppState {
         let payload = CorePersistedPriceAlertStore(
             version: 1, alerts: priceAlerts.map(\.persistedSnapshot)
         )
-        guard let json = try? encodePersistedPriceAlertStoreJson(value: payload) else { return }
-        Task { try? await WalletServiceBridge.shared.saveState(key: Self.priceAlertsDefaultsKey, stateJSON: json) }
+        Task {
+            try? await WalletServiceBridge.shared.savePriceAlertStore(
+                key: Self.priceAlertsDefaultsKey, value: payload)
+        }
     }
     func persistAddressBook() {
         let payload = CorePersistedAddressBookStore(
             version: 1, entries: addressBook.map(\.persistedSnapshot)
         )
-        guard let json = try? encodePersistedAddressBookStoreJson(value: payload) else { return }
-        Task { try? await WalletServiceBridge.shared.saveState(key: Self.addressBookDefaultsKey, stateJSON: json) }
-    }
-    func loadPersistedAddressBook() -> [AddressBookEntry] {
-        guard let data = UserDefaults.standard.data(forKey: Self.addressBookDefaultsKey),
-            let json = String(data: data, encoding: .utf8),
-            let payload = try? decodePersistedAddressBookStoreJson(json: json),
-            payload.version == 1
-        else { return [] }
-        return payload.entries.compactMap(AddressBookEntry.init(snapshot:))
+        Task {
+            try? await WalletServiceBridge.shared.saveAddressBookStore(
+                key: Self.addressBookDefaultsKey, value: payload)
+        }
     }
     func persistTokenPreferences() {
         persistCodableToSQLite(tokenPreferences, key: Self.tokenPreferencesDefaultsKey)
@@ -284,14 +276,6 @@ extension AppState {
             return ChainTokenRegistryEntry.builtIn.map(\.tokenPreferenceEntry)
         }
         return mergeBuiltInTokenPreferences(with: decoded)
-    }
-    func loadPersistedPriceAlerts() -> [PriceAlertRule] {
-        guard let data = UserDefaults.standard.data(forKey: Self.priceAlertsDefaultsKey),
-            let json = String(data: data, encoding: .utf8),
-            let payload = try? decodePersistedPriceAlertStoreJson(json: json),
-            payload.version == 1
-        else { return [] }
-        return payload.alerts.compactMap(PriceAlertRule.init(snapshot:))
     }
     private func decodedWalletSnapshots(from data: Data) -> [ImportedWallet]? {
         guard let payload = try? Self.persistenceDecoder.decode(PersistedWalletStore.self, from: data),

@@ -169,6 +169,20 @@ extension WalletServiceBridge {
     }
     func loadState(key: String) async throws -> String { try await service().loadState(dbPath: sqliteDbPath(), key: key) }
     func saveState(key: String, stateJSON: String) async throws { try await service().saveState(dbPath: sqliteDbPath(), key: key, stateJson: stateJSON) }
+    /// Typed price-alert store load — returns nil if no value or decode fails.
+    /// Replaces the loadState→decodePersistedPriceAlertStoreJson roundtrip.
+    func loadPriceAlertStore(key: String) async throws -> CorePersistedPriceAlertStore? {
+        try await service().loadPriceAlertStore(dbPath: sqliteDbPath(), key: key)
+    }
+    func savePriceAlertStore(key: String, value: CorePersistedPriceAlertStore) async throws {
+        try await service().savePriceAlertStore(dbPath: sqliteDbPath(), key: key, value: value)
+    }
+    func loadAddressBookStore(key: String) async throws -> CorePersistedAddressBookStore? {
+        try await service().loadAddressBookStore(dbPath: sqliteDbPath(), key: key)
+    }
+    func saveAddressBookStore(key: String, value: CorePersistedAddressBookStore) async throws {
+        try await service().saveAddressBookStore(dbPath: sqliteDbPath(), key: key, value: value)
+    }
     func initWalletStateDirect(wallets: [WalletSummary]) async throws { try await service().initWalletStateDirect(wallets: wallets) }
     func upsertWalletDirect(_ wallet: WalletSummary) async throws { try await service().upsertWalletDirect(wallet: wallet) }
     func fetchNormalizedHistory(chainId: UInt32, address: String) async throws -> [NormalizedHistoryItem] {
@@ -198,14 +212,14 @@ extension WalletServiceBridge {
         try await service().deleteWalletRelationalData(dbPath: sqliteDbPath(), walletId: walletId)
     }
     // ── Transaction history persistence (Rust SQLite) ──────────────────────────
-    func upsertHistoryRecords(_ records: [HistoryRecordEncodeInput]) async throws {
+    func upsertHistoryRecords(_ records: [HistoryRecord]) async throws {
         try await service().upsertHistoryRecords(dbPath: sqliteDbPath(), records: records)
     }
     func fetchAllHistoryRecordsTyped() async throws -> [HistoryRecord] { try await service().fetchAllHistoryRecordsTyped(dbPath: sqliteDbPath()) }
     func deleteHistoryRecords(ids: [String]) async throws {
         try await service().deleteHistoryRecords(dbPath: sqliteDbPath(), ids: ids)
     }
-    func replaceAllHistoryRecords(_ records: [HistoryRecordEncodeInput]) async throws {
+    func replaceAllHistoryRecords(_ records: [HistoryRecord]) async throws {
         try await service().replaceAllHistoryRecords(dbPath: sqliteDbPath(), records: records)
     }
     func clearAllHistoryRecords() async throws {

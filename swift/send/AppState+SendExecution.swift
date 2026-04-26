@@ -1,21 +1,21 @@
 import Foundation
 
-private func evmOverridesJSONFragment(nonce: Int?, customFees: EthereumCustomFeeConfiguration?) -> String {
+private func evmSendOverrides(nonce: Int?, customFees: EthereumCustomFeeConfiguration?) -> EvmSendOverridesInput? {
     let customDTO: EvmCustomFeeConfiguration? = customFees.map {
         EvmCustomFeeConfiguration(maxFeePerGasGwei: $0.maxFeePerGasGwei, maxPriorityFeePerGasGwei: $0.maxPriorityFeePerGasGwei)
     }
-    return buildEvmOverridesJsonFragment(nonce: nonce.map(Int64.init), customFees: customDTO)
+    if nonce == nil && customDTO == nil { return nil }
+    return EvmSendOverridesInput(nonce: nonce.map(Int64.init), customFees: customDTO)
 }
 
-private func decodeEvmSendResult(_ json: String, fallbackNonce: Int64) -> EthereumSendResult {
-    let d = decodeEvmSendResult(json: json, fallbackNonce: fallbackNonce)
+private func ethereumSendResult(from typed: EvmSendResultDecoded) -> EthereumSendResult {
     let preview = EthereumSendPreview(
-        nonce: d.nonce, gasLimit: d.gasLimit, maxFeePerGasGwei: 0, maxPriorityFeePerGasGwei: 0, estimatedNetworkFeeEth: 0,
+        nonce: typed.nonce, gasLimit: typed.gasLimit, maxFeePerGasGwei: 0, maxPriorityFeePerGasGwei: 0, estimatedNetworkFeeEth: 0,
         spendableBalance: nil, feeRateDescription: nil, estimatedTransactionBytes: nil, selectedInputCount: nil, usesChangeOutput: nil,
         maxSendable: nil
     )
     return EthereumSendResult(
-        fromAddress: "", transactionHash: d.txid, rawTransactionHex: d.rawTxHex, preview: preview, verificationStatus: .verified
+        fromAddress: "", transactionHash: typed.txid, rawTransactionHex: typed.rawTxHex, preview: preview, verificationStatus: .verified
     )
 }
 
@@ -126,7 +126,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: privateKey, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: nil, tokenDecimals: nil, feeRateSvb: nil, feeSat: nil, gasBudget: nil, feeAmount: nil,
-                        evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
+                        evmOverrides: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -210,7 +210,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: nil, tokenDecimals: nil, feeRateSvb: feeRateSvB, feeSat: nil, gasBudget: nil, feeAmount: nil,
-                        evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
+                        evmOverrides: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -298,7 +298,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: dogecoinAmount,
                         contractAddress: nil, tokenDecimals: nil, feeRateSvb: feeRateDogePerKb, feeSat: nil, gasBudget: nil, feeAmount: nil,
-                        evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
+                        evmOverrides: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -364,7 +364,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: privateKey, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: contractAddress, tokenDecimals: tokenDecimals, feeRateSvb: nil, feeSat: nil, gasBudget: nil,
-                        feeAmount: nil, evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
+                        feeAmount: nil, evmOverrides: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -438,7 +438,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: contractAddress, tokenDecimals: tokenDecimals, feeRateSvb: nil, feeSat: nil, gasBudget: nil,
-                        feeAmount: nil, evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
+                        feeAmount: nil, evmOverrides: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -548,7 +548,7 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: contractAddress, tokenDecimals: UInt32(decimals), feeRateSvb: nil, feeSat: nil, gasBudget: nil,
-                        feeAmount: nil, evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
+                        feeAmount: nil, evmOverrides: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
@@ -637,7 +637,7 @@ extension AppState {
                 let explicitNonce = explicitEthereumNonce()
                 let evmDerivationChain = WalletDerivationLayer.evmSeedDerivationChain(for: holding.chainName) ?? .ethereum
                 let spectraEvmChainId = SpectraChainID.id(for: holding.chainName)
-                let overridesFragment = evmOverridesJSONFragment(nonce: explicitNonce, customFees: customFees)
+                let evmOverrides = evmSendOverrides(nonce: explicitNonce, customFees: customFees)
                 let rustSupportsChain = spectraEvmChainId != nil
                 guard rustSupportsChain, let chainId = spectraEvmChainId else {
                     sendError = "\(holding.symbol) transfers on \(holding.chainName) are not enabled yet."
@@ -666,11 +666,11 @@ extension AppState {
                         seedPhrase: seedPhrase, privateKeyHex: privateKey, fromAddress: sourceAddress, toAddress: destinationAddress,
                         amount: amount,
                         contractAddress: contractAddress, tokenDecimals: tokenDecimals, feeRateSvb: nil, feeSat: nil, gasBudget: nil,
-                        feeAmount: nil, evmOverridesFragment: overridesFragment, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
+                        feeAmount: nil, evmOverrides: evmOverrides, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                     ))
-                let evmResult = decodeEvmSendResult(
-                    result.resultJson, fallbackNonce: explicitNonce.map(Int64.init) ?? ethereumSendPreview?.nonce ?? 0
-                )
+                let fallbackNonce = explicitNonce.map(Int64.init) ?? ethereumSendPreview?.nonce ?? 0
+                let typed = result.evm ?? EvmSendResultDecoded(txid: "", rawTxHex: "", nonce: fallbackNonce, gasLimit: 0)
+                let evmResult = ethereumSendResult(from: typed)
                 let transaction = decoratePendingSendTransaction(
                     TransactionRecord(
                         walletID: wallet.id, kind: .send, status: .pending, walletName: wallet.name, assetName: holding.name,
@@ -740,7 +740,7 @@ extension AppState {
                     amount: amount,
                     contractAddress: nil, tokenDecimals: nil, feeRateSvb: nil, feeSat: nil,
                     gasBudget: gasBudgetFromFee ? fee : nil, feeAmount: feeAmountFromFee ? fee : nil,
-                    evmOverridesFragment: nil, moneroPriority: moneroPriority, derivationOverrides: wallet.derivationOverrides
+                    evmOverrides: nil, moneroPriority: moneroPriority, derivationOverrides: wallet.derivationOverrides
                 ))
             let transaction = decoratePendingSendTransaction(
                 TransactionRecord(
@@ -789,7 +789,7 @@ extension AppState {
                     chainId: chainId, chainName: chainName, derivationPath: walletDerivationPath(for: wallet, chain: chain),
                     seedPhrase: seedPhrase, privateKeyHex: nil, fromAddress: sourceAddress, toAddress: destinationAddress, amount: amount,
                     contractAddress: nil, tokenDecimals: nil, feeRateSvb: nil, feeSat: feeSat, gasBudget: nil, feeAmount: nil,
-                    evmOverridesFragment: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
+                    evmOverrides: nil, moneroPriority: nil, derivationOverrides: wallet.derivationOverrides
                 ))
             let transaction = decoratePendingSendTransaction(
                 TransactionRecord(

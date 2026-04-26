@@ -305,55 +305,24 @@ struct AssetGroupDetailView: View {
         store.cachedDashboardSupportedTokenEntriesBySymbol[assetGroup.symbol.uppercased()] ?? []
     }
     var body: some View {
-        Form {
-            Section {
-                AssetDetailHeroRow(assetGroup: assetGroup, badgeSize: 52)
-            }
-            Section(AppLocalization.string("Summary")) {
-                AssetKeyValueRow(
-                    label: AppLocalization.string("Total Amount"),
-                    value: store.formattedAssetAmount(
-                        assetGroup.totalAmount, symbol: assetGroup.symbol, chainName: assetGroup.representativeCoin.chainName
-                    )
-                )
-                AssetKeyValueRow(
-                    label: AppLocalization.string("Total Value"),
-                    value: store.formattedFiatAmountOrZero(fromUSD: assetGroup.totalValueUSD)
-                )
-                AssetKeyValueRow(label: AppLocalization.string("Chains"), value: "\(assetGroup.chainEntries.count)")
-            }
-            if assetGroup.chainEntries.isEmpty {
-                Section(AppLocalization.string("Chain Breakdown")) {
-                    Text(AppLocalization.string("No chain balances yet for this asset.")).foregroundStyle(.secondary)
-                }
-            } else {
-                Section {
-                    ForEach(assetGroup.chainEntries) { entry in
-                        AssetChainBreakdownRow(
-                            chainTitle: store.displayChainTitle(for: entry.coin.chainName),
-                            tokenStandard: entry.coin.tokenStandard,
-                            amountText: store.formattedAssetAmount(
-                                entry.coin.amount, symbol: entry.coin.symbol, chainName: entry.coin.chainName
-                            ),
-                            valueText: store.formattedFiatAmountOrZero(fromUSD: entry.valueUSD)
-                        )
-                    }
-                } header: {
-                    Text(AppLocalization.string("Chain Breakdown"))
-                } footer: {
-                    Text(AppLocalization.string(
-                        "This asset view merges balances across chains while preserving the per-chain token standard details here."))
-                }
-            }
-        }.navigationTitle(assetGroup.symbol).navigationBarTitleDisplayMode(.inline).toolbar {
-            if !supportedTokenEntries.isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink(AppLocalization.string("Details")) {
-                        AssetContractsDetailView(store: store, assetGroup: assetGroup)
+        ScrollView(showsIndicators: false) {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                AssetDetailHeroCard(assetGroup: assetGroup, store: store)
+                AssetSummaryStatsCard(assetGroup: assetGroup, store: store)
+                AssetChainBreakdownCard(assetGroup: assetGroup, store: store)
+            }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
+        }.background(SpectraBackdrop().ignoresSafeArea())
+            .navigationTitle(assetGroup.symbol).navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                if !supportedTokenEntries.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink(AppLocalization.string("Details")) {
+                            AssetContractsDetailView(store: store, assetGroup: assetGroup)
+                        }
                     }
                 }
             }
-        }
     }
 }
 struct AssetContractsDetailView: View {
@@ -363,74 +332,174 @@ struct AssetContractsDetailView: View {
         store.cachedDashboardSupportedTokenEntriesBySymbol[assetGroup.symbol.uppercased()] ?? []
     }
     var body: some View {
-        Form {
-            Section {
-                AssetDetailHeroRow(assetGroup: assetGroup, badgeSize: 44)
-            }
-            if supportedTokenEntries.isEmpty {
-                Section(AppLocalization.string("Contracts")) {
-                    Text(AppLocalization.string("No contract addresses are available for this asset.")).foregroundStyle(.secondary)
+        ScrollView(showsIndicators: false) {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                AssetDetailHeroCard(assetGroup: assetGroup, store: store, compact: true)
+                AssetContractsCard(entries: supportedTokenEntries)
+            }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
+        }.background(SpectraBackdrop().ignoresSafeArea())
+            .navigationTitle(AppLocalization.format("%@ Details", assetGroup.symbol)).navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+    }
+}
+private struct AssetDetailHeroCard: View {
+    let assetGroup: DashboardAssetGroup
+    let store: AppState
+    var compact: Bool = false
+    var body: some View {
+        HStack(spacing: 14) {
+            CoinBadge(
+                assetIdentifier: assetGroup.iconIdentifier, fallbackText: assetGroup.symbol,
+                color: assetGroup.color, size: compact ? 48 : 60
+            )
+            VStack(alignment: .leading, spacing: 4) {
+                Text(assetGroup.name).font(compact ? .title3.weight(.bold) : .title2.weight(.bold))
+                    .foregroundStyle(Color.primary).lineLimit(1).minimumScaleFactor(0.8)
+                Text(assetGroup.symbol).font(.subheadline.weight(.semibold).monospaced())
+                    .foregroundStyle(assetGroup.color)
+                if !compact {
+                    Text(store.formattedFiatAmountOrZero(fromUSD: assetGroup.totalValueUSD))
+                        .font(.title3.weight(.semibold)).foregroundStyle(Color.primary)
+                        .spectraNumericTextLayout(minimumScaleFactor: 0.7)
                 }
+            }
+            Spacer(minLength: 0)
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 28))
+    }
+}
+private struct AssetSummaryStatsCard: View {
+    let assetGroup: DashboardAssetGroup
+    let store: AppState
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            statRow(
+                label: AppLocalization.string("Total Amount"),
+                value: store.formattedAssetAmount(
+                    assetGroup.totalAmount, symbol: assetGroup.symbol, chainName: assetGroup.representativeCoin.chainName),
+                icon: "scalemass.fill")
+            Divider().opacity(0.4)
+            statRow(
+                label: AppLocalization.string("Total Value"),
+                value: store.formattedFiatAmountOrZero(fromUSD: assetGroup.totalValueUSD),
+                icon: "dollarsign.circle.fill")
+            Divider().opacity(0.4)
+            statRow(
+                label: AppLocalization.string("Chains"),
+                value: "\(assetGroup.chainEntries.count)",
+                icon: "link.circle.fill")
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+    @ViewBuilder
+    private func statRow(label: String, value: String, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).font(.subheadline.weight(.semibold)).foregroundStyle(.orange).frame(width: 22)
+            Text(label).font(.subheadline).foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary).spectraNumericTextLayout(
+                minimumScaleFactor: 0.7
+            ).multilineTextAlignment(.trailing)
+        }
+    }
+}
+private struct AssetChainBreakdownCard: View {
+    let assetGroup: DashboardAssetGroup
+    let store: AppState
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text(AppLocalization.string("Chain Breakdown")).font(.headline).foregroundStyle(Color.primary)
+                Spacer()
+                Text("\(assetGroup.chainEntries.count)").font(.caption.weight(.bold)).foregroundStyle(.orange).padding(
+                    .horizontal, 8
+                ).padding(.vertical, 3).background(Capsule(style: .continuous).fill(Color.orange.opacity(0.14)))
+            }
+            if assetGroup.chainEntries.isEmpty {
+                Text(AppLocalization.string("No chain balances yet for this asset.")).font(.subheadline).foregroundStyle(
+                    .secondary)
             } else {
-                Section(AppLocalization.string("Contracts")) {
-                    ForEach(supportedTokenEntries) { entry in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(entry.chain.rawValue)
-                                Spacer()
-                                Text(entry.tokenStandard).font(.footnote).foregroundStyle(.secondary)
-                            }
-                            Text(entry.contractAddress).font(.footnote.monospaced()).foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }.padding(.vertical, 2)
+                ForEach(assetGroup.chainEntries) { entry in
+                    AssetChainBreakdownRow(
+                        chainTitle: store.displayChainTitle(for: entry.coin.chainName),
+                        chainName: entry.coin.chainName,
+                        tokenStandard: entry.coin.tokenStandard,
+                        amountText: store.formattedAssetAmount(
+                            entry.coin.amount, symbol: entry.coin.symbol, chainName: entry.coin.chainName),
+                        valueText: store.formattedFiatAmountOrZero(fromUSD: entry.valueUSD),
+                        symbol: entry.coin.symbol
+                    )
+                    if entry.id != assetGroup.chainEntries.last?.id {
+                        Divider().opacity(0.3)
+                    }
+                }
+                Text(AppLocalization.string("Balances merge across chains; per-chain token-standard details show here."))
+                    .font(.caption2).foregroundStyle(.secondary).padding(.top, 4)
+            }
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+}
+private struct AssetContractsCard: View {
+    let entries: [TokenPreferenceEntry]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text(AppLocalization.string("Contracts")).font(.headline).foregroundStyle(Color.primary)
+                Spacer()
+                if !entries.isEmpty {
+                    Text("\(entries.count)").font(.caption.weight(.bold)).foregroundStyle(.orange).padding(
+                        .horizontal, 8
+                    ).padding(.vertical, 3).background(Capsule(style: .continuous).fill(Color.orange.opacity(0.14)))
+                }
+            }
+            if entries.isEmpty {
+                Text(AppLocalization.string("No contract addresses are available for this asset.")).font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(entries) { entry in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text(entry.chain.rawValue).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+                            Spacer()
+                            Text(entry.tokenStandard).font(.caption.weight(.semibold)).foregroundStyle(.orange).padding(
+                                .horizontal, 8
+                            ).padding(.vertical, 3).background(
+                                Capsule(style: .continuous).fill(Color.orange.opacity(0.12)))
+                        }
+                        Text(entry.contractAddress).font(.footnote.monospaced()).foregroundStyle(.secondary).textSelection(
+                            .enabled
+                        ).lineLimit(2).truncationMode(.middle)
+                    }.padding(.vertical, 4)
+                    if entry.id != entries.last?.id {
+                        Divider().opacity(0.3)
                     }
                 }
             }
-        }.navigationTitle(AppLocalization.format("%@ Details", assetGroup.symbol)).navigationBarTitleDisplayMode(.inline)
-    }
-}
-private struct AssetDetailHeroRow: View {
-    let assetGroup: DashboardAssetGroup
-    var badgeSize: CGFloat = 52
-    var body: some View {
-        HStack(spacing: 12) {
-            CoinBadge(
-                assetIdentifier: assetGroup.iconIdentifier, fallbackText: assetGroup.symbol, color: assetGroup.color, size: badgeSize
-            )
-            VStack(alignment: .leading, spacing: 2) {
-                Text(assetGroup.name).font(.title3.weight(.semibold))
-                Text(assetGroup.symbol).font(.subheadline.monospaced()).foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }.padding(.vertical, 4)
-    }
-}
-private struct AssetKeyValueRow: View {
-    let label: String
-    let value: String
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label).foregroundStyle(.secondary)
-            Spacer(minLength: 12)
-            Text(value).multilineTextAlignment(.trailing)
-        }
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
     }
 }
 private struct AssetChainBreakdownRow: View {
     let chainTitle: String
+    let chainName: String
     let tokenStandard: String
     let amountText: String
     let valueText: String
+    let symbol: String
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
+            CoinBadge(
+                assetIdentifier: Coin.iconIdentifier(symbol: symbol, chainName: chainName),
+                fallbackText: symbol, color: .orange, size: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text(chainTitle)
-                Text(tokenStandard).font(.footnote).foregroundStyle(.secondary)
+                Text(chainTitle).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary).lineLimit(1)
+                Text(tokenStandard).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(amountText).spectraNumericTextLayout()
-                Text(valueText).font(.footnote).foregroundStyle(.secondary).spectraNumericTextLayout()
+                Text(amountText).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary).spectraNumericTextLayout()
+                Text(valueText).font(.caption).foregroundStyle(.secondary).spectraNumericTextLayout()
             }
         }
     }

@@ -56,8 +56,8 @@ extension AppState {
         moneroBackendAPIKey = UserDefaults.standard.string(forKey: MoneroBalanceService.backendAPIKeyDefaultsKey) ?? ""
         suppressWalletSideEffects = true
         setWallets(loadPersistedWallets())
-        priceAlerts = loadPersistedPriceAlerts()
-        setAddressBook(loadPersistedAddressBook())
+        // Price alerts + address book are loaded async via
+        // `reloadPersistedStateFromSQLite()` from the typed Rust SQLite store.
         tokenPreferences = loadPersistedTokenPreferences()
         rebuildTokenPreferenceDerivedState()
         livePrices = loadPersistedLivePrices()

@@ -32,12 +32,14 @@ The philosophy we're following: *use Apple's APIs and typography/color semantics
 
 ## Design baseline
 
-- **Backdrop:** `SpectraBackdrop` (gradient + chroma clouds) on every top-level tab NavigationStack. Glass needs something to refract.
+- **Backdrop:** `SpectraBackdrop` (gradient + chroma clouds) on every top-level tab NavigationStack **and on every detail destination** (asset, wallet, staking-chain). Glass needs something to refract.
 - **Chrome:** Navigation bar is transparent (`.toolbarBackground(.hidden, for: .navigationBar)`); toolbar actions are `.buttonStyle(.glass)` pills. Content scrolls under.
 - **Surfaces:** Content sits in `.glassEffect(.regular.tint(.white.opacity(~0.03)), in: .rect(cornerRadius: ~28))` cards. Top-level = 28pt, nested/detail = 24pt.
+- **Hero card opacity:** Hero/header cards use `tint(.white.opacity(0.04))` (slightly stronger). Stats/content cards use `0.03`. Two opacity bands create subtle depth without explicit borders.
+- **Stat row pattern:** detail-page key/value rows lead with an SF Symbol in `.orange` + secondary label + primary value, separated by `Divider().opacity(0.4)`. Used across Asset detail, Wallet detail, Staking chain detail.
 - **Typography:** system text styles (`.largeTitle.weight(.bold)`, `.title`, `.headline`, etc.). No `design: .rounded` + `weight: .black` outside icon artwork.
 - **Colors:** `.secondary` / `.tertiary` / `.quaternary` for text tints. Never `Color.primary.opacity(X)` for text.
-- **Buttons:** `.buttonStyle(.glass)` + `.buttonStyle(.glassProminent)` for interactive pills. `GlassEffectContainer` for paired primary/secondary actions.
+- **Buttons:** `.buttonStyle(.glass)` + `.buttonStyle(.glassProminent)` for interactive pills. Tint orange for primary actions, red for destructive. `GlassEffectContainer` for paired primary/secondary actions.
 
 ## Corner radius inventory
 
@@ -45,48 +47,73 @@ Actual values in the codebase:
 
 | Radius | Where |
 |--------|-------|
-| 28pt | All top-level tab hero/container cards — Dashboard portfolio hero + assets-wallets card, History section cards + empty state, Staking 2 cards, Donations hero + addresses card, About hero + narrative + ethos cards, TransactionDetail hero amount card, `spectraDetailCard` helper, lock-screen glass card, **ChainWiki intro card + row cards + section cards + hero card** |
-| 25pt | ChainWiki 50×50 badge (half-size = visually round) |
-| 24pt | **Default `spectraCardFill` radius** — most detail/nested cards: WalletFlowViews cards, SendFlowViews card, ReceiveFlowViews primary card, Dashboard asset-group detail, WalletSetupViews final cards, ChainWiki 82pt badge |
+| 28pt | All top-level tab hero/container cards — Dashboard portfolio hero + assets-wallets card, History section cards + empty state, Staking intro/chain-picker/philosophy cards, **Staking chain-detail cards (hero/stats/actions/explanation)**, Donations hero + addresses card, About hero + narrative + ethos cards, TransactionDetail hero amount card, `spectraDetailCard` helper, lock-screen glass card, ChainWiki intro card + row cards + section cards + hero card, **Asset Group / Contracts detail (hero/stats/breakdown/contracts)**, **Wallet detail (hero/stats/holdings/address)** |
+| 24pt | **Default `spectraCardFill` radius** — legacy detail/nested cards: SendFlowViews card, ReceiveFlowViews primary card, WalletSetupViews final cards |
 | 22pt | AddWalletEntryView entry cards |
 | 20pt | WalletSetupViews chain chip background |
-| 18pt | ReceiveFlowViews small nested card, TransactionDetail `.ultraThinMaterial` chips, ChainWiki accessory chips, default `spectraInputFieldStyle` radius |
-| 16pt | WalletFlowViews seed-phrase input, WalletSetupViews input fields + warning boxes |
-| 14pt | SendPrimarySectionsView chips, DecimalDisplaySettingsView, TokenRegistrySettingsView, WalletSetupViews selected-chip states |
+| 18pt | ReceiveFlowViews small nested card, TransactionDetail `.ultraThinMaterial` chips, ChainWiki accessory chips, default `spectraInputFieldStyle` radius, Wallet detail address inset capsule |
+| 16pt | WalletFlowViews seed-phrase input, WalletSetupViews input fields + warning boxes, **chain-selection chip cards (Setup + Staking chain tile)** |
+| 14pt | SendPrimarySectionsView chips, DecimalDisplaySettingsView, TokenRegistrySettingsView, WalletSetupViews selected-chip states, **Staking action button rows** |
 | 12pt | WalletFlowViews inputs + hex index pickers |
-| 10pt | WalletSetupViews orange warning pills, compact word-picker slots |
-| size-relative | CoinBadge = `size × 0.3`, SpectraLogo = `size × 0.28` |
+| 10pt | WalletSetupViews orange warning pills, compact word-picker slots, **Staking action-button leading-icon backplate** |
+| size-relative | `SpectraLogo` glass backing = `size × 0.28` ([IconUIHelpers.swift:125](IconUIHelpers.swift#L125)) |
 
-Typical band: **24pt on nested cards, 28pt on top-level tab surfaces.** 10–18pt for inline chips and inputs.
+Coin/chain badges are rendered as **full circles** via `Circle()` ([IconUIHelpers.swift:55](IconUIHelpers.swift#L55)) — no per-instance corner radius applies. Sized 28pt – 60pt across the app (chip tiles 36pt, list rows 30–34pt, hero badges 52–60pt).
+
+Typical band: **24–28pt on cards, 16–18pt on chips/tiles, 10–14pt on inline pills.**
 
 ## Liquid Glass API usage sites
 
 ### `SpectraBackdrop` (gradient + chroma backdrop)
-- [DashboardViews.swift:23](DashboardViews.swift#L23)
+
+Top-level tabs:
+- [DashboardViews.swift:22](DashboardViews.swift#L22)
 - [HistoryView.swift:60](HistoryView.swift#L60)
-- [StakingView.swift:6](StakingView.swift#L6)
+- [StakingView.swift:12](StakingView.swift#L12)
 - [DonationsView.swift:13](DonationsView.swift#L13)
 
+Detail destinations (added so glass refraction works after navigation push):
+- [DashboardViews.swift:314](DashboardViews.swift#L314) — AssetGroupDetailView
+- [DashboardViews.swift:340](DashboardViews.swift#L340) — AssetContractsDetailView
+- [WalletFlowViews.swift:316](WalletFlowViews.swift#L316) — WalletDetailView
+- [StakingView.swift:204](StakingView.swift#L204) — ChainStakingDetailView
+
 ### `.toolbarBackground(.hidden, for: .navigationBar)` (floating nav bar)
-- [DashboardViews.swift:35](DashboardViews.swift#L35)
+
+- [DashboardViews.swift:34](DashboardViews.swift#L34)
+- [DashboardViews.swift:316](DashboardViews.swift#L316) — AssetGroupDetailView
+- [DashboardViews.swift:342](DashboardViews.swift#L342) — AssetContractsDetailView
 - [HistoryView.swift:120](HistoryView.swift#L120)
-- [StakingView.swift:37](StakingView.swift#L37)
+- [StakingView.swift:21](StakingView.swift#L21)
+- [StakingView.swift:207](StakingView.swift#L207) — ChainStakingDetailView
 - [DonationsView.swift:33](DonationsView.swift#L33)
 - [SettingsViews.swift:123](SettingsViews.swift#L123)
+- [WalletFlowViews.swift:320](WalletFlowViews.swift#L320) — WalletDetailView
 
 ### `.glassEffect(...)` on surfaces/cards
 
 **Dashboard** ([DashboardViews.swift](DashboardViews.swift)):
-- L123 — assets/wallets card (`.interactive()`, 28pt)
-- L649 — portfolio hero card (28pt)
+- L122 — assets/wallets card (`.interactive()`, 28pt)
+- L368 — `AssetDetailHeroCard` (28pt, `0.04` tint)
+- L392 — `AssetSummaryStatsCard` (28pt)
+- L440 — `AssetChainBreakdownCard` (28pt)
+- L480 — `AssetContractsCard` (28pt)
+- L730 — portfolio hero card (28pt, `0.04` tint)
 
 **History** ([HistoryView.swift](HistoryView.swift)):
 - L68 — empty-state card (28pt)
 - L108 — transaction section cards (`.interactive()`, 28pt)
 
-**Staking** ([StakingView.swift](StakingView.swift)):
-- L14 — intro card (28pt)
-- L33 — "Why staking matters" card (28pt)
+**Staking** ([StakingView.swift](StakingView.swift)) — chain hub:
+- L34 — intro card (28pt, `0.04` tint)
+- L52 — chain-picker card (28pt)
+- L97 — philosophy card (28pt)
+
+**Staking** chain detail (`ChainStakingDetailView`):
+- L232 — hero card (28pt, `0.04` tint)
+- L244 — stats card (28pt)
+- L267 — actions card (28pt)
+- L298 — "How it works" explanation card (28pt)
 
 **Donations** ([DonationsView.swift](DonationsView.swift)):
 - L20 — hero card (28pt)
@@ -97,38 +124,47 @@ Typical band: **24pt on nested cards, 28pt on top-level tab surfaces.** 10–18p
 - L50 — narrative card (28pt)
 - L62 — ethos card (28pt)
 
+**Wallet detail** ([WalletFlowViews.swift](WalletFlowViews.swift)):
+- L451 — `walletHeroCard` (28pt, `0.04` tint)
+- L470 — `walletStatsCard` (28pt)
+- L507 — `walletHoldingsCard` (28pt)
+- L532 — `walletAddressCard` (28pt)
+
 **Lock screen / helpers** ([ContentView.swift](ContentView.swift)):
 - L6 — `SpectraInputFieldChrome` (glass input field)
 - L28 — `spectraDetailCard` helper (28pt)
 - L70 — lock-screen card (28pt)
 
 **Helper** ([IconUIHelpers.swift](IconUIHelpers.swift)):
-- L272 — `spectraCardFill` helper (routes all legacy card-fill sites through glass)
-- L294 — SpectraLogo glass backing (`size × 0.28`)
+- `spectraCardFill` helper (routes legacy card-fill sites through glass, 24pt default)
+- SpectraLogo glass backing (`size × 0.28`)
 
 ### `.buttonStyle(.glass)` (glass pill buttons)
 
 **Dashboard** ([DashboardViews.swift](DashboardViews.swift)):
-- L647 — portfolio navigate chevron
-- L663 — Send button (inside `GlassEffectContainer`)
+- L745 — Send button (inside `GlassEffectContainer`)
 
 **Donations** ([DonationsView.swift](DonationsView.swift)):
 - L56 — copy address chip
 - L62 — QR code chip
 
-**Send / Receive** :
+**Send / Receive**:
 - [SendPrimarySectionsView.swift:136](SendPrimarySectionsView.swift#L136) — scan QR
 - [ReceiveFlowViews.swift:104](ReceiveFlowViews.swift#L104) — share QR
 
 **WalletFlow** ([WalletFlowViews.swift](WalletFlowViews.swift)):
-- L189 — wallet action
-- L401, L421, L429 — wallet detail actions (export, reveal, delete)
+- L524 — wallet address Copy button (`.tint(.orange)`)
+- L545 — Edit Name (`.tint(.orange)`)
+- L565 — Show Seed Phrase (`.tint(.orange)`)
+- L573 — Delete Wallet (`.tint(.red)` for destructive)
 
 **WalletSetup** ([WalletSetupViews.swift](WalletSetupViews.swift)):
-- L320 — word-count picker
-- L331 — advanced toggle
+- L329 — seed-length regenerate button (`.tint(.orange)`)
+- L389 — "Browse all chains" sheet trigger (`.tint(.orange)`)
+- L1019, L1042 — seed-phrase Paste / Copy (`.tint(.orange)`)
+- L1062 — private-key Paste (`.tint(.orange)`)
+- L784, L796, L1152 — primary navigation
 - L691, L703 — nav back/primary
-- L960 — chip picker
 
 **TransactionDetail** ([TransactionDetailView.swift](TransactionDetailView.swift)):
 - L156 — recheck button
@@ -137,15 +173,16 @@ Typical band: **24pt on nested cards, 28pt on top-level tab surfaces.** 10–18p
 ### `.buttonStyle(.glassProminent)` (prominent glass pills)
 
 - [ContentView.swift:69](ContentView.swift#L69) — unlock button
-- [DashboardViews.swift:667](DashboardViews.swift#L667) — Receive button
+- [DashboardViews.swift:749](DashboardViews.swift#L749) — Receive button
 - [SendFlowViews.swift:79](SendFlowViews.swift#L79) — submit send
 - [TransactionDetailView.swift:146](TransactionDetailView.swift#L146) — primary recheck
 - [TransactionDetailView.swift:187](TransactionDetailView.swift#L187) — primary action
-- [WalletFlowViews.swift:501](WalletFlowViews.swift#L501) — wallet primary
-- [WalletSetupViews.swift:658](WalletSetupViews.swift#L658) — setup primary (Import)
+- [WalletFlowViews.swift:388](WalletFlowViews.swift#L388) — wallet primary
+- [WalletSetupViews.swift:751](WalletSetupViews.swift#L751) — setup primary (Import)
+- [WalletSetupViews.swift:1231](WalletSetupViews.swift#L1231) — setup-flow primary toolbar
 
 ### `GlassEffectContainer` (paired morphing group)
-- [DashboardViews.swift:658](DashboardViews.swift#L658) — Dashboard Send + Receive pair
+- [DashboardViews.swift:740](DashboardViews.swift#L740) — Dashboard Send + Receive pair
 
 ## Patterns worth imitating
 
@@ -164,6 +201,21 @@ NavigationStack {
 }
 ```
 
+When adding a new detail destination (pushed from a top-level screen):
+```swift
+ScrollView {
+    LazyVStack(spacing: 16) {
+        heroCard
+        statsCard
+        contentCard
+        // …
+    }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
+}
+.background(SpectraBackdrop().ignoresSafeArea())   // ← always re-add at detail roots
+.navigationTitle(...).navigationBarTitleDisplayMode(.inline)
+.toolbarBackground(.hidden, for: .navigationBar)
+```
+
 When adding a new card:
 ```swift
 VStack { ... }
@@ -171,9 +223,35 @@ VStack { ... }
     .frame(maxWidth: .infinity, alignment: .leading)
     .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
 ```
-Or (legacy, but equivalent):
+
+For a hero/header card use the slightly stronger `0.04` tint:
 ```swift
-VStack { ... }.padding(20).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
+HStack { /* badge + title + subtitle */ }
+    .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+    .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 28))
+```
+
+When adding a stat/key-value card (the canonical pattern across asset / wallet / staking detail):
+```swift
+VStack(alignment: .leading, spacing: 12) {
+    statRow(label: "Total Amount", value: "...", icon: "scalemass.fill")
+    Divider().opacity(0.4)
+    statRow(label: "Total Value", value: "...", icon: "dollarsign.circle.fill")
+    Divider().opacity(0.4)
+    statRow(label: "Chains", value: "3", icon: "link.circle.fill")
+}
+.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+.glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+```
+where `statRow` is:
+```swift
+HStack(spacing: 10) {
+    Image(systemName: icon).font(.subheadline.weight(.semibold)).foregroundStyle(.orange).frame(width: 22)
+    Text(label).font(.subheadline).foregroundStyle(.secondary)
+    Spacer(minLength: 12)
+    Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+        .multilineTextAlignment(.trailing)
+}
 ```
 
 When adding a primary/secondary button pair:
@@ -186,11 +264,46 @@ GlassEffectContainer(spacing: 12) {
 }
 ```
 
+When adding a stand-alone action button on a detail page, **tint** it semantically:
+```swift
+Button { ... } label: { Label("Edit Name", systemImage: "pencil") }
+    .buttonStyle(.glass).tint(.orange)            // primary
+
+Button(role: .destructive) { ... } label: { Label("Delete", systemImage: "trash") }
+    .buttonStyle(.glass).tint(.red)               // destructive
+```
+
+When adding a chain/asset selection chip grid (3-col, square):
+```swift
+Button { … } label: {
+    VStack(spacing: 6) {
+        ZStack(alignment: .topTrailing) {
+            CoinBadge(...)
+            if isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(descriptor.color)
+                    .background(Circle().fill(Color.white.opacity(0.9)))
+                    .offset(x: 4, y: -4)
+            }
+        }
+        Text(descriptor.title).font(.caption2.weight(.semibold)).lineLimit(1)
+    }
+    .frame(maxWidth: .infinity, minHeight: 72).padding(.vertical, 8).padding(.horizontal, 6)
+    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(
+        isSelected ? descriptor.color.opacity(0.14) : Color.white.opacity(0.55)))
+    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(
+        isSelected ? descriptor.color.opacity(0.9) : Color.primary.opacity(0.10),
+        lineWidth: isSelected ? 1.5 : 1))
+}
+.buttonStyle(.plain)
+```
+
 ## Don'ts
 
 - No `.buttonStyle(.glass)` on `ToolbarItem` buttons — iOS 26 auto-glasses toolbar items and stacking explicit `.glass` on top creates double-chip padding.
 - No `.ultraThinMaterial` / `.thinMaterial` on new surfaces — prefer `.glassEffect`. (Existing ones in SendPrimarySectionsView/TokenRegistrySettingsView/TransactionDetailView/DecimalDisplaySettingsView are legacy.)
-- No `Color.primary.opacity(X)` in `.foregroundStyle(...)`. Use `.secondary` / `.tertiary` / `.quaternary`.
+- No `Color.primary.opacity(X)` in `.foregroundStyle(...)`. Use `.secondary` / `.tertiary` / `.quaternary`. (Hairline border strokes on chip/pill outlines are the one exception — those use `Color.primary.opacity(0.07–0.12)` deliberately as visual rhythm.)
 - No `.font(.system(size: X, weight: .black, design: .rounded))` on chrome text. Only allowed inside icon artwork (SpectraLogo "S" glyph, CoinBadge fallback letter).
-- Don't revert tab screens to `List(.insetGrouped)` — the user explicitly rejected that direction.
-- Don't strip `SpectraBackdrop` from tab roots — glass needs something to refract.
+- Don't revert tab screens or detail destinations to `Form { Section { … } }` / `List(.insetGrouped)` — the Asset and Wallet detail pages were just migrated *away* from `Form` to glass cards. Stay on the new pattern.
+- Don't strip `SpectraBackdrop` from tab roots **or detail roots** — glass needs something to refract on every navigated-to surface, not just the tab landing.
+- Don't omit the orange leading icon on stat rows — the icon column is what makes the row visually scannable; without it the row reads as a generic label/value pair and loses the fintech voice.

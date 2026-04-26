@@ -15,9 +15,16 @@ import SwiftUI
 //   3. Flat-bundle `<name>.png` — synchronous fallback for icons that haven't
 //      been migrated to SVG yet.
 //
-// On non-Apple targets, replace the UIKit branch with whatever image-loading
-// API the platform provides; the on-disk layout (`resources/icons/{name}.{svg,png}`)
-// stays identical.
+// Heating-defence layers (added after diagnosing CPU heat from the SVG path):
+//   - `warmRasterCache()` is gated to run **once per process lifetime** via an
+//     atomic flag. AppState recreation on lock/unlock no longer re-renders the
+//     whole icon set.
+//   - SVGs are rendered **serially with a small inter-render sleep**, not in
+//     parallel — each WKWebView snapshot spawns a separate WebContent process,
+//     and N parallel processes thrash CPU.
+//   - `resolveImage(named:)` dedupes by name: concurrent callers asking for the
+//     same icon share one WKWebView render task instead of each spinning up
+//     their own.
 enum BundleImageLoader {
     #if canImport(UIKit)
         private static let imageCache: NSCache<NSString, UIImage> = {
@@ -34,6 +41,14 @@ enum BundleImageLoader {
             init(_ url: URL?) { self.url = url }
         }
         private static let urlCache = NSCache<NSString, CachedURL>()
+        // Once-per-process gate so warm-up runs at most once per app launch
+        // even if AppState is reinitialized (lock/unlock, scene-phase reset).
+        nonisolated(unsafe) private static var didWarmCache = false
+        private static let didWarmCacheLock = NSLock()
+        // In-flight render dedupe: many cells can ask for the same SVG before
+        // any of them has finished rendering. Sharing one Task per name turns
+        // the N-concurrent-WKWebView storm into a single render.
+        @MainActor private static var pendingRenders: [String: Task<UIImage?, Never>] = [:]
     #endif
 
     private static func pngURL(forImageNamed name: String) -> URL? {
@@ -78,14 +93,23 @@ enum BundleImageLoader {
         return nil
     }
 
-    /// Synchronous lookup. Returns the cached UIImage if present, or loads a
-    /// flat-bundle PNG synchronously. Returns nil if the only available file
-    /// is an SVG that hasn't been rendered yet — call `resolveImage(named:size:)`
-    /// to render and cache it asynchronously.
+    /// Synchronous lookup. Returns the cached UIImage if present.
+    ///
+    /// **SVG-first semantics**: if an SVG file exists for `name` but its
+    /// rendered snapshot isn't cached yet, this returns `nil` rather than
+    /// loading a sibling PNG. That defers rendering to `resolveImage` and
+    /// guarantees the SVG wins once available — without it, a sibling PNG
+    /// would lock into the cache on first synchronous access and the SVG
+    /// would never be rendered.
+    ///
+    /// PNG-only icons still load synchronously and cache normally.
     static func image(named name: String) -> UIImage? {
         #if canImport(UIKit)
             let key = name as NSString
             if let cached = imageCache.object(forKey: key) { return cached }
+            // SVG exists but isn't cached yet → don't fall back to PNG; let the
+            // async path render the SVG so it ends up in the cache.
+            if svgURL(forImageNamed: name) != nil { return nil }
             guard let url = pngURL(forImageNamed: name), let image = UIImage(contentsOfFile: url.path) else { return nil }
             imageCache.setObject(image, forKey: key, cost: approximateByteCost(for: image))
             return image
@@ -98,14 +122,34 @@ enum BundleImageLoader {
     /// 1. Cached UIImage (cache hit returns immediately).
     /// 2. Flat-bundle `<name>.svg` — rendered via `SVGRenderer`, cached.
     /// 3. Flat-bundle `<name>.png` — loaded synchronously, cached.
-    /// Returns nil only when no icon file exists. `targetSize` is used as the
-    /// SVG render size (UIImage then scales cleanly to any display size).
+    /// Returns nil only when no icon file exists.
+    ///
+    /// **Dedupe**: if a render for `name` is already in flight, awaits the
+    /// existing task instead of spawning a second WKWebView. Prevents the
+    /// CPU storm when many cells ask for the same icon before any has finished.
     @MainActor
     static func resolveImage(named name: String, targetSize: CGFloat = 256) async -> UIImage? {
         #if canImport(UIKit)
             let key = name as NSString
             if let cached = imageCache.object(forKey: key) { return cached }
-            // SVG first — the user's preferred format going forward.
+            if let inFlight = pendingRenders[name] { return await inFlight.value }
+            let task = Task<UIImage?, Never> { @MainActor in
+                await renderAndCache(name: name, targetSize: targetSize)
+            }
+            pendingRenders[name] = task
+            let result = await task.value
+            pendingRenders.removeValue(forKey: name)
+            return result
+        #else
+            return nil
+        #endif
+    }
+
+    #if canImport(UIKit)
+        @MainActor
+        private static func renderAndCache(name: String, targetSize: CGFloat) async -> UIImage? {
+            let key = name as NSString
+            if let cached = imageCache.object(forKey: key) { return cached }
             if let svg = svgURL(forImageNamed: name) {
                 let size = CGSize(width: targetSize, height: targetSize)
                 if let rendered = await SVGRenderer.render(svgURL: svg, size: size) {
@@ -113,23 +157,33 @@ enum BundleImageLoader {
                     return rendered
                 }
             }
-            // PNG fallback for icons not yet migrated to SVG.
             if let url = pngURL(forImageNamed: name), let image = UIImage(contentsOfFile: url.path) {
                 imageCache.setObject(image, forKey: key, cost: approximateByteCost(for: image))
                 return image
             }
             return nil
-        #else
-            return nil
-        #endif
-    }
+        }
+    #endif
 
-    /// Renders all SVGs in the bundle into the cache. Optional warm-up that
-    /// makes the first badge render after launch already a cache hit. Most
-    /// callers should rely on `resolveImage(named:size:)` per-badge instead.
+    /// Pre-renders all bundle SVGs into the UIImage cache so the first badge
+    /// render after launch is a cache hit. Idempotent across the process
+    /// lifetime — calling it more than once (e.g. AppState reinit) is a no-op.
+    /// Renders serially with a small inter-render sleep so concurrent
+    /// WebContent processes don't pile up.
     @MainActor
     static func warmRasterCache(targetSize: CGFloat = 256) async {
         #if canImport(UIKit)
+            // Once-per-process gate. A second AppState init shouldn't re-render
+            // every SVG — that turned the icon set into a heat source on
+            // lock/unlock cycles.
+            didWarmCacheLock.lock()
+            if didWarmCache {
+                didWarmCacheLock.unlock()
+                return
+            }
+            didWarmCache = true
+            didWarmCacheLock.unlock()
+
             guard let bundleURL = Bundle.main.resourceURL else { return }
             let candidateDirs: [URL] = [
                 bundleURL,
@@ -137,6 +191,7 @@ enum BundleImageLoader {
                 bundleURL.appendingPathComponent("Resources/icons", isDirectory: true),
             ]
             var seen = Set<String>()
+            var renderedCount = 0
             for dir in candidateDirs {
                 guard let contents = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
                     continue
@@ -148,6 +203,13 @@ enum BundleImageLoader {
                     let size = CGSize(width: targetSize, height: targetSize)
                     if let rendered = await SVGRenderer.render(svgURL: file, size: size) {
                         imageCache.setObject(rendered, forKey: stem as NSString, cost: approximateByteCost(for: rendered))
+                    }
+                    renderedCount += 1
+                    // Yield between renders so we don't spawn a new WebContent
+                    // process every 50ms. Without this gap the boot sequence
+                    // saturates the CPU briefly when many SVGs live in the bundle.
+                    if renderedCount % 4 == 0 {
+                        try? await Task.sleep(nanoseconds: 80_000_000)  // 80ms every 4 icons
                     }
                 }
             }
