@@ -657,10 +657,6 @@ final class AppState {
     var isRunningDogecoinRescan: Bool = false
     var dogecoinRescanLastRunAt: Date? = nil
     @ObservationIgnored var suppressWalletSideEffects = false
-    /// Long-lived background tasks owned by this AppState. Reader-facing:
-    /// "what runs in this AppState" is the contents of this registry,
-    /// not 15 scattered properties. `deinit` calls `cancelAll()` once.
-    @ObservationIgnored let backgroundTasks = ManagedTaskRegistry()
     @ObservationIgnored var userInitiatedRefreshTask: Task<Void, Never>?
     @ObservationIgnored var importRefreshTask: Task<Void, Never>?
     @ObservationIgnored var walletSideEffectsTask: Task<Void, Never>?
@@ -865,7 +861,7 @@ final class AppState {
                 failureReason: tx.failureReason,
                 transactionHistorySource: tx.transactionHistorySource,
                 receiptBlockNumber: tx.receiptBlockNumber.map(Int64.init),
-                dogecoinConfirmations: tx.dogecoinConfirmations.map(Int64.init)
+                confirmationCount: tx.confirmationCount.map(Int64.init)
             )
         }
         applyVerificationNotice(verificationNoticeForLastSent(snapshot: snapshot))
@@ -984,7 +980,6 @@ final class AppState {
         livePricesPersist.cancel()
         priceAlertsPersist.cancel()
         addressBookPersist.cancel()
-        backgroundTasks.cancelAll()
         #if canImport(Network)
             networkPathMonitor.cancel()
         #endif

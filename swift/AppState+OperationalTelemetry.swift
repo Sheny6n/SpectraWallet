@@ -94,12 +94,11 @@ extension AppState {
             feeRateDescription: transaction.feeRateDescription ?? previewDetails?.feeRateDescription,
             confirmationCount: transaction.confirmationCount ?? confirmationCount,
             dogecoinConfirmedNetworkFeeDoge: transaction.dogecoinConfirmedNetworkFeeDoge,
-            dogecoinConfirmations: transaction.dogecoinConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw,
             dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb,
             usedChangeOutput: transaction.usedChangeOutput ?? previewDetails?.usesChangeOutput,
-            dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput, sourceDerivationPath: transaction.sourceDerivationPath,
+            sourceDerivationPath: transaction.sourceDerivationPath,
             changeDerivationPath: transaction.changeDerivationPath, sourceAddress: transaction.sourceAddress,
-            changeAddress: transaction.changeAddress, dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex,
+            changeAddress: transaction.changeAddress,
             signedTransactionPayload: transaction.signedTransactionPayload,
             signedTransactionPayloadFormat: transaction.signedTransactionPayloadFormat, failureReason: transaction.failureReason,
             transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt
@@ -170,7 +169,7 @@ extension AppState {
     func finalityConfirmations(for chainName: String) -> Int { Self.standardFinalityConfirmations }
     func updatedTransaction(
         _ transaction: TransactionRecord, status: TransactionStatus, receiptBlockNumber: Int? = nil, failureReason: String? = nil,
-        dogecoinConfirmations: Int? = nil, dogecoinConfirmedNetworkFeeDoge: Double? = nil
+        confirmationCount: Int? = nil, dogecoinConfirmedNetworkFeeDoge: Double? = nil
     ) -> TransactionRecord {
         TransactionRecord(
             id: transaction.id, walletID: transaction.walletID, kind: transaction.kind, status: status, walletName: transaction.walletName,
@@ -179,15 +178,12 @@ extension AppState {
             receiptBlockNumber: receiptBlockNumber ?? transaction.receiptBlockNumber, receiptGasUsed: transaction.receiptGasUsed,
             receiptEffectiveGasPriceGwei: transaction.receiptEffectiveGasPriceGwei, receiptNetworkFeeEth: transaction.receiptNetworkFeeEth,
             feePriorityRaw: transaction.feePriorityRaw, feeRateDescription: transaction.feeRateDescription,
-            confirmationCount: dogecoinConfirmations ?? transaction.confirmationCount,
+            confirmationCount: confirmationCount ?? transaction.confirmationCount,
             dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge ?? transaction.dogecoinConfirmedNetworkFeeDoge,
-            dogecoinConfirmations: dogecoinConfirmations ?? transaction.dogecoinConfirmations,
-            dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw,
             dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb,
-            usedChangeOutput: transaction.usedChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput,
+            usedChangeOutput: transaction.usedChangeOutput,
             sourceDerivationPath: transaction.sourceDerivationPath, changeDerivationPath: transaction.changeDerivationPath,
             sourceAddress: transaction.sourceAddress, changeAddress: transaction.changeAddress,
-            dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex,
             signedTransactionPayload: transaction.signedTransactionPayload,
             signedTransactionPayloadFormat: transaction.signedTransactionPayloadFormat, failureReason: failureReason,
             transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt
@@ -265,7 +261,7 @@ extension AppState {
                 id: transaction.id.uuidString,
                 oldStatus: transaction.status.rawValue,
                 oldFailureReason: transaction.failureReason,
-                oldConfirmations: (transaction.dogecoinConfirmations ?? transaction.confirmationCount).map { UInt32(max(0, $0)) },
+                oldConfirmations: transaction.confirmationCount.map { UInt32(max(0, $0)) },
                 resolution: resolution.map {
                     ResolvedPendingStatusInput(status: $0.status.rawValue, confirmations: $0.confirmations.map { UInt32(max(0, $0)) })
                 },
@@ -302,7 +298,7 @@ extension AppState {
                     status: newStatus,
                     receiptBlockNumber: resolution?.receiptBlockNumber,
                     failureReason: failureReason,
-                    dogecoinConfirmations: resolution?.confirmations,
+                    confirmationCount: resolution?.confirmations,
                     dogecoinConfirmedNetworkFeeDoge: resolution?.dogecoinNetworkFeeDoge
                 )
             })
@@ -422,12 +418,10 @@ extension AppState {
             receiptNetworkFeeEth: transaction.receiptNetworkFeeEth, feePriorityRaw: transaction.feePriorityRaw,
             feeRateDescription: transaction.feeRateDescription, confirmationCount: transaction.confirmationCount,
             dogecoinConfirmedNetworkFeeDoge: transaction.dogecoinConfirmedNetworkFeeDoge,
-            dogecoinConfirmations: transaction.dogecoinConfirmations, dogecoinFeePriorityRaw: transaction.dogecoinFeePriorityRaw,
             dogecoinEstimatedFeeRateDogePerKb: transaction.dogecoinEstimatedFeeRateDogePerKb,
-            usedChangeOutput: transaction.usedChangeOutput, dogecoinUsedChangeOutput: transaction.dogecoinUsedChangeOutput,
+            usedChangeOutput: transaction.usedChangeOutput,
             sourceDerivationPath: transaction.sourceDerivationPath, changeDerivationPath: transaction.changeDerivationPath,
             sourceAddress: transaction.sourceAddress, changeAddress: transaction.changeAddress,
-            dogecoinRawTransactionHex: transaction.dogecoinRawTransactionHex,
             signedTransactionPayload: transaction.signedTransactionPayload,
             signedTransactionPayloadFormat: transaction.signedTransactionPayloadFormat, failureReason: transaction.failureReason,
             transactionHistorySource: transaction.transactionHistorySource, createdAt: transaction.createdAt

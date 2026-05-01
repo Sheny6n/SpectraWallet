@@ -820,7 +820,7 @@ extension AppState {
         guard await authenticateForSensitiveAction(reason: "Authorize Dogecoin rebroadcast") else {
             return sendError ?? "Authentication failed."
         }
-        guard let rawTransactionHex = transaction.dogecoinRawTransactionHex,
+        guard let rawTransactionHex = transaction.signedTransactionPayload,
             !rawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return "This transaction cannot be rebroadcast because raw signed data was not saved." }
         appendChainOperationalEvent(

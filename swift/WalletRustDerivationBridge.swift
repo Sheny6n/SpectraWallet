@@ -48,16 +48,21 @@ enum WalletRustDerivationBridge {
         let response = try derivationDerive(
             request: UniFfiDerivationRequest(
                 chain: nil,
-                curve: overrideCurveWire(overrides) ?? requestModel.curve.rustWireValue,
+                curve: requestModel.curve.rustWireValue,
                 requestedOutputs: requestModel.requestedOutputs.rustWireValue,
-                derivationAlgorithm: overrideDerivationAlgorithmWire(overrides) ?? requestModel.derivationAlgorithm.rustWireValue,
-                addressAlgorithm: overrideAddressAlgorithmWire(overrides) ?? requestModel.addressAlgorithm.rustWireValue,
-                publicKeyFormat: overridePublicKeyFormatWire(overrides) ?? requestModel.publicKeyFormat.rustWireValue,
-                scriptType: overrideScriptTypeWire(overrides) ?? requestModel.scriptType.rustWireValue,
+                derivationAlgorithm: requestModel.derivationAlgorithm.rustWireValue,
+                addressAlgorithm: requestModel.addressAlgorithm.rustWireValue,
+                publicKeyFormat: requestModel.publicKeyFormat.rustWireValue,
+                scriptType: requestModel.scriptType.rustWireValue,
                 seedPhrase: requestModel.seedPhrase,
                 derivationPath: requestModel.derivationPath, passphrase: requestModel.passphrase, hmacKey: requestModel.hmacKey,
                 mnemonicWordlist: requestModel.mnemonicWordlist, iterationCount: requestModel.iterationCount,
-                saltPrefix: overrides?.saltPrefix
+                saltPrefix: overrides?.saltPrefix,
+                curveOverrideName: overrides?.curve,
+                derivationAlgorithmOverrideName: overrides?.derivationAlgorithm,
+                addressAlgorithmOverrideName: overrides?.addressAlgorithm,
+                publicKeyFormatOverrideName: overrides?.publicKeyFormat,
+                scriptTypeOverrideName: overrides?.scriptType
             ))
         return WalletRustDerivationResponseModel(
             address: response.address, publicKeyHex: response.publicKeyHex, privateKeyHex: response.privateKeyHex)
@@ -231,11 +236,10 @@ struct WalletRustDerivationRequestModel: Sendable {
     }
 }
 
-// ── Wire-value parsers for Advanced-mode overrides ──────────────────────
-// Mirror the string names in `core/derivation_presets.toml`. Returning `nil`
-// means "no override for this knob; use the typed-enum value". Invalid
-// strings surface as Rust-side errors from the derivation pipeline rather
-// than being silently dropped.
+// Override names (when set on `CoreWalletDerivationOverrides`) are passed
+// straight through to Rust via `*OverrideName` fields on `UniFfiDerivationRequest`.
+// Rust resolves them via `presets::*_wire_value` — the string→u32 lookup
+// tables that used to live here are gone.
 
 extension CoreWalletDerivationOverrides {
     /// True when every override field is nil — i.e., the request should use
@@ -245,79 +249,6 @@ extension CoreWalletDerivationOverrides {
         passphrase == nil && mnemonicWordlist == nil && iterationCount == nil && saltPrefix == nil
             && hmacKey == nil && curve == nil && derivationAlgorithm == nil && addressAlgorithm == nil
             && publicKeyFormat == nil && scriptType == nil
-    }
-}
-
-nonisolated private func overrideCurveWire(_ o: CoreWalletDerivationOverrides?) -> UInt32? {
-    guard let name = o?.curve else { return nil }
-    switch name {
-    case "secp256k1": return 0
-    case "ed25519": return 1
-    case "sr25519": return 2
-    default: return nil
-    }
-}
-
-nonisolated private func overrideDerivationAlgorithmWire(_ o: CoreWalletDerivationOverrides?) -> UInt32? {
-    guard let name = o?.derivationAlgorithm else { return nil }
-    switch name {
-    case "bip32_secp256k1": return 1
-    case "slip10_ed25519": return 2
-    case "direct_seed_ed25519": return 3
-    case "ton_mnemonic": return 4
-    case "bip32_ed25519_icarus": return 5
-    case "substrate_bip39": return 6
-    case "monero_bip39": return 7
-    default: return nil
-    }
-}
-
-nonisolated private func overrideAddressAlgorithmWire(_ o: CoreWalletDerivationOverrides?) -> UInt32? {
-    guard let name = o?.addressAlgorithm else { return nil }
-    switch name {
-    case "bitcoin": return 1
-    case "evm": return 2
-    case "solana": return 3
-    case "near_hex": return 4
-    case "ton_raw_account_id": return 5
-    case "cardano_shelley_enterprise": return 6
-    case "ss58": return 7
-    case "monero_main": return 8
-    case "ton_v4r2": return 9
-    case "litecoin": return 10
-    case "dogecoin": return 11
-    case "bitcoin_cash_legacy": return 12
-    case "bitcoin_sv_legacy": return 13
-    case "tron_base58_check": return 14
-    case "xrp_base58_check": return 15
-    case "stellar_strkey": return 16
-    case "sui_keccak": return 17
-    case "aptos_keccak": return 18
-    case "icp_principal": return 19
-    default: return nil
-    }
-}
-
-nonisolated private func overridePublicKeyFormatWire(_ o: CoreWalletDerivationOverrides?) -> UInt32? {
-    guard let name = o?.publicKeyFormat else { return nil }
-    switch name {
-    case "compressed": return 1
-    case "uncompressed": return 2
-    case "x_only": return 3
-    case "raw": return 4
-    default: return nil
-    }
-}
-
-nonisolated private func overrideScriptTypeWire(_ o: CoreWalletDerivationOverrides?) -> UInt32? {
-    guard let name = o?.scriptType else { return nil }
-    switch name {
-    case "p2pkh": return 1
-    case "p2sh_p2wpkh": return 2
-    case "p2wpkh": return 3
-    case "p2tr": return 4
-    case "account": return 5
-    default: return nil
     }
 }
 struct WalletRustSigningMaterialModel: Sendable {

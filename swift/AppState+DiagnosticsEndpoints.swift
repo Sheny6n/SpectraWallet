@@ -737,7 +737,7 @@ extension AppState {
             do {
                 let status = try await WalletServiceBridge.shared.fetchUtxoTxStatusTyped(chainId: chainId, txid: hash)
                 let confirmed = status.confirmed
-                let confirmations = tracksFinality ? (status.confirmations.map(Int.init) ?? transaction.dogecoinConfirmations) : nil
+                let confirmations = tracksFinality ? (status.confirmations.map(Int.init) ?? transaction.confirmationCount) : nil
                 markTransactionStatusPollSuccess(
                     for: transaction, resolvedStatus: confirmed ? .confirmed : .pending, confirmations: confirmations, now: now
                 )

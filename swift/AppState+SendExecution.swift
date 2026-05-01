@@ -304,11 +304,12 @@ extension AppState {
                     TransactionRecord(
                         walletID: wallet.id, kind: .send, status: .pending, walletName: wallet.name, assetName: holding.name,
                         symbol: holding.symbol, chainName: holding.chainName, amount: dogecoinAmount, address: destinationAddress,
-                        transactionHash: result.transactionHash, dogecoinConfirmations: 0,
-                        dogecoinFeePriorityRaw: dogecoinFeePriority.rawValue,
+                        transactionHash: result.transactionHash,
+                        feePriorityRaw: dogecoinFeePriority.rawValue,
+                        confirmationCount: 0,
                         dogecoinEstimatedFeeRateDogePerKb: dogecoinSendPreview?.estimatedFeeRateDogePerKb,
-                        dogecoinUsedChangeOutput: dogecoinSendPreview?.usesChangeOutput, sourceAddress: sourceAddress,
-                        dogecoinRawTransactionHex: result.resultJson, signedTransactionPayload: result.resultJson,
+                        usedChangeOutput: dogecoinSendPreview?.usesChangeOutput, sourceAddress: sourceAddress,
+                        signedTransactionPayload: result.resultJson,
                         signedTransactionPayloadFormat: result.payloadFormat
                     ), holding: holding)
                 recordPendingSentTransaction(transaction)

@@ -411,11 +411,10 @@ private extension TransactionRecord {
             receiptGasUsed: receiptGasUsed, receiptEffectiveGasPriceGwei: receiptEffectiveGasPriceGwei,
             receiptNetworkFeeEth: receiptNetworkFeeEth, feePriorityRaw: feePriorityRaw, feeRateDescription: feeRateDescription,
             confirmationCount: confirmationCount.map { Int64($0) }, dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge,
-            dogecoinConfirmations: dogecoinConfirmations.map { Int64($0) }, dogecoinFeePriorityRaw: dogecoinFeePriorityRaw,
             dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDogePerKb, usedChangeOutput: usedChangeOutput,
-            dogecoinUsedChangeOutput: dogecoinUsedChangeOutput, sourceDerivationPath: sourceDerivationPath,
+            sourceDerivationPath: sourceDerivationPath,
             changeDerivationPath: changeDerivationPath, sourceAddress: sourceAddress, changeAddress: changeAddress,
-            dogecoinRawTransactionHex: dogecoinRawTransactionHex, signedTransactionPayload: signedTransactionPayload,
+            signedTransactionPayload: signedTransactionPayload,
             signedTransactionPayloadFormat: signedTransactionPayloadFormat, failureReason: failureReason,
             transactionHistorySource: transactionHistorySource, createdAtUnix: createdAt.timeIntervalSince1970
         )
@@ -433,11 +432,10 @@ private extension CoreTransactionRecord {
             receiptGasUsed: receiptGasUsed, receiptEffectiveGasPriceGwei: receiptEffectiveGasPriceGwei,
             receiptNetworkFeeEth: receiptNetworkFeeEth, feePriorityRaw: feePriorityRaw, feeRateDescription: feeRateDescription,
             confirmationCount: confirmationCount.map { Int($0) }, dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge,
-            dogecoinConfirmations: dogecoinConfirmations.map { Int($0) }, dogecoinFeePriorityRaw: dogecoinFeePriorityRaw,
             dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDogePerKb, usedChangeOutput: usedChangeOutput,
-            dogecoinUsedChangeOutput: dogecoinUsedChangeOutput, sourceDerivationPath: sourceDerivationPath,
+            sourceDerivationPath: sourceDerivationPath,
             changeDerivationPath: changeDerivationPath, sourceAddress: sourceAddress, changeAddress: changeAddress,
-            dogecoinRawTransactionHex: dogecoinRawTransactionHex, signedTransactionPayload: signedTransactionPayload,
+            signedTransactionPayload: signedTransactionPayload,
             signedTransactionPayloadFormat: signedTransactionPayloadFormat, failureReason: failureReason,
             transactionHistorySource: transactionHistorySource, createdAt: Date(timeIntervalSince1970: createdAtUnix)
         )

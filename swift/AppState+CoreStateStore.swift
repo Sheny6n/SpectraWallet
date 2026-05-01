@@ -16,29 +16,12 @@ extension AppState {
         self.wallets = new
     }
 
-    func appendWallet(_ wallet: ImportedWallet) {
-        self.wallets.append(wallet)
-    }
-
     func appendWallets(_ new: [ImportedWallet]) {
         self.wallets.append(contentsOf: new)
     }
 
-    /// Insert or replace by `id`. Preserves position when updating.
-    func upsertWallet(_ wallet: ImportedWallet) {
-        if let idx = self.wallets.firstIndex(where: { $0.id == wallet.id }) {
-            self.wallets[idx] = wallet
-        } else {
-            self.wallets.append(wallet)
-        }
-    }
-
     func removeWallet(id: String) {
         self.wallets.removeAll { $0.id == id }
-    }
-
-    func removeWallets(where predicate: (ImportedWallet) -> Bool) {
-        self.wallets.removeAll(where: predicate)
     }
 
     // ── Transactions ──────────────────────────────────────────────────
@@ -52,10 +35,6 @@ extension AppState {
 
     func removeTransactions(forWalletID walletID: String) {
         self.transactions.removeAll { $0.walletID == walletID }
-    }
-
-    func mapTransactions(_ transform: (TransactionRecord) -> TransactionRecord) {
-        self.transactions = self.transactions.map(transform)
     }
 
     // ── Address book ─────────────────────────────────────────────────

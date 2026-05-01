@@ -24,7 +24,6 @@
 		90F00200000000000000001D /* Identifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F00100000000000000001D /* Identifiers.swift */; };
 		90F00200000000000000001E /* LoadingTaskRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F00100000000000000001E /* LoadingTaskRegistry.swift */; };
 		90F00200000000000000001F /* MaintenanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F00100000000000000001F /* MaintenanceStore.swift */; };
-		90F002000000000000000020 /* ManagedTaskRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F001000000000000000020 /* ManagedTaskRegistry.swift */; };
 		90F002000000000000000022 /* PersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F001000000000000000022 /* PersistenceStore.swift */; };
 		90F002000000000000000023 /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F001000000000000000023 /* Platform.swift */; };
 		90F002000000000000000026 /* RegistryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F001000000000000000026 /* RegistryModels.swift */; };
@@ -61,8 +60,6 @@
 		90F002000000000000000030 /* StoreHistoryRefresh.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F001000000000000000030 /* StoreHistoryRefresh.swift */; };
 		90F002000000000000000031 /* StoreLifecycleReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F001000000000000000031 /* StoreLifecycleReset.swift */; };
 		90F002000000000000000032 /* StorePersistenceNormalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F001000000000000000032 /* StorePersistenceNormalization.swift */; };
-		90F002000000000000000039 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F001000000000000000039 /* LiveActivityManager.swift */; };
-		90F00200000000000000003A /* ActionResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F00100000000000000003A /* ActionResult.swift */; };
 		90F00200000000000000003B /* SetupFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F00100000000000000003B /* SetupFlow.swift */; };
 		90F00200000000000000003C /* ImportDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F00100000000000000003C /* ImportDraft.swift */; };
 		90F00200000000000000003D /* ViewExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F00100000000000000003D /* ViewExtensions.swift */; };
@@ -121,7 +118,6 @@
 		90F00100000000000000001D /* Identifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Identifiers.swift"; sourceTree = "<group>"; };
 		90F00100000000000000001E /* LoadingTaskRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LoadingTaskRegistry.swift"; sourceTree = "<group>"; };
 		90F00100000000000000001F /* MaintenanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MaintenanceStore.swift"; sourceTree = "<group>"; };
-		90F001000000000000000020 /* ManagedTaskRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ManagedTaskRegistry.swift"; sourceTree = "<group>"; };
 		90F001000000000000000022 /* PersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PersistenceStore.swift"; sourceTree = "<group>"; };
 		90F001000000000000000023 /* Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Platform.swift"; sourceTree = "<group>"; };
 		90F001000000000000000026 /* RegistryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "RegistryModels.swift"; sourceTree = "<group>"; };
@@ -158,8 +154,6 @@
 		90F001000000000000000030 /* StoreHistoryRefresh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StoreHistoryRefresh.swift"; sourceTree = "<group>"; };
 		90F001000000000000000031 /* StoreLifecycleReset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StoreLifecycleReset.swift"; sourceTree = "<group>"; };
 		90F001000000000000000032 /* StorePersistenceNormalization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StorePersistenceNormalization.swift"; sourceTree = "<group>"; };
-		90F001000000000000000039 /* LiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LiveActivityManager.swift"; sourceTree = "<group>"; };
-		90F00100000000000000003A /* ActionResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ActionResult.swift"; sourceTree = "<group>"; };
 		90F00100000000000000003B /* SetupFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SetupFlow.swift"; sourceTree = "<group>"; };
 		90F00100000000000000003C /* ImportDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ImportDraft.swift"; sourceTree = "<group>"; };
 		90F00100000000000000003D /* ViewExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ViewExtensions.swift"; sourceTree = "<group>"; };
@@ -275,7 +269,6 @@
 				90F00100000000000000001D /* Identifiers.swift */,
 				90F00100000000000000001E /* LoadingTaskRegistry.swift */,
 				90F00100000000000000001F /* MaintenanceStore.swift */,
-				90F001000000000000000020 /* ManagedTaskRegistry.swift */,
 				90F001000000000000000022 /* PersistenceStore.swift */,
 				90F001000000000000000023 /* Platform.swift */,
 				90F001000000000000000026 /* RegistryModels.swift */,
@@ -312,8 +305,6 @@
 				90F001000000000000000030 /* StoreHistoryRefresh.swift */,
 				90F001000000000000000031 /* StoreLifecycleReset.swift */,
 				90F001000000000000000032 /* StorePersistenceNormalization.swift */,
-				90F001000000000000000039 /* LiveActivityManager.swift */,
-				90F00100000000000000003A /* ActionResult.swift */,
 				90F00100000000000000003B /* SetupFlow.swift */,
 				90F00100000000000000003C /* ImportDraft.swift */,
 				90F00100000000000000003D /* ViewExtensions.swift */,
@@ -533,7 +524,6 @@
 				90F00200000000000000001D /* Identifiers.swift in Sources */,
 				90F00200000000000000001E /* LoadingTaskRegistry.swift in Sources */,
 				90F00200000000000000001F /* MaintenanceStore.swift in Sources */,
-				90F002000000000000000020 /* ManagedTaskRegistry.swift in Sources */,
 				90F002000000000000000022 /* PersistenceStore.swift in Sources */,
 				90F002000000000000000023 /* Platform.swift in Sources */,
 				90F002000000000000000026 /* RegistryModels.swift in Sources */,
@@ -546,8 +536,6 @@
 				90F002000000000000000036 /* WalletRustDerivationBridge.swift in Sources */,
 				90F002000000000000000037 /* WalletRustEndpointCatalogBridge.swift in Sources */,
 				90F002000000000000000038 /* WalletServiceBridge.swift in Sources */,
-				90F002000000000000000039 /* LiveActivityManager.swift in Sources */,
-				90F00200000000000000003A /* ActionResult.swift in Sources */,
 				90F00200000000000000003B /* SetupFlow.swift in Sources */,
 				90F00200000000000000003C /* ImportDraft.swift in Sources */,
 				90F00200000000000000003D /* ViewExtensions.swift in Sources */,

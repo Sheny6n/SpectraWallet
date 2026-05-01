@@ -657,16 +657,12 @@ nonisolated struct TransactionRecord: Identifiable, Equatable, Sendable {
     let feeRateDescription: String?
     let confirmationCount: Int?
     let dogecoinConfirmedNetworkFeeDoge: Double?
-    let dogecoinConfirmations: Int?
-    let dogecoinFeePriorityRaw: String?
     let dogecoinEstimatedFeeRateDogePerKb: Double?
     let usedChangeOutput: Bool?
-    let dogecoinUsedChangeOutput: Bool?
     let sourceDerivationPath: String?
     let changeDerivationPath: String?
     let sourceAddress: String?
     let changeAddress: String?
-    let dogecoinRawTransactionHex: String?
     let signedTransactionPayload: String?
     let signedTransactionPayloadFormat: String?
     let failureReason: String?
@@ -677,10 +673,10 @@ nonisolated struct TransactionRecord: Identifiable, Equatable, Sendable {
         symbol: String, chainName: String, amount: Double, address: String, transactionHash: String? = nil, ethereumNonce: Int? = nil,
         receiptBlockNumber: Int? = nil, receiptGasUsed: String? = nil, receiptEffectiveGasPriceGwei: Double? = nil,
         receiptNetworkFeeEth: Double? = nil, feePriorityRaw: String? = nil, feeRateDescription: String? = nil,
-        confirmationCount: Int? = nil, dogecoinConfirmedNetworkFeeDoge: Double? = nil, dogecoinConfirmations: Int? = nil,
-        dogecoinFeePriorityRaw: String? = nil, dogecoinEstimatedFeeRateDogePerKb: Double? = nil, usedChangeOutput: Bool? = nil,
-        dogecoinUsedChangeOutput: Bool? = nil, sourceDerivationPath: String? = nil, changeDerivationPath: String? = nil,
-        sourceAddress: String? = nil, changeAddress: String? = nil, dogecoinRawTransactionHex: String? = nil,
+        confirmationCount: Int? = nil, dogecoinConfirmedNetworkFeeDoge: Double? = nil,
+        dogecoinEstimatedFeeRateDogePerKb: Double? = nil, usedChangeOutput: Bool? = nil,
+        sourceDerivationPath: String? = nil, changeDerivationPath: String? = nil,
+        sourceAddress: String? = nil, changeAddress: String? = nil,
         signedTransactionPayload: String? = nil, signedTransactionPayloadFormat: String? = nil, failureReason: String? = nil,
         transactionHistorySource: String? = nil, createdAt: Date = Date()
     ) {
@@ -704,16 +700,12 @@ nonisolated struct TransactionRecord: Identifiable, Equatable, Sendable {
         self.feeRateDescription = feeRateDescription
         self.confirmationCount = confirmationCount
         self.dogecoinConfirmedNetworkFeeDoge = dogecoinConfirmedNetworkFeeDoge
-        self.dogecoinConfirmations = dogecoinConfirmations
-        self.dogecoinFeePriorityRaw = dogecoinFeePriorityRaw
         self.dogecoinEstimatedFeeRateDogePerKb = dogecoinEstimatedFeeRateDogePerKb
         self.usedChangeOutput = usedChangeOutput
-        self.dogecoinUsedChangeOutput = dogecoinUsedChangeOutput
         self.sourceDerivationPath = sourceDerivationPath
         self.changeDerivationPath = changeDerivationPath
         self.sourceAddress = sourceAddress
         self.changeAddress = changeAddress
-        self.dogecoinRawTransactionHex = dogecoinRawTransactionHex
         self.signedTransactionPayload = signedTransactionPayload
         self.signedTransactionPayloadFormat = signedTransactionPayloadFormat
         self.failureReason = failureReason
@@ -794,11 +786,11 @@ extension TransactionRecord {
             receiptBlockNumber: receiptBlockNumber, receiptGasUsed: receiptGasUsed,
             receiptEffectiveGasPriceGwei: receiptEffectiveGasPriceGwei, receiptNetworkFeeEth: receiptNetworkFeeEth,
             feePriorityRaw: feePriorityRaw, feeRateDescription: feeRateDescription, confirmationCount: confirmationCount,
-            dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge, dogecoinConfirmations: dogecoinConfirmations,
-            dogecoinFeePriorityRaw: dogecoinFeePriorityRaw, dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDogePerKb,
-            usedChangeOutput: usedChangeOutput, dogecoinUsedChangeOutput: dogecoinUsedChangeOutput,
+            dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge,
+            dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDogePerKb,
+            usedChangeOutput: usedChangeOutput,
             sourceDerivationPath: sourceDerivationPath, changeDerivationPath: changeDerivationPath, sourceAddress: sourceAddress,
-            changeAddress: changeAddress, dogecoinRawTransactionHex: dogecoinRawTransactionHex,
+            changeAddress: changeAddress,
             signedTransactionPayload: signedTransactionPayload, signedTransactionPayloadFormat: signedTransactionPayloadFormat,
             failureReason: failureReason, transactionHistorySource: transactionHistorySource, createdAt: createdAt)
     }
@@ -827,16 +819,12 @@ extension TransactionRecord {
             feeRateDescription: snapshot.feeRateDescription,
             confirmationCount: snapshot.confirmationCount.map { Int($0) },
             dogecoinConfirmedNetworkFeeDoge: snapshot.dogecoinConfirmedNetworkFeeDoge,
-            dogecoinConfirmations: snapshot.dogecoinConfirmations.map { Int($0) },
-            dogecoinFeePriorityRaw: snapshot.dogecoinFeePriorityRaw,
             dogecoinEstimatedFeeRateDogePerKb: snapshot.dogecoinEstimatedFeeRateDogePerKb,
             usedChangeOutput: snapshot.usedChangeOutput,
-            dogecoinUsedChangeOutput: snapshot.dogecoinUsedChangeOutput,
             sourceDerivationPath: snapshot.sourceDerivationPath,
             changeDerivationPath: snapshot.changeDerivationPath,
             sourceAddress: snapshot.sourceAddress,
             changeAddress: snapshot.changeAddress,
-            dogecoinRawTransactionHex: snapshot.dogecoinRawTransactionHex,
             signedTransactionPayload: snapshot.signedTransactionPayload,
             signedTransactionPayloadFormat: snapshot.signedTransactionPayloadFormat,
             failureReason: snapshot.failureReason,
@@ -866,16 +854,12 @@ extension TransactionRecord {
             feeRateDescription: feeRateDescription,
             confirmationCount: confirmationCount.map { Int64($0) },
             dogecoinConfirmedNetworkFeeDoge: dogecoinConfirmedNetworkFeeDoge,
-            dogecoinConfirmations: dogecoinConfirmations.map { Int64($0) },
-            dogecoinFeePriorityRaw: dogecoinFeePriorityRaw,
             dogecoinEstimatedFeeRateDogePerKb: dogecoinEstimatedFeeRateDogePerKb,
             usedChangeOutput: usedChangeOutput,
-            dogecoinUsedChangeOutput: dogecoinUsedChangeOutput,
             sourceDerivationPath: sourceDerivationPath,
             changeDerivationPath: changeDerivationPath,
             sourceAddress: sourceAddress,
             changeAddress: changeAddress,
-            dogecoinRawTransactionHex: dogecoinRawTransactionHex,
             signedTransactionPayload: signedTransactionPayload,
             signedTransactionPayloadFormat: signedTransactionPayloadFormat,
             failureReason: failureReason,
@@ -949,10 +933,6 @@ extension TransactionRecord {
             let trimmed = feePriorityRaw.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { return trimmed.capitalized }
         }
-        if let dogecoinFeePriorityRaw {
-            let trimmed = dogecoinFeePriorityRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed.capitalized }
-        }
         return nil
     }
     var storedFeeRateText: String? {
@@ -965,19 +945,13 @@ extension TransactionRecord {
     }
     var storedConfirmationCountText: String? {
         if let confirmationCount { return "\(confirmationCount) conf" }
-        if let dogecoinConfirmations { return "\(dogecoinConfirmations) conf" }
         return nil
     }
     var storedUsedChangeOutputText: String? {
         if let usedChangeOutput { return usedChangeOutput ? "Yes" : "No" }
-        if let dogecoinUsedChangeOutput { return dogecoinUsedChangeOutput ? "Yes" : "No" }
         return nil
     }
     var rawTransactionHexText: String? {
-        if let dogecoinRawTransactionHex {
-            let trimmed = dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
-        }
         guard let signedTransactionPayload, let signedTransactionPayloadFormat else { return nil }
         guard signedTransactionPayloadFormat.lowercased().contains("hex") else { return nil }
         let trimmed = signedTransactionPayload.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -993,14 +967,14 @@ extension TransactionRecord {
         if let storedFeePriorityText { parts.append("Fee \(storedFeePriorityText)") }
         if let storedFeeRateText { parts.append(storedFeeRateText) }
         if let storedConfirmationCountText { parts.append(storedConfirmationCountText) }
-        if let usedChangeOutput = usedChangeOutput ?? dogecoinUsedChangeOutput, kind == .send {
+        if let usedChangeOutput, kind == .send {
             parts.append(usedChangeOutput ? "change output" : "no change output")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " • ")
     }
     var dogecoinConfirmationsText: String? {
-        guard chainName == "Dogecoin", let dogecoinConfirmations else { return nil }
-        return "\(dogecoinConfirmations) conf"
+        guard chainName == "Dogecoin", let confirmationCount else { return nil }
+        return "\(confirmationCount) conf"
     }
     var fullTimestampText: String { createdAt.formatted(date: .abbreviated, time: .standard) }
     var transactionExplorerURL: URL? {
@@ -1016,19 +990,12 @@ extension TransactionRecord {
             let trimmed = signedTransactionPayload.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { return trimmed }
         }
-        if let dogecoinRawTransactionHex {
-            let trimmed = dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return trimmed }
-        }
         return nil
     }
     var rebroadcastPayloadFormat: String? {
         if let signedTransactionPayloadFormat {
             let trimmed = signedTransactionPayloadFormat.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { return trimmed }
-        }
-        if let dogecoinRawTransactionHex, !dogecoinRawTransactionHex.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "dogecoin.raw_hex"
         }
         return nil
     }
