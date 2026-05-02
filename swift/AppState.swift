@@ -961,6 +961,7 @@ final class AppState {
         startMaintenanceLoopIfNeeded()
         SpectraSecretStoreAdapter.registerWithBridge()
         setupRustRefreshEngine()
+        Task { await BundleImageLoader.warmRasterCache() }
         async let sqliteReload: () = reloadPersistedStateFromSQLite()
         async let fiatRefresh: () = refreshFiatExchangeRatesIfNeeded()
         _ = await (sqliteReload, fiatRefresh)

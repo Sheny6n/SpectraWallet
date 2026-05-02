@@ -33,11 +33,8 @@ enum BundleImageLoader {
     #if canImport(UIKit)
         private static let imageCache: NSCache<NSString, UIImage> = {
             let cache = NSCache<NSString, UIImage>()
-            cache.countLimit = 64
-            // Bound by total pixel cost too — prevents the resident-memory
-            // footprint from scaling linearly with countLimit when icons are
-            // high-res bitmaps. 16 MB is plenty for 64 token icons at 256×256.
-            cache.totalCostLimit = 16 * 1024 * 1024
+            cache.countLimit = 300
+            cache.totalCostLimit = 64 * 1024 * 1024
             return cache
         }()
         private final class CachedURL {
@@ -138,12 +135,11 @@ enum BundleImageLoader {
             if let cached = imageCache.object(forKey: key) { return cached }
             if let inFlight = pendingRenders[name] { return await inFlight.value }
             let task = Task<UIImage?, Never> { @MainActor in
-                await renderAndCache(name: name, targetSize: targetSize)
+                defer { pendingRenders.removeValue(forKey: name) }
+                return await renderAndCache(name: name, targetSize: targetSize)
             }
             pendingRenders[name] = task
-            let result = await task.value
-            pendingRenders.removeValue(forKey: name)
-            return result
+            return await task.value
         #else
             return nil
         #endif
@@ -175,9 +171,10 @@ enum BundleImageLoader {
             return nil
         }
 
+        private static let rendererCacheVersion = "r2"
         private static let diskCacheDir: URL? = {
             guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
-            let dir = caches.appendingPathComponent("SpectraIconCache", isDirectory: true)
+            let dir = caches.appendingPathComponent("SpectraIconCache/v\(rendererCacheVersion)", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             return dir
         }()
@@ -250,8 +247,13 @@ enum BundleImageLoader {
                     guard seen.insert(stem).inserted else { continue }
                     if imageCache.object(forKey: stem as NSString) != nil { continue }
                     let size = CGSize(width: targetSize, height: targetSize)
+                    if let diskCached = readDiskCachedImage(name: stem, size: size) {
+                        imageCache.setObject(diskCached, forKey: stem as NSString, cost: approximateByteCost(for: diskCached))
+                        continue
+                    }
                     if let rendered = await SVGRenderer.render(svgURL: file, size: size) {
                         imageCache.setObject(rendered, forKey: stem as NSString, cost: approximateByteCost(for: rendered))
+                        writeDiskCachedImage(rendered, name: stem, size: size)
                     }
                     renderedCount += 1
                     // Yield between renders so we don't spawn a new WebContent
@@ -317,8 +319,13 @@ struct CoinBadge: View {
         let identifier: String =
             assetIdentifier.map { Coin.normalizedIconIdentifier($0) } ?? "generic:\(fallbackText.lowercased())"
         let assetName: String? = {
-            if let nativeDescriptor = Coin.nativeChainIconDescriptor(forAssetIdentifier: identifier) {
-                return nativeDescriptor.assetName
+            // Chain icon lookup uses the RAW assetIdentifier, not the normalized one.
+            // normalizedIconIdentifier collapses e.g. "ETH on zkSync Era" → canonical
+            // Ethereum identifier, which would match Ethereum's entry and show the wrong icon.
+            if let raw = assetIdentifier {
+                if let direct = Coin.nativeIconAssetName(forAssetIdentifier: raw) { return direct }
+                // native: = chain-native token not in the visual registry → no icon.
+                if raw.hasPrefix("native:") { return nil }
             }
             return TokenVisualRegistryEntry.entry(matchingAssetIdentifier: identifier)?.assetName
         }()
@@ -339,10 +346,11 @@ struct CoinBadge: View {
                     resolvedImage = nil
                     return
                 }
-                // If sync lookup already returned an image we're done.
-                if BundleImageLoader.image(named: assetName) != nil { return }
-                // Otherwise the only candidate is an unrendered SVG — render
-                // it once via WKWebView and store the snapshot in the cache.
+                // Warm-cache fast path — avoid re-assigning if state already has an image.
+                if let found = BundleImageLoader.image(named: assetName) {
+                    if resolvedImage == nil { resolvedImage = found }
+                    return
+                }
                 resolvedImage = await BundleImageLoader.resolveImage(named: assetName)
             }
     }
@@ -491,6 +499,17 @@ struct SpectraLogo: View {
             webView.scrollView.backgroundColor = .clear
             webView.scrollView.isScrollEnabled = false
             webView.navigationDelegate = sharedObserver
+            webView.isHidden = true
+            // takeSnapshot requires the web view to be in the window hierarchy on iOS.
+            let window = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first { $0.isKeyWindow }
+                ?? UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .flatMap { $0.windows }
+                .first
+            window?.addSubview(webView)
             sharedWebView = webView
             return webView
         }
@@ -515,12 +534,27 @@ struct SpectraLogo: View {
             let scale = UITraitCollection.current.displayScale
             let pixelSize = CGSize(width: size.width * scale, height: size.height * scale)
             let webView = ensureWebView(size: size)
-
+            // Belt-and-suspenders: ensure in window even if ensureWebView ran before a window existed.
+            if webView.window == nil {
+                let window = UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .flatMap { $0.windows }
+                    .first { $0.isKeyWindow }
+                    ?? UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .flatMap { $0.windows }
+                    .first
+                window?.addSubview(webView)
+            }
+            // Inline the SVG content directly in HTML — loading via <img src> + file://
+            // baseURL is blocked by the WebContent sandbox on iOS.
+            guard let svgContent = try? String(contentsOf: svgURL, encoding: .utf8) else { return nil }
             let html = """
                 <!doctype html><html><head><meta charset="utf-8">
                 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-                <style>html,body{margin:0;padding:0;background:transparent;}img{width:100vw;height:100vh;display:block;}</style>
-                </head><body><img src="\(svgURL.lastPathComponent)"></body></html>
+                <style>html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;}
+                svg{width:100%;height:100%;display:block;}</style>
+                </head><body>\(svgContent)</body></html>
                 """
             await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
                 var resumed = false
@@ -529,11 +563,9 @@ struct SpectraLogo: View {
                     resumed = true
                     continuation.resume()
                 }
-                webView.loadHTMLString(html, baseURL: svgURL.deletingLastPathComponent())
+                webView.loadHTMLString(html, baseURL: nil)
             }
             sharedObserver.onFinish = nil
-            // One frame for the layout/paint to commit. 16ms (~one display frame)
-            // is enough; the previous 50ms held the main actor unnecessarily.
             try? await Task.sleep(nanoseconds: 16_000_000)
 
             let snapshotConfig = WKSnapshotConfiguration()

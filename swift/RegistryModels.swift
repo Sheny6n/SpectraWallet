@@ -396,6 +396,19 @@ extension Coin {
         Dictionary(
             nativeChainIconDescriptors.map { ($0.assetIdentifier, $0) },
             uniquingKeysWith: { first, _ in first })
+    // Wiki-independent icon lookup: built from ChainVisualRegistry alone.
+    // Covers chains that have an icon but no wiki entry (e.g. Dash, Decred, Sei).
+    private static let nativeIconAssetNameByAssetIdentifier: [String: String] = {
+        var result: [String: String] = [:]
+        for entry in ChainVisualRegistryCatalog.loadEntries().values {
+            let key = iconIdentifier(symbol: entry.symbol, chainName: entry.chainName)
+            result[key] = entry.assetName
+        }
+        return result
+    }()
+    static func nativeIconAssetName(forAssetIdentifier assetIdentifier: String) -> String? {
+        nativeIconAssetNameByAssetIdentifier[assetIdentifier]
+    }
     // These caches survive the app lifetime — all inputs are pure data.
     nonisolated(unsafe) private static var cachedCanonicalChainComponents: [String: String] = [:]
     nonisolated(unsafe) private static var cachedIconIdentifiers: [String: String] = [:]

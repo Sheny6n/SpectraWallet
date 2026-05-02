@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "SpectraLogo-1024-Light.png",
+      "filename" : "SpectraLogo-Light.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "SpectraLogo-1024-Dark.png",
+      "filename" : "SpectraLogo-Dark.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

@@ -362,11 +362,15 @@ struct EndpointsContentCopy: Decodable {
 }
 struct ChainVisualRegistrySeed: Decodable {
     let id: String
+    let symbol: String
+    let chainName: String
     let colorName: String
     let assetName: String
 }
 struct ChainVisualRegistryEntry {
     let id: String
+    let symbol: String
+    let chainName: String
     let color: Color
     let assetName: String
 }
@@ -378,7 +382,8 @@ enum ChainVisualRegistryCatalog {
                 (
                     $0.id,
                     ChainVisualRegistryEntry(
-                        id: $0.id, color: RegistryColorLookup.color(named: $0.colorName), assetName: $0.assetName
+                        id: $0.id, symbol: $0.symbol, chainName: $0.chainName,
+                        color: RegistryColorLookup.color(named: $0.colorName), assetName: $0.assetName
                     )
                 )
             })

@@ -1,187 +1,275 @@
 [
   {
     "id": "bitcoin",
+    "symbol": "BTC",
+    "chainName": "Bitcoin",
     "colorName": "orange",
     "assetName": "bitcoin"
   },
   {
     "id": "bitcoin-cash",
+    "symbol": "BCH",
+    "chainName": "Bitcoin Cash",
     "colorName": "orange",
     "assetName": "bitcoincash"
   },
   {
     "id": "bitcoin-sv",
+    "symbol": "BSV",
+    "chainName": "Bitcoin SV",
     "colorName": "orange",
     "assetName": "bitcoinsv"
   },
   {
     "id": "bitcoin-gold",
+    "symbol": "BTG",
+    "chainName": "Bitcoin Gold",
     "colorName": "yellow",
     "assetName": "bitcoingold"
   },
   {
     "id": "litecoin",
+    "symbol": "LTC",
+    "chainName": "Litecoin",
     "colorName": "blue",
     "assetName": "litecoin"
   },
   {
     "id": "dogecoin",
+    "symbol": "DOGE",
+    "chainName": "Dogecoin",
     "colorName": "yellow",
     "assetName": "dogecoin"
   },
   {
     "id": "dash",
+    "symbol": "DASH",
+    "chainName": "Dash",
     "colorName": "blue",
     "assetName": "dash"
   },
   {
     "id": "decred",
+    "symbol": "DCR",
+    "chainName": "Decred",
     "colorName": "indigo",
     "assetName": "decred"
   },
   {
     "id": "zcash",
+    "symbol": "ZEC",
+    "chainName": "Zcash",
     "colorName": "yellow",
     "assetName": "zcash"
   },
   {
     "id": "ethereum",
+    "symbol": "ETH",
+    "chainName": "Ethereum",
     "colorName": "purple",
     "assetName": "ethereum"
   },
   {
     "id": "ethereum-classic",
+    "symbol": "ETC",
+    "chainName": "Ethereum Classic",
     "colorName": "green",
     "assetName": "ethereumclassic"
   },
   {
     "id": "arbitrum",
+    "symbol": "ARB",
+    "chainName": "Arbitrum",
     "colorName": "cyan",
     "assetName": "arbitrum"
   },
   {
     "id": "optimism",
+    "symbol": "OP",
+    "chainName": "Optimism",
     "colorName": "red",
     "assetName": "optimism"
   },
   {
     "id": "bnb",
+    "symbol": "BNB",
+    "chainName": "BNB Chain",
     "colorName": "yellow",
     "assetName": "bnb"
   },
   {
     "id": "avalanche",
+    "symbol": "AVAX",
+    "chainName": "Avalanche",
     "colorName": "red",
     "assetName": "avalanche"
   },
   {
+    "id": "cronos",
+    "symbol": "CRO",
+    "chainName": "Cronos",
+    "colorName": "blue",
+    "assetName": "cronos"
+  },
+  {
     "id": "hyperliquid",
+    "symbol": "HYPE",
+    "chainName": "Hyperliquid",
     "colorName": "mint",
     "assetName": "hyperliquid"
   },
   {
     "id": "tron",
+    "symbol": "TRX",
+    "chainName": "Tron",
     "colorName": "red",
     "assetName": "tron"
   },
   {
     "id": "solana",
+    "symbol": "SOL",
+    "chainName": "Solana",
     "colorName": "green",
     "assetName": "solana"
   },
   {
     "id": "stellar",
+    "symbol": "XLM",
+    "chainName": "Stellar",
     "colorName": "teal",
     "assetName": "stellar"
   },
   {
     "id": "aptos",
+    "symbol": "APT",
+    "chainName": "Aptos",
     "colorName": "cyan",
     "assetName": "aptos"
   },
   {
     "id": "ton",
+    "symbol": "TON",
+    "chainName": "TON",
     "colorName": "blue",
     "assetName": "ton"
   },
   {
     "id": "internet-computer",
+    "symbol": "ICP",
+    "chainName": "Internet Computer",
     "colorName": "indigo",
     "assetName": "internetcomputer"
   },
   {
     "id": "near",
+    "symbol": "NEAR",
+    "chainName": "NEAR",
     "colorName": "indigo",
     "assetName": "near"
   },
   {
     "id": "polkadot",
+    "symbol": "DOT",
+    "chainName": "Polkadot",
     "colorName": "pink",
     "assetName": "polkadot"
   },
   {
     "id": "sui",
+    "symbol": "SUI",
+    "chainName": "Sui",
     "colorName": "mint",
     "assetName": "sui"
   },
   {
     "id": "cardano",
+    "symbol": "ADA",
+    "chainName": "Cardano",
     "colorName": "indigo",
     "assetName": "cardano"
   },
   {
     "id": "monero",
+    "symbol": "XMR",
+    "chainName": "Monero",
     "colorName": "orange",
     "assetName": "monero"
   },
   {
     "id": "xrp",
+    "symbol": "XRP",
+    "chainName": "XRP Ledger",
     "colorName": "cyan",
     "assetName": "xrp"
   },
   {
     "id": "sei",
+    "symbol": "SEI",
+    "chainName": "Sei",
     "colorName": "red",
     "assetName": "sei"
   },
   {
     "id": "polygon",
+    "symbol": "POL",
+    "chainName": "Polygon",
     "colorName": "purple",
     "assetName": "polygon"
   },
   {
     "id": "base",
+    "symbol": "ETH",
+    "chainName": "Base",
     "colorName": "blue",
     "assetName": "base"
   },
   {
     "id": "linea",
+    "symbol": "ETH",
+    "chainName": "Linea",
     "colorName": "blue",
     "assetName": "linea"
   },
   {
     "id": "ink",
+    "symbol": "ETH",
+    "chainName": "Ink",
     "colorName": "purple",
     "assetName": "ink"
   },
   {
     "id": "scroll",
+    "symbol": "ETH",
+    "chainName": "Scroll",
     "colorName": "orange",
     "assetName": "scroll"
   },
   {
     "id": "blast",
+    "symbol": "ETH",
+    "chainName": "Blast",
     "colorName": "yellow",
     "assetName": "blast"
   },
   {
     "id": "celo",
+    "symbol": "CELO",
+    "chainName": "Celo",
     "colorName": "yellow",
     "assetName": "celo"
   },
   {
     "id": "mantle",
+    "symbol": "MNT",
+    "chainName": "Mantle",
     "colorName": "green",
     "assetName": "mantle"
+  },
+  {
+    "id": "unichain",
+    "symbol": "ETH",
+    "chainName": "Unichain",
+    "colorName": "pink",
+    "assetName": "uniswap"
   }
 ]
