@@ -1113,8 +1113,10 @@ final class AppState {
     func normalizeSuiPackageComponent(_ v: String) -> String { Spectra.normalizeSuiPackageComponent(value: v) }
     func normalizeAptosTokenIdentifier(_ v: String) -> String { Spectra.normalizeAptosTokenIdentifier(value: v) }
     func canonicalAptosHexAddress(_ v: String) -> String { Spectra.canonicalAptosHexAddress(value: v) }
-    // 6 identical EVM-chain tracked-token builders collapsed to a single helper.
-    private func enabledEVMTrackedTokens(for chain: TokenTrackingChain) -> [ChainTokenRegistryEntry] {
+    /// Map a `TokenTrackingChain` to the user's currently-enabled tracked tokens for that chain.
+    /// All 12 EVM chains share this helper; routing via `TokenTrackingChain.forChainName(...)`
+    /// at the call site picks the right chain.
+    func enabledEVMTrackedTokens(for chain: TokenTrackingChain) -> [ChainTokenRegistryEntry] {
         enabledTokenPreferences(for: chain).map { e in
             ChainTokenRegistryEntry(
                 chain: e.chain, name: e.name, symbol: e.symbol, tokenStandard: e.tokenStandard,
@@ -1123,18 +1125,6 @@ final class AppState {
                 isEnabledByDefault: e.isEnabled)
         }
     }
-    func enabledEthereumTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .ethereum) }
-    func enabledBNBTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .bnb) }
-    func enabledArbitrumTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .arbitrum) }
-    func enabledOptimismTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .optimism) }
-    func enabledAvalancheTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .avalanche) }
-    func enabledHyperliquidTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .hyperliquid) }
-    func enabledPolygonTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .polygon) }
-    func enabledBaseTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .base) }
-    func enabledLineaTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .linea) }
-    func enabledScrollTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .scroll) }
-    func enabledBlastTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .blast) }
-    func enabledMantleTrackedTokens() -> [ChainTokenRegistryEntry] { enabledEVMTrackedTokens(for: .mantle) }
     func enabledTronTrackedTokens() -> [TronBalanceService.TrackedTRC20Token] {
         enabledTokenPreferences(for: .tron).map { entry in
             TronBalanceService.TrackedTRC20Token(

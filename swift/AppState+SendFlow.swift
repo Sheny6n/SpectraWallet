@@ -236,39 +236,14 @@ extension AppState {
     func isEVMChain(_ chainName: String) -> Bool { evmChainContext(for: chainName) != nil }
     func configuredEVMRPCEndpointURL(for chainName: String) -> URL? { chainName == "Ethereum" ? configuredEthereumRPCEndpointURL() : nil }
     func supportedEVMToken(for coin: Coin) -> ChainTokenRegistryEntry? {
-        guard let chain = evmChainContext(for: coin.chainName) else { return nil }
+        guard evmChainContext(for: coin.chainName) != nil else { return nil }
         if coin.chainName == "Ethereum", coin.symbol == "ETH" { return nil }
         if coin.chainName == "Ethereum Classic", coin.symbol == "ETC" { return nil }
         if coin.chainName == "Optimism", coin.symbol == "ETH" { return nil }
         if coin.chainName == "BNB Chain", coin.symbol == "BNB" { return nil }
         if coin.chainName == "Avalanche", coin.symbol == "AVAX" { return nil }
         if coin.chainName == "Hyperliquid", coin.symbol == "HYPE" { return nil }
-        let chainTokens: [ChainTokenRegistryEntry]
-        if chain == .ethereum {
-            chainTokens = enabledEthereumTrackedTokens()
-        } else if chain == .bnb {
-            chainTokens = enabledBNBTrackedTokens()
-        } else if chain == .optimism {
-            chainTokens = enabledOptimismTrackedTokens()
-        } else if chain == .avalanche {
-            chainTokens = enabledAvalancheTrackedTokens()
-        } else if chain == .hyperliquid {
-            chainTokens = enabledHyperliquidTrackedTokens()
-        } else if chain == .polygon {
-            chainTokens = enabledPolygonTrackedTokens()
-        } else if chain == .base {
-            chainTokens = enabledBaseTrackedTokens()
-        } else if chain == .linea {
-            chainTokens = enabledLineaTrackedTokens()
-        } else if chain == .scroll {
-            chainTokens = enabledScrollTrackedTokens()
-        } else if chain == .blast {
-            chainTokens = enabledBlastTrackedTokens()
-        } else if chain == .mantle {
-            chainTokens = enabledMantleTrackedTokens()
-        } else {
-            chainTokens = []
-        }
+        let chainTokens = TokenTrackingChain.forChainName(coin.chainName).map { enabledEVMTrackedTokens(for: $0) } ?? []
         if let contractAddress = coin.contractAddress {
             let normalizedContract = normalizeEVMAddress(contractAddress)
             return chainTokens.first { $0.symbol == coin.symbol && $0.contractAddress == normalizedContract }

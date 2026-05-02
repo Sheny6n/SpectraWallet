@@ -177,7 +177,7 @@ extension AppState {
             ethereumContext.isEthereumMainnet
             ? ((try? await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(
                 chainId: SpectraChainID.ethereum, address: address,
-                tokens: enabledEthereumTrackedTokens().map { TokenDescriptor(contract: $0.contractAddress, symbol: $0.symbol, decimals: UInt8($0.decimals), name: nil) }
+                tokens: enabledEVMTrackedTokens(for: .ethereum).map { TokenDescriptor(contract: $0.contractAddress, symbol: $0.symbol, decimals: UInt8($0.decimals), name: nil) }
             )) ?? [])
             : []
         return (nativeBalance, tokenBalances)

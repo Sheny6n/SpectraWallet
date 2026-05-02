@@ -57,85 +57,26 @@ extension AppState {
         isLoadingMoreOnChainHistory = true
         defer { isLoadingMoreOnChainHistory = false }
         let eligibleWalletIDs = Set(walletIDs.filter(canLoadMoreHistory(for:)))
-        if hasWalletForChain("Bitcoin") {
-            await refreshBitcoinTransactions(
-                limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
+        let limit = AppState.HistoryPaging.endpointBatchSize
+        // UTXO chains share `refresh<Chain>Transactions(limit:loadMore:targetWalletIDs:)`.
+        let utxoChains: [(name: String, refresh: (Int?, Bool, Set<String>?) async -> Void)] = [
+            ("Bitcoin",      refreshBitcoinTransactions),
+            ("Bitcoin Cash", refreshBitcoinCashTransactions),
+            ("Bitcoin SV",   refreshBitcoinSVTransactions),
+            ("Litecoin",     refreshLitecoinTransactions),
+            ("Dogecoin",     refreshDogecoinTransactions),
+        ]
+        for (name, refresh) in utxoChains where hasWalletForChain(name) {
+            await refresh(limit, true, eligibleWalletIDs)
         }
-        if hasWalletForChain("Bitcoin Cash") {
-            await refreshBitcoinCashTransactions(
-                limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Bitcoin SV") {
-            await refreshBitcoinSVTransactions(
-                limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Litecoin") {
-            await refreshLitecoinTransactions(
-                limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Dogecoin") {
-            await refreshDogecoinTransactions(
-                limit: AppState.HistoryPaging.endpointBatchSize, loadMore: true, targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Ethereum") {
+        // EVM chains all dispatch through `refreshEVMTokenTransactions(chainName:...)`.
+        let evmChainNames = [
+            "Ethereum", "Arbitrum", "Optimism", "BNB Chain", "Avalanche", "Hyperliquid",
+            "Polygon", "Base", "Linea", "Scroll", "Blast", "Mantle",
+        ]
+        for chainName in evmChainNames where hasWalletForChain(chainName) {
             await refreshEVMTokenTransactions(
-                chainName: "Ethereum", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Arbitrum") {
-            await refreshEVMTokenTransactions(
-                chainName: "Arbitrum", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Optimism") {
-            await refreshEVMTokenTransactions(
-                chainName: "Optimism", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("BNB Chain") {
-            await refreshEVMTokenTransactions(
-                chainName: "BNB Chain", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Avalanche") {
-            await refreshEVMTokenTransactions(
-                chainName: "Avalanche", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Hyperliquid") {
-            await refreshEVMTokenTransactions(
-                chainName: "Hyperliquid", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Polygon") {
-            await refreshEVMTokenTransactions(
-                chainName: "Polygon", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Base") {
-            await refreshEVMTokenTransactions(
-                chainName: "Base", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Linea") {
-            await refreshEVMTokenTransactions(
-                chainName: "Linea", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Scroll") {
-            await refreshEVMTokenTransactions(
-                chainName: "Scroll", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Blast") {
-            await refreshEVMTokenTransactions(
-                chainName: "Blast", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
-        }
-        if hasWalletForChain("Mantle") {
-            await refreshEVMTokenTransactions(
-                chainName: "Mantle", maxResults: AppState.HistoryPaging.endpointBatchSize, loadMore: true,
-                targetWalletIDs: eligibleWalletIDs)
+                chainName: chainName, maxResults: limit, loadMore: true, targetWalletIDs: eligibleWalletIDs)
         }
         if hasWalletForChain("Tron") { await refreshTronTransactions(loadMore: true, targetWalletIDs: eligibleWalletIDs) }
     }
@@ -530,17 +471,7 @@ extension AppState {
             let currentPage = max(1, historyPaginationPage(chainId: evmChainId, walletId: representativeWallet.id))
             let page = loadMore ? (currentPage + 1) : currentPage
             let trackedTokens: [ChainTokenRegistryEntry]? =
-                if chain.isEthereumMainnet { enabledEthereumTrackedTokens() } else if chain == .arbitrum {
-                    enabledArbitrumTrackedTokens()
-                } else if chain == .optimism { enabledOptimismTrackedTokens() } else if chain == .hyperliquid {
-                    enabledHyperliquidTrackedTokens()
-                } else if chain == .polygon { enabledPolygonTrackedTokens() } else if chain == .base {
-                    enabledBaseTrackedTokens()
-                } else if chain == .linea { enabledLineaTrackedTokens() } else if chain == .scroll {
-                    enabledScrollTrackedTokens()
-                } else if chain == .blast { enabledBlastTrackedTokens() } else if chain == .mantle {
-                    enabledMantleTrackedTokens()
-                } else if chain == .bnb { enabledBNBTrackedTokens() } else { nil }
+                TokenTrackingChain.forChainName(chainName).map { enabledEVMTrackedTokens(for: $0) }
             var decodedPage = EvmHistoryPageDecoded(tokens: [], native: [])
             var tokenDiagnostics: EthereumTokenTransferHistoryDiagnostics?
             var tokenHistoryError: Error?
