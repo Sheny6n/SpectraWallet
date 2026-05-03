@@ -30,13 +30,13 @@ extension AppState {
                 ? amount >= 0 : amount > 0)
         else {
             ethereumSendPreview = nil
-            isPreparingEthereumSend = false
+            preparingChains.remove("Ethereum")
             return
         }
         if let customEthereumNonceValidationError = customEthereumNonceValidationError {
             sendError = customEthereumNonceValidationError
             ethereumSendPreview = nil
-            isPreparingEthereumSend = false
+            preparingChains.remove("Ethereum")
             return
         }
         let trimmedDestination = sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -50,29 +50,29 @@ extension AppState {
                 do {
                     guard let resolved = try await WalletServiceBridge.shared.resolveENSName(trimmedDestination) else {
                         ethereumSendPreview = nil
-                        isPreparingEthereumSend = false
+                        preparingChains.remove("Ethereum")
                         return
                     }
                     previewDestination = resolved
                     sendDestinationInfoMessage = "Resolved ENS \(trimmedDestination) to \(resolved)."
                 } catch {
                     ethereumSendPreview = nil
-                    isPreparingEthereumSend = false
+                    preparingChains.remove("Ethereum")
                     return
                 }
             } else {
                 ethereumSendPreview = nil
-                isPreparingEthereumSend = false
+                preparingChains.remove("Ethereum")
                 return
             }
         }
-        guard !isPreparingEthereumSend else {
+        guard !preparingChains.contains("Ethereum") else {
             pendingEthereumSendPreviewRefresh = true
             return
         }
-        isPreparingEthereumSend = true
+        preparingChains.insert("Ethereum")
         defer {
-            isPreparingEthereumSend = false
+            preparingChains.remove("Ethereum")
             if pendingEthereumSendPreviewRefresh {
                 pendingEthereumSendPreviewRefresh = false
                 Task { @MainActor in
@@ -82,7 +82,7 @@ extension AppState {
         }
         guard let chainId = SpectraChainID.id(for: selectedSendCoin.chainName) else {
             ethereumSendPreview = nil
-            isPreparingEthereumSend = false
+            preparingChains.remove("Ethereum")
             return
         }
         do {
@@ -99,7 +99,7 @@ extension AppState {
                     ))
             } catch {
                 ethereumSendPreview = nil
-                isPreparingEthereumSend = false
+                preparingChains.remove("Ethereum")
                 return
             }
             let valueWei = assembly.valueWei
@@ -125,28 +125,28 @@ extension AppState {
             selectedSendCoin.symbol == "DOGE", let amount = parseDogecoinAmountInput(sendAmount), amount > 0
         else {
             dogecoinSendPreview = nil
-            isPreparingDogecoinSend = false
+            preparingChains.remove("Dogecoin")
             return
         }
         let trimmedDestination = sendAddress.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedDestination.isEmpty, !isValidDogecoinAddressForPolicy(trimmedDestination, networkMode: dogecoinNetworkMode(for: wallet))
         {
             dogecoinSendPreview = nil
-            isPreparingDogecoinSend = false
+            preparingChains.remove("Dogecoin")
             return
         }
         guard storedSeedPhrase(for: wallet.id) != nil else {
             dogecoinSendPreview = nil
-            isPreparingDogecoinSend = false
+            preparingChains.remove("Dogecoin")
             return
         }
-        guard !isPreparingDogecoinSend else {
+        guard !preparingChains.contains("Dogecoin") else {
             pendingDogecoinSendPreviewRefresh = true
             return
         }
-        isPreparingDogecoinSend = true
+        preparingChains.insert("Dogecoin")
         defer {
-            isPreparingDogecoinSend = false
+            preparingChains.remove("Dogecoin")
             if pendingDogecoinSendPreviewRefresh {
                 pendingDogecoinSendPreviewRefresh = false
                 Task { @MainActor in
@@ -156,7 +156,7 @@ extension AppState {
         }
         guard let address = resolvedDogecoinAddress(for: wallet) else {
             dogecoinSendPreview = nil
-            isPreparingDogecoinSend = false
+            preparingChains.remove("Dogecoin")
             return
         }
         do {
@@ -241,17 +241,17 @@ extension AppState {
             (selectedSendCoin.symbol == "TRX" || selectedSendCoin.symbol == "USDT"), let amount = Double(sendAmount), amount > 0
         else {
             tronSendPreview = nil
-            isPreparingTronSend = false
+            preparingChains.remove("Tron")
             return
         }
         guard let sourceAddress = resolvedTronAddress(for: wallet) else {
             tronSendPreview = nil
-            isPreparingTronSend = false
+            preparingChains.remove("Tron")
             return
         }
-        guard !isPreparingTronSend else { return }
-        isPreparingTronSend = true
-        defer { isPreparingTronSend = false }
+        guard !preparingChains.contains("Tron") else { return }
+        preparingChains.insert("Tron")
+        defer { preparingChains.remove("Tron") }
         do {
             tronSendPreview = try await WalletServiceBridge.shared.fetchTronSendPreviewTyped(
                 address: sourceAddress, symbol: selectedSendCoin.symbol, contractAddress: selectedSendCoin.contractAddress ?? ""
@@ -269,9 +269,9 @@ extension AppState {
     private struct SimpleChainConfig {
         let chainId: UInt32
         let rustChain: SimpleChain
+        let chainName: String
         let coinCheck: (AppState, Coin) -> Bool
         let resolveAddress: (AppState, ImportedWallet) -> String?
-        let preparingKP: ReferenceWritableKeyPath<AppState, Bool>
         let applyPreview: (AppState, SimpleChainPreview?) -> Void
         let errorMessage: String
     }
@@ -279,11 +279,11 @@ extension AppState {
         guard let wallet = wallet(for: sendWalletID),
             let coin = selectedSendCoin, cfg.coinCheck(self, coin),
             let amount = Double(sendAmount), amount > 0
-        else { cfg.applyPreview(self, nil); self[keyPath: cfg.preparingKP] = false; return }
+        else { cfg.applyPreview(self, nil); preparingChains.remove(cfg.chainName); return }
         guard let src = cfg.resolveAddress(self, wallet)
-        else { cfg.applyPreview(self, nil); self[keyPath: cfg.preparingKP] = false; return }
-        guard !self[keyPath: cfg.preparingKP] else { return }
-        self[keyPath: cfg.preparingKP] = true; defer { self[keyPath: cfg.preparingKP] = false }
+        else { cfg.applyPreview(self, nil); preparingChains.remove(cfg.chainName); return }
+        guard !preparingChains.contains(cfg.chainName) else { return }
+        preparingChains.insert(cfg.chainName); defer { preparingChains.remove(cfg.chainName) }
         do {
             let preview = try await WalletServiceBridge.shared.fetchSimpleChainSendPreviewTyped(
                 chainId: cfg.chainId, address: src, chain: cfg.rustChain)
@@ -301,7 +301,7 @@ extension AppState {
                 chainId: SpectraChainID.solana, rustChain: .solana,
                 coinCheck: { s, c in s.isSupportedSolanaSendCoin(c) },
                 resolveAddress: { s, w in s.resolvedSolanaAddress(for: w) },
-                preparingKP: \.isPreparingSolanaSend,
+                chainName: "Solana",
                 applyPreview: { s, p in if case .solana(let pv)? = p { s.solanaSendPreview = pv } else { s.solanaSendPreview = nil } },
                 errorMessage: "Unable to estimate Solana fee right now. Check provider health and retry."))
     }
@@ -311,7 +311,7 @@ extension AppState {
                 chainId: SpectraChainID.xrp, rustChain: .xrp,
                 coinCheck: { _, c in c.chainName == "XRP Ledger" && c.symbol == "XRP" },
                 resolveAddress: { s, w in s.resolvedXRPAddress(for: w) },
-                preparingKP: \.isPreparingXRPSend,
+                chainName: "XRP Ledger",
                 applyPreview: { s, p in if case .xrp(let pv)? = p { s.xrpSendPreview = pv } else { s.xrpSendPreview = nil } },
                 errorMessage: "Unable to estimate XRP fee right now. Check provider health and retry."))
     }
@@ -321,7 +321,7 @@ extension AppState {
                 chainId: SpectraChainID.stellar, rustChain: .stellar,
                 coinCheck: { _, c in c.chainName == "Stellar" && c.symbol == "XLM" },
                 resolveAddress: { s, w in s.resolvedStellarAddress(for: w) },
-                preparingKP: \.isPreparingStellarSend,
+                chainName: "Stellar",
                 applyPreview: { s, p in if case .stellar(let pv)? = p { s.stellarSendPreview = pv } else { s.stellarSendPreview = nil } },
                 errorMessage: "Unable to estimate Stellar fee right now. Check provider health and retry."))
     }
@@ -331,7 +331,7 @@ extension AppState {
                 chainId: SpectraChainID.monero, rustChain: .monero,
                 coinCheck: { _, c in c.chainName == "Monero" && c.symbol == "XMR" },
                 resolveAddress: { s, w in s.resolvedMoneroAddress(for: w) },
-                preparingKP: \.isPreparingMoneroSend,
+                chainName: "Monero",
                 applyPreview: { s, p in if case .monero(let pv)? = p { s.moneroSendPreview = pv } else { s.moneroSendPreview = nil } },
                 errorMessage: "Unable to estimate Monero fee right now. Check provider health and retry."))
     }
@@ -341,7 +341,7 @@ extension AppState {
                 chainId: SpectraChainID.cardano, rustChain: .cardano,
                 coinCheck: { _, c in c.chainName == "Cardano" && c.symbol == "ADA" },
                 resolveAddress: { s, w in s.resolvedCardanoAddress(for: w) },
-                preparingKP: \.isPreparingCardanoSend,
+                chainName: "Cardano",
                 applyPreview: { s, p in if case .cardano(let pv)? = p { s.cardanoSendPreview = pv } else { s.cardanoSendPreview = nil } },
                 errorMessage: "Unable to estimate Cardano fee right now. Check provider health and retry."))
     }
@@ -351,7 +351,7 @@ extension AppState {
                 chainId: SpectraChainID.sui, rustChain: .sui,
                 coinCheck: { _, c in c.chainName == "Sui" && c.symbol == "SUI" },
                 resolveAddress: { s, w in s.resolvedSuiAddress(for: w) },
-                preparingKP: \.isPreparingSuiSend,
+                chainName: "Sui",
                 applyPreview: { s, p in if case .sui(let pv)? = p { s.suiSendPreview = pv } else { s.suiSendPreview = nil } },
                 errorMessage: "Unable to estimate Sui fee right now. Check provider health and retry."))
     }
@@ -361,7 +361,7 @@ extension AppState {
                 chainId: SpectraChainID.aptos, rustChain: .aptos,
                 coinCheck: { _, c in c.chainName == "Aptos" && c.symbol == "APT" },
                 resolveAddress: { s, w in s.resolvedAptosAddress(for: w) },
-                preparingKP: \.isPreparingAptosSend,
+                chainName: "Aptos",
                 applyPreview: { s, p in if case .aptos(let pv)? = p { s.aptosSendPreview = pv } else { s.aptosSendPreview = nil } },
                 errorMessage: "Unable to estimate Aptos fee right now. Check provider health and retry."))
     }
@@ -371,7 +371,7 @@ extension AppState {
                 chainId: SpectraChainID.ton, rustChain: .ton,
                 coinCheck: { _, c in c.chainName == "TON" && c.symbol == "TON" },
                 resolveAddress: { s, w in s.resolvedTONAddress(for: w) },
-                preparingKP: \.isPreparingTONSend,
+                chainName: "TON",
                 applyPreview: { s, p in if case .ton(let pv)? = p { s.tonSendPreview = pv } else { s.tonSendPreview = nil } },
                 errorMessage: "Unable to estimate TON fee right now. Check provider health and retry."))
     }
@@ -381,7 +381,7 @@ extension AppState {
                 chainId: SpectraChainID.icp, rustChain: .icp,
                 coinCheck: { _, c in c.chainName == "Internet Computer" && c.symbol == "ICP" },
                 resolveAddress: { s, w in s.resolvedICPAddress(for: w) },
-                preparingKP: \.isPreparingICPSend,
+                chainName: "Internet Computer",
                 applyPreview: { s, p in if case .icp(let pv)? = p { s.icpSendPreview = pv } else { s.icpSendPreview = nil } },
                 errorMessage: "Unable to estimate ICP fee right now. Check provider health and retry."))
     }
@@ -391,7 +391,7 @@ extension AppState {
                 chainId: SpectraChainID.near, rustChain: .near,
                 coinCheck: { _, c in c.chainName == "NEAR" && c.symbol == "NEAR" },
                 resolveAddress: { s, w in s.resolvedNearAddress(for: w) },
-                preparingKP: \.isPreparingNearSend,
+                chainName: "NEAR",
                 applyPreview: { s, p in if case .near(let pv)? = p { s.nearSendPreview = pv } else { s.nearSendPreview = nil } },
                 errorMessage: "Unable to estimate NEAR fee right now. Check provider health and retry."))
     }
@@ -401,7 +401,7 @@ extension AppState {
                 chainId: SpectraChainID.polkadot, rustChain: .polkadot,
                 coinCheck: { _, c in c.chainName == "Polkadot" && c.symbol == "DOT" },
                 resolveAddress: { s, w in s.storedSeedPhrase(for: w.id) != nil ? s.resolvedPolkadotAddress(for: w) : nil },
-                preparingKP: \.isPreparingPolkadotSend,
+                chainName: "Polkadot",
                 applyPreview: { s, p in if case .polkadot(let pv)? = p { s.polkadotSendPreview = pv } else { s.polkadotSendPreview = nil }
                 },
                 errorMessage: "Unable to estimate Polkadot fee right now. Check provider health and retry."))

@@ -71,33 +71,23 @@ final class WalletDiagnosticsState {
         }
         suspendPersistenceScheduling = false
     }
+    private static func byName<V>(_ d: [WalletChainID: V]) -> [String: V] {
+        Dictionary(uniqueKeysWithValues: d.map { ($0.key.displayName, $0.value) })
+    }
+    private static func byChainID<V>(_ d: [String: V]) -> [WalletChainID: V] {
+        Dictionary(uniqueKeysWithValues: d.compactMap { k, v in WalletChainID(k).map { ($0, v) } })
+    }
     var chainDegradedMessages: [String: String] {
-        get {
-            Dictionary(uniqueKeysWithValues: chainDegradedMessagesByID.map { ($0.key.displayName, $0.value) })
-        }
-        set {
-            chainDegradedMessagesByID = Dictionary(
-                uniqueKeysWithValues: newValue.compactMap { key, value in
-                    WalletChainID(key).map { ($0, value) }
-                }
-            )
-        }
+        get { Self.byName(chainDegradedMessagesByID) }
+        set { chainDegradedMessagesByID = Self.byChainID(newValue) }
     }
     var chainDegradedMessagesByChainID: [WalletChainID: String] {
         get { chainDegradedMessagesByID }
         set { chainDegradedMessagesByID = newValue }
     }
     var lastGoodChainSyncByName: [String: Date] {
-        get {
-            Dictionary(uniqueKeysWithValues: lastGoodChainSyncByID.map { ($0.key.displayName, $0.value) })
-        }
-        set {
-            lastGoodChainSyncByID = Dictionary(
-                uniqueKeysWithValues: newValue.compactMap { key, value in
-                    WalletChainID(key).map { ($0, value) }
-                }
-            )
-        }
+        get { Self.byName(lastGoodChainSyncByID) }
+        set { lastGoodChainSyncByID = Self.byChainID(newValue) }
     }
     var lastGoodChainSyncByChainID: [WalletChainID: Date] {
         get { lastGoodChainSyncByID }

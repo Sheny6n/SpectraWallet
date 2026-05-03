@@ -86,20 +86,7 @@ extension AppState {
         icpSendPreview = nil
         nearSendPreview = nil
         polkadotSendPreview = nil
-        isPreparingEthereumSend = false
-        isPreparingDogecoinSend = false
-        isPreparingTronSend = false
-        isPreparingSolanaSend = false
-        isPreparingXRPSend = false
-        isPreparingStellarSend = false
-        isPreparingMoneroSend = false
-        isPreparingCardanoSend = false
-        isPreparingSuiSend = false
-        isPreparingAptosSend = false
-        isPreparingTONSend = false
-        isPreparingICPSend = false
-        isPreparingNearSend = false
-        isPreparingPolkadotSend = false
+        preparingChains = []
     }
     private func resetInactiveSendPreviews(except activePreview: SendPreviewKind?) {
         if activePreview != .bitcoin { bitcoinSendPreview = nil }
@@ -108,59 +95,59 @@ extension AppState {
         if activePreview != .litecoin { litecoinSendPreview = nil }
         if activePreview != .ethereum {
             ethereumSendPreview = nil
-            isPreparingEthereumSend = false
+            preparingChains.remove("Ethereum")
         }
         if activePreview != .dogecoin {
             dogecoinSendPreview = nil
-            isPreparingDogecoinSend = false
+            preparingChains.remove("Dogecoin")
         }
         if activePreview != .tron {
             tronSendPreview = nil
-            isPreparingTronSend = false
+            preparingChains.remove("Tron")
         }
         if activePreview != .solana {
             solanaSendPreview = nil
-            isPreparingSolanaSend = false
+            preparingChains.remove("Solana")
         }
         if activePreview != .xrp {
             xrpSendPreview = nil
-            isPreparingXRPSend = false
+            preparingChains.remove("XRP Ledger")
         }
         if activePreview != .stellar {
             stellarSendPreview = nil
-            isPreparingStellarSend = false
+            preparingChains.remove("Stellar")
         }
         if activePreview != .monero {
             moneroSendPreview = nil
-            isPreparingMoneroSend = false
+            preparingChains.remove("Monero")
         }
         if activePreview != .cardano {
             cardanoSendPreview = nil
-            isPreparingCardanoSend = false
+            preparingChains.remove("Cardano")
         }
         if activePreview != .sui {
             suiSendPreview = nil
-            isPreparingSuiSend = false
+            preparingChains.remove("Sui")
         }
         if activePreview != .aptos {
             aptosSendPreview = nil
-            isPreparingAptosSend = false
+            preparingChains.remove("Aptos")
         }
         if activePreview != .ton {
             tonSendPreview = nil
-            isPreparingTONSend = false
+            preparingChains.remove("TON")
         }
         if activePreview != .icp {
             icpSendPreview = nil
-            isPreparingICPSend = false
+            preparingChains.remove("Internet Computer")
         }
         if activePreview != .near {
             nearSendPreview = nil
-            isPreparingNearSend = false
+            preparingChains.remove("NEAR")
         }
         if activePreview != .polkadot {
             polkadotSendPreview = nil
-            isPreparingPolkadotSend = false
+            preparingChains.remove("Polkadot")
         }
     }
 }

@@ -310,12 +310,12 @@ extension AppState {
 
     // MARK: Generic history-diagnostic drivers
 
-    func runAddressHistoryDiagnosticsForAllWallets<Diagnostics>(
-        isRunning: () -> Bool, setRunning: (Bool) -> Void, chainName: String, resolveAddress: (ImportedWallet) -> String?,
+    private func runAddressHistoryDiagnosticsForAllWallets<Diagnostics>(
+        isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String, resolveAddress: (ImportedWallet) -> String?,
         fetchDiagnostics: (String) async -> Diagnostics, storeDiagnostics: (String, Diagnostics) -> Void, markUpdated: () -> Void
     ) async {
-        guard !isRunning() else { return }
-        setRunning(true); defer { setRunning(false) }
+        guard !self[keyPath: isRunningKP] else { return }
+        self[keyPath: isRunningKP] = true; defer { self[keyPath: isRunningKP] = false }
         let walletsToRefresh = wallets.compactMap { wallet -> (ImportedWallet, String)? in
             guard wallet.selectedChain == chainName, let address = resolveAddress(wallet) else { return nil }
             return (wallet, address)
@@ -324,15 +324,16 @@ extension AppState {
         for (wallet, address) in walletsToRefresh { storeDiagnostics(wallet.id, await fetchDiagnostics(address)) }
         markUpdated()
     }
-    func runAddressHistoryDiagnosticsForWallet<Diagnostics>(
-        walletID: String, isRunning: () -> Bool, setRunning: (Bool) -> Void, chainName: String, resolveAddress: (ImportedWallet) -> String?,
+    private func runAddressHistoryDiagnosticsForWallet<Diagnostics>(
+        walletID: String, isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String,
+        resolveAddress: (ImportedWallet) -> String?,
         fetchDiagnostics: (String) async -> Diagnostics, storeDiagnostics: (String, Diagnostics) -> Void, markUpdated: () -> Void
     ) async {
-        guard !isRunning() else { return }
+        guard !self[keyPath: isRunningKP] else { return }
         guard let wallet = wallets.first(where: { $0.id == walletID }), wallet.selectedChain == chainName,
             let address = resolveAddress(wallet)
         else { return }
-        setRunning(true); defer { setRunning(false) }
+        self[keyPath: isRunningKP] = true; defer { self[keyPath: isRunningKP] = false }
         storeDiagnostics(wallet.id, await fetchDiagnostics(address)); markUpdated()
     }
 
@@ -822,8 +823,8 @@ extension AppState {
         diagsKP: ReferenceWritableKeyPath<AppState, [String: D]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
         await runAddressHistoryDiagnosticsForAllWallets(
-            isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 }, chainName: chainName,
-            resolveAddress: resolveAddress, fetchDiagnostics: { await self.rustHistoryFetch(chainId: chainId, address: $0, make: make) },
+            isRunningKP: isRunningKP, chainName: chainName, resolveAddress: resolveAddress,
+            fetchDiagnostics: { await self.rustHistoryFetch(chainId: chainId, address: $0, make: make) },
             storeDiagnostics: { self[keyPath: diagsKP][$0] = $1 }, markUpdated: { self[keyPath: tsKP] = Date() })
     }
     private func runRustHistoryDiagnosticsForWallet<D>(
@@ -832,8 +833,7 @@ extension AppState {
         diagsKP: ReferenceWritableKeyPath<AppState, [String: D]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
         await runAddressHistoryDiagnosticsForWallet(
-            walletID: walletID, isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 },
-            chainName: chainName, resolveAddress: resolveAddress,
+            walletID: walletID, isRunningKP: isRunningKP, chainName: chainName, resolveAddress: resolveAddress,
             fetchDiagnostics: { await self.rustHistoryFetch(chainId: chainId, address: $0, make: make) },
             storeDiagnostics: { self[keyPath: diagsKP][$0] = $1 }, markUpdated: { self[keyPath: tsKP] = Date() })
     }
@@ -843,8 +843,7 @@ extension AppState {
         diagsKP: ReferenceWritableKeyPath<AppState, [String: BitcoinHistoryDiagnostics]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
         await runAddressHistoryDiagnosticsForAllWallets(
-            isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 }, chainName: chainName,
-            resolveAddress: resolveAddress,
+            isRunningKP: isRunningKP, chainName: chainName, resolveAddress: resolveAddress,
             fetchDiagnostics: { address in
                 let count = Int((try? await WalletServiceBridge.shared.fetchHistoryEntryCount(chainId: chainId, address: address)) ?? 0)
                 return BitcoinHistoryDiagnostics(
@@ -862,8 +861,7 @@ extension AppState {
         diagsKP: ReferenceWritableKeyPath<AppState, [String: BitcoinHistoryDiagnostics]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
         await runAddressHistoryDiagnosticsForWallet(
-            walletID: walletID, isRunning: { self[keyPath: isRunningKP] }, setRunning: { self[keyPath: isRunningKP] = $0 },
-            chainName: chainName, resolveAddress: resolveAddress,
+            walletID: walletID, isRunningKP: isRunningKP, chainName: chainName, resolveAddress: resolveAddress,
             fetchDiagnostics: { address in
                 let count = Int((try? await WalletServiceBridge.shared.fetchHistoryEntryCount(chainId: chainId, address: address)) ?? 0)
                 return BitcoinHistoryDiagnostics(

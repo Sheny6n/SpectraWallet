@@ -51,11 +51,8 @@ final class AppUserPreferences {
     // ── Refresh cadence + alert thresholds ──────────────────────────────
     var automaticRefreshFrequencyMinutes: Int = 5 {
         didSet {
-            let clamped = min(max(automaticRefreshFrequencyMinutes, 5), 60)
-            if clamped != automaticRefreshFrequencyMinutes {
-                automaticRefreshFrequencyMinutes = clamped
-                return
-            }
+            let clamped = automaticRefreshFrequencyMinutes.clamped(to: 5...60)
+            guard clamped == automaticRefreshFrequencyMinutes else { automaticRefreshFrequencyMinutes = clamped; return }
             guard automaticRefreshFrequencyMinutes != oldValue else { return }
             persistHandler?()
             refreshFrequencyChangedHandler?()
@@ -63,21 +60,15 @@ final class AppUserPreferences {
     }
     var largeMovementAlertPercentThreshold: Double = 10.0 {
         didSet {
-            let clamped = min(max(largeMovementAlertPercentThreshold, 1), 90)
-            if clamped != largeMovementAlertPercentThreshold {
-                largeMovementAlertPercentThreshold = clamped
-                return
-            }
+            let clamped = largeMovementAlertPercentThreshold.clamped(to: 1.0...90.0)
+            guard clamped == largeMovementAlertPercentThreshold else { largeMovementAlertPercentThreshold = clamped; return }
             persistHandler?()
         }
     }
     var largeMovementAlertUSDThreshold: Double = 50.0 {
         didSet {
-            let clamped = min(max(largeMovementAlertUSDThreshold, 1), 100_000)
-            if clamped != largeMovementAlertUSDThreshold {
-                largeMovementAlertUSDThreshold = clamped
-                return
-            }
+            let clamped = largeMovementAlertUSDThreshold.clamped(to: 1.0...100_000.0)
+            guard clamped == largeMovementAlertUSDThreshold else { largeMovementAlertUSDThreshold = clamped; return }
             persistHandler?()
         }
     }
@@ -110,5 +101,11 @@ final class AppUserPreferences {
         automaticRefreshFrequencyMinutes = 5
         largeMovementAlertPercentThreshold = 10
         largeMovementAlertUSDThreshold = 50
+    }
+}
+
+private extension Comparable {
+    func clamped(to range: ClosedRange<Self>) -> Self {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

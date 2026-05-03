@@ -65,36 +65,17 @@ extension AppState {
         chainOwnedAddressMapByChain = loadChainOwnedAddressMap()
         chainOperationalEventsByChain = loadChainOperationalEvents()
         syncChainOwnedAddressManagementState()
-        if UserDefaults.standard.object(forKey: Self.hideBalancesDefaultsKey) != nil {
-            preferences.hideBalances = UserDefaults.standard.bool(forKey: Self.hideBalancesDefaultsKey)
-        }
         if let storedAssetDisplayDecimalsByChain = loadAssetDisplayDecimalsByChain() {
             assetDisplayDecimalsByChain = storedAssetDisplayDecimalsByChain
         }
-        if UserDefaults.standard.object(forKey: Self.useFaceIDDefaultsKey) != nil {
-            preferences.useFaceID = UserDefaults.standard.bool(forKey: Self.useFaceIDDefaultsKey)
-        }
-        if UserDefaults.standard.object(forKey: Self.useAutoLockDefaultsKey) != nil {
-            preferences.useAutoLock = UserDefaults.standard.bool(forKey: Self.useAutoLockDefaultsKey)
-        }
-        if UserDefaults.standard.object(forKey: Self.useStrictRPCOnlyDefaultsKey) != nil {
-            preferences.useStrictRPCOnly = UserDefaults.standard.bool(forKey: Self.useStrictRPCOnlyDefaultsKey)
-        }
-        if UserDefaults.standard.object(forKey: Self.requireBiometricForSendActionsDefaultsKey) != nil {
-            preferences.requireBiometricForSendActions = UserDefaults.standard.bool(
-                forKey: Self.requireBiometricForSendActionsDefaultsKey)
-        }
-        if UserDefaults.standard.object(forKey: Self.usePriceAlertsDefaultsKey) != nil {
-            preferences.usePriceAlerts = UserDefaults.standard.bool(forKey: Self.usePriceAlertsDefaultsKey)
-        }
-        if UserDefaults.standard.object(forKey: Self.useTransactionStatusNotificationsDefaultsKey) != nil {
-            preferences.useTransactionStatusNotifications = UserDefaults.standard.bool(
-                forKey: Self.useTransactionStatusNotificationsDefaultsKey)
-        }
-        if UserDefaults.standard.object(forKey: Self.useLargeMovementNotificationsDefaultsKey) != nil {
-            preferences.useLargeMovementNotifications = UserDefaults.standard.bool(
-                forKey: Self.useLargeMovementNotificationsDefaultsKey)
-        }
+        restoreBoolPreference(Self.hideBalancesDefaultsKey, \.hideBalances)
+        restoreBoolPreference(Self.useFaceIDDefaultsKey, \.useFaceID)
+        restoreBoolPreference(Self.useAutoLockDefaultsKey, \.useAutoLock)
+        restoreBoolPreference(Self.useStrictRPCOnlyDefaultsKey, \.useStrictRPCOnly)
+        restoreBoolPreference(Self.requireBiometricForSendActionsDefaultsKey, \.requireBiometricForSendActions)
+        restoreBoolPreference(Self.usePriceAlertsDefaultsKey, \.usePriceAlerts)
+        restoreBoolPreference(Self.useTransactionStatusNotificationsDefaultsKey, \.useTransactionStatusNotifications)
+        restoreBoolPreference(Self.useLargeMovementNotificationsDefaultsKey, \.useLargeMovementNotifications)
         if UserDefaults.standard.object(forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey) != nil {
             preferences.automaticRefreshFrequencyMinutes = UserDefaults.standard.integer(
                 forKey: Self.automaticRefreshFrequencyMinutesDefaultsKey)
@@ -131,6 +112,10 @@ extension AppState {
         }
         startNetworkPathMonitorIfNeeded()
         resetLargeMovementAlertBaseline()
+    }
+    private func restoreBoolPreference(_ key: String, _ path: ReferenceWritableKeyPath<AppUserPreferences, Bool>) {
+        guard UserDefaults.standard.object(forKey: key) != nil else { return }
+        preferences[keyPath: path] = UserDefaults.standard.bool(forKey: key)
     }
     func clearPersistedSecureDataOnFreshInstallIfNeeded() {
         if UserDefaults.standard.bool(forKey: Self.installMarkerDefaultsKey) { return }
@@ -211,21 +196,8 @@ extension AppState {
         solanaSendPreview = nil
         xrpSendPreview = nil
         moneroSendPreview = nil
-        isSendingBitcoin = false
-        isSendingBitcoinCash = false
-        isSendingLitecoin = false
-        isSendingDogecoin = false
-        isSendingEthereum = false
-        isSendingTron = false
-        isSendingSolana = false
-        isSendingXRP = false
-        isSendingMonero = false
-        isPreparingEthereumSend = false
-        isPreparingDogecoinSend = false
-        isPreparingTronSend = false
-        isPreparingSolanaSend = false
-        isPreparingXRPSend = false
-        isPreparingMoneroSend = false
+        sendingChains = []
+        preparingChains = []
         pendingEthereumSendPreviewRefresh = false
         pendingDogecoinSendPreviewRefresh = false
         pendingSelfSendConfirmation = nil
@@ -350,44 +322,26 @@ extension AppState {
         diagnostics.lastGoodChainSyncByName = [:]
         chainOperationalEventsByChain = [:]
         diagnostics.clearOperationalLogs()
-        isRunningBitcoinSelfTests = false
-        isRunningBitcoinCashSelfTests = false
-        isRunningBitcoinSVSelfTests = false
-        isRunningLitecoinSelfTests = false
-        isRunningDogecoinSelfTests = false
-        isRunningDogecoinHistoryDiagnostics = false
-        isCheckingDogecoinEndpointHealth = false
-        isRunningEthereumSelfTests = false
-        isRunningEthereumHistoryDiagnostics = false
-        isCheckingEthereumEndpointHealth = false
-        isRunningArbitrumHistoryDiagnostics = false
-        isCheckingArbitrumEndpointHealth = false
-        isRunningOptimismHistoryDiagnostics = false
-        isCheckingOptimismEndpointHealth = false
-        isRunningETCHistoryDiagnostics = false
-        isCheckingETCEndpointHealth = false
-        isRunningBNBHistoryDiagnostics = false
-        isCheckingBNBEndpointHealth = false
-        isRunningAvalancheHistoryDiagnostics = false
-        isCheckingAvalancheEndpointHealth = false
-        isRunningHyperliquidHistoryDiagnostics = false
-        isCheckingHyperliquidEndpointHealth = false
-        isRunningTronHistoryDiagnostics = false
-        isCheckingTronEndpointHealth = false
-        isRunningSolanaHistoryDiagnostics = false
-        isCheckingSolanaEndpointHealth = false
-        isRunningXRPHistoryDiagnostics = false
-        isCheckingXRPEndpointHealth = false
-        isRunningMoneroHistoryDiagnostics = false
-        isCheckingMoneroEndpointHealth = false
-        isRunningSuiHistoryDiagnostics = false
-        isCheckingSuiEndpointHealth = false
-        isRunningCardanoHistoryDiagnostics = false
-        isCheckingCardanoEndpointHealth = false
-        isRunningBitcoinHistoryDiagnostics = false
-        isCheckingBitcoinEndpointHealth = false
-        isRunningLitecoinHistoryDiagnostics = false
-        isCheckingLitecoinEndpointHealth = false
+        for kp: ReferenceWritableKeyPath<AppState, Bool> in [
+            \.isRunningBitcoinSelfTests, \.isRunningBitcoinCashSelfTests, \.isRunningBitcoinSVSelfTests,
+            \.isRunningLitecoinSelfTests, \.isRunningDogecoinSelfTests,
+            \.isRunningDogecoinHistoryDiagnostics, \.isCheckingDogecoinEndpointHealth,
+            \.isRunningEthereumSelfTests, \.isRunningEthereumHistoryDiagnostics, \.isCheckingEthereumEndpointHealth,
+            \.isRunningArbitrumHistoryDiagnostics, \.isCheckingArbitrumEndpointHealth,
+            \.isRunningOptimismHistoryDiagnostics, \.isCheckingOptimismEndpointHealth,
+            \.isRunningETCHistoryDiagnostics, \.isCheckingETCEndpointHealth,
+            \.isRunningBNBHistoryDiagnostics, \.isCheckingBNBEndpointHealth,
+            \.isRunningAvalancheHistoryDiagnostics, \.isCheckingAvalancheEndpointHealth,
+            \.isRunningHyperliquidHistoryDiagnostics, \.isCheckingHyperliquidEndpointHealth,
+            \.isRunningTronHistoryDiagnostics, \.isCheckingTronEndpointHealth,
+            \.isRunningSolanaHistoryDiagnostics, \.isCheckingSolanaEndpointHealth,
+            \.isRunningXRPHistoryDiagnostics, \.isCheckingXRPEndpointHealth,
+            \.isRunningMoneroHistoryDiagnostics, \.isCheckingMoneroEndpointHealth,
+            \.isRunningSuiHistoryDiagnostics, \.isCheckingSuiEndpointHealth,
+            \.isRunningCardanoHistoryDiagnostics, \.isCheckingCardanoEndpointHealth,
+            \.isRunningBitcoinHistoryDiagnostics, \.isCheckingBitcoinEndpointHealth,
+            \.isRunningLitecoinHistoryDiagnostics, \.isCheckingLitecoinEndpointHealth,
+        ] { self[keyPath: kp] = false }
         isLoadingMoreOnChainHistory = false
         tronLastSendErrorDetails = nil
         tronLastSendErrorAt = nil

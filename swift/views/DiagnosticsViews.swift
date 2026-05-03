@@ -73,322 +73,298 @@ enum StandardDiagnosticsChain: String, Hashable {
     init?(chainID: AppChainID) { self.init(rawValue: chainID.rawValue) }
     var descriptor: AppChainDescriptor { AppEndpointDirectory.appChain(for: chainID) }
     var title: String { descriptor.title }
-    var dispatch: StandardChainDiagnosticsDispatch {
-        switch self {
-        case .bitcoin:
-            return .init(
-                isRunningHistory: { $0.isRunningBitcoinHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingBitcoinEndpointHealth },
-                diagnosticsJSON: { $0.bitcoinDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.bitcoinHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.bitcoinHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.bitcoinEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.bitcoinEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.bitcoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runBitcoinHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runBitcoinEndpointReachabilityDiagnostics() }
-            )
-        case .bitcoinCash:
-            return .init(
-                isRunningHistory: { $0.isRunningBitcoinCashHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingBitcoinCashEndpointHealth },
-                diagnosticsJSON: { $0.bitcoinCashDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.bitcoinCashHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.bitcoinCashHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.bitcoinCashEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.bitcoinCashEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.bitcoinCashHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runBitcoinCashHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runBitcoinCashEndpointReachabilityDiagnostics() }
-            )
-        case .bitcoinSV:
-            return .init(
-                isRunningHistory: { $0.isRunningBitcoinSVHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingBitcoinSVEndpointHealth },
-                diagnosticsJSON: { $0.bitcoinSVDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.bitcoinSVHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.bitcoinSVHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.bitcoinSVEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.bitcoinSVEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.bitcoinSVHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runBitcoinSVHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runBitcoinSVEndpointReachabilityDiagnostics() }
-            )
-        case .litecoin:
-            return .init(
-                isRunningHistory: { $0.isRunningLitecoinHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingLitecoinEndpointHealth },
-                diagnosticsJSON: { $0.litecoinDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.litecoinHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.litecoinHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.litecoinEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.litecoinEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.litecoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runLitecoinHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runLitecoinEndpointReachabilityDiagnostics() }
-            )
-        case .dogecoin:
-            return .init(
-                isRunningHistory: { $0.isRunningDogecoinHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingDogecoinEndpointHealth },
-                diagnosticsJSON: { $0.dogecoinDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.dogecoinHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.dogecoinHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.dogecoinEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.dogecoinEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.dogecoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runDogecoinHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runDogecoinEndpointReachabilityDiagnostics() }
-            )
-        case .ethereum:
-            return .init(
-                isRunningHistory: { $0.isRunningEthereumHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingEthereumEndpointHealth },
-                diagnosticsJSON: { $0.ethereumDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.ethereumHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.ethereumHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.ethereumEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.ethereumEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.ethereumHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runEthereumHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runEthereumEndpointReachabilityDiagnostics() }
-            )
-        case .ethereumClassic:
-            return .init(
-                isRunningHistory: { $0.isRunningETCHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingETCEndpointHealth },
-                diagnosticsJSON: { $0.etcDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.etcHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.etcHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.etcEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.etcEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.etcHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runETCHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runETCEndpointReachabilityDiagnostics() }
-            )
-        case .arbitrum:
-            return .init(
-                isRunningHistory: { $0.isRunningArbitrumHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingArbitrumEndpointHealth },
-                diagnosticsJSON: { $0.arbitrumDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.arbitrumHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.arbitrumHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.arbitrumEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.arbitrumEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.arbitrumHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runArbitrumHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runArbitrumEndpointReachabilityDiagnostics() }
-            )
-        case .optimism:
-            return .init(
-                isRunningHistory: { $0.isRunningOptimismHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingOptimismEndpointHealth },
-                diagnosticsJSON: { $0.optimismDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.optimismHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.optimismHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.optimismEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.optimismEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.optimismHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runOptimismHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runOptimismEndpointReachabilityDiagnostics() }
-            )
-        case .bnb:
-            return .init(
-                isRunningHistory: { $0.isRunningBNBHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingBNBEndpointHealth },
-                diagnosticsJSON: { $0.bnbDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.bnbHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.bnbHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.bnbEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.bnbEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.bnbHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runBNBHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runBNBEndpointReachabilityDiagnostics() }
-            )
-        case .avalanche:
-            return .init(
-                isRunningHistory: { $0.isRunningAvalancheHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingAvalancheEndpointHealth },
-                diagnosticsJSON: { $0.avalancheDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.avalancheHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.avalancheHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.avalancheEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.avalancheEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.avalancheHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runAvalancheHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runAvalancheEndpointReachabilityDiagnostics() }
-            )
-        case .hyperliquid:
-            return .init(
-                isRunningHistory: { $0.isRunningHyperliquidHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingHyperliquidEndpointHealth },
-                diagnosticsJSON: { $0.hyperliquidDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.hyperliquidHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.hyperliquidHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.hyperliquidEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.hyperliquidEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.hyperliquidHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runHyperliquidHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runHyperliquidEndpointReachabilityDiagnostics() }
-            )
-        case .tron:
-            return .init(
-                isRunningHistory: { $0.isRunningTronHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingTronEndpointHealth },
-                diagnosticsJSON: { $0.tronDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.tronHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.tronHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.tronEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.tronEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.tronHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runTronHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runTronEndpointReachabilityDiagnostics() }
-            )
-        case .solana:
-            return .init(
-                isRunningHistory: { $0.isRunningSolanaHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingSolanaEndpointHealth },
-                diagnosticsJSON: { $0.solanaDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.solanaHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.solanaHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.solanaEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.solanaEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.solanaHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runSolanaHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runSolanaEndpointReachabilityDiagnostics() }
-            )
-        case .cardano:
-            return .init(
-                isRunningHistory: { $0.isRunningCardanoHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingCardanoEndpointHealth },
-                diagnosticsJSON: { $0.cardanoDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.cardanoHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.cardanoHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.cardanoEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.cardanoEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.cardanoHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runCardanoHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runCardanoEndpointReachabilityDiagnostics() }
-            )
-        case .xrp:
-            return .init(
-                isRunningHistory: { $0.isRunningXRPHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingXRPEndpointHealth },
-                diagnosticsJSON: { $0.xrpDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.xrpHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.xrpHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.xrpEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.xrpEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.xrpHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runXRPHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runXRPEndpointReachabilityDiagnostics() }
-            )
-        case .stellar:
-            return .init(
-                isRunningHistory: { $0.isRunningStellarHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingStellarEndpointHealth },
-                diagnosticsJSON: { $0.stellarDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.stellarHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.stellarHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.stellarEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.stellarEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.stellarHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runStellarHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runStellarEndpointReachabilityDiagnostics() }
-            )
-        case .monero:
-            return .init(
-                isRunningHistory: { $0.isRunningMoneroHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingMoneroEndpointHealth },
-                diagnosticsJSON: { $0.moneroDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.moneroHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.moneroHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.moneroEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.moneroEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.moneroHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runMoneroHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runMoneroEndpointReachabilityDiagnostics() }
-            )
-        case .sui:
-            return .init(
-                isRunningHistory: { $0.isRunningSuiHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingSuiEndpointHealth },
-                diagnosticsJSON: { $0.suiDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.suiHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.suiHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.suiEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.suiEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.suiHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runSuiHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runSuiEndpointReachabilityDiagnostics() }
-            )
-        case .aptos:
-            return .init(
-                isRunningHistory: { $0.isRunningAptosHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingAptosEndpointHealth },
-                diagnosticsJSON: { $0.aptosDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.aptosHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.aptosHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.aptosEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.aptosEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.aptosHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runAptosHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runAptosEndpointReachabilityDiagnostics() }
-            )
-        case .ton:
-            return .init(
-                isRunningHistory: { $0.isRunningTONHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingTONEndpointHealth },
-                diagnosticsJSON: { $0.tonDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.tonHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.tonHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.tonEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.tonEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.tonHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runTONHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runTONEndpointReachabilityDiagnostics() }
-            )
-        case .icp:
-            return .init(
-                isRunningHistory: { $0.isRunningICPHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingICPEndpointHealth },
-                diagnosticsJSON: { $0.icpDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.icpHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.icpHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.icpEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.icpEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.icpHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runICPHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runICPEndpointReachabilityDiagnostics() }
-            )
-        case .near:
-            return .init(
-                isRunningHistory: { $0.isRunningNearHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingNearEndpointHealth },
-                diagnosticsJSON: { $0.nearDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.nearHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.nearHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.nearEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.nearEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.nearHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runNearHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runNearEndpointReachabilityDiagnostics() }
-            )
-        case .polkadot:
-            return .init(
-                isRunningHistory: { $0.isRunningPolkadotHistoryDiagnostics },
-                isCheckingEndpoints: { $0.isCheckingPolkadotEndpointHealth },
-                diagnosticsJSON: { $0.polkadotDiagnosticsJSON() },
-                historyLastUpdatedAt: { $0.polkadotHistoryDiagnosticsLastUpdatedAt },
-                historyWalletCount: { $0.polkadotHistoryDiagnosticsByWallet.count },
-                endpointLastUpdatedAt: { $0.polkadotEndpointHealthLastUpdatedAt },
-                endpointResults: { $0.polkadotEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
-                historySources: { $0.polkadotHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
-                runHistoryDiagnostics: { await $0.runPolkadotHistoryDiagnostics() },
-                runEndpointDiagnostics: { await $0.runPolkadotEndpointReachabilityDiagnostics() }
-            )
-        }
-    }
+
+    nonisolated(unsafe) static let dispatchTable: [StandardDiagnosticsChain: StandardChainDiagnosticsDispatch] = [
+        .bitcoin: .init(
+            isRunningHistory: { $0.isRunningBitcoinHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingBitcoinEndpointHealth },
+            diagnosticsJSON: { $0.bitcoinDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.bitcoinHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.bitcoinHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.bitcoinEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.bitcoinEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.bitcoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runBitcoinHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runBitcoinEndpointReachabilityDiagnostics() }
+        ),
+        .bitcoinCash: .init(
+            isRunningHistory: { $0.isRunningBitcoinCashHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingBitcoinCashEndpointHealth },
+            diagnosticsJSON: { $0.bitcoinCashDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.bitcoinCashHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.bitcoinCashHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.bitcoinCashEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.bitcoinCashEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.bitcoinCashHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runBitcoinCashHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runBitcoinCashEndpointReachabilityDiagnostics() }
+        ),
+        .bitcoinSV: .init(
+            isRunningHistory: { $0.isRunningBitcoinSVHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingBitcoinSVEndpointHealth },
+            diagnosticsJSON: { $0.bitcoinSVDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.bitcoinSVHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.bitcoinSVHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.bitcoinSVEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.bitcoinSVEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.bitcoinSVHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runBitcoinSVHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runBitcoinSVEndpointReachabilityDiagnostics() }
+        ),
+        .litecoin: .init(
+            isRunningHistory: { $0.isRunningLitecoinHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingLitecoinEndpointHealth },
+            diagnosticsJSON: { $0.litecoinDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.litecoinHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.litecoinHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.litecoinEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.litecoinEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.litecoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runLitecoinHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runLitecoinEndpointReachabilityDiagnostics() }
+        ),
+        .dogecoin: .init(
+            isRunningHistory: { $0.isRunningDogecoinHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingDogecoinEndpointHealth },
+            diagnosticsJSON: { $0.dogecoinDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.dogecoinHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.dogecoinHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.dogecoinEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.dogecoinEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.dogecoinHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runDogecoinHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runDogecoinEndpointReachabilityDiagnostics() }
+        ),
+        .ethereum: .init(
+            isRunningHistory: { $0.isRunningEthereumHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingEthereumEndpointHealth },
+            diagnosticsJSON: { $0.ethereumDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.ethereumHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.ethereumHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.ethereumEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.ethereumEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.ethereumHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runEthereumHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runEthereumEndpointReachabilityDiagnostics() }
+        ),
+        .ethereumClassic: .init(
+            isRunningHistory: { $0.isRunningETCHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingETCEndpointHealth },
+            diagnosticsJSON: { $0.etcDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.etcHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.etcHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.etcEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.etcEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.etcHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runETCHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runETCEndpointReachabilityDiagnostics() }
+        ),
+        .arbitrum: .init(
+            isRunningHistory: { $0.isRunningArbitrumHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingArbitrumEndpointHealth },
+            diagnosticsJSON: { $0.arbitrumDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.arbitrumHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.arbitrumHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.arbitrumEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.arbitrumEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.arbitrumHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runArbitrumHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runArbitrumEndpointReachabilityDiagnostics() }
+        ),
+        .optimism: .init(
+            isRunningHistory: { $0.isRunningOptimismHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingOptimismEndpointHealth },
+            diagnosticsJSON: { $0.optimismDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.optimismHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.optimismHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.optimismEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.optimismEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.optimismHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runOptimismHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runOptimismEndpointReachabilityDiagnostics() }
+        ),
+        .bnb: .init(
+            isRunningHistory: { $0.isRunningBNBHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingBNBEndpointHealth },
+            diagnosticsJSON: { $0.bnbDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.bnbHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.bnbHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.bnbEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.bnbEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.bnbHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runBNBHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runBNBEndpointReachabilityDiagnostics() }
+        ),
+        .avalanche: .init(
+            isRunningHistory: { $0.isRunningAvalancheHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingAvalancheEndpointHealth },
+            diagnosticsJSON: { $0.avalancheDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.avalancheHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.avalancheHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.avalancheEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.avalancheEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.avalancheHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runAvalancheHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runAvalancheEndpointReachabilityDiagnostics() }
+        ),
+        .hyperliquid: .init(
+            isRunningHistory: { $0.isRunningHyperliquidHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingHyperliquidEndpointHealth },
+            diagnosticsJSON: { $0.hyperliquidDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.hyperliquidHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.hyperliquidHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.hyperliquidEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.hyperliquidEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.hyperliquidHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runHyperliquidHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runHyperliquidEndpointReachabilityDiagnostics() }
+        ),
+        .tron: .init(
+            isRunningHistory: { $0.isRunningTronHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingTronEndpointHealth },
+            diagnosticsJSON: { $0.tronDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.tronHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.tronHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.tronEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.tronEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.tronHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runTronHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runTronEndpointReachabilityDiagnostics() }
+        ),
+        .solana: .init(
+            isRunningHistory: { $0.isRunningSolanaHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingSolanaEndpointHealth },
+            diagnosticsJSON: { $0.solanaDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.solanaHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.solanaHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.solanaEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.solanaEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.solanaHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runSolanaHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runSolanaEndpointReachabilityDiagnostics() }
+        ),
+        .cardano: .init(
+            isRunningHistory: { $0.isRunningCardanoHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingCardanoEndpointHealth },
+            diagnosticsJSON: { $0.cardanoDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.cardanoHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.cardanoHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.cardanoEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.cardanoEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.cardanoHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runCardanoHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runCardanoEndpointReachabilityDiagnostics() }
+        ),
+        .xrp: .init(
+            isRunningHistory: { $0.isRunningXRPHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingXRPEndpointHealth },
+            diagnosticsJSON: { $0.xrpDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.xrpHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.xrpHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.xrpEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.xrpEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.xrpHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runXRPHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runXRPEndpointReachabilityDiagnostics() }
+        ),
+        .stellar: .init(
+            isRunningHistory: { $0.isRunningStellarHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingStellarEndpointHealth },
+            diagnosticsJSON: { $0.stellarDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.stellarHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.stellarHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.stellarEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.stellarEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.stellarHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runStellarHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runStellarEndpointReachabilityDiagnostics() }
+        ),
+        .monero: .init(
+            isRunningHistory: { $0.isRunningMoneroHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingMoneroEndpointHealth },
+            diagnosticsJSON: { $0.moneroDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.moneroHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.moneroHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.moneroEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.moneroEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.moneroHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runMoneroHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runMoneroEndpointReachabilityDiagnostics() }
+        ),
+        .sui: .init(
+            isRunningHistory: { $0.isRunningSuiHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingSuiEndpointHealth },
+            diagnosticsJSON: { $0.suiDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.suiHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.suiHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.suiEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.suiEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.suiHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runSuiHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runSuiEndpointReachabilityDiagnostics() }
+        ),
+        .aptos: .init(
+            isRunningHistory: { $0.isRunningAptosHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingAptosEndpointHealth },
+            diagnosticsJSON: { $0.aptosDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.aptosHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.aptosHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.aptosEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.aptosEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.aptosHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runAptosHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runAptosEndpointReachabilityDiagnostics() }
+        ),
+        .ton: .init(
+            isRunningHistory: { $0.isRunningTONHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingTONEndpointHealth },
+            diagnosticsJSON: { $0.tonDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.tonHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.tonHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.tonEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.tonEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.tonHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runTONHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runTONEndpointReachabilityDiagnostics() }
+        ),
+        .icp: .init(
+            isRunningHistory: { $0.isRunningICPHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingICPEndpointHealth },
+            diagnosticsJSON: { $0.icpDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.icpHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.icpHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.icpEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.icpEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.icpHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runICPHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runICPEndpointReachabilityDiagnostics() }
+        ),
+        .near: .init(
+            isRunningHistory: { $0.isRunningNearHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingNearEndpointHealth },
+            diagnosticsJSON: { $0.nearDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.nearHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.nearHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.nearEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.nearEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.nearHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runNearHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runNearEndpointReachabilityDiagnostics() }
+        ),
+        .polkadot: .init(
+            isRunningHistory: { $0.isRunningPolkadotHistoryDiagnostics },
+            isCheckingEndpoints: { $0.isCheckingPolkadotEndpointHealth },
+            diagnosticsJSON: { $0.polkadotDiagnosticsJSON() },
+            historyLastUpdatedAt: { $0.polkadotHistoryDiagnosticsLastUpdatedAt },
+            historyWalletCount: { $0.polkadotHistoryDiagnosticsByWallet.count },
+            endpointLastUpdatedAt: { $0.polkadotEndpointHealthLastUpdatedAt },
+            endpointResults: { $0.polkadotEndpointHealthResults.map { ($0.endpoint, $0.reachable, $0.detail) } },
+            historySources: { $0.polkadotHistoryDiagnosticsByWallet.values.map(\.sourceUsed) },
+            runHistoryDiagnostics: { await $0.runPolkadotHistoryDiagnostics() },
+            runEndpointDiagnostics: { await $0.runPolkadotEndpointReachabilityDiagnostics() }
+        ),
+    ]
+    var dispatch: StandardChainDiagnosticsDispatch { Self.dispatchTable[self]! }
 }
 struct StandardChainDiagnosticsDispatch {
     let isRunningHistory: (AppState) -> Bool
@@ -432,6 +408,44 @@ struct StandardChainDiagnosticsView: View {
     private var selectedTrustedMoneroBackend: MoneroBalanceService.TrustedBackend? {
         MoneroBalanceService.trustedBackends.first(where: { $0.id == selectedMoneroBackendID })
     }
+
+    private struct UTXOChainActions {
+        let isSelfTesting: (AppState) -> Bool
+        let isRescanning: (AppState) -> Bool
+        let selfTestTitle: String
+        let rescanTitle: String
+        let rescanInFlightTitle: String
+        let runSelfTests: (AppState) -> Void
+        let runRescan: (AppState) async -> Void
+    }
+    nonisolated(unsafe) private static let utxoActions: [StandardDiagnosticsChain: UTXOChainActions] = [
+        .bitcoin: .init(
+            isSelfTesting: { $0.isRunningBitcoinSelfTests }, isRescanning: { $0.isRunningBitcoinRescan },
+            selfTestTitle: "Run BTC Self-Tests", rescanTitle: "Run BTC Rescan", rescanInFlightTitle: "Rescanning BTC...",
+            runSelfTests: { $0.runBitcoinSelfTests() }, runRescan: { await $0.runBitcoinRescan() }
+        ),
+        .bitcoinCash: .init(
+            isSelfTesting: { $0.isRunningBitcoinCashSelfTests }, isRescanning: { $0.isRunningBitcoinCashRescan },
+            selfTestTitle: "Run BCH Self-Tests", rescanTitle: "Run BCH Rescan", rescanInFlightTitle: "Rescanning BCH...",
+            runSelfTests: { $0.runBitcoinCashSelfTests() }, runRescan: { await $0.runBitcoinCashRescan() }
+        ),
+        .bitcoinSV: .init(
+            isSelfTesting: { $0.isRunningBitcoinSVSelfTests }, isRescanning: { $0.isRunningBitcoinSVRescan },
+            selfTestTitle: "Run BSV Self-Tests", rescanTitle: "Run BSV Rescan", rescanInFlightTitle: "Rescanning BSV...",
+            runSelfTests: { $0.runBitcoinSVSelfTests() }, runRescan: { await $0.runBitcoinSVRescan() }
+        ),
+        .litecoin: .init(
+            isSelfTesting: { $0.isRunningLitecoinSelfTests }, isRescanning: { $0.isRunningLitecoinRescan },
+            selfTestTitle: "Run LTC Self-Tests", rescanTitle: "Run LTC Rescan", rescanInFlightTitle: "Rescanning LTC...",
+            runSelfTests: { $0.runLitecoinSelfTests() }, runRescan: { await $0.runLitecoinRescan() }
+        ),
+        .dogecoin: .init(
+            isSelfTesting: { $0.isRunningDogecoinSelfTests }, isRescanning: { $0.isRunningDogecoinRescan },
+            selfTestTitle: "Run DOGE Self-Tests", rescanTitle: "Run DOGE Rescan", rescanInFlightTitle: "Rescanning DOGE...",
+            runSelfTests: { $0.runDogecoinSelfTests() }, runRescan: { await $0.runDogecoinRescan() }
+        ),
+    ]
+
     var body: some View {
         Form {
             Section(copy.actionsSectionTitle) {
@@ -785,82 +799,20 @@ struct StandardChainDiagnosticsView: View {
         }
         selectedMoneroBackendID = moneroCustomBackendID
     }
-    private var supportsUTXOChainActions: Bool {
-        switch chain {
-        case .bitcoin, .bitcoinCash, .bitcoinSV, .litecoin, .dogecoin: return true
-        default: return false
-        }
-    }
-    private var isRunningChainSelfTests: Bool {
-        switch chain {
-        case .bitcoin: return store.isRunningBitcoinSelfTests
-        case .bitcoinCash: return store.isRunningBitcoinCashSelfTests
-        case .bitcoinSV: return store.isRunningBitcoinSVSelfTests
-        case .litecoin: return store.isRunningLitecoinSelfTests
-        case .dogecoin: return store.isRunningDogecoinSelfTests
-        default: return false
-        }
-    }
-    private var isRunningChainRescan: Bool {
-        switch chain {
-        case .bitcoin: return store.isRunningBitcoinRescan
-        case .bitcoinCash: return store.isRunningBitcoinCashRescan
-        case .bitcoinSV: return store.isRunningBitcoinSVRescan
-        case .litecoin: return store.isRunningLitecoinRescan
-        case .dogecoin: return store.isRunningDogecoinRescan
-        default: return false
-        }
-    }
+    private var supportsUTXOChainActions: Bool { Self.utxoActions[chain] != nil }
+    private var isRunningChainSelfTests: Bool { Self.utxoActions[chain]?.isSelfTesting(store) ?? false }
+    private var isRunningChainRescan: Bool { Self.utxoActions[chain]?.isRescanning(store) ?? false }
     private var chainSelfTestButtonTitle: String {
-        switch chain {
-        case .bitcoin: return AppLocalization.string("Run BTC Self-Tests")
-        case .bitcoinCash: return AppLocalization.string("Run BCH Self-Tests")
-        case .bitcoinSV: return AppLocalization.string("Run BSV Self-Tests")
-        case .litecoin: return AppLocalization.string("Run LTC Self-Tests")
-        case .dogecoin: return AppLocalization.string("Run DOGE Self-Tests")
-        default: return AppLocalization.string("Run Self-Tests")
-        }
+        Self.utxoActions[chain].map { AppLocalization.string($0.selfTestTitle) } ?? AppLocalization.string("Run Self-Tests")
     }
     private var chainRescanButtonTitle: String {
-        switch chain {
-        case .bitcoin: return AppLocalization.string("Run BTC Rescan")
-        case .bitcoinCash: return AppLocalization.string("Run BCH Rescan")
-        case .bitcoinSV: return AppLocalization.string("Run BSV Rescan")
-        case .litecoin: return AppLocalization.string("Run LTC Rescan")
-        case .dogecoin: return AppLocalization.string("Run DOGE Rescan")
-        default: return AppLocalization.string("Run Rescan")
-        }
+        Self.utxoActions[chain].map { AppLocalization.string($0.rescanTitle) } ?? AppLocalization.string("Run Rescan")
     }
     private var chainRescanInFlightTitle: String {
-        switch chain {
-        case .bitcoin: return AppLocalization.string("Rescanning BTC...")
-        case .bitcoinCash: return AppLocalization.string("Rescanning BCH...")
-        case .bitcoinSV: return AppLocalization.string("Rescanning BSV...")
-        case .litecoin: return AppLocalization.string("Rescanning LTC...")
-        case .dogecoin: return AppLocalization.string("Rescanning DOGE...")
-        default: return AppLocalization.string("Rescanning...")
-        }
+        Self.utxoActions[chain].map { AppLocalization.string($0.rescanInFlightTitle) } ?? AppLocalization.string("Rescanning...")
     }
-    private func runChainSelfTests() {
-        switch chain {
-        case .bitcoin: store.runBitcoinSelfTests()
-        case .bitcoinCash: store.runBitcoinCashSelfTests()
-        case .bitcoinSV: store.runBitcoinSVSelfTests()
-        case .litecoin: store.runLitecoinSelfTests()
-        case .dogecoin: store.runDogecoinSelfTests()
-        default: break
-        }
-    }
-    private func runChainRescan() async {
-        switch chain {
-        case .bitcoin: await store.runBitcoinRescan()
-        case .bitcoinCash: await store.runBitcoinCashRescan()
-        case .bitcoinSV: await store.runBitcoinSVRescan()
-        case .litecoin: await store.runLitecoinRescan()
-        case .dogecoin: await store.runDogecoinRescan()
-        default: break
-        }
-    }
+    private func runChainSelfTests() { Self.utxoActions[chain]?.runSelfTests(store) }
+    private func runChainRescan() async { await Self.utxoActions[chain]?.runRescan(store) }
 }
 private func formatCopy(_ format: String, _ arguments: CVarArg...) -> String {
     String(format: format, locale: AppLocalization.locale, arguments: arguments)

@@ -44,14 +44,9 @@ extension AppState {
             })
         statusTrackingByTransactionID = statusTrackingByTransactionID.filter { trackedTransactionIDs.contains($0.key) }
         await withTaskGroup(of: Void.self) { group in
-            let allPendingChains = [
-                "Bitcoin", "Bitcoin Cash", "Litecoin", "Ethereum", "Arbitrum", "Optimism", "Ethereum Classic", "BNB Chain", "Avalanche",
-                "Hyperliquid", "Dogecoin", "Tron", "Solana", "Cardano", "XRP Ledger", "Stellar", "Monero", "Sui", "Aptos", "TON",
-                "Internet Computer", "NEAR", "Polkadot",
-            ]
-            for chainName in allPendingChains {
-                guard let chainID = WalletChainID(chainName), trackedChains.contains(chainID) else { continue }
-                group.addTask { await self.refreshPendingTransactionsForChain(chainName) }
+            for descriptor in Self.chainRefreshDescriptors.values {
+                guard trackedChains.contains(descriptor.chainID), let pending = descriptor.executePendingOnly else { continue }
+                group.addTask { await pending(self) }
             }
             await group.waitForAll()
         }
@@ -112,30 +107,6 @@ extension AppState {
                 chainAddress: chainAddress, hasSeed: storedSeedPhrase(for: wallet.id) != nil, hasWatchAddress: hasWatchAddress,
                 isResolving: isResolvingReceiveAddress
             ))
-    }
-    private func refreshPendingTransactionsForChain(_ chainName: String) async {
-        switch chainName {
-        case "Bitcoin": await refreshPendingBitcoinTransactions()
-        case "Bitcoin Cash": await refreshPendingBitcoinCashTransactions()
-        case "Litecoin": await refreshPendingLitecoinTransactions()
-        case "Ethereum", "Arbitrum", "Optimism", "Ethereum Classic", "BNB Chain", "Avalanche", "Hyperliquid", "Polygon", "Base",
-            "Linea", "Scroll", "Blast", "Mantle":
-            await refreshPendingEVMTransactions(chainName: chainName)
-        case "Dogecoin": await refreshPendingDogecoinTransactions()
-        case "Tron": await refreshPendingTronTransactions()
-        case "Solana": await refreshPendingSolanaTransactions()
-        case "Cardano": await refreshPendingCardanoTransactions()
-        case "XRP Ledger": await refreshPendingXRPTransactions()
-        case "Stellar": await refreshPendingStellarTransactions()
-        case "Monero": await refreshPendingMoneroTransactions()
-        case "Sui": await refreshPendingSuiTransactions()
-        case "Aptos": await refreshPendingAptosTransactions()
-        case "TON": await refreshPendingTONTransactions()
-        case "Internet Computer": await refreshPendingICPTransactions()
-        case "NEAR": await refreshPendingNearTransactions()
-        case "Polkadot": await refreshPendingPolkadotTransactions()
-        default: break
-        }
     }
     func refreshReceiveAddress() async {
         guard let wallet = wallet(for: receiveWalletID), let receiveCoin = selectedReceiveCoin(for: receiveWalletID) else {
@@ -258,46 +229,7 @@ extension AppState {
         let kaspaAddressEntries = entries(draft.kaspaAddressInput); let typedKaspaAddress = tr(draft.kaspaAddressInput)
         let dashAddressEntries = entries(draft.dashAddressInput); let typedDashAddress = tr(draft.dashAddressInput)
         let bittensorAddressEntries = entries(draft.bittensorAddressInput); let typedBittensorAddress = tr(draft.bittensorAddressInput)
-        let wantsBitcoinImport = draft.wantsBitcoin
-        let wantsBitcoinCashImport = draft.wantsBitcoinCash
-        let wantsBitcoinSVImport = draft.wantsBitcoinSV
-        let wantsLitecoinImport = draft.wantsLitecoin
-        let wantsDogecoinImport = draft.wantsDogecoin
-        let wantsEthereumImport = draft.wantsEthereum
-        let wantsEthereumClassicImport = draft.wantsEthereumClassic
-        let wantsArbitrumImport = draft.wantsArbitrum
-        let wantsOptimismImport = draft.wantsOptimism
-        let wantsBNBImport = draft.wantsBNBChain
-        let wantsAvalancheImport = draft.wantsAvalanche
-        let wantsHyperliquidImport = draft.wantsHyperliquid
-        let wantsTronImport = draft.wantsTron
-        let wantsSolanaImport = draft.wantsSolana
-        let wantsCardanoImport = draft.wantsCardano
-        let wantsXRPImport = draft.wantsXRP
-        let wantsStellarImport = draft.wantsStellar
-        let wantsMoneroImport = draft.wantsMonero
-        let wantsSuiImport = draft.wantsSui
-        let wantsAptosImport = draft.wantsAptos
-        let wantsTONImport = draft.wantsTON
-        let wantsICPImport = draft.wantsICP
-        let wantsNearImport = draft.wantsNear
-        let wantsPolkadotImport = draft.wantsPolkadot
-        let wantsZcashImport = draft.wantsZcash
-        let wantsBitcoinGoldImport = draft.wantsBitcoinGold
-        let wantsDecredImport = draft.wantsDecred
-        let wantsKaspaImport = draft.wantsKaspa
-        let wantsDashImport = draft.wantsDash
-        let wantsXLayerImport = draft.wantsXLayer
-        let wantsBittensorImport = draft.wantsBittensor
-        let wantsSeiImport = draft.wantsSei
-        let wantsCeloImport = draft.wantsCelo
-        let wantsCronosImport = draft.wantsCronos
-        let wantsOpBNBImport = draft.wantsOpBNB
-        let wantsZkSyncEraImport = draft.wantsZkSyncEra
-        let wantsSonicImport = draft.wantsSonic
-        let wantsBerachainImport = draft.wantsBerachain
-        let wantsUnichainImport = draft.wantsUnichain
-        let wantsInkImport = draft.wantsInk
+        let selectedChains = Set(draft.selectedChainNames)
         let selectedDerivationPreset = importDraft.seedDerivationPreset
         let selectedDerivationPaths: SeedDerivationPaths = {
             var paths = importDraft.seedDerivationPaths
@@ -313,43 +245,33 @@ extension AppState {
             importError = "Select a chain first."
             return
         }
-        let requiresSeedPhrase =
-            (wantsBitcoinImport || wantsBitcoinCashImport || wantsBitcoinSVImport || wantsLitecoinImport || wantsDogecoinImport
-                || wantsEthereumImport || wantsEthereumClassicImport || wantsArbitrumImport || wantsOptimismImport || wantsBNBImport
-                || wantsAvalancheImport || wantsHyperliquidImport || wantsTronImport || wantsSolanaImport || wantsCardanoImport
-                || wantsXRPImport || wantsStellarImport || wantsMoneroImport || wantsSuiImport || wantsAptosImport || wantsTONImport
-                || wantsICPImport || wantsNearImport || wantsPolkadotImport || wantsZcashImport
-                || wantsBitcoinGoldImport || wantsSeiImport || wantsCeloImport || wantsCronosImport
-                || wantsOpBNBImport || wantsZkSyncEraImport || wantsSonicImport || wantsBerachainImport
-                || wantsUnichainImport || wantsInkImport
-                || wantsDecredImport || wantsKaspaImport || wantsDashImport
-                || wantsXLayerImport || wantsBittensorImport) && !isWatchOnlyImport && !isPrivateKeyImport
+        let requiresSeedPhrase = !selectedChains.isEmpty && !isWatchOnlyImport && !isPrivateKeyImport
         // Per-chain "resolved" optional: keep the typed value only when the chain
         // is selected for import AND the value is non-empty.
         func res(_ wants: Bool, _ v: String) -> String? { (wants && !v.isEmpty) ? v : nil }
-        let resolvedBitcoinAddress = res(wantsBitcoinImport, trimmedBitcoinAddress)
-        let resolvedBitcoinXPub = res(wantsBitcoinImport, trimmedBitcoinXPub)
-        let resolvedBitcoinCashAddress = res(wantsBitcoinCashImport, typedBitcoinCashAddress)
-        let resolvedBitcoinSVAddress = res(wantsBitcoinSVImport, typedBitcoinSVAddress)
-        let resolvedLitecoinAddress = res(wantsLitecoinImport, typedLitecoinAddress)
-        let resolvedTronAddress = res(wantsTronImport, typedTronAddress)
-        let resolvedSolanaAddress = res(wantsSolanaImport, typedSolanaAddress)
-        let resolvedXRPAddress = res(wantsXRPImport, typedXRPAddress)
-        let resolvedStellarAddress = res(wantsStellarImport, typedStellarAddress)
-        let resolvedMoneroAddress = res(wantsMoneroImport, typedMoneroAddress)
-        let resolvedCardanoAddress = res(wantsCardanoImport, typedCardanoAddress)
-        let resolvedSuiAddress = res(wantsSuiImport, typedSuiAddress)
-        let resolvedAptosAddress = res(wantsAptosImport, typedAptosAddress)
-        let resolvedTONAddress = res(wantsTONImport, typedTonAddress)
-        let resolvedICPAddress = res(wantsICPImport, typedICPAddress)
-        let resolvedNearAddress = res(wantsNearImport, typedNearAddress)
-        let resolvedPolkadotAddress = res(wantsPolkadotImport, typedPolkadotAddress)
-        let resolvedZcashAddress = res(wantsZcashImport, typedZcashAddress)
-        let resolvedBitcoinGoldAddress = res(wantsBitcoinGoldImport, typedBitcoinGoldAddress)
-        let resolvedDecredAddress = res(wantsDecredImport, typedDecredAddress)
-        let resolvedKaspaAddress = res(wantsKaspaImport, typedKaspaAddress)
-        let resolvedDashAddress = res(wantsDashImport, typedDashAddress)
-        let resolvedBittensorAddress = res(wantsBittensorImport, typedBittensorAddress)
+        let resolvedBitcoinAddress = res(selectedChains.contains("Bitcoin"), trimmedBitcoinAddress)
+        let resolvedBitcoinXPub = res(selectedChains.contains("Bitcoin"), trimmedBitcoinXPub)
+        let resolvedBitcoinCashAddress = res(selectedChains.contains("Bitcoin Cash"), typedBitcoinCashAddress)
+        let resolvedBitcoinSVAddress = res(selectedChains.contains("Bitcoin SV"), typedBitcoinSVAddress)
+        let resolvedLitecoinAddress = res(selectedChains.contains("Litecoin"), typedLitecoinAddress)
+        let resolvedTronAddress = res(selectedChains.contains("Tron"), typedTronAddress)
+        let resolvedSolanaAddress = res(selectedChains.contains("Solana"), typedSolanaAddress)
+        let resolvedXRPAddress = res(selectedChains.contains("XRP Ledger"), typedXRPAddress)
+        let resolvedStellarAddress = res(selectedChains.contains("Stellar"), typedStellarAddress)
+        let resolvedMoneroAddress = res(selectedChains.contains("Monero"), typedMoneroAddress)
+        let resolvedCardanoAddress = res(selectedChains.contains("Cardano"), typedCardanoAddress)
+        let resolvedSuiAddress = res(selectedChains.contains("Sui"), typedSuiAddress)
+        let resolvedAptosAddress = res(selectedChains.contains("Aptos"), typedAptosAddress)
+        let resolvedTONAddress = res(selectedChains.contains("TON"), typedTonAddress)
+        let resolvedICPAddress = res(selectedChains.contains("Internet Computer"), typedICPAddress)
+        let resolvedNearAddress = res(selectedChains.contains("NEAR"), typedNearAddress)
+        let resolvedPolkadotAddress = res(selectedChains.contains("Polkadot"), typedPolkadotAddress)
+        let resolvedZcashAddress = res(selectedChains.contains("Zcash"), typedZcashAddress)
+        let resolvedBitcoinGoldAddress = res(selectedChains.contains("Bitcoin Gold"), typedBitcoinGoldAddress)
+        let resolvedDecredAddress = res(selectedChains.contains("Decred"), typedDecredAddress)
+        let resolvedKaspaAddress = res(selectedChains.contains("Kaspa"), typedKaspaAddress)
+        let resolvedDashAddress = res(selectedChains.contains("Dash"), typedDashAddress)
+        let resolvedBittensorAddress = res(selectedChains.contains("Bittensor"), typedBittensorAddress)
         if isPrivateKeyImport {
             guard CachedCoreHelpers.privateKeyHexIsLikely(rawValue: trimmedPrivateKey) else {
                 importError = "Enter a valid 32-byte hex key."
@@ -372,7 +294,7 @@ extension AppState {
                 return
             }
         }
-        if isWatchOnlyImport && wantsBitcoinImport {
+        if isWatchOnlyImport && selectedChains.contains("Bitcoin") {
             let hasValidAddress =
                 !bitcoinAddressEntries.isEmpty
                 && bitcoinAddressEntries.allSatisfy {
@@ -384,7 +306,7 @@ extension AppState {
                 return
             }
         }
-        if wantsMoneroImport {
+        if selectedChains.contains("Monero") {
             if (resolvedMoneroAddress?.isEmpty ?? true) || !AddressValidation.isValid(resolvedMoneroAddress ?? "", kind: "monero") {
                 importError = localizedStoreString("Enter a valid Monero address.")
                 return
@@ -394,7 +316,7 @@ extension AppState {
                 return
             }
         }
-        if wantsCardanoImport && !isWatchOnlyImport {
+        if selectedChains.contains("Cardano") && !isWatchOnlyImport {
             if let resolvedCardanoAddress, !resolvedCardanoAddress.isEmpty,
                 !AddressValidation.isValid(resolvedCardanoAddress, kind: "cardano")
             {
@@ -405,25 +327,25 @@ extension AppState {
         if isWatchOnlyImport {
             let watchOnlyValidations: [(Bool, [String], (String) -> Bool, String)] = [
                 (
-                    wantsBitcoinCashImport, bitcoinCashAddressEntries, { AddressValidation.isValid($0, kind: "bitcoinCash") },
+                    selectedChains.contains("Bitcoin Cash"), bitcoinCashAddressEntries, { AddressValidation.isValid($0, kind: "bitcoinCash") },
                     "Bitcoin Cash address"
                 ),
-                (wantsBitcoinSVImport, bitcoinSvAddressEntries, { AddressValidation.isValid($0, kind: "bitcoinSV") }, "Bitcoin SV address"),
-                (wantsLitecoinImport, litecoinAddressEntries, { AddressValidation.isValid($0, kind: "litecoin") }, "Litecoin address"),
-                (wantsDogecoinImport, dogecoinAddressEntries, { self.isValidDogecoinAddressForPolicy($0) }, "Dogecoin address"),
-                (wantsTronImport, tronAddressEntries, { AddressValidation.isValid($0, kind: "tron") }, "Tron address"),
-                (wantsSolanaImport, solanaAddressEntries, { AddressValidation.isValid($0, kind: "solana") }, "Solana address"),
-                (wantsXRPImport, xrpAddressEntries, { AddressValidation.isValid($0, kind: "xrp") }, "XRP address"),
-                (wantsStellarImport, stellarAddressEntries, { AddressValidation.isValid($0, kind: "stellar") }, "Stellar address"),
-                (wantsCardanoImport, cardanoAddressEntries, { AddressValidation.isValid($0, kind: "cardano") }, "Cardano address"),
-                (wantsSuiImport, suiAddressEntries, { AddressValidation.isValid($0, kind: "sui") }, "Sui address"),
-                (wantsAptosImport, aptosAddressEntries, { AddressValidation.isValid($0, kind: "aptos") }, "Aptos address"),
-                (wantsTONImport, tonAddressEntries, { AddressValidation.isValid($0, kind: "ton") }, "TON address"),
+                (selectedChains.contains("Bitcoin SV"), bitcoinSvAddressEntries, { AddressValidation.isValid($0, kind: "bitcoinSV") }, "Bitcoin SV address"),
+                (selectedChains.contains("Litecoin"), litecoinAddressEntries, { AddressValidation.isValid($0, kind: "litecoin") }, "Litecoin address"),
+                (selectedChains.contains("Dogecoin"), dogecoinAddressEntries, { self.isValidDogecoinAddressForPolicy($0) }, "Dogecoin address"),
+                (selectedChains.contains("Tron"), tronAddressEntries, { AddressValidation.isValid($0, kind: "tron") }, "Tron address"),
+                (selectedChains.contains("Solana"), solanaAddressEntries, { AddressValidation.isValid($0, kind: "solana") }, "Solana address"),
+                (selectedChains.contains("XRP Ledger"), xrpAddressEntries, { AddressValidation.isValid($0, kind: "xrp") }, "XRP address"),
+                (selectedChains.contains("Stellar"), stellarAddressEntries, { AddressValidation.isValid($0, kind: "stellar") }, "Stellar address"),
+                (selectedChains.contains("Cardano"), cardanoAddressEntries, { AddressValidation.isValid($0, kind: "cardano") }, "Cardano address"),
+                (selectedChains.contains("Sui"), suiAddressEntries, { AddressValidation.isValid($0, kind: "sui") }, "Sui address"),
+                (selectedChains.contains("Aptos"), aptosAddressEntries, { AddressValidation.isValid($0, kind: "aptos") }, "Aptos address"),
+                (selectedChains.contains("TON"), tonAddressEntries, { AddressValidation.isValid($0, kind: "ton") }, "TON address"),
                 (
-                    wantsICPImport, icpAddressEntries, { AddressValidation.isValid($0, kind: "internetComputer") },
+                    selectedChains.contains("Internet Computer"), icpAddressEntries, { AddressValidation.isValid($0, kind: "internetComputer") },
                     "Internet Computer account identifier"
-                ), (wantsNearImport, nearAddressEntries, { AddressValidation.isValid($0, kind: "near") }, "NEAR address"),
-                (wantsPolkadotImport, polkadotAddressEntries, { AddressValidation.isValid($0, kind: "polkadot") }, "Polkadot address"),
+                ), (selectedChains.contains("NEAR"), nearAddressEntries, { AddressValidation.isValid($0, kind: "near") }, "NEAR address"),
+                (selectedChains.contains("Polkadot"), polkadotAddressEntries, { AddressValidation.isValid($0, kind: "polkadot") }, "Polkadot address"),
             ]
             for (wantsImport, entries, validator, name) in watchOnlyValidations where wantsImport {
                 if entries.isEmpty || !entries.allSatisfy(validator) {
@@ -433,8 +355,8 @@ extension AppState {
             }
         }
         if isWatchOnlyImport
-            && (wantsEthereumImport || wantsEthereumClassicImport || wantsArbitrumImport || wantsOptimismImport || wantsBNBImport
-                || wantsAvalancheImport || wantsHyperliquidImport)
+            && (selectedChains.contains("Ethereum") || selectedChains.contains("Ethereum Classic") || selectedChains.contains("Arbitrum") || selectedChains.contains("Optimism") || selectedChains.contains("BNB Chain")
+                || selectedChains.contains("Avalanche") || selectedChains.contains("Hyperliquid"))
         {
             if ethereumAddressEntries.isEmpty || !ethereumAddressEntries.allSatisfy({ AddressValidation.isValid($0, kind: "evm") }) {
                 importError = "Enter one valid EVM address per line for watched addresses."
@@ -472,34 +394,34 @@ extension AppState {
             if requiresSeedPhrase {
                 let p = selectedDerivationPaths
                 let needsEvm =
-                    wantsEthereumImport || wantsArbitrumImport || wantsOptimismImport || wantsBNBImport || wantsAvalancheImport
-                    || wantsHyperliquidImport
+                    selectedChains.contains("Ethereum") || selectedChains.contains("Arbitrum") || selectedChains.contains("Optimism") || selectedChains.contains("BNB Chain") || selectedChains.contains("Avalanche")
+                    || selectedChains.contains("Hyperliquid")
                 let chainPathCandidates: [(Bool, String, String)] = [
-                    (wantsBitcoinImport, "Bitcoin", p.bitcoin), (wantsBitcoinCashImport, "Bitcoin Cash", p.bitcoinCash),
-                    (wantsBitcoinSVImport, "Bitcoin SV", p.bitcoinSV), (wantsLitecoinImport, "Litecoin", p.litecoin),
-                    (wantsDogecoinImport, "Dogecoin", p.dogecoin), (needsEvm, "Ethereum", p.ethereum),
-                    (wantsEthereumClassicImport, "Ethereum Classic", p.ethereumClassic), (wantsTronImport, "Tron", p.tron),
-                    (wantsSolanaImport, "Solana", p.solana), (wantsCardanoImport, "Cardano", p.cardano),
-                    (wantsXRPImport, "XRP Ledger", p.xrp), (wantsStellarImport, "Stellar", p.stellar), (wantsSuiImport, "Sui", p.sui),
-                    (wantsAptosImport, "Aptos", p.aptos), (wantsTONImport, "TON", p.ton),
-                    (wantsICPImport, "Internet Computer", p.internetComputer), (wantsNearImport, "NEAR", p.near),
-                    (wantsPolkadotImport, "Polkadot", p.polkadot),
-                    (wantsZcashImport, "Zcash", p.zcash),
-                    (wantsBitcoinGoldImport, "Bitcoin Gold", p.bitcoinGold),
-                    (wantsSeiImport, "Sei", p.sei),
-                    (wantsCeloImport, "Celo", p.celo),
-                    (wantsCronosImport, "Cronos", p.cronos),
-                    (wantsOpBNBImport, "opBNB", p.opBnb),
-                    (wantsZkSyncEraImport, "zkSync Era", p.zksyncEra),
-                    (wantsSonicImport, "Sonic", p.sonic),
-                    (wantsBerachainImport, "Berachain", p.berachain),
-                    (wantsUnichainImport, "Unichain", p.unichain),
-                    (wantsInkImport, "Ink", p.ink),
-                    (wantsDecredImport, "Decred", p.decred),
-                    (wantsKaspaImport, "Kaspa", p.kaspa),
-                    (wantsDashImport, "Dash", p.dash),
-                    (wantsXLayerImport, "X Layer", p.xLayer),
-                    (wantsBittensorImport, "Bittensor", p.bittensor),
+                    (selectedChains.contains("Bitcoin"), "Bitcoin", p.bitcoin), (selectedChains.contains("Bitcoin Cash"), "Bitcoin Cash", p.bitcoinCash),
+                    (selectedChains.contains("Bitcoin SV"), "Bitcoin SV", p.bitcoinSV), (selectedChains.contains("Litecoin"), "Litecoin", p.litecoin),
+                    (selectedChains.contains("Dogecoin"), "Dogecoin", p.dogecoin), (needsEvm, "Ethereum", p.ethereum),
+                    (selectedChains.contains("Ethereum Classic"), "Ethereum Classic", p.ethereumClassic), (selectedChains.contains("Tron"), "Tron", p.tron),
+                    (selectedChains.contains("Solana"), "Solana", p.solana), (selectedChains.contains("Cardano"), "Cardano", p.cardano),
+                    (selectedChains.contains("XRP Ledger"), "XRP Ledger", p.xrp), (selectedChains.contains("Stellar"), "Stellar", p.stellar), (selectedChains.contains("Sui"), "Sui", p.sui),
+                    (selectedChains.contains("Aptos"), "Aptos", p.aptos), (selectedChains.contains("TON"), "TON", p.ton),
+                    (selectedChains.contains("Internet Computer"), "Internet Computer", p.internetComputer), (selectedChains.contains("NEAR"), "NEAR", p.near),
+                    (selectedChains.contains("Polkadot"), "Polkadot", p.polkadot),
+                    (selectedChains.contains("Zcash"), "Zcash", p.zcash),
+                    (selectedChains.contains("Bitcoin Gold"), "Bitcoin Gold", p.bitcoinGold),
+                    (selectedChains.contains("Sei"), "Sei", p.sei),
+                    (selectedChains.contains("Celo"), "Celo", p.celo),
+                    (selectedChains.contains("Cronos"), "Cronos", p.cronos),
+                    (selectedChains.contains("opBNB"), "opBNB", p.opBnb),
+                    (selectedChains.contains("zkSync Era"), "zkSync Era", p.zksyncEra),
+                    (selectedChains.contains("Sonic"), "Sonic", p.sonic),
+                    (selectedChains.contains("Berachain"), "Berachain", p.berachain),
+                    (selectedChains.contains("Unichain"), "Unichain", p.unichain),
+                    (selectedChains.contains("Ink"), "Ink", p.ink),
+                    (selectedChains.contains("Decred"), "Decred", p.decred),
+                    (selectedChains.contains("Kaspa"), "Kaspa", p.kaspa),
+                    (selectedChains.contains("Dash"), "Dash", p.dash),
+                    (selectedChains.contains("X Layer"), "X Layer", p.xLayer),
+                    (selectedChains.contains("Bittensor"), "Bittensor", p.bittensor),
                 ]
                 let chainPaths: [String: String] = Dictionary(
                     uniqueKeysWithValues: chainPathCandidates.compactMap { $0.0 ? ($0.1, $0.2) : nil })
@@ -526,7 +448,7 @@ extension AppState {
                         }
                         derived = perChain
                     }
-                    if wantsBitcoinImport {
+                    if selectedChains.contains("Bitcoin") {
                         guard let bitcoinWalletID else {
                             importError = "Bitcoin wallet initialization failed."
                             return

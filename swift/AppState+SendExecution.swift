@@ -61,7 +61,7 @@ extension AppState {
         if holding.chainName == "Sui", holding.symbol == "SUI" {
             await submitSimpleNativeChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.sui, chainName: "Sui", symbol: "SUI", isSendingPath: \.isSendingSui,
+                chainId: SpectraChainID.sui, chainName: "Sui", symbol: "SUI",
                 feeDecimals: 6, checkSelfSend: true, supportsPrivateKey: false, gasBudgetFromFee: true,
                 resolveAddress: { self.resolvedSuiAddress(for: $0) },
                 derivationPath: { self.walletDerivationPath(for: $0, chain: .sui) },
@@ -74,7 +74,7 @@ extension AppState {
         if holding.chainName == "Aptos", holding.symbol == "APT" {
             await submitSimpleNativeChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.aptos, chainName: "Aptos", symbol: "APT", isSendingPath: \.isSendingAptos,
+                chainId: SpectraChainID.aptos, chainName: "Aptos", symbol: "APT",
                 feeDecimals: 6, checkSelfSend: true, supportsPrivateKey: false,
                 resolveAddress: { self.resolvedAptosAddress(for: $0) },
                 derivationPath: { self.walletDerivationPath(for: $0, chain: .aptos) },
@@ -87,7 +87,7 @@ extension AppState {
         if holding.chainName == "TON", holding.symbol == "TON" {
             await submitSimpleNativeChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.ton, chainName: "TON", symbol: "TON", isSendingPath: \.isSendingTON,
+                chainId: SpectraChainID.ton, chainName: "TON", symbol: "TON",
                 feeDecimals: 6, checkSelfSend: true, supportsPrivateKey: false,
                 resolveAddress: { self.resolvedTONAddress(for: $0) },
                 derivationPath: { self.walletDerivationPath(for: $0, chain: .ton) },
@@ -98,7 +98,7 @@ extension AppState {
             return
         }
         if holding.chainName == "Internet Computer", holding.symbol == "ICP" {
-            guard !isSendingICP else { return }
+            guard !sendingChains.contains("Internet Computer") else { return }
             if icpSendPreview == nil { await refreshIcpSendPreview() }
             guard let walletIndex = wallets.firstIndex(where: { $0.id == wallet.id }), let sourceAddress = resolvedICPAddress(for: wallet)
             else {
@@ -116,8 +116,8 @@ extension AppState {
             ) {
                 return
             }
-            isSendingICP = true
-            defer { isSendingICP = false }
+            sendingChains.insert("Internet Computer")
+            defer { sendingChains.remove("Internet Computer") }
             do {
                 let result = try await WalletServiceBridge.shared.executeSend(
                     SendExecutionRequest(
@@ -189,9 +189,9 @@ extension AppState {
                 sendError = "Enter a valid amount"
                 return
             }
-            guard !isSendingBitcoin else { return }
-            isSendingBitcoin = true
-            defer { isSendingBitcoin = false }
+            guard !sendingChains.contains("Bitcoin") else { return }
+            sendingChains.insert("Bitcoin")
+            defer { sendingChains.remove("Bitcoin") }
             do {
                 guard let seedPhrase = storedSeedPhrase(for: wallet.id) else {
                     sendError = "This wallet's seed phrase is unavailable."
@@ -233,7 +233,7 @@ extension AppState {
         if holding.symbol == "BCH", holding.chainName == "Bitcoin Cash" {
             await submitUTXOSatChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.bitcoinCash, chainName: "Bitcoin Cash", chain: .bitcoinCash, isSendingPath: \.isSendingBitcoinCash,
+                chainId: SpectraChainID.bitcoinCash, chainName: "Bitcoin Cash", chain: .bitcoinCash,
                 symbol: "BCH", feeFallback: 0.00001, resolveAddress: { self.resolvedBitcoinCashAddress(for: $0) },
                 getPreview: { self.bitcoinCashSendPreview }, refreshPreview: { await self.refreshBitcoinCashSendPreview() },
                 clearPreview: { self.bitcoinCashSendPreview = nil }
@@ -243,7 +243,7 @@ extension AppState {
         if holding.symbol == "BSV", holding.chainName == "Bitcoin SV" {
             await submitUTXOSatChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount, chainId: SpectraChainID.bitcoinSv,
-                chainName: "Bitcoin SV", chain: .bitcoinSV, isSendingPath: \.isSendingBitcoinSV, symbol: "BSV", feeFallback: 0.00001,
+                chainName: "Bitcoin SV", chain: .bitcoinSV, symbol: "BSV", feeFallback: 0.00001,
                 resolveAddress: { self.resolvedBitcoinSVAddress(for: $0) }, getPreview: { self.bitcoinSVSendPreview },
                 refreshPreview: { await self.refreshBitcoinSVSendPreview() }, clearPreview: { self.bitcoinSVSendPreview = nil }
             )
@@ -252,14 +252,14 @@ extension AppState {
         if holding.symbol == "LTC", holding.chainName == "Litecoin" {
             await submitUTXOSatChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount, chainId: SpectraChainID.litecoin,
-                chainName: "Litecoin", chain: .litecoin, isSendingPath: \.isSendingLitecoin, symbol: "LTC", feeFallback: 0.0001,
+                chainName: "Litecoin", chain: .litecoin, symbol: "LTC", feeFallback: 0.0001,
                 resolveAddress: { self.resolvedLitecoinAddress(for: $0) }, getPreview: { self.litecoinSendPreview },
                 refreshPreview: { await self.refreshLitecoinSendPreview() }, clearPreview: { self.litecoinSendPreview = nil }
             )
             return
         }
         if holding.symbol == "DOGE", holding.chainName == "Dogecoin" {
-            guard !isSendingDogecoin else { return }
+            guard !sendingChains.contains("Dogecoin") else { return }
             guard let dogecoinAmount = parseDogecoinAmountInput(sendAmount) else {
                 sendError = "Enter a valid DOGE amount with up to 8 decimal places."
                 return
@@ -283,8 +283,8 @@ extension AppState {
                     "Insufficient DOGE for amount plus network fee (max sendable ~\(String(format: "%.6f", dogecoinSendPreview.maxSendableDoge)) DOGE)."
                 return
             }
-            isSendingDogecoin = true
-            defer { isSendingDogecoin = false }
+            sendingChains.insert("Dogecoin")
+            defer { sendingChains.remove("Dogecoin") }
             guard let sourceAddress = resolvedDogecoinAddress(for: wallet) else {
                 sendError = "Unable to resolve this wallet's Dogecoin signing address."
                 return
@@ -330,7 +330,7 @@ extension AppState {
             return
         }
         if holding.chainName == "Tron", holding.symbol == "TRX" || holding.symbol == "USDT" {
-            guard !isSendingTron else { return }
+            guard !sendingChains.contains("Tron") else { return }
             let seedPhrase = storedSeedPhrase(for: wallet.id)
             let privateKey = storedPrivateKey(for: wallet.id)
             guard seedPhrase != nil || privateKey != nil else {
@@ -354,8 +354,8 @@ extension AppState {
             ) {
                 sendError = err; return
             }
-            isSendingTron = true
-            defer { isSendingTron = false }
+            sendingChains.insert("Tron")
+            defer { sendingChains.remove("Tron") }
             do {
                 let contractAddress: String? = (holding.symbol == "TRX") ? nil : holding.contractAddress
                 let tokenDecimals: UInt32? = (contractAddress != nil) ? 6 : nil
@@ -390,7 +390,7 @@ extension AppState {
             return
         }
         if isSupportedSolanaSendCoin(holding) {
-            guard !isSendingSolana else { return }
+            guard !sendingChains.contains("Solana") else { return }
             guard let seedPhrase = storedSeedPhrase(for: wallet.id) else {
                 sendError = "This wallet's seed phrase is unavailable."
                 return
@@ -413,8 +413,8 @@ extension AppState {
             ) {
                 sendError = err; return
             }
-            isSendingSolana = true
-            defer { isSendingSolana = false }
+            sendingChains.insert("Solana")
+            defer { sendingChains.remove("Solana") }
             do {
                 let contractAddress: String?
                 let tokenDecimals: UInt32?
@@ -462,7 +462,7 @@ extension AppState {
         if holding.chainName == "XRP Ledger", holding.symbol == "XRP" {
             await submitSimpleNativeChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.xrp, chainName: "XRP Ledger", symbol: "XRP", isSendingPath: \.isSendingXRP,
+                chainId: SpectraChainID.xrp, chainName: "XRP Ledger", symbol: "XRP",
                 feeDecimals: 6, supportsPrivateKey: true,
                 resolveAddress: { self.resolvedXRPAddress(for: $0) },
                 derivationPath: { self.walletDerivationPath(for: $0, chain: .xrp) },
@@ -475,7 +475,7 @@ extension AppState {
         if holding.chainName == "Stellar", holding.symbol == "XLM" {
             await submitSimpleNativeChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.stellar, chainName: "Stellar", symbol: "XLM", isSendingPath: \.isSendingStellar,
+                chainId: SpectraChainID.stellar, chainName: "Stellar", symbol: "XLM",
                 feeDecimals: 7, supportsPrivateKey: true,
                 resolveAddress: { self.resolvedStellarAddress(for: $0) },
                 derivationPath: { $0.seedDerivationPaths.stellar },
@@ -488,7 +488,7 @@ extension AppState {
         if holding.chainName == "Monero", holding.symbol == "XMR" {
             await submitSimpleNativeChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.monero, chainName: "Monero", symbol: "XMR", isSendingPath: \.isSendingMonero,
+                chainId: SpectraChainID.monero, chainName: "Monero", symbol: "XMR",
                 feeDecimals: 6, supportsPrivateKey: false, moneroPriority: 2,
                 resolveAddress: { self.resolvedMoneroAddress(for: $0) },
                 derivationPath: { _ in "" },
@@ -501,7 +501,7 @@ extension AppState {
         if holding.chainName == "Cardano", holding.symbol == "ADA" {
             await submitSimpleNativeChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.cardano, chainName: "Cardano", symbol: "ADA", isSendingPath: \.isSendingCardano,
+                chainId: SpectraChainID.cardano, chainName: "Cardano", symbol: "ADA",
                 feeDecimals: 6, supportsPrivateKey: false, feeAmountFromFee: true,
                 resolveAddress: { self.resolvedCardanoAddress(for: $0) },
                 derivationPath: { self.walletDerivationPath(for: $0, chain: .cardano) },
@@ -514,7 +514,7 @@ extension AppState {
         if holding.chainName == "NEAR", holding.symbol == "NEAR" {
             await submitSimpleNativeChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.near, chainName: "NEAR", symbol: "NEAR", isSendingPath: \.isSendingNear,
+                chainId: SpectraChainID.near, chainName: "NEAR", symbol: "NEAR",
                 feeDecimals: 6, checkSelfSend: true, supportsPrivateKey: false,
                 resolveAddress: { self.resolvedNearAddress(for: $0) },
                 derivationPath: { self.walletDerivationPath(for: $0, chain: .near) },
@@ -525,7 +525,7 @@ extension AppState {
             return
         }
         if holding.chainName == "NEAR", holding.tokenStandard == "NEP-141", let contractAddress = holding.contractAddress {
-            guard !isSendingNear else { return }
+            guard !sendingChains.contains("NEAR") else { return }
             guard let seedPhrase = storedSeedPhrase(for: wallet.id) else {
                 sendError = "This wallet's seed phrase is unavailable."; return
             }
@@ -540,8 +540,8 @@ extension AppState {
                 $0.contractAddress.lowercased() == contractAddress.lowercased()
             }
             let decimals = min(Int(tokenPref?.decimals ?? 6), 18)
-            isSendingNear = true
-            defer { isSendingNear = false }
+            sendingChains.insert("NEAR")
+            defer { sendingChains.remove("NEAR") }
             do {
                 let result = try await WalletServiceBridge.shared.executeSend(
                     SendExecutionRequest(
@@ -572,7 +572,7 @@ extension AppState {
         if holding.chainName == "Polkadot", holding.symbol == "DOT" {
             await submitSimpleNativeChainSend(
                 holding: holding, wallet: wallet, destinationAddress: destinationAddress, amount: amount,
-                chainId: SpectraChainID.polkadot, chainName: "Polkadot", symbol: "DOT", isSendingPath: \.isSendingPolkadot,
+                chainId: SpectraChainID.polkadot, chainName: "Polkadot", symbol: "DOT",
                 feeDecimals: 6, supportsPrivateKey: false,
                 resolveAddress: { self.resolvedPolkadotAddress(for: $0) },
                 derivationPath: { $0.seedDerivationPaths.polkadot },
@@ -587,7 +587,7 @@ extension AppState {
                 sendError = "\(holding.chainName) native sending is not enabled yet."
                 return
             }
-            guard !isSendingEthereum else { return }
+            guard !sendingChains.contains("Ethereum") else { return }
             guard !activeEthereumSendWalletIDs.contains(wallet.id) else {
                 sendError = "An \(holding.chainName) send is already in progress for this wallet."
                 return
@@ -623,10 +623,10 @@ extension AppState {
             ) {
                 sendError = err; return
             }
-            isSendingEthereum = true
+            sendingChains.insert("Ethereum")
             activeEthereumSendWalletIDs.insert(wallet.id)
             defer {
-                isSendingEthereum = false
+                sendingChains.remove("Ethereum")
                 activeEthereumSendWalletIDs.remove(wallet.id)
             }
             do {
@@ -693,7 +693,7 @@ extension AppState {
 
     @MainActor private func submitSimpleNativeChainSend(
         holding: Coin, wallet: ImportedWallet, destinationAddress: String, amount: Double,
-        chainId: UInt32, chainName: String, symbol: String, isSendingPath: ReferenceWritableKeyPath<AppState, Bool>,
+        chainId: UInt32, chainName: String, symbol: String,
         feeDecimals: UInt32, checkSelfSend: Bool = false, supportsPrivateKey: Bool,
         gasBudgetFromFee: Bool = false, feeAmountFromFee: Bool = false, moneroPriority: UInt32? = nil,
         resolveAddress: @escaping (ImportedWallet) -> String?,
@@ -702,7 +702,7 @@ extension AppState {
         refreshPreview: @escaping () async -> Void,
         clearPreview: @escaping () -> Void
     ) async {
-        guard !self[keyPath: isSendingPath] else { return }
+        guard !sendingChains.contains(chainName) else { return }
         let isMonero = moneroPriority != nil
         let seedPhrase = isMonero ? nil : storedSeedPhrase(for: wallet.id)
         let privateKey = supportsPrivateKey ? storedPrivateKey(for: wallet.id) : (isMonero ? "unused" : nil)
@@ -731,8 +731,8 @@ extension AppState {
         {
             return
         }
-        self[keyPath: isSendingPath] = true
-        defer { self[keyPath: isSendingPath] = false }
+        sendingChains.insert(chainName)
+        defer { sendingChains.remove(chainName) }
         do {
             let result = try await WalletServiceBridge.shared.executeSend(
                 SendExecutionRequest(
@@ -761,14 +761,14 @@ extension AppState {
 
     @MainActor private func submitUTXOSatChainSend(
         holding: Coin, wallet: ImportedWallet, destinationAddress: String, amount: Double, chainId: UInt32, chainName: String,
-        chain: SeedDerivationChain, isSendingPath: ReferenceWritableKeyPath<AppState, Bool>, symbol: String, feeFallback: Double,
+        chain: SeedDerivationChain, symbol: String, feeFallback: Double,
         resolveAddress: @escaping (ImportedWallet) -> String?, getPreview: @escaping () -> BitcoinSendPreview?,
         refreshPreview: @escaping () async -> Void, clearPreview: @escaping () -> Void
     ) async {
         guard amount > 0 else { sendError = "Enter a valid amount"; return }
-        guard !self[keyPath: isSendingPath] else { return }
-        self[keyPath: isSendingPath] = true
-        defer { self[keyPath: isSendingPath] = false }
+        guard !sendingChains.contains(chainName) else { return }
+        sendingChains.insert(chainName)
+        defer { sendingChains.remove(chainName) }
         do {
             guard let seedPhrase = storedSeedPhrase(for: wallet.id) else { sendError = "This wallet's seed phrase is unavailable."; return }
             guard let sourceAddress = resolveAddress(wallet) else {

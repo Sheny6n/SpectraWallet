@@ -35,19 +35,26 @@ enum CachedCoreHelpers {
     private static var privateKeyHexIsLikelyCache: [String: Bool] = [:]
     private static let privateKeyCacheCap = 128
 
+    private static func cached<K: Hashable, V>(in cache: inout [K: V], key: K, _ compute: () -> V) -> V {
+        if let hit = cache[key] { return hit }
+        let v = compute(); cache[key] = v; return v
+    }
+    private static func cachedBounded<K: Hashable, V>(in cache: inout [K: V], key: K, cap: Int, _ compute: () -> V) -> V {
+        if let hit = cache[key] { return hit }
+        if cache.count >= cap { cache.removeAll(keepingCapacity: true) }
+        let v = compute(); cache[key] = v; return v
+    }
+
     // ── formatting.* ───────────────────────────────────────────────────
     static func dashboardAssetGroupingKey(chainIdentity: String, coinGeckoId: String, symbol: String) -> String {
-        let cacheKey = "\(chainIdentity)|\(coinGeckoId)|\(symbol)"
-        if let cached = dashboardAssetGroupingKeys[cacheKey] { return cached }
-        let value = formattingDashboardAssetGroupingKey(chainIdentity: chainIdentity, coinGeckoId: coinGeckoId, symbol: symbol)
-        dashboardAssetGroupingKeys[cacheKey] = value
-        return value
+        cached(in: &dashboardAssetGroupingKeys, key: "\(chainIdentity)|\(coinGeckoId)|\(symbol)") {
+            formattingDashboardAssetGroupingKey(chainIdentity: chainIdentity, coinGeckoId: coinGeckoId, symbol: symbol)
+        }
     }
     static func nativeAssetDisplaySettingsKey(chainName: String) -> String {
-        if let cached = nativeAssetDisplaySettingsKeys[chainName] { return cached }
-        let value = formattingNativeAssetDisplaySettingsKey(chainName: chainName)
-        nativeAssetDisplaySettingsKeys[chainName] = value
-        return value
+        cached(in: &nativeAssetDisplaySettingsKeys, key: chainName) {
+            formattingNativeAssetDisplaySettingsKey(chainName: chainName)
+        }
     }
     static func defaultAssetDisplayDecimalsByChain(defaultValue: UInt32) -> [String: UInt32] {
         // `defaultValue` is a caller-side fallback baked into the request;
@@ -58,46 +65,35 @@ enum CachedCoreHelpers {
         return value
     }
     static func stablecoinFallbackPriceUsd(symbol: String) -> Double {
-        if let cached = stablecoinFallbackPriceUsdBySymbol[symbol] { return cached }
-        let value = formattingStablecoinFallbackPriceUsd(symbol: symbol)
-        stablecoinFallbackPriceUsdBySymbol[symbol] = value
-        return value
+        cached(in: &stablecoinFallbackPriceUsdBySymbol, key: symbol) {
+            formattingStablecoinFallbackPriceUsd(symbol: symbol)
+        }
     }
 
     // ── core.* predicates + enum mappers ───────────────────────────────
     static func evmChainContextTag(chainName: String, ethereumNetworkMode: String) -> String {
-        let key = "\(chainName)|\(ethereumNetworkMode)"
-        if let cached = evmChainContextTags[key] { return cached }
-        let value = coreEvmChainContextTag(chainName: chainName, ethereumNetworkMode: ethereumNetworkMode)
-        evmChainContextTags[key] = value
-        return value
+        cached(in: &evmChainContextTags, key: "\(chainName)|\(ethereumNetworkMode)") {
+            coreEvmChainContextTag(chainName: chainName, ethereumNetworkMode: ethereumNetworkMode)
+        }
     }
     static func seedDerivationChainRaw(chainName: String) -> String? {
-        if let cached = seedDerivationChainRaws[chainName] { return cached }
-        let value = coreSeedDerivationChainRaw(chainName: chainName)
-        seedDerivationChainRaws[chainName] = value
-        return value
+        cached(in: &seedDerivationChainRaws, key: chainName) {
+            coreSeedDerivationChainRaw(chainName: chainName)
+        }
     }
     static func evmSeedDerivationChainName(chainName: String) -> String? {
-        if let cached = evmSeedDerivationChainNames[chainName] { return cached }
-        let value = coreEvmSeedDerivationChainName(chainName: chainName)
-        evmSeedDerivationChainNames[chainName] = value
-        return value
+        cached(in: &evmSeedDerivationChainNames, key: chainName) {
+            coreEvmSeedDerivationChainName(chainName: chainName)
+        }
     }
     static func receiveAddressResolver(symbol: String, chainName: String, isEvmChain: Bool) -> ReceiveAddressResolverKind {
-        let key = "\(symbol)|\(chainName)|\(isEvmChain ? "1" : "0")"
-        if let cached = receiveAddressResolvers[key] { return cached }
-        let value = corePlanReceiveAddressResolver(symbol: symbol, chainName: chainName, isEvmChain: isEvmChain)
-        receiveAddressResolvers[key] = value
-        return value
+        cached(in: &receiveAddressResolvers, key: "\(symbol)|\(chainName)|\(isEvmChain ? "1" : "0")") {
+            corePlanReceiveAddressResolver(symbol: symbol, chainName: chainName, isEvmChain: isEvmChain)
+        }
     }
     static func privateKeyHexIsLikely(rawValue: String) -> Bool {
-        if let cached = privateKeyHexIsLikelyCache[rawValue] { return cached }
-        let value = corePrivateKeyHexIsLikely(rawValue: rawValue)
-        if privateKeyHexIsLikelyCache.count > privateKeyCacheCap {
-            privateKeyHexIsLikelyCache.removeAll(keepingCapacity: true)
+        cachedBounded(in: &privateKeyHexIsLikelyCache, key: rawValue, cap: privateKeyCacheCap) {
+            corePrivateKeyHexIsLikely(rawValue: rawValue)
         }
-        privateKeyHexIsLikelyCache[rawValue] = value
-        return value
     }
 }

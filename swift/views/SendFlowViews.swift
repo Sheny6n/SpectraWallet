@@ -8,38 +8,7 @@ struct SendView: View {
     @State private var qrScannerErrorMessage: String?
     private var sendPreviewStore: SendPreviewStore { store.sendPreviewStore }
     private var isSendBusy: Bool {
-        store.isSendingBitcoin
-            || store.isSendingBitcoinCash
-            || store.isSendingBitcoinSV
-            || store.isSendingLitecoin
-            || store.isSendingEthereum
-            || store.isSendingDogecoin
-            || store.isSendingTron
-            || store.isSendingSolana
-            || store.isSendingXRP
-            || store.isSendingStellar
-            || store.isSendingMonero
-            || store.isSendingCardano
-            || store.isSendingSui
-            || store.isSendingAptos
-            || store.isSendingTON
-            || store.isSendingICP
-            || store.isSendingNear
-            || store.isSendingPolkadot
-            || store.isPreparingEthereumSend
-            || store.isPreparingDogecoinSend
-            || store.isPreparingTronSend
-            || store.isPreparingSolanaSend
-            || store.isPreparingXRPSend
-            || store.isPreparingStellarSend
-            || store.isPreparingMoneroSend
-            || store.isPreparingCardanoSend
-            || store.isPreparingSuiSend
-            || store.isPreparingAptosSend
-            || store.isPreparingTONSend
-            || store.isPreparingICPSend
-            || store.isPreparingNearSend
-            || store.isPreparingPolkadotSend
+        !store.sendingChains.isEmpty || !store.preparingChains.isEmpty
     }
     private var selectedNetworkSendCoin: Coin? {
         store.availableSendCoins(for: store.sendWalletID).first(where: { $0.holdingKey == store.sendHoldingKey })
@@ -89,25 +58,9 @@ struct SendView: View {
                 }.disabled(!store.canSaveLastSentRecipientToAddressBook())
             }
         }
-        optionalSendingSection(store.isSendingBitcoin, AppLocalization.string("Broadcasting Bitcoin transaction..."))
-        optionalSendingSection(store.isSendingBitcoinCash, AppLocalization.string("Broadcasting Bitcoin Cash transaction..."))
-        optionalSendingSection(store.isSendingBitcoinSV, AppLocalization.string("Broadcasting Bitcoin SV transaction..."))
-        optionalSendingSection(store.isSendingLitecoin, AppLocalization.string("Broadcasting Litecoin transaction..."))
-        optionalSendingSection(
-            store.isSendingEthereum, AppLocalization.string("Broadcasting \(store.selectedSendCoin?.chainName ?? "EVM") transaction..."))
-        optionalSendingSection(store.isSendingDogecoin, AppLocalization.string("Broadcasting Dogecoin transaction..."))
-        optionalSendingSection(store.isSendingTron, AppLocalization.string("Broadcasting Tron transaction..."))
-        optionalSendingSection(store.isSendingSolana, AppLocalization.string("Broadcasting Solana transaction..."))
-        optionalSendingSection(store.isSendingXRP, AppLocalization.string("Broadcasting XRP transaction..."))
-        optionalSendingSection(store.isSendingStellar, AppLocalization.string("Broadcasting Stellar transaction..."))
-        optionalSendingSection(store.isSendingMonero, AppLocalization.string("Broadcasting Monero transaction..."))
-        optionalSendingSection(store.isSendingCardano, AppLocalization.string("Broadcasting Cardano transaction..."))
-        optionalSendingSection(store.isSendingSui, AppLocalization.string("Broadcasting Sui transaction..."))
-        optionalSendingSection(store.isSendingAptos, AppLocalization.string("Broadcasting Aptos transaction..."))
-        optionalSendingSection(store.isSendingTON, AppLocalization.string("Broadcasting TON transaction..."))
-        optionalSendingSection(store.isSendingICP, AppLocalization.string("Broadcasting Internet Computer transaction..."))
-        optionalSendingSection(store.isSendingNear, AppLocalization.string("Broadcasting NEAR transaction..."))
-        optionalSendingSection(store.isSendingPolkadot, AppLocalization.string("Broadcasting Polkadot transaction..."))
+        if let chainName = store.sendingChains.first {
+            sendingSection(AppLocalization.string("Broadcasting \(chainName) transaction..."))
+        }
     }
     @ViewBuilder
     private func optionalSendingSection(_ isActive: Bool, _ message: String) -> some View {
@@ -234,7 +187,7 @@ struct SendView: View {
                         "Spectra stores fee priority separately for each UTXO chain and applies it to live send previews for supported chains."
                     )
                 ).font(.caption).foregroundStyle(.secondary)
-                if selectedCoin.chainID == .dogecoin, store.isPreparingDogecoinSend {
+                if selectedCoin.chainID == .dogecoin, store.preparingChains.contains("Dogecoin") {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text(AppLocalization.string("Loading UTXOs and fee estimate...")).font(.caption)
@@ -299,7 +252,7 @@ struct SendView: View {
                         Text(ethereumReplacementNonceStateMessage).font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                if store.isPreparingEthereumSend {
+                if store.preparingChains.contains("Ethereum") {
                     HStack(spacing: 10) {
                         ProgressView()
                         Text(AppLocalization.string("Loading nonce and fee estimate...")).font(.caption)
@@ -330,13 +283,13 @@ struct SendView: View {
             }
         }
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "Tron", isPreparing: store.isPreparingTronSend,
+            for: selectedCoin, chainName: "Tron", isPreparing: store.preparingChains.contains("Tron"),
             fee: store.tronSendPreview.map { ($0.estimatedNetworkFeeTrx, "TRX", "%.6f") },
             footer: "Spectra signs and broadcasts Tron transfers in-app, including TRX and TRC-20 USDT.",
             extraCaption: selectedCoin?.symbol == "USDT" ? "USDT on Tron uses TRX for network fees. Keep a TRX balance for gas." : nil
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "XRP Ledger", isPreparing: store.isPreparingXRPSend,
+            for: selectedCoin, chainName: "XRP Ledger", isPreparing: store.preparingChains.contains("XRP Ledger"),
             fee: store.xrpSendPreview.map { ($0.estimatedNetworkFeeXrp, "XRP", "%.6f") },
             footer: "Spectra signs and broadcasts XRP transfers in-app.",
             extraLines: store.xrpSendPreview.map { p in
@@ -347,46 +300,46 @@ struct SendView: View {
             } ?? []
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "Solana", isPreparing: store.isPreparingSolanaSend,
+            for: selectedCoin, chainName: "Solana", isPreparing: store.preparingChains.contains("Solana"),
             fee: store.solanaSendPreview.map { ($0.estimatedNetworkFeeSol, "SOL", "%.6f") },
             footer: "Spectra signs and broadcasts Solana transfers in-app, including SOL and supported SPL assets.",
             extraCaption: selectedCoin?.symbol != "SOL" ? "Token transfers on Solana still use SOL for network fees." : nil
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "Cardano", isPreparing: store.isPreparingCardanoSend,
+            for: selectedCoin, chainName: "Cardano", isPreparing: store.preparingChains.contains("Cardano"),
             fee: store.cardanoSendPreview.map { ($0.estimatedNetworkFeeAda, "ADA", "%.6f") },
             footer: "Spectra signs and broadcasts ADA transfers in-app.",
             extraLines: store.cardanoSendPreview.map { p in p.ttlSlot > 0 ? ["TTL Slot: \(p.ttlSlot)"] : [] } ?? []
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "Monero", isPreparing: store.isPreparingMoneroSend,
+            for: selectedCoin, chainName: "Monero", isPreparing: store.preparingChains.contains("Monero"),
             fee: store.moneroSendPreview.map { ($0.estimatedNetworkFeeXmr, "XMR", "%.6f") },
             footer: "Spectra prepares Monero sends in-app using the configured backend fee quote.",
             extraLines: store.moneroSendPreview.map { ["Priority: \($0.priorityLabel)"] } ?? []
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "NEAR", isPreparing: store.isPreparingNearSend,
+            for: selectedCoin, chainName: "NEAR", isPreparing: store.preparingChains.contains("NEAR"),
             fee: store.nearSendPreview.map { ($0.estimatedNetworkFeeNear, "NEAR", "%.6f") },
             footer: "Spectra signs and broadcasts NEAR transfers in-app."
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "Polkadot", isPreparing: store.isPreparingPolkadotSend,
+            for: selectedCoin, chainName: "Polkadot", isPreparing: store.preparingChains.contains("Polkadot"),
             fee: store.polkadotSendPreview.map { ($0.estimatedNetworkFeeDot, "DOT", "%.6f") },
             footer: "Spectra signs and broadcasts Polkadot transfers in-app."
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "Stellar", isPreparing: store.isPreparingStellarSend,
+            for: selectedCoin, chainName: "Stellar", isPreparing: store.preparingChains.contains("Stellar"),
             fee: store.stellarSendPreview.map { ($0.estimatedNetworkFeeXlm, "XLM", "%.7f") },
             footer: "Spectra signs and broadcasts Stellar payments in-app.",
             extraLines: store.stellarSendPreview.map { p in p.sequence > 0 ? ["Sequence: \(p.sequence)"] : [] } ?? []
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "Internet Computer", isPreparing: store.isPreparingICPSend,
+            for: selectedCoin, chainName: "Internet Computer", isPreparing: store.preparingChains.contains("Internet Computer"),
             fee: store.icpSendPreview.map { ($0.estimatedNetworkFeeIcp, "ICP", "%.8f") },
             footer: "Spectra signs and broadcasts ICP transfers in-app."
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "Sui", isPreparing: store.isPreparingSuiSend,
+            for: selectedCoin, chainName: "Sui", isPreparing: store.preparingChains.contains("Sui"),
             fee: store.suiSendPreview.map { ($0.estimatedNetworkFeeSui, "SUI", "%.6f") },
             footer: "Spectra signs and broadcasts Sui transfers in-app.",
             extraLines: store.suiSendPreview.map {
@@ -394,7 +347,7 @@ struct SendView: View {
             } ?? []
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "Aptos", isPreparing: store.isPreparingAptosSend,
+            for: selectedCoin, chainName: "Aptos", isPreparing: store.preparingChains.contains("Aptos"),
             fee: store.aptosSendPreview.map { ($0.estimatedNetworkFeeApt, "APT", "%.6f") },
             footer: "Spectra signs and broadcasts Aptos transfers in-app.",
             extraLines: store.aptosSendPreview.map {
@@ -402,7 +355,7 @@ struct SendView: View {
             } ?? []
         )
         simpleSendNetworkSection(
-            for: selectedCoin, chainName: "TON", isPreparing: store.isPreparingTONSend,
+            for: selectedCoin, chainName: "TON", isPreparing: store.preparingChains.contains("TON"),
             fee: store.tonSendPreview.map { ($0.estimatedNetworkFeeTon, "TON", "%.6f") },
             footer: "Spectra signs and broadcasts TON transfers in-app.",
             extraLines: store.tonSendPreview.map { ["Sequence Number: \($0.sequenceNumber)"] } ?? []

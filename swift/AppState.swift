@@ -1,4 +1,5 @@
 import Foundation
+import Collections
 import SwiftUI
 import os
 import UIKit
@@ -261,20 +262,8 @@ final class AppState {
     var isAppLocked: Bool = false
     var appLockError: String? = nil
     var isPreparingEthereumReplacementContext: Bool = false
-    var isPreparingEthereumSend: Bool = false
-    var isPreparingDogecoinSend: Bool = false
-    var isPreparingTronSend: Bool = false
-    var isPreparingSolanaSend: Bool = false
-    var isPreparingXRPSend: Bool = false
-    var isPreparingStellarSend: Bool = false
-    var isPreparingMoneroSend: Bool = false
-    var isPreparingCardanoSend: Bool = false
-    var isPreparingSuiSend: Bool = false
-    var isPreparingAptosSend: Bool = false
-    var isPreparingTONSend: Bool = false
-    var isPreparingICPSend: Bool = false
-    var isPreparingNearSend: Bool = false
-    var isPreparingPolkadotSend: Bool = false
+    /// Chains currently computing a send fee preview. Observed by send UI to show loading state.
+    var preparingChains: Set<String> = []
     @ObservationIgnored var statusTrackingByTransactionID: [UUID: AppState.TransactionStatusTrackingState] = [:]
     @ObservationIgnored var pendingSelfSendConfirmation: AppState.PendingSelfSendConfirmation?
     @ObservationIgnored var activeEthereumSendWalletIDs: Set<String> = []
@@ -375,28 +364,12 @@ final class AppState {
         get { sendPreviewStore.polkadotSendPreview }
         set { sendPreviewStore.polkadotSendPreview = newValue }
     }
-    var isSendingBitcoin: Bool = false
-    var isSendingBitcoinCash: Bool = false
-    var isSendingBitcoinSV: Bool = false
-    var isSendingLitecoin: Bool = false
-    var isSendingDogecoin: Bool = false
-    var isSendingEthereum: Bool = false
-    var isSendingTron: Bool = false
-    var isSendingSolana: Bool = false
-    var isSendingXRP: Bool = false
-    var isSendingStellar: Bool = false
-    var isSendingMonero: Bool = false
-    var isSendingCardano: Bool = false
-    var isSendingSui: Bool = false
-    var isSendingAptos: Bool = false
-    var isSendingTON: Bool = false
-    var isSendingICP: Bool = false
-    var isSendingNear: Bool = false
-    var isSendingPolkadot: Bool = false
+    /// Chains currently broadcasting a send transaction. Observed by send UI to show loading state.
+    var sendingChains: Set<String> = []
     var tronLastSendErrorDetails: String? = nil
     var tronLastSendErrorAt: Date? = nil
     let chainDiagnosticsState = WalletChainDiagnosticsState()
-    @ObservationIgnored private(set) var recentPerformanceSamples: [PerformanceSample] = []
+    @ObservationIgnored private(set) var recentPerformanceSamples: Deque<PerformanceSample> = []
     var isOnboarded: Bool { !wallets.isEmpty }
     func chainKeypoolDiagnostics(for chainName: String) -> [ChainKeypoolDiagnostic] {
         wallets.filter { wallet in wallet.selectedChain == chainName || walletHasAddress(for: wallet, chainName: chainName) }
@@ -866,6 +839,9 @@ final class AppState {
         }
         applyVerificationNotice(verificationNoticeForLastSent(snapshot: snapshot))
     }
+    nonisolated(unsafe) private static let utxoPostSendChains: Set<String> = [
+        "Bitcoin", "Bitcoin Cash", "Bitcoin SV", "Litecoin", "Dogecoin"
+    ]
     func runPostSendRefreshActions(for chainName: String, verificationStatus: SendBroadcastVerificationStatus) async {
         applySendVerificationStatus(verificationStatus, chainName: chainName)
         noteSendBroadcastVerification(
@@ -874,29 +850,9 @@ final class AppState {
         )
         async let balanceRefresh: () = refreshBalances()
         async let chainRefresh: () = {
-            switch AppEndpointDirectory.appChain(for: chainName)?.id {
-            case .bitcoin: await self.refreshPendingBitcoinTransactions()
-            case .bitcoinCash: await self.refreshPendingBitcoinCashTransactions()
-            case .bitcoinSV: await self.refreshPendingBitcoinSVTransactions()
-            case .litecoin: await self.refreshPendingLitecoinTransactions()
-            case .dogecoin: await self.refreshPendingDogecoinTransactions()
-            case .ethereum, .ethereumClassic, .arbitrum, .optimism, .bnb, .avalanche, .hyperliquid, .polygon, .base,
-                .linea, .scroll, .blast, .mantle:
-                await self.refreshPendingEVMTransactions(chainName: chainName)
-            case .tron: await self.refreshTronTransactions(loadMore: false)
-            case .solana: await self.refreshSolanaTransactions(loadMore: false)
-            case .cardano: await self.refreshCardanoTransactions(loadMore: false)
-            case .xrp: await self.refreshXRPTransactions(loadMore: false)
-            case .stellar: await self.refreshStellarTransactions(loadMore: false)
-            case .monero: await self.refreshMoneroTransactions(loadMore: false)
-            case .sui: await self.refreshSuiTransactions(loadMore: false)
-            case .aptos: await self.refreshAptosTransactions(loadMore: false)
-            case .ton: await self.refreshTONTransactions(loadMore: false)
-            case .icp: await self.refreshICPTransactions(loadMore: false)
-            case .near: await self.refreshNearTransactions(loadMore: false)
-            case .polkadot: await self.refreshPolkadotTransactions(loadMore: false)
-            case .none: break
-            }
+            guard let id = WalletChainID(chainName), let descriptor = Self.chainRefreshDescriptors[id] else { return }
+            let usePending = isEVMChain(chainName) || Self.utxoPostSendChains.contains(chainName)
+            if usePending { await descriptor.executePendingOnly?(self) } else { await descriptor.executeHistoryOnly?(self) }
         }()
         _ = await (balanceRefresh, chainRefresh)
         updateSendVerificationNoticeForLastSentTransaction()
@@ -909,12 +865,10 @@ final class AppState {
     }
     func recordPerformanceSample(_ operation: String, startedAt: CFAbsoluteTime, metadata: String? = nil) {
         let durationMS = (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
-        recentPerformanceSamples.insert(
-            PerformanceSample(
-                id: UUID(), operation: operation, durationMS: durationMS, timestamp: Date(), metadata: metadata
-            ), at: 0
+        recentPerformanceSamples.prepend(
+            PerformanceSample(id: UUID(), operation: operation, durationMS: durationMS, timestamp: Date(), metadata: metadata)
         )
-        if recentPerformanceSamples.count > 120 { recentPerformanceSamples = Array(recentPerformanceSamples.prefix(120)) }
+        if recentPerformanceSamples.count > 120 { recentPerformanceSamples.removeLast() }
         balanceTelemetryLogger.info(
             "perf \(operation, privacy: .public) \(durationMS, format: .fixed(precision: 2))ms \(metadata ?? "", privacy: .public)")
     }
@@ -961,7 +915,7 @@ final class AppState {
         startMaintenanceLoopIfNeeded()
         SpectraSecretStoreAdapter.registerWithBridge()
         setupRustRefreshEngine()
-        Task { await BundleImageLoader.warmRasterCache() }
+        Task(priority: .utility) { await BundleImageLoader.warmRasterCache() }
         async let sqliteReload: () = reloadPersistedStateFromSQLite()
         async let fiatRefresh: () = refreshFiatExchangeRatesIfNeeded()
         _ = await (sqliteReload, fiatRefresh)

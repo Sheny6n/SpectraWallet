@@ -12,14 +12,8 @@ extension AppState {
         dogecoinSendPreview = nil; ethereumSendPreview = nil; tronSendPreview = nil; solanaSendPreview = nil; xrpSendPreview = nil;
         stellarSendPreview = nil; moneroSendPreview = nil; cardanoSendPreview = nil; suiSendPreview = nil; aptosSendPreview = nil;
         tonSendPreview = nil; icpSendPreview = nil; nearSendPreview = nil; polkadotSendPreview = nil
-        isSendingBitcoin = false; isSendingBitcoinCash = false; isSendingBitcoinSV = false; isSendingLitecoin = false;
-        isSendingDogecoin = false; isSendingEthereum = false; isSendingTron = false; isSendingSolana = false; isSendingXRP = false;
-        isSendingStellar = false; isSendingMonero = false; isSendingCardano = false; isSendingSui = false; isSendingAptos = false;
-        isSendingTON = false; isSendingICP = false; isSendingNear = false; isSendingPolkadot = false
-        isPreparingEthereumSend = false; isPreparingDogecoinSend = false; isPreparingTronSend = false; isPreparingSolanaSend = false;
-        isPreparingXRPSend = false; isPreparingStellarSend = false; isPreparingMoneroSend = false; isPreparingCardanoSend = false;
-        isPreparingSuiSend = false; isPreparingAptosSend = false; isPreparingTONSend = false; isPreparingICPSend = false;
-        isPreparingNearSend = false; isPreparingPolkadotSend = false
+        sendingChains = []
+        preparingChains = []
         pendingSelfSendConfirmation = nil
         clearHighRiskSendConfirmation()
     }

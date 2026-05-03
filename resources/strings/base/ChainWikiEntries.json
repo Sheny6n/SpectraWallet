@@ -588,7 +588,7 @@
     ]
   },
   {
-    "id": "bitcoinGold",
+    "id": "bitcoin-gold",
     "name": "Bitcoin Gold",
     "symbol": "BTG",
     "tags": ["UTXO", "PoW"],
@@ -717,7 +717,7 @@
     ]
   },
   {
-    "id": "zkSyncEra",
+    "id": "zksync-era",
     "name": "zkSync Era",
     "symbol": "ETH",
     "tags": ["EVM", "L2", "ZK Rollup"],
@@ -826,7 +826,7 @@
     ]
   },
   {
-    "id": "xLayer",
+    "id": "x-layer",
     "name": "X Layer",
     "symbol": "OKB",
     "tags": ["EVM", "L2", "ZK Rollup"],

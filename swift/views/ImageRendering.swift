@@ -171,7 +171,7 @@ enum BundleImageLoader {
             return nil
         }
 
-        private static let rendererCacheVersion = "r2"
+        private static let rendererCacheVersion = "r5"
         private static let diskCacheDir: URL? = {
             guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
             let dir = caches.appendingPathComponent("SpectraIconCache/v\(rendererCacheVersion)", isDirectory: true)
@@ -181,7 +181,9 @@ enum BundleImageLoader {
 
         private static func diskCacheURL(name: String, size: CGSize) -> URL? {
             guard let base = diskCacheDir else { return nil }
-            let scale = UITraitCollection.current.displayScale
+            // UITraitCollection.current.displayScale returns 0 outside UIKit layout callbacks
+            // (including @MainActor async Tasks). UIScreen.main.scale is always correct.
+            let scale = UIScreen.main.scale
             let safeName = name.replacingOccurrences(of: "/", with: "_")
             return base.appendingPathComponent("\(safeName)@\(Int(size.width))x\(Int(scale)).png")
         }
@@ -190,7 +192,7 @@ enum BundleImageLoader {
             guard let url = diskCacheURL(name: name, size: size),
                 FileManager.default.fileExists(atPath: url.path),
                 let data = try? Data(contentsOf: url),
-                let image = UIImage(data: data, scale: UITraitCollection.current.displayScale)
+                let image = UIImage(data: data, scale: UIScreen.main.scale)
             else {
                 return nil
             }
@@ -207,11 +209,9 @@ enum BundleImageLoader {
         }
     #endif
 
-    /// Pre-renders all bundle SVGs into the UIImage cache so the first badge
-    /// render after launch is a cache hit. Idempotent across the process
-    /// lifetime — calling it more than once (e.g. AppState reinit) is a no-op.
-    /// Renders serially with a small inter-render sleep so concurrent
-    /// WebContent processes don't pile up.
+    /// Loads disk-cached icon bitmaps into the memory cache so the first
+    /// badge render after launch is a cache hit. Disk-cache-only: never calls
+    /// SVGRenderer. Idempotent across the process lifetime.
     @MainActor
     static func warmRasterCache(targetSize: CGFloat = 256) async {
         #if canImport(UIKit)
@@ -233,8 +233,14 @@ enum BundleImageLoader {
                 bundleURL.appendingPathComponent("icons/fiat", isDirectory: true),
                 bundleURL.appendingPathComponent("Resources/icons/fiat", isDirectory: true),
             ]
+            // Disk-cache → memory-cache only. Never call SVGRenderer.render here.
+            // SVGRenderer uses a serial render queue; if warmRasterCache queues 70+
+            // WKWebView renders at boot, CoinBadge.task renders for VISIBLE badges
+            // block behind the entire chain (~14 s on a cold cache). Instead, let
+            // CoinBadge.task drive lazy rendering — it fires when the icon is
+            // actually on screen and writes the result to disk, so subsequent launches
+            // hit the disk cache here and pre-warm quickly without WKWebView.
             var seen = Set<String>()
-            var renderedCount = 0
             for dir in candidateDirs {
                 guard let contents = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
                     continue
@@ -249,18 +255,6 @@ enum BundleImageLoader {
                     let size = CGSize(width: targetSize, height: targetSize)
                     if let diskCached = readDiskCachedImage(name: stem, size: size) {
                         imageCache.setObject(diskCached, forKey: stem as NSString, cost: approximateByteCost(for: diskCached))
-                        continue
-                    }
-                    if let rendered = await SVGRenderer.render(svgURL: file, size: size) {
-                        imageCache.setObject(rendered, forKey: stem as NSString, cost: approximateByteCost(for: rendered))
-                        writeDiskCachedImage(rendered, name: stem, size: size)
-                    }
-                    renderedCount += 1
-                    // Yield between renders so we don't spawn a new WebContent
-                    // process every 50ms. Without this gap the boot sequence
-                    // saturates the CPU briefly when many SVGs live in the bundle.
-                    if renderedCount % 4 == 0 {
-                        try? await Task.sleep(nanoseconds: 80_000_000)  // 80ms every 4 icons
                     }
                 }
             }
@@ -480,6 +474,15 @@ struct SpectraLogo: View {
 
         // One WebView, one WebContent process, reused for every SVG.
         private static var sharedWebView: WKWebView?
+
+        // UIWindowScene.windows is deprecated (iOS 15+); keyWindow is the modern replacement.
+        // Falling back to flatMap(\.windows).first keeps compatibility if keyWindow is nil.
+        private static func window(for webView: WKWebView) -> UIWindow? {
+            if let kw = webView.window { return kw }
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            return scenes.compactMap(\.keyWindow).first
+                ?? scenes.flatMap(\.windows).first
+        }
         private static let sharedObserver = LoadObserver()
         // Serialize renders so two concurrent callers don't fight over the
         // shared web view's navigation state. Each render awaits the previous
@@ -501,15 +504,7 @@ struct SpectraLogo: View {
             webView.navigationDelegate = sharedObserver
             webView.isHidden = true
             // takeSnapshot requires the web view to be in the window hierarchy on iOS.
-            let window = UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap { $0.windows }
-                .first { $0.isKeyWindow }
-                ?? UIApplication.shared.connectedScenes
-                .compactMap { $0 as? UIWindowScene }
-                .flatMap { $0.windows }
-                .first
-            window?.addSubview(webView)
+            window(for: webView)?.addSubview(webView)
             sharedWebView = webView
             return webView
         }
@@ -522,7 +517,11 @@ struct SpectraLogo: View {
         /// state and can't multiplex requests.
         static func render(svgURL: URL, size: CGSize) async -> UIImage? {
             let previous = renderQueue
-            let task = Task<UIImage?, Never> { @MainActor in
+            // Use .userInitiated so the render task is never lower priority than
+            // its callers — avoids the priority-inversion hang-risk warning where
+            // a user-initiated CoinBadge.task waits on a default-priority render
+            // that was enqueued earlier by warmRasterCache.
+            let task = Task<UIImage?, Never>(priority: .userInitiated) { @MainActor in
                 _ = await previous.value
                 return await performRender(svgURL: svgURL, size: size)
             }
@@ -531,21 +530,13 @@ struct SpectraLogo: View {
         }
 
         private static func performRender(svgURL: URL, size: CGSize) async -> UIImage? {
-            let scale = UITraitCollection.current.displayScale
-            let pixelSize = CGSize(width: size.width * scale, height: size.height * scale)
             let webView = ensureWebView(size: size)
             // Belt-and-suspenders: ensure in window even if ensureWebView ran before a window existed.
-            if webView.window == nil {
-                let window = UIApplication.shared.connectedScenes
-                    .compactMap { $0 as? UIWindowScene }
-                    .flatMap { $0.windows }
-                    .first { $0.isKeyWindow }
-                    ?? UIApplication.shared.connectedScenes
-                    .compactMap { $0 as? UIWindowScene }
-                    .flatMap { $0.windows }
-                    .first
-                window?.addSubview(webView)
-            }
+            if webView.window == nil { window(for: webView)?.addSubview(webView) }
+            // If the webview still has no window, takeSnapshot returns a blank white image
+            // that looks correct but is pure noise. Return nil so the caller retries later
+            // (e.g. from CoinBadge.task, when the view hierarchy is definitely live).
+            guard webView.window != nil else { return nil }
             // Inline the SVG content directly in HTML — loading via <img src> + file://
             // baseURL is blocked by the WebContent sandbox on iOS.
             guard let svgContent = try? String(contentsOf: svgURL, encoding: .utf8) else { return nil }
@@ -570,7 +561,10 @@ struct SpectraLogo: View {
 
             let snapshotConfig = WKSnapshotConfiguration()
             snapshotConfig.rect = CGRect(origin: .zero, size: size)
-            snapshotConfig.snapshotWidth = NSNumber(value: Double(pixelSize.width / scale))
+            // snapshotWidth is the output width in points; pixelSize.width / scale == size.width
+            // algebraically, but UITraitCollection.current.displayScale returns 0 outside UIKit
+            // callbacks → NaN → takeSnapshot returns nil. Use size.width directly.
+            snapshotConfig.snapshotWidth = NSNumber(value: Double(size.width))
             return try? await webView.takeSnapshot(configuration: snapshotConfig)
         }
     }

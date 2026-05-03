@@ -26,6 +26,23 @@ func classifySolanaDerivationPreference(
     resolution.flavor == .legacy ? .legacy : .standard
 }
 
+private struct ChainAddressDescriptor {
+    let chain: SeedDerivationChain
+    let storedAddressKP: KeyPath<ImportedWallet, String?>
+    let validationKind: String
+    let seedPathKP: KeyPath<SeedDerivationPaths, String>?
+    let derivedPostProcess: DerivedAddressPostProcess
+    let normalizeStored: Bool
+    init(
+        _ chain: SeedDerivationChain, _ addressKP: KeyPath<ImportedWallet, String?>, _ kind: String,
+        seedPath: KeyPath<SeedDerivationPaths, String>? = nil,
+        post: DerivedAddressPostProcess = .none, normalize: Bool = false
+    ) {
+        self.chain = chain; self.storedAddressKP = addressKP; self.validationKind = kind
+        self.seedPathKP = seedPath; self.derivedPostProcess = post; self.normalizeStored = normalize
+    }
+}
+
 @MainActor
 extension AppState {
     /// Thin shim: pulls the resolution off `self` and forwards to the
@@ -95,115 +112,63 @@ extension AppState {
         }
     }
 
-    func resolvedTronAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .tron, derivationPath: wallet.seedDerivationPaths.tron,
-            storedAddress: wallet.tronAddress, validationKind: "tron"
+    nonisolated(unsafe) private static let addressDescriptors: [SeedDerivationChain: ChainAddressDescriptor] = {
+        let all: [ChainAddressDescriptor] = [
+            .init(.tron,            \.tronAddress,        "tron",            seedPath: \.tron),
+            .init(.solana,          \.solanaAddress,       "solana"),
+            .init(.sui,             \.suiAddress,          "sui",             normalize: true),
+            .init(.aptos,           \.aptosAddress,        "aptos",           normalize: true),
+            .init(.ton,             \.tonAddress,          "ton",             normalize: true),
+            .init(.internetComputer,\.icpAddress,          "internetComputer",seedPath: \.internetComputer, normalize: true),
+            .init(.near,            \.nearAddress,         "near",            post: .lowercase, normalize: true),
+            .init(.polkadot,        \.polkadotAddress,     "polkadot",        seedPath: \.polkadot, post: .trim),
+            .init(.zcash,           \.zcashAddress,        "zcash",           seedPath: \.zcash),
+            .init(.bitcoinGold,     \.bitcoinGoldAddress,  "bitcoinGold",     seedPath: \.bitcoinGold),
+            .init(.decred,          \.decredAddress,       "decred",          seedPath: \.decred),
+            .init(.kaspa,           \.kaspaAddress,        "kaspa",           seedPath: \.kaspa, post: .lowercase, normalize: true),
+            .init(.dash,            \.dashAddress,         "dash",            seedPath: \.dash),
+            .init(.bittensor,       \.bittensorAddress,    "bittensor",       seedPath: \.bittensor, post: .trim),
+            .init(.stellar,         \.stellarAddress,      "stellar",         seedPath: \.stellar, post: .trim),
+            .init(.xrp,             \.xrpAddress,          "xrp"),
+            .init(.litecoin,        \.litecoinAddress,     "litecoin"),
+            .init(.bitcoinCash,     \.bitcoinCashAddress,  "bitcoinCash"),
+            .init(.bitcoinSV,       \.bitcoinSvAddress,    "bitcoinSV"),
+        ]
+        return Dictionary(uniqueKeysWithValues: all.map { ($0.chain, $0) })
+    }()
+
+    private func resolvedChainAddress(for wallet: ImportedWallet, chain: SeedDerivationChain) -> String? {
+        guard let desc = Self.addressDescriptors[chain] else { return nil }
+        let derivationPath = desc.seedPathKP.map { wallet.seedDerivationPaths[keyPath: $0] }
+            ?? walletDerivationPath(for: wallet, chain: chain)
+        return resolveDerivedOrStoredAddress(
+            for: wallet, chain: chain, derivationPath: derivationPath,
+            storedAddress: wallet[keyPath: desc.storedAddressKP],
+            validationKind: desc.validationKind,
+            derivedPostProcess: desc.derivedPostProcess,
+            normalizeStored: desc.normalizeStored
         )
     }
 
-    func resolvedSolanaAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .solana, derivationPath: walletDerivationPath(for: wallet, chain: .solana),
-            storedAddress: wallet.solanaAddress, validationKind: "solana"
-        )
-    }
-
-    func resolvedSuiAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .sui, derivationPath: walletDerivationPath(for: wallet, chain: .sui),
-            storedAddress: wallet.suiAddress, validationKind: "sui", normalizeStored: true
-        )
-    }
-
-    func resolvedAptosAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .aptos, derivationPath: walletDerivationPath(for: wallet, chain: .aptos),
-            storedAddress: wallet.aptosAddress, validationKind: "aptos", normalizeStored: true
-        )
-    }
-
-    func resolvedTONAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .ton, derivationPath: walletDerivationPath(for: wallet, chain: .ton),
-            storedAddress: wallet.tonAddress, validationKind: "ton", normalizeStored: true
-        )
-    }
-
-    func resolvedICPAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .internetComputer, derivationPath: wallet.seedDerivationPaths.internetComputer,
-            storedAddress: wallet.icpAddress, validationKind: "internetComputer", normalizeStored: true
-        )
-    }
-
-    func resolvedNearAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .near, derivationPath: walletDerivationPath(for: wallet, chain: .near),
-            storedAddress: wallet.nearAddress, validationKind: "near",
-            derivedPostProcess: .lowercase, normalizeStored: true
-        )
-    }
-
-    func resolvedPolkadotAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .polkadot, derivationPath: wallet.seedDerivationPaths.polkadot,
-            storedAddress: wallet.polkadotAddress, validationKind: "polkadot",
-            derivedPostProcess: .trim
-        )
-    }
-
-    func resolvedZcashAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .zcash, derivationPath: wallet.seedDerivationPaths.zcash,
-            storedAddress: wallet.zcashAddress, validationKind: "zcash"
-        )
-    }
-
-    func resolvedBitcoinGoldAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .bitcoinGold, derivationPath: wallet.seedDerivationPaths.bitcoinGold,
-            storedAddress: wallet.bitcoinGoldAddress, validationKind: "bitcoinGold"
-        )
-    }
-
-    func resolvedDecredAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .decred, derivationPath: wallet.seedDerivationPaths.decred,
-            storedAddress: wallet.decredAddress, validationKind: "decred"
-        )
-    }
-
-    func resolvedKaspaAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .kaspa, derivationPath: wallet.seedDerivationPaths.kaspa,
-            storedAddress: wallet.kaspaAddress, validationKind: "kaspa",
-            derivedPostProcess: .lowercase, normalizeStored: true
-        )
-    }
-
-    func resolvedDashAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .dash, derivationPath: wallet.seedDerivationPaths.dash,
-            storedAddress: wallet.dashAddress, validationKind: "dash"
-        )
-    }
-
-    func resolvedBittensorAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .bittensor, derivationPath: wallet.seedDerivationPaths.bittensor,
-            storedAddress: wallet.bittensorAddress, validationKind: "bittensor",
-            derivedPostProcess: .trim
-        )
-    }
-
-    func resolvedStellarAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .stellar, derivationPath: wallet.seedDerivationPaths.stellar,
-            storedAddress: wallet.stellarAddress, validationKind: "stellar",
-            derivedPostProcess: .trim
-        )
-    }
+    func resolvedTronAddress(for wallet: ImportedWallet) -> String?       { resolvedChainAddress(for: wallet, chain: .tron) }
+    func resolvedSolanaAddress(for wallet: ImportedWallet) -> String?     { resolvedChainAddress(for: wallet, chain: .solana) }
+    func resolvedSuiAddress(for wallet: ImportedWallet) -> String?        { resolvedChainAddress(for: wallet, chain: .sui) }
+    func resolvedAptosAddress(for wallet: ImportedWallet) -> String?      { resolvedChainAddress(for: wallet, chain: .aptos) }
+    func resolvedTONAddress(for wallet: ImportedWallet) -> String?        { resolvedChainAddress(for: wallet, chain: .ton) }
+    func resolvedICPAddress(for wallet: ImportedWallet) -> String?        { resolvedChainAddress(for: wallet, chain: .internetComputer) }
+    func resolvedNearAddress(for wallet: ImportedWallet) -> String?       { resolvedChainAddress(for: wallet, chain: .near) }
+    func resolvedPolkadotAddress(for wallet: ImportedWallet) -> String?   { resolvedChainAddress(for: wallet, chain: .polkadot) }
+    func resolvedZcashAddress(for wallet: ImportedWallet) -> String?      { resolvedChainAddress(for: wallet, chain: .zcash) }
+    func resolvedBitcoinGoldAddress(for wallet: ImportedWallet) -> String?{ resolvedChainAddress(for: wallet, chain: .bitcoinGold) }
+    func resolvedDecredAddress(for wallet: ImportedWallet) -> String?     { resolvedChainAddress(for: wallet, chain: .decred) }
+    func resolvedKaspaAddress(for wallet: ImportedWallet) -> String?      { resolvedChainAddress(for: wallet, chain: .kaspa) }
+    func resolvedDashAddress(for wallet: ImportedWallet) -> String?       { resolvedChainAddress(for: wallet, chain: .dash) }
+    func resolvedBittensorAddress(for wallet: ImportedWallet) -> String?  { resolvedChainAddress(for: wallet, chain: .bittensor) }
+    func resolvedStellarAddress(for wallet: ImportedWallet) -> String?    { resolvedChainAddress(for: wallet, chain: .stellar) }
+    func resolvedXRPAddress(for wallet: ImportedWallet) -> String?        { resolvedChainAddress(for: wallet, chain: .xrp) }
+    func resolvedLitecoinAddress(for wallet: ImportedWallet) -> String?   { resolvedChainAddress(for: wallet, chain: .litecoin) }
+    func resolvedBitcoinCashAddress(for wallet: ImportedWallet) -> String?{ resolvedChainAddress(for: wallet, chain: .bitcoinCash) }
+    func resolvedBitcoinSVAddress(for wallet: ImportedWallet) -> String?  { resolvedChainAddress(for: wallet, chain: .bitcoinSV) }
 
     func resolvedCardanoAddress(for wallet: ImportedWallet) -> String? {
         if let addr = wallet.cardanoAddress, AddressValidation.isValid(addr, kind: "cardano") {
@@ -220,37 +185,9 @@ extension AppState {
         return nil
     }
 
-    func resolvedXRPAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .xrp, derivationPath: walletDerivationPath(for: wallet, chain: .xrp),
-            storedAddress: wallet.xrpAddress, validationKind: "xrp"
-        )
-    }
-
     func resolvedMoneroAddress(for wallet: ImportedWallet) -> String? {
         guard let addr = wallet.moneroAddress, AddressValidation.isValid(addr, kind: "monero") else { return nil }
         return addr.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    func resolvedLitecoinAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .litecoin, derivationPath: walletDerivationPath(for: wallet, chain: .litecoin),
-            storedAddress: wallet.litecoinAddress, validationKind: "litecoin"
-        )
-    }
-
-    func resolvedBitcoinCashAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .bitcoinCash, derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinCash),
-            storedAddress: wallet.bitcoinCashAddress, validationKind: "bitcoinCash"
-        )
-    }
-
-    func resolvedBitcoinSVAddress(for wallet: ImportedWallet) -> String? {
-        resolveDerivedOrStoredAddress(
-            for: wallet, chain: .bitcoinSV, derivationPath: walletDerivationPath(for: wallet, chain: .bitcoinSV),
-            storedAddress: wallet.bitcoinSvAddress, validationKind: "bitcoinSV"
-        )
     }
 
     func resolvedAddress(for wallet: ImportedWallet, chainName: String) -> String? {

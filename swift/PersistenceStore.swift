@@ -572,103 +572,66 @@ extension CoreWalletDerivationOverrides: Codable {
     }
 }
 extension SeedDerivationPaths: Codable {
+    private typealias SeedPathEntry = (SeedDerivationPathsCodingKeys, WritableKeyPath<SeedDerivationPaths, String>, SeedDerivationChain)
+    private static let seedPathMappings: [SeedPathEntry] = [
+        (.bitcoin,          \.bitcoin,          .bitcoin),
+        (.bitcoinCash,      \.bitcoinCash,      .bitcoinCash),
+        (.bitcoinSV,        \.bitcoinSV,        .bitcoinSV),
+        (.litecoin,         \.litecoin,         .litecoin),
+        (.dogecoin,         \.dogecoin,         .dogecoin),
+        (.ethereum,         \.ethereum,         .ethereum),
+        (.ethereumClassic,  \.ethereumClassic,  .ethereumClassic),
+        (.arbitrum,         \.arbitrum,         .arbitrum),
+        (.optimism,         \.optimism,         .optimism),
+        (.avalanche,        \.avalanche,        .avalanche),
+        (.hyperliquid,      \.hyperliquid,      .hyperliquid),
+        (.polygon,          \.polygon,          .polygon),
+        (.base,             \.base,             .base),
+        (.linea,            \.linea,            .linea),
+        (.scroll,           \.scroll,           .scroll),
+        (.blast,            \.blast,            .blast),
+        (.mantle,           \.mantle,           .mantle),
+        (.tron,             \.tron,             .tron),
+        (.solana,           \.solana,           .solana),
+        (.stellar,          \.stellar,          .stellar),
+        (.xrp,              \.xrp,              .xrp),
+        (.cardano,          \.cardano,          .cardano),
+        (.sui,              \.sui,              .sui),
+        (.aptos,            \.aptos,            .aptos),
+        (.ton,              \.ton,              .ton),
+        (.internetComputer, \.internetComputer, .internetComputer),
+        (.near,             \.near,             .near),
+        (.polkadot,         \.polkadot,         .polkadot),
+        (.zcash,            \.zcash,            .zcash),
+        (.bitcoinGold,      \.bitcoinGold,      .bitcoinGold),
+        (.sei,              \.sei,              .sei),
+        (.celo,             \.celo,             .celo),
+        (.cronos,           \.cronos,           .cronos),
+        (.opBnb,            \.opBnb,            .opBNB),
+        (.zksyncEra,        \.zksyncEra,        .zkSyncEra),
+        (.sonic,            \.sonic,            .sonic),
+        (.berachain,        \.berachain,        .berachain),
+        (.unichain,         \.unichain,         .unichain),
+        (.ink,              \.ink,              .ink),
+        (.decred,           \.decred,           .decred),
+        (.kaspa,            \.kaspa,            .kaspa),
+        (.dash,             \.dash,             .dash),
+        (.xLayer,           \.xLayer,           .xLayer),
+        (.bittensor,        \.bittensor,        .bittensor),
+    ]
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: SeedDerivationPathsCodingKeys.self)
         self = SeedDerivationPaths.defaults
         isCustomEnabled = try container.decodeIfPresent(Bool.self, forKey: .isCustomEnabled) ?? false
-        bitcoin = try container.decodeIfPresent(String.self, forKey: .bitcoin) ?? SeedDerivationChain.bitcoin.defaultPath
-        bitcoinCash = try container.decodeIfPresent(String.self, forKey: .bitcoinCash) ?? SeedDerivationChain.bitcoinCash.defaultPath
-        bitcoinSV = try container.decodeIfPresent(String.self, forKey: .bitcoinSV) ?? SeedDerivationChain.bitcoinSV.defaultPath
-        litecoin = try container.decodeIfPresent(String.self, forKey: .litecoin) ?? SeedDerivationChain.litecoin.defaultPath
-        dogecoin = try container.decodeIfPresent(String.self, forKey: .dogecoin) ?? SeedDerivationChain.dogecoin.defaultPath
-        ethereum = try container.decodeIfPresent(String.self, forKey: .ethereum) ?? SeedDerivationChain.ethereum.defaultPath
-        ethereumClassic =
-            try container.decodeIfPresent(String.self, forKey: .ethereumClassic) ?? SeedDerivationChain.ethereumClassic.defaultPath
-        arbitrum = try container.decodeIfPresent(String.self, forKey: .arbitrum) ?? SeedDerivationChain.arbitrum.defaultPath
-        optimism = try container.decodeIfPresent(String.self, forKey: .optimism) ?? SeedDerivationChain.optimism.defaultPath
-        avalanche = try container.decodeIfPresent(String.self, forKey: .avalanche) ?? SeedDerivationChain.avalanche.defaultPath
-        hyperliquid = try container.decodeIfPresent(String.self, forKey: .hyperliquid) ?? SeedDerivationChain.hyperliquid.defaultPath
-        polygon = try container.decodeIfPresent(String.self, forKey: .polygon) ?? SeedDerivationChain.polygon.defaultPath
-        base = try container.decodeIfPresent(String.self, forKey: .base) ?? SeedDerivationChain.base.defaultPath
-        linea = try container.decodeIfPresent(String.self, forKey: .linea) ?? SeedDerivationChain.linea.defaultPath
-        scroll = try container.decodeIfPresent(String.self, forKey: .scroll) ?? SeedDerivationChain.scroll.defaultPath
-        blast = try container.decodeIfPresent(String.self, forKey: .blast) ?? SeedDerivationChain.blast.defaultPath
-        mantle = try container.decodeIfPresent(String.self, forKey: .mantle) ?? SeedDerivationChain.mantle.defaultPath
-        tron = try container.decodeIfPresent(String.self, forKey: .tron) ?? SeedDerivationChain.tron.defaultPath
-        solana = try container.decodeIfPresent(String.self, forKey: .solana) ?? SeedDerivationChain.solana.defaultPath
-        stellar = try container.decodeIfPresent(String.self, forKey: .stellar) ?? SeedDerivationChain.stellar.defaultPath
-        xrp = try container.decodeIfPresent(String.self, forKey: .xrp) ?? SeedDerivationChain.xrp.defaultPath
-        cardano = try container.decodeIfPresent(String.self, forKey: .cardano) ?? SeedDerivationChain.cardano.defaultPath
-        sui = try container.decodeIfPresent(String.self, forKey: .sui) ?? SeedDerivationChain.sui.defaultPath
-        aptos = try container.decodeIfPresent(String.self, forKey: .aptos) ?? SeedDerivationChain.aptos.defaultPath
-        ton = try container.decodeIfPresent(String.self, forKey: .ton) ?? SeedDerivationChain.ton.defaultPath
-        internetComputer =
-            try container.decodeIfPresent(String.self, forKey: .internetComputer) ?? SeedDerivationChain.internetComputer.defaultPath
-        near = try container.decodeIfPresent(String.self, forKey: .near) ?? SeedDerivationChain.near.defaultPath
-        polkadot = try container.decodeIfPresent(String.self, forKey: .polkadot) ?? SeedDerivationChain.polkadot.defaultPath
-        zcash = try container.decodeIfPresent(String.self, forKey: .zcash) ?? SeedDerivationChain.zcash.defaultPath
-        bitcoinGold = try container.decodeIfPresent(String.self, forKey: .bitcoinGold) ?? SeedDerivationChain.bitcoinGold.defaultPath
-        sei = try container.decodeIfPresent(String.self, forKey: .sei) ?? SeedDerivationChain.sei.defaultPath
-        celo = try container.decodeIfPresent(String.self, forKey: .celo) ?? SeedDerivationChain.celo.defaultPath
-        cronos = try container.decodeIfPresent(String.self, forKey: .cronos) ?? SeedDerivationChain.cronos.defaultPath
-        opBnb = try container.decodeIfPresent(String.self, forKey: .opBnb) ?? SeedDerivationChain.opBNB.defaultPath
-        zksyncEra = try container.decodeIfPresent(String.self, forKey: .zksyncEra) ?? SeedDerivationChain.zkSyncEra.defaultPath
-        sonic = try container.decodeIfPresent(String.self, forKey: .sonic) ?? SeedDerivationChain.sonic.defaultPath
-        berachain = try container.decodeIfPresent(String.self, forKey: .berachain) ?? SeedDerivationChain.berachain.defaultPath
-        unichain = try container.decodeIfPresent(String.self, forKey: .unichain) ?? SeedDerivationChain.unichain.defaultPath
-        ink = try container.decodeIfPresent(String.self, forKey: .ink) ?? SeedDerivationChain.ink.defaultPath
-        decred = try container.decodeIfPresent(String.self, forKey: .decred) ?? SeedDerivationChain.decred.defaultPath
-        kaspa = try container.decodeIfPresent(String.self, forKey: .kaspa) ?? SeedDerivationChain.kaspa.defaultPath
-        dash = try container.decodeIfPresent(String.self, forKey: .dash) ?? SeedDerivationChain.dash.defaultPath
-        xLayer = try container.decodeIfPresent(String.self, forKey: .xLayer) ?? SeedDerivationChain.xLayer.defaultPath
-        bittensor = try container.decodeIfPresent(String.self, forKey: .bittensor) ?? SeedDerivationChain.bittensor.defaultPath
+        for (key, kp, chain) in Self.seedPathMappings {
+            self[keyPath: kp] = try container.decodeIfPresent(String.self, forKey: key) ?? chain.defaultPath
+        }
     }
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: SeedDerivationPathsCodingKeys.self)
         try container.encode(isCustomEnabled, forKey: .isCustomEnabled)
-        try container.encode(bitcoin, forKey: .bitcoin)
-        try container.encode(bitcoinCash, forKey: .bitcoinCash)
-        try container.encode(bitcoinSV, forKey: .bitcoinSV)
-        try container.encode(litecoin, forKey: .litecoin)
-        try container.encode(dogecoin, forKey: .dogecoin)
-        try container.encode(ethereum, forKey: .ethereum)
-        try container.encode(ethereumClassic, forKey: .ethereumClassic)
-        try container.encode(arbitrum, forKey: .arbitrum)
-        try container.encode(optimism, forKey: .optimism)
-        try container.encode(avalanche, forKey: .avalanche)
-        try container.encode(hyperliquid, forKey: .hyperliquid)
-        try container.encode(polygon, forKey: .polygon)
-        try container.encode(base, forKey: .base)
-        try container.encode(linea, forKey: .linea)
-        try container.encode(scroll, forKey: .scroll)
-        try container.encode(blast, forKey: .blast)
-        try container.encode(mantle, forKey: .mantle)
-        try container.encode(tron, forKey: .tron)
-        try container.encode(solana, forKey: .solana)
-        try container.encode(stellar, forKey: .stellar)
-        try container.encode(xrp, forKey: .xrp)
-        try container.encode(cardano, forKey: .cardano)
-        try container.encode(sui, forKey: .sui)
-        try container.encode(aptos, forKey: .aptos)
-        try container.encode(ton, forKey: .ton)
-        try container.encode(internetComputer, forKey: .internetComputer)
-        try container.encode(near, forKey: .near)
-        try container.encode(polkadot, forKey: .polkadot)
-        try container.encode(zcash, forKey: .zcash)
-        try container.encode(bitcoinGold, forKey: .bitcoinGold)
-        try container.encode(sei, forKey: .sei)
-        try container.encode(celo, forKey: .celo)
-        try container.encode(cronos, forKey: .cronos)
-        try container.encode(opBnb, forKey: .opBnb)
-        try container.encode(zksyncEra, forKey: .zksyncEra)
-        try container.encode(sonic, forKey: .sonic)
-        try container.encode(berachain, forKey: .berachain)
-        try container.encode(unichain, forKey: .unichain)
-        try container.encode(ink, forKey: .ink)
-        try container.encode(decred, forKey: .decred)
-        try container.encode(kaspa, forKey: .kaspa)
-        try container.encode(dash, forKey: .dash)
-        try container.encode(xLayer, forKey: .xLayer)
-        try container.encode(bittensor, forKey: .bittensor)
+        for (key, kp, _) in Self.seedPathMappings {
+            try container.encode(self[keyPath: kp], forKey: key)
+        }
     }
 }
