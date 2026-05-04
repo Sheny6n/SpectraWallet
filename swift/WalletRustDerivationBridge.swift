@@ -137,7 +137,7 @@ enum WalletRustDerivationBridge {
 }
 
 extension WalletDerivationCurve {
-    nonisolated var rustWireValue: UInt32 {
+    var rustWireValue: UInt32 {
         switch self {
         case .secp256k1: return 0
         case .ed25519: return 1
@@ -145,7 +145,7 @@ extension WalletDerivationCurve {
     }
 }
 extension WalletDerivationRequestedOutputs {
-    nonisolated var rustWireValue: UInt32 {
+    var rustWireValue: UInt32 {
         var value: UInt32 = 0
         if contains(.address) { value |= 1 << 0 }
         if contains(.publicKey) { value |= 1 << 1 }
@@ -154,7 +154,7 @@ extension WalletDerivationRequestedOutputs {
     }
 }
 extension AppCoreDerivationAlgorithm {
-    nonisolated var rustWireValue: UInt32 {
+    var rustWireValue: UInt32 {
         switch self {
         case .bip32Secp256k1: return 1
         case .slip10Ed25519: return 2
@@ -162,7 +162,7 @@ extension AppCoreDerivationAlgorithm {
     }
 }
 extension AppCoreAddressAlgorithm {
-    nonisolated var rustWireValue: UInt32 {
+    var rustWireValue: UInt32 {
         switch self {
         case .bitcoin: return 1
         case .evm: return 2
@@ -171,7 +171,7 @@ extension AppCoreAddressAlgorithm {
     }
 }
 extension AppCorePublicKeyFormat {
-    nonisolated var rustWireValue: UInt32 {
+    var rustWireValue: UInt32 {
         switch self {
         case .compressed: return 1
         case .uncompressed: return 2
@@ -181,7 +181,7 @@ extension AppCorePublicKeyFormat {
     }
 }
 extension AppCoreScriptType {
-    nonisolated var rustWireValue: UInt32 {
+    var rustWireValue: UInt32 {
         switch self {
         case .p2pkh: return 1
         case .p2shP2wpkh: return 2

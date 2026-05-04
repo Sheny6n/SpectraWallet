@@ -17,13 +17,13 @@ import Foundation
 /// The interval is fixed at construction so reading the call site shows
 /// the action *and* its debounce window in one place. `cancel()` discards
 /// the pending action without firing it.
-nonisolated final class DebouncedAction: @unchecked Sendable {
+final class DebouncedAction: @unchecked Sendable {
     /// Debounce window for the most recently fired closure. Captured at
     /// init so the configured interval is visible alongside the field
     /// declaration ("wallets debounce 30ms; live prices 200ms; …").
     let intervalNanoseconds: UInt64
     private let lock = NSLock()
-    private var task: Task<Void, Never>?
+    nonisolated(unsafe) private var task: Task<Void, Never>?
 
     init(intervalMilliseconds: UInt64) {
         self.intervalNanoseconds = intervalMilliseconds * 1_000_000
@@ -49,7 +49,7 @@ nonisolated final class DebouncedAction: @unchecked Sendable {
     /// Drop the pending action without running it. Safe to call from
     /// `deinit` (non-isolated) — only touches the underlying Task handle,
     /// not main-actor state.
-    func cancel() {
+    nonisolated func cancel() {
         lock.lock()
         task?.cancel()
         task = nil

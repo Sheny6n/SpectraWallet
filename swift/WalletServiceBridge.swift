@@ -1,35 +1,35 @@
 import Foundation
 enum SpectraChainID: Sendable {
-    nonisolated static let bitcoin:          UInt32 = 0
-    nonisolated static let ethereum:         UInt32 = 1
-    nonisolated static let solana:           UInt32 = 2
-    nonisolated static let dogecoin:         UInt32 = 3
-    nonisolated static let xrp:              UInt32 = 4
-    nonisolated static let litecoin:         UInt32 = 5
-    nonisolated static let bitcoinCash:      UInt32 = 6
-    nonisolated static let tron:             UInt32 = 7
-    nonisolated static let stellar:          UInt32 = 8
-    nonisolated static let cardano:          UInt32 = 9
-    nonisolated static let polkadot:         UInt32 = 10
-    nonisolated static let arbitrum:         UInt32 = 11
-    nonisolated static let optimism:         UInt32 = 12
-    nonisolated static let avalanche:        UInt32 = 13
-    nonisolated static let sui:              UInt32 = 14
-    nonisolated static let aptos:            UInt32 = 15
-    nonisolated static let ton:              UInt32 = 16
-    nonisolated static let near:             UInt32 = 17
-    nonisolated static let icp:              UInt32 = 18
-    nonisolated static let monero:           UInt32 = 19
-    nonisolated static let base:             UInt32 = 20
-    nonisolated static let ethereumClassic:  UInt32 = 21
-    nonisolated static let bitcoinSv:        UInt32 = 22
-    nonisolated static let bsc:              UInt32 = 23
-    nonisolated static let hyperliquid:      UInt32 = 24
-    nonisolated static let polygon:          UInt32 = 25
-    nonisolated static let linea:            UInt32 = 26
-    nonisolated static let scroll:           UInt32 = 27
-    nonisolated static let blast:            UInt32 = 28
-    nonisolated static let mantle:           UInt32 = 29
+    static let bitcoin:          UInt32 = 0
+    static let ethereum:         UInt32 = 1
+    static let solana:           UInt32 = 2
+    static let dogecoin:         UInt32 = 3
+    static let xrp:              UInt32 = 4
+    static let litecoin:         UInt32 = 5
+    static let bitcoinCash:      UInt32 = 6
+    static let tron:             UInt32 = 7
+    static let stellar:          UInt32 = 8
+    static let cardano:          UInt32 = 9
+    static let polkadot:         UInt32 = 10
+    static let arbitrum:         UInt32 = 11
+    static let optimism:         UInt32 = 12
+    static let avalanche:        UInt32 = 13
+    static let sui:              UInt32 = 14
+    static let aptos:            UInt32 = 15
+    static let ton:              UInt32 = 16
+    static let near:             UInt32 = 17
+    static let icp:              UInt32 = 18
+    static let monero:           UInt32 = 19
+    static let base:             UInt32 = 20
+    static let ethereumClassic:  UInt32 = 21
+    static let bitcoinSv:        UInt32 = 22
+    static let bsc:              UInt32 = 23
+    static let hyperliquid:      UInt32 = 24
+    static let polygon:          UInt32 = 25
+    static let linea:            UInt32 = 26
+    static let scroll:           UInt32 = 27
+    static let blast:            UInt32 = 28
+    static let mantle:           UInt32 = 29
     nonisolated static func id(for chainName: String) -> UInt32? { MainActor.assumeIsolated { coreChainIdForName(name: chainName) } }
 }
 /// Test seam: tests that don't want to talk to a real Rust service can

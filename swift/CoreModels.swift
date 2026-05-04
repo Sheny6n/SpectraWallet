@@ -39,7 +39,7 @@ struct SendPreviewDetails: Equatable {
 typealias Coin = CoreCoin
 extension CoreCoin: Identifiable {
     var color: Color { Coin.displayColor(for: symbol) }
-    nonisolated var valueUSD: Double { amount * priceUsd }
+    var valueUSD: Double { amount * priceUsd }
     static func makeCustom(
         name: String, symbol: String, coinGeckoId: String, chainName: String, tokenStandard: String,
         contractAddress: String?, amount: Double, priceUsd: Double
@@ -49,7 +49,7 @@ extension CoreCoin: Identifiable {
             tokenStandard: tokenStandard, contractAddress: contractAddress, amount: amount, priceUsd: priceUsd)
     }
     var hasVisibleBalance: Bool { amount > 0 }
-    nonisolated var holdingKey: String { "\(chainName)|\(symbol)" }
+    var holdingKey: String { "\(chainName)|\(symbol)" }
     var accentMarks: [String] {
         switch symbol {
         case "BTC": return ["L1", "S", "P"]
@@ -88,10 +88,10 @@ extension CoreCoin: Identifiable {
 typealias ImportedWallet = CoreImportedWallet
 extension CoreImportedWallet: Identifiable {}
 extension CoreImportedWallet {
-    nonisolated var totalBalance: Double { holdings.reduce(0) { $0 + $1.valueUSD } }
+    var totalBalance: Double { holdings.reduce(0) { $0 + $1.valueUSD } }
 }
 typealias SeedDerivationPreset = CoreSeedDerivationPreset
-nonisolated extension CoreSeedDerivationPreset: RawRepresentable, CaseIterable, Codable, Identifiable {
+extension CoreSeedDerivationPreset: RawRepresentable, CaseIterable, Codable, Identifiable {
     public typealias RawValue = String
     public init?(rawValue: String) {
         switch rawValue {
@@ -609,7 +609,7 @@ struct AddressBookEntry: Identifiable {
         return String(format: CommonLocalizationContent.current.addressBookSubtitleFormat, chainName, note)
     }
 }
-nonisolated struct TransactionRecord: Identifiable, Equatable, Sendable {
+struct TransactionRecord: Identifiable, Equatable, Sendable {
     let id: UUID
     let walletID: String?
     let kind: TransactionKind
@@ -694,7 +694,7 @@ nonisolated struct TransactionRecord: Identifiable, Equatable, Sendable {
         guard !normalizedSymbol.isEmpty else { return nil }
         return "token:\(chainSlug):\(normalizedSymbol)"
     }
-    nonisolated private var transactionIconChainSlug: String? {
+    private var transactionIconChainSlug: String? {
         switch chainName {
         case "Ethereum": return "ethereum"
         case "Arbitrum": return "arbitrum"

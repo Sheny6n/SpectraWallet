@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Bitcoin
 typealias BitcoinNetworkMode = CoreBitcoinNetworkMode
-nonisolated extension CoreBitcoinNetworkMode: RawRepresentable, CaseIterable, Codable, Identifiable {
+extension CoreBitcoinNetworkMode: RawRepresentable, CaseIterable, Codable, Identifiable {
     public init?(rawValue: String) {
         switch rawValue {
         case "mainnet": self = .mainnet
@@ -45,7 +45,7 @@ nonisolated extension CoreBitcoinNetworkMode: RawRepresentable, CaseIterable, Co
 }
 // MARK: - Dogecoin
 typealias DogecoinNetworkMode = CoreDogecoinNetworkMode
-nonisolated extension CoreDogecoinNetworkMode: RawRepresentable, CaseIterable, Codable, Identifiable {
+extension CoreDogecoinNetworkMode: RawRepresentable, CaseIterable, Codable, Identifiable {
     public init?(rawValue: String) {
         switch rawValue {
         case "mainnet": self = .mainnet
@@ -365,7 +365,7 @@ nonisolated extension CoreTransactionStatus: RawRepresentable, CaseIterable, Cod
 }
 
 typealias PriceAlertCondition = CorePriceAlertCondition
-nonisolated extension CorePriceAlertCondition: RawRepresentable, CaseIterable, Codable, Identifiable {
+extension CorePriceAlertCondition: RawRepresentable, CaseIterable, Codable, Identifiable {
     public init?(rawValue: String) {
         switch rawValue {
         case "Above": self = .above

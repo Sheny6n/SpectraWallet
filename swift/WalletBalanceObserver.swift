@@ -9,14 +9,14 @@ import Foundation
 
 final class WalletBalanceObserver: BalanceObserver, @unchecked Sendable {
     weak var store: AppState?
-    nonisolated func onBalanceUpdated(chainId: UInt32, walletId: String, summary: WalletSummary?) {
+    func onBalanceUpdated(chainId: UInt32, walletId: String, summary: WalletSummary?) {
         _ = chainId
         guard let summary else { return }
         Task { @MainActor [weak self] in
             self?.store?.applyRustBalance(walletId: walletId, summary: summary)
         }
     }
-    nonisolated func onRefreshCycleComplete(refreshed: UInt32, errors: UInt32) {
+    func onRefreshCycleComplete(refreshed: UInt32, errors: UInt32) {
         _ = errors
         Task { @MainActor [weak self] in
             guard let store = self?.store else { return }

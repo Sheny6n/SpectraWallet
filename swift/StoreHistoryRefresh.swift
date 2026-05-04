@@ -39,8 +39,8 @@ extension AppState {
 // refresh methods for non-EVM, non-UTXO-HD chains.
 // Rust normalizes and decodes; Swift maps the typed items to TransactionRecord.
 // ────────────────────────────────────────────────────────────────────────────
-nonisolated extension NormalizedHistoryItem {
-    fileprivate var createdAtDate: Date { timestamp > 0 ? Date(timeIntervalSince1970: timestamp) : Date() }
+extension NormalizedHistoryItem {
+    nonisolated fileprivate var createdAtDate: Date { timestamp > 0 ? Date(timeIntervalSince1970: timestamp) : Date() }
 }
 extension AppState {
     func canLoadMoreHistory(for walletID: String) -> Bool {

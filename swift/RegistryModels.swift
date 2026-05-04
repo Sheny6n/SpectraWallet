@@ -5,12 +5,12 @@ import SwiftUI
 #endif
 struct WalletChainID: Hashable, Codable, Identifiable, Comparable {
     let rawValue: String
-    nonisolated static func == (lhs: WalletChainID, rhs: WalletChainID) -> Bool { lhs.rawValue == rhs.rawValue }
-    nonisolated func hash(into hasher: inout Hasher) { hasher.combine(rawValue) }
-    nonisolated var id: String { rawValue }
-    nonisolated var displayName: String { Self.displayNameByID[rawValue] ?? rawValue }
-    nonisolated init(rawValue: String) { self.rawValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-    nonisolated init?(_ chainNameOrID: String) {
+    static func == (lhs: WalletChainID, rhs: WalletChainID) -> Bool { lhs.rawValue == rhs.rawValue }
+    func hash(into hasher: inout Hasher) { hasher.combine(rawValue) }
+    var id: String { rawValue }
+    var displayName: String { Self.displayNameByID[rawValue] ?? rawValue }
+    init(rawValue: String) { self.rawValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+    init?(_ chainNameOrID: String) {
         let normalized = chainNameOrID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return nil }
         if let resolved = Self.lookupByNormalizedAlias[normalized.lowercased()] {
@@ -19,23 +19,23 @@ struct WalletChainID: Hashable, Codable, Identifiable, Comparable {
             self.init(rawValue: Self.fallbackRawValue(for: normalized))
         }
     }
-    nonisolated static func resolved(_ chainNameOrID: String) -> WalletChainID {
+    static func resolved(_ chainNameOrID: String) -> WalletChainID {
         WalletChainID(chainNameOrID) ?? WalletChainID(rawValue: chainNameOrID)
     }
-    nonisolated static func < (lhs: WalletChainID, rhs: WalletChainID) -> Bool {
+    static func < (lhs: WalletChainID, rhs: WalletChainID) -> Bool {
         lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
     }
-    nonisolated private static func fallbackRawValue(for chainNameOrID: String) -> String {
+    private static func fallbackRawValue(for chainNameOrID: String) -> String {
         let normalized = chainNameOrID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let collapsed = normalized.replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
         return collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
-    nonisolated private static let chainWikiEntries: [ChainWikiEntry] =
+    private static let chainWikiEntries: [ChainWikiEntry] =
         StaticContentCatalog.loadResource("ChainWikiEntries", as: [ChainWikiEntry].self) ?? []
-    nonisolated private static let displayNameByID: [String: String] = Dictionary(
+    private static let displayNameByID: [String: String] = Dictionary(
         uniqueKeysWithValues: chainWikiEntries.map { ($0.id.lowercased(), $0.name) }
     )
-    nonisolated private static let lookupByNormalizedAlias: [String: String] = {
+    private static let lookupByNormalizedAlias: [String: String] = {
         var entries: [String: String] = [:]
         for entry in chainWikiEntries {
             entries[entry.id.lowercased()] = entry.id
@@ -277,41 +277,44 @@ extension CoreTokenPreferenceCategory: RawRepresentable, CaseIterable, Codable, 
 typealias TokenPreferenceEntry = CoreTokenPreferenceEntry
 nonisolated extension CoreTokenPreferenceEntry: Identifiable, Codable {
     // Legacy UUID-style id initializer & convenience matching Swift-era struct.
-    init(
+    nonisolated init(
         id: UUID = UUID(), chain: TokenTrackingChain, name: String, symbol: String, tokenStandard: String, contractAddress: String,
         coinGeckoId: String, decimals: Int, displayDecimals: Int? = nil, category: TokenPreferenceCategory,
         isBuiltIn: Bool, isEnabled: Bool
     ) {
-        self.init(
-            id: id.uuidString, chain: chain, name: name, symbol: symbol, tokenStandard: tokenStandard,
-            contractAddress: contractAddress, coinGeckoId: coinGeckoId,
-            decimals: Int32(decimals), displayDecimals: displayDecimals.map(Int32.init),
-            category: category, isBuiltIn: isBuiltIn, isEnabled: isEnabled
-        )
+        self.id = id.uuidString
+        self.chain = chain
+        self.name = name
+        self.symbol = symbol
+        self.tokenStandard = tokenStandard
+        self.contractAddress = contractAddress
+        self.coinGeckoId = coinGeckoId
+        self.decimals = Int32(decimals)
+        self.displayDecimals = displayDecimals.map(Int32.init)
+        self.category = category
+        self.isBuiltIn = isBuiltIn
+        self.isEnabled = isEnabled
     }
     private enum CodingKeys: String, CodingKey {
         case id, chain, name, symbol, tokenStandard, contractAddress, coinGeckoId, decimals, displayDecimals, category,
             isBuiltIn, isEnabled
     }
-    public init(from decoder: Decoder) throws {
+    nonisolated public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        let rawID = try c.decode(String.self, forKey: .id)
-        self.init(
-            id: rawID,
-            chain: try c.decode(CoreTokenTrackingChain.self, forKey: .chain),
-            name: try c.decode(String.self, forKey: .name),
-            symbol: try c.decode(String.self, forKey: .symbol),
-            tokenStandard: try c.decode(String.self, forKey: .tokenStandard),
-            contractAddress: try c.decode(String.self, forKey: .contractAddress),
-            coinGeckoId: try c.decode(String.self, forKey: .coinGeckoId),
-            decimals: try c.decode(Int32.self, forKey: .decimals),
-            displayDecimals: try c.decodeIfPresent(Int32.self, forKey: .displayDecimals),
-            category: try c.decode(CoreTokenPreferenceCategory.self, forKey: .category),
-            isBuiltIn: try c.decode(Bool.self, forKey: .isBuiltIn),
-            isEnabled: try c.decode(Bool.self, forKey: .isEnabled)
-        )
+        self.id = try c.decode(String.self, forKey: .id)
+        self.chain = try c.decode(CoreTokenTrackingChain.self, forKey: .chain)
+        self.name = try c.decode(String.self, forKey: .name)
+        self.symbol = try c.decode(String.self, forKey: .symbol)
+        self.tokenStandard = try c.decode(String.self, forKey: .tokenStandard)
+        self.contractAddress = try c.decode(String.self, forKey: .contractAddress)
+        self.coinGeckoId = try c.decode(String.self, forKey: .coinGeckoId)
+        self.decimals = try c.decode(Int32.self, forKey: .decimals)
+        self.displayDecimals = try c.decodeIfPresent(Int32.self, forKey: .displayDecimals)
+        self.category = try c.decode(CoreTokenPreferenceCategory.self, forKey: .category)
+        self.isBuiltIn = try c.decode(Bool.self, forKey: .isBuiltIn)
+        self.isEnabled = try c.decode(Bool.self, forKey: .isEnabled)
     }
-    public func encode(to encoder: Encoder) throws {
+    nonisolated public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
         try c.encode(chain, forKey: .chain)

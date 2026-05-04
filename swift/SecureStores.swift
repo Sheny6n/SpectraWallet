@@ -5,7 +5,7 @@ enum KeychainStoreError: Error, Equatable {
     case invalidEncoding
 }
 
-private nonisolated struct KeychainBackedSecureStore {
+private struct KeychainBackedSecureStore {
     private let keychain: Keychain
     typealias StoreError = KeychainStoreError
     init(service: String) {
@@ -22,7 +22,7 @@ private nonisolated struct KeychainBackedSecureStore {
     func deleteValue(for account: String) throws { try keychain.remove(account) }
     func deleteAllValues() throws { try keychain.removeAll() }
 }
-private nonisolated enum SecureRandom {
+private enum SecureRandom {
     static func data(length: Int) -> Data {
         var bytes = [UInt8](repeating: 0, count: length)
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
@@ -30,7 +30,7 @@ private nonisolated enum SecureRandom {
         return Data(bytes)
     }
 }
-nonisolated enum SecureStore {
+enum SecureStore {
     private static let storage = KeychainBackedSecureStore(service: "com.spectra.pricing")
     static func save(_ value: String, for account: String) { try? storage.save(value, for: account) }
     static func saveData(_ data: Data, for account: String) { try? storage.saveData(data, for: account) }
@@ -39,7 +39,7 @@ nonisolated enum SecureStore {
     static func deleteValue(for account: String) { try? storage.deleteValue(for: account) }
     static func deleteAllValues() { try? storage.deleteAllValues() }
 }
-private nonisolated enum SeedMaterialEnvelope {
+private enum SeedMaterialEnvelope {
     private static let storage = KeychainBackedSecureStore(service: "com.spectra.seed.masterkey")
     private static let masterKeyAccount = "seed.material.masterkey"
     private static func masterKeyBytes() -> Data {
@@ -58,7 +58,7 @@ private nonisolated enum SeedMaterialEnvelope {
         return try? decryptSeedEnvelope(data: data, masterKeyBytes: key)
     }
 }
-nonisolated enum SecureSeedStore {
+enum SecureSeedStore {
     private static let storage = KeychainBackedSecureStore(service: "com.spectra.seed")
     static func save(_ value: String, for account: String) throws { try storage.saveData(SeedMaterialEnvelope.encode(value), for: account) }
     static func loadValue(for account: String) throws -> String {
@@ -71,7 +71,7 @@ nonisolated enum SecureSeedStore {
     static func deleteValue(for account: String) throws { try storage.deleteValue(for: account) }
     static func deleteAllValues() throws { try storage.deleteAllValues() }
 }
-nonisolated enum SecureSeedPasswordStore {
+enum SecureSeedPasswordStore {
     private static let storage = KeychainBackedSecureStore(service: "com.spectra.seed.password")
     static func save(_ password: String, for account: String) throws {
         let normalized = password.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -91,7 +91,7 @@ nonisolated enum SecureSeedPasswordStore {
     static func deleteValue(for account: String) throws { try storage.deleteValue(for: account) }
     static func deleteAllValues() throws { try storage.deleteAllValues() }
 }
-nonisolated enum SecurePrivateKeyStore {
+enum SecurePrivateKeyStore {
     private static let storage = KeychainBackedSecureStore(service: "com.spectra.privatekey")
     static func save(_ value: String, for account: String) { try? storage.save(value, for: account) }
     static func loadValue(for account: String) -> String { (try? storage.loadValue(for: account)) ?? "" }
@@ -107,7 +107,7 @@ final class SpectraSecretStoreAdapter: SecretStore, @unchecked Sendable {
         }
     }
 
-    nonisolated func loadSecret(kind: SecretClass, key: String) throws -> String {
+    func loadSecret(kind: SecretClass, key: String) throws -> String {
         switch kind {
         case .seed:
             do {
@@ -128,7 +128,7 @@ final class SpectraSecretStoreAdapter: SecretStore, @unchecked Sendable {
         }
     }
 
-    nonisolated func saveSecret(kind: SecretClass, key: String, value: String) throws {
+    func saveSecret(kind: SecretClass, key: String, value: String) throws {
         switch kind {
         case .seed:
             do { try SecureSeedStore.save(value, for: key) } catch { throw SecretStoreError.Backend(message: String(describing: error)) }
@@ -139,7 +139,7 @@ final class SpectraSecretStoreAdapter: SecretStore, @unchecked Sendable {
         }
     }
 
-    nonisolated func deleteSecret(kind: SecretClass, key: String) throws {
+    func deleteSecret(kind: SecretClass, key: String) throws {
         switch kind {
         case .seed:
             do { try SecureSeedStore.deleteValue(for: key) } catch { throw SecretStoreError.Backend(message: String(describing: error)) }
@@ -150,7 +150,7 @@ final class SpectraSecretStoreAdapter: SecretStore, @unchecked Sendable {
         }
     }
 
-    nonisolated func listKeys(kind: SecretClass, prefixFilter: String) throws -> [String] {
+    func listKeys(kind: SecretClass, prefixFilter: String) throws -> [String] {
         return []
     }
 }

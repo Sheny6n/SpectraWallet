@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: ─ (merged from WalletDerivationLayer.swift)
 
-nonisolated struct WalletDerivationRequestedOutputs: OptionSet, Sendable {
+struct WalletDerivationRequestedOutputs: OptionSet, Sendable {
     let rawValue: Int
     static let address = WalletDerivationRequestedOutputs(rawValue: 1 << 0)
     static let publicKey = WalletDerivationRequestedOutputs(rawValue: 1 << 1)
@@ -69,27 +69,27 @@ typealias WalletDerivationPathPreset = AppCorePathPreset
 typealias WalletDerivationRequestCompilationPreset = AppCoreRequestCompilationPreset
 
 extension AppCorePathPreset {
-    nonisolated var uiPreset: SeedDerivationPathPreset {
+var uiPreset: SeedDerivationPathPreset {
         SeedDerivationPathPreset(title: title, detail: detail, path: derivationPath)
     }
 }
 
 enum WalletDerivationPresetCatalog {
-    nonisolated static let all: [WalletDerivationChainPreset] = load()
-    nonisolated static let requestCompilationAll: [WalletDerivationRequestCompilationPreset] = loadRequestCompilation()
+static let all: [WalletDerivationChainPreset] = load()
+static let requestCompilationAll: [WalletDerivationRequestCompilationPreset] = loadRequestCompilation()
 
-    nonisolated static func chainPreset(for chain: SeedDerivationChain) -> WalletDerivationChainPreset {
+static func chainPreset(for chain: SeedDerivationChain) -> WalletDerivationChainPreset {
         guard let preset = all.first(where: { $0.chain == chain.rawValue }) else {
             fatalError("Missing derivation preset for \(chain.rawValue)")
         }
         return preset
     }
 
-    nonisolated static func pathPresets(for chain: SeedDerivationChain) -> [WalletDerivationPathPreset] {
+static func pathPresets(for chain: SeedDerivationChain) -> [WalletDerivationPathPreset] {
         chainPreset(for: chain).derivationPaths
     }
 
-    nonisolated static func curve(for chain: SeedDerivationChain) -> WalletDerivationCurve {
+static func curve(for chain: SeedDerivationChain) -> WalletDerivationCurve {
         let raw = chainPreset(for: chain).curve
         guard let curve = WalletDerivationCurve(rawValue: raw) else {
             fatalError("Unknown curve \(raw) for \(chain.rawValue)")
@@ -97,23 +97,23 @@ enum WalletDerivationPresetCatalog {
         return curve
     }
 
-    nonisolated static func requestCompilationPreset(for chain: SeedDerivationChain) -> WalletDerivationRequestCompilationPreset {
+static func requestCompilationPreset(for chain: SeedDerivationChain) -> WalletDerivationRequestCompilationPreset {
         guard let preset = requestCompilationAll.first(where: { $0.chain == chain.rawValue }) else {
             fatalError("Missing derivation request compilation preset for \(chain.rawValue)")
         }
         return preset
     }
 
-    nonisolated static func defaultPreset(for chain: SeedDerivationChain) -> WalletDerivationPathPreset {
+static func defaultPreset(for chain: SeedDerivationChain) -> WalletDerivationPathPreset {
         let paths = chainPreset(for: chain).derivationPaths
         return paths.first(where: \.isDefault) ?? paths[0]
     }
 
-    nonisolated static func defaultPath(for chain: SeedDerivationChain) -> String {
+static func defaultPath(for chain: SeedDerivationChain) -> String {
         defaultPreset(for: chain).derivationPath
     }
 
-    nonisolated static func mainnetUIPresets(for chain: SeedDerivationChain) -> [SeedDerivationPathPreset] {
+static func mainnetUIPresets(for chain: SeedDerivationChain) -> [SeedDerivationPathPreset] {
         pathPresets(for: chain).map(\.uiPreset)
     }
 

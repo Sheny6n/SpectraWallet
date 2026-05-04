@@ -50,18 +50,16 @@ extension ChainOperationalEvent {
 
 nonisolated extension ChainOperationalEvent: Codable {
     private enum CodingKeys: String, CodingKey { case id, timestamp, chainName, level, message, transactionHash }
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(
-            id: try c.decode(UUID.self, forKey: .id),
-            timestamp: try c.decode(Date.self, forKey: .timestamp),
-            chainName: try c.decode(String.self, forKey: .chainName),
-            level: try c.decode(Level.self, forKey: .level),
-            message: try c.decode(String.self, forKey: .message),
-            transactionHash: try c.decodeIfPresent(String.self, forKey: .transactionHash)
-        )
+        self.id = try c.decode(UUID.self, forKey: .id)
+        self.timestamp = try c.decode(Date.self, forKey: .timestamp)
+        self.chainName = try c.decode(String.self, forKey: .chainName)
+        self.level = try c.decode(Level.self, forKey: .level)
+        self.message = try c.decode(String.self, forKey: .message)
+        self.transactionHash = try c.decodeIfPresent(String.self, forKey: .transactionHash)
     }
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
         try c.encode(timestamp, forKey: .timestamp)
