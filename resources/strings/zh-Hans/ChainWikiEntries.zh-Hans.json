@@ -3,7 +3,11 @@
     "id": "bitcoin",
     "name": "Bitcoin",
     "symbol": "BTC",
-    "tags": ["UTXO", "PoW", "结算"],
+    "tags": [
+      "UTXO",
+      "PoW",
+      "结算"
+    ],
     "family": "UTXO / 基础层结算网络",
     "consensus": "工作量证明（SHA-256）",
     "stateModel": "UTXO 集",
@@ -22,7 +26,11 @@
     "id": "bitcoin-cash",
     "name": "Bitcoin Cash",
     "symbol": "BCH",
-    "tags": ["UTXO", "PoW", "支付"],
+    "tags": [
+      "UTXO",
+      "PoW",
+      "支付"
+    ],
     "family": "UTXO 支付网络",
     "consensus": "工作量证明（SHA-256）",
     "stateModel": "UTXO 集",
@@ -41,7 +49,11 @@
     "id": "bitcoin-sv",
     "name": "Bitcoin SV",
     "symbol": "BSV",
-    "tags": ["UTXO", "PoW", "支付"],
+    "tags": [
+      "UTXO",
+      "PoW",
+      "支付"
+    ],
     "family": "UTXO 支付网络",
     "consensus": "工作量证明（SHA-256）",
     "stateModel": "UTXO 集",
@@ -60,7 +72,11 @@
     "id": "litecoin",
     "name": "Litecoin",
     "symbol": "LTC",
-    "tags": ["UTXO", "PoW", "支付"],
+    "tags": [
+      "UTXO",
+      "PoW",
+      "支付"
+    ],
     "family": "UTXO 支付网络",
     "consensus": "工作量证明（Scrypt）",
     "stateModel": "UTXO 集",
@@ -79,7 +95,11 @@
     "id": "dogecoin",
     "name": "Dogecoin",
     "symbol": "DOGE",
-    "tags": ["UTXO", "PoW", "支付"],
+    "tags": [
+      "UTXO",
+      "PoW",
+      "支付"
+    ],
     "family": "UTXO 支付网络",
     "consensus": "工作量证明，并支持 AuxPoW 合并挖矿生态",
     "stateModel": "UTXO 集",
@@ -98,7 +118,11 @@
     "id": "ethereum",
     "name": "Ethereum",
     "symbol": "ETH",
-    "tags": ["EVM", "PoS", "智能合约"],
+    "tags": [
+      "EVM",
+      "PoS",
+      "智能合约"
+    ],
     "family": "账户式智能合约网络",
     "consensus": "权益证明",
     "stateModel": "账户状态 + 合约存储",
@@ -117,7 +141,11 @@
     "id": "ethereum-classic",
     "name": "Ethereum Classic",
     "symbol": "ETC",
-    "tags": ["EVM", "PoW", "智能合约"],
+    "tags": [
+      "EVM",
+      "PoW",
+      "智能合约"
+    ],
     "family": "账户式智能合约网络",
     "consensus": "工作量证明（Etchash）",
     "stateModel": "账户状态 + 合约存储",
@@ -136,7 +164,11 @@
     "id": "bnb",
     "name": "BNB Chain",
     "symbol": "BNB",
-    "tags": ["EVM", "PoS", "智能合约"],
+    "tags": [
+      "EVM",
+      "PoS",
+      "智能合约"
+    ],
     "family": "EVM 兼容智能合约网络",
     "consensus": "BNB Chain 验证者共识",
     "stateModel": "账户状态 + 合约存储",
@@ -155,7 +187,11 @@
     "id": "arbitrum",
     "name": "Arbitrum",
     "symbol": "ARB",
-    "tags": ["EVM", "L2", "Rollup"],
+    "tags": [
+      "EVM",
+      "L2",
+      "Rollup"
+    ],
     "family": "EVM 兼容二层智能合约网络",
     "consensus": "由以太坊安全性保障的 Optimistic Rollup",
     "stateModel": "账户状态 + 合约存储",
@@ -174,7 +210,11 @@
     "id": "optimism",
     "name": "Optimism",
     "symbol": "OP",
-    "tags": ["EVM", "L2", "Rollup"],
+    "tags": [
+      "EVM",
+      "L2",
+      "Rollup"
+    ],
     "family": "EVM 兼容二层智能合约网络",
     "consensus": "由以太坊安全性保障的 Optimistic Rollup",
     "stateModel": "账户状态 + 合约存储",
@@ -193,7 +233,11 @@
     "id": "avalanche",
     "name": "Avalanche",
     "symbol": "AVAX",
-    "tags": ["EVM", "PoS", "智能合约"],
+    "tags": [
+      "EVM",
+      "PoS",
+      "智能合约"
+    ],
     "family": "EVM 兼容智能合约网络",
     "consensus": "权益证明 + Avalanche 共识",
     "stateModel": "账户状态 + 合约存储",
@@ -212,7 +256,11 @@
     "id": "hyperliquid",
     "name": "Hyperliquid",
     "symbol": "HYPE",
-    "tags": ["EVM", "PoS", "智能合约"],
+    "tags": [
+      "EVM",
+      "PoS",
+      "智能合约"
+    ],
     "family": "EVM 兼容智能合约网络",
     "consensus": "基于 HyperBFT 的 HyperEVM 结算",
     "stateModel": "账户状态 + 合约存储",
@@ -231,7 +279,11 @@
     "id": "tron",
     "name": "Tron",
     "symbol": "TRX",
-    "tags": ["PoS", "支付", "智能合约"],
+    "tags": [
+      "PoS",
+      "支付",
+      "智能合约"
+    ],
     "family": "账户式智能合约网络",
     "consensus": "委托权益证明",
     "stateModel": "账户状态 + 合约存储",
@@ -250,7 +302,11 @@
     "id": "solana",
     "name": "Solana",
     "symbol": "SOL",
-    "tags": ["PoS", "高吞吐", "智能合约"],
+    "tags": [
+      "PoS",
+      "高吞吐",
+      "智能合约"
+    ],
     "family": "账户式高吞吐网络",
     "consensus": "权益证明 + 历史证明时间机制",
     "stateModel": "账户状态 + 程序拥有的代币账户",
@@ -268,7 +324,11 @@
     "id": "aptos",
     "name": "Aptos",
     "symbol": "APT",
-    "tags": ["Move", "PoS", "智能合约"],
+    "tags": [
+      "Move",
+      "PoS",
+      "智能合约"
+    ],
     "family": "账户式 Move 智能合约网络",
     "consensus": "权益证明 + AptosBFT",
     "stateModel": "账户状态 + Move 资源",
@@ -287,7 +347,11 @@
     "id": "ton",
     "name": "TON",
     "symbol": "TON",
-    "tags": ["PoS", "消息", "智能合约"],
+    "tags": [
+      "PoS",
+      "消息",
+      "智能合约"
+    ],
     "family": "账户式消息驱动智能合约网络",
     "consensus": "权益证明 + 验证者终局机制",
     "stateModel": "账户状态 + 合约 / 消息",
@@ -306,7 +370,11 @@
     "id": "cardano",
     "name": "Cardano",
     "symbol": "ADA",
-    "tags": ["eUTXO", "PoS", "智能合约"],
+    "tags": [
+      "eUTXO",
+      "PoS",
+      "智能合约"
+    ],
     "family": "扩展 UTXO 智能合约网络",
     "consensus": "Ouroboros 权益证明",
     "stateModel": "eUTXO",
@@ -325,7 +393,10 @@
     "id": "xrp",
     "name": "XRP Ledger",
     "symbol": "XRP",
-    "tags": ["支付", "结算"],
+    "tags": [
+      "支付",
+      "结算"
+    ],
     "family": "账户式支付账本",
     "consensus": "XRPL 共识协议",
     "stateModel": "账户状态 + 信任线对象",
@@ -344,7 +415,11 @@
     "id": "monero",
     "name": "Monero",
     "symbol": "XMR",
-    "tags": ["隐私", "PoW", "支付"],
+    "tags": [
+      "隐私",
+      "PoW",
+      "支付"
+    ],
     "family": "隐私型账户 / 一次性输出网络",
     "consensus": "工作量证明（RandomX）",
     "stateModel": "带一次性隐身地址的私密输出模型",
@@ -363,7 +438,11 @@
     "id": "sui",
     "name": "Sui",
     "symbol": "SUI",
-    "tags": ["Move", "对象", "PoS"],
+    "tags": [
+      "Move",
+      "对象",
+      "PoS"
+    ],
     "family": "对象中心型智能合约网络",
     "consensus": "委托权益证明",
     "stateModel": "拥有对象 + 共享对象",
@@ -382,7 +461,11 @@
     "id": "near",
     "name": "NEAR",
     "symbol": "NEAR",
-    "tags": ["PoS", "智能合约", "分片"],
+    "tags": [
+      "PoS",
+      "智能合约",
+      "分片"
+    ],
     "family": "账户式智能合约网络",
     "consensus": "权益证明 + Doomslug / Nightshade 架构",
     "stateModel": "账户状态 + 合约存储",
@@ -401,7 +484,11 @@
     "id": "polkadot",
     "name": "Polkadot",
     "symbol": "DOT",
-    "tags": ["中继链", "PoS", "智能合约"],
+    "tags": [
+      "中继链",
+      "PoS",
+      "智能合约"
+    ],
     "family": "中继链 / 提名权益证明网络",
     "consensus": "提名权益证明",
     "stateModel": "账户状态 + 运行时模块（pallet）",
@@ -420,7 +507,11 @@
     "id": "internet-computer",
     "name": "Internet Computer",
     "symbol": "ICP",
-    "tags": ["Canister", "PoS", "智能合约"],
+    "tags": [
+      "Canister",
+      "PoS",
+      "智能合约"
+    ],
     "family": "账户式 canister 网络",
     "consensus": "Threshold Relay + chain-key cryptography",
     "stateModel": "账户标识符 + canister 管理状态",
@@ -439,7 +530,10 @@
     "id": "stellar",
     "name": "Stellar",
     "symbol": "XLM",
-    "tags": ["支付", "结算"],
+    "tags": [
+      "支付",
+      "结算"
+    ],
     "family": "账户式支付网络",
     "consensus": "恒星共识协议",
     "stateModel": "账户状态 + 信任线对象",
@@ -452,6 +546,502 @@
       "当前 Spectra 主要聚焦原生 XLM 转账，而不是恒星网络的发行资产和信任线管理。",
       "恒星网络使用 StrKey 编码的公开地址，通常以 G 开头，而不是十六进制或 SS58 风格格式。",
       "应用内发送支持会签名恒星支付操作，并通过公开的 Horizon 端点广播。"
+    ]
+  },
+  {
+    "id": "polygon",
+    "name": "Polygon",
+    "symbol": "POL",
+    "tags": [
+      "EVM",
+      "L1",
+      "PoS"
+    ],
+    "family": "EVM 兼容权益证明网络",
+    "consensus": "权益证明（Heimdall + Bor）",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "用于 Polygon PoS 上的低费用 EVM 转账、ERC-20 结算与 DeFi 活动。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "POL 于 2024 年代币迁移后取代 MATIC 成为燃料/质押代币；流通量是动态变化的。",
+    "notableDetails": [
+      "Polygon PoS 完全兼容 EVM，因此 Spectra 复用共享 EVM 客户端处理余额、历史和发送。",
+      "原生代币为 POL（原 MATIC）；Spectra 使用 POL 作为展示的燃料符号。",
+      "Polygon 上的 ERC-20 跟踪代币包括原生 USDC、桥接 USDT 和 DAI。"
+    ]
+  },
+  {
+    "id": "base",
+    "name": "Base",
+    "symbol": "ETH",
+    "tags": [
+      "EVM",
+      "L2",
+      "Optimistic Rollup"
+    ],
+    "family": "以太坊二层（OP Stack）",
+    "consensus": "将乐观 Rollup 数据提交至以太坊",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "用于 Base 上低费用的以太坊兼容转账和 ERC-20 结算。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Base 是 Coinbase 孵化的 L2；燃料代币是从以太坊主网桥接而来的 ETH。",
+    "notableDetails": [
+      "Base 基于 OP Stack 构建，通过欺诈证明 Rollup 提交继承以太坊安全性。",
+      "Spectra 复用共享 EVM 客户端；仅链 ID（8453）和端点集与以太坊主网不同。",
+      "Base 上的原生 USDC 合约地址为 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913。"
+    ]
+  },
+  {
+    "id": "linea",
+    "name": "Linea",
+    "symbol": "ETH",
+    "tags": [
+      "EVM",
+      "L2",
+      "ZK Rollup"
+    ],
+    "family": "以太坊二层（zkEVM）",
+    "consensus": "将 zkEVM Rollup 数据提交至以太坊",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "用于 Linea 上 ZK 安全的 EVM 转账和 ERC-20 结算。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Linea 是 ConsenSys 旗下的 zkEVM L2；燃料代币是桥接的 ETH。",
+    "notableDetails": [
+      "Linea 是 Type-2 zkEVM Rollup，因此 Spectra 直接复用共享 EVM 客户端。",
+      "链 ID 为 59144；公开 RPC 集涵盖 ConsenSys 运营及第三方端点。",
+      "Linea 上的原生 USDC 合约地址为 0x176211869cA2b568f2A7D4EE941E073a821EE1ff。"
+    ]
+  },
+  {
+    "id": "scroll",
+    "name": "Scroll",
+    "symbol": "ETH",
+    "tags": [
+      "EVM",
+      "L2",
+      "ZK Rollup"
+    ],
+    "family": "以太坊二层（zkEVM）",
+    "consensus": "将 zkEVM Rollup 数据提交至以太坊",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "用于 Scroll 上 ZK 安全的 EVM 转账和 ERC-20 结算。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Scroll 是社区构建的 zkEVM L2；燃料代币是桥接的 ETH。",
+    "notableDetails": [
+      "Scroll 目标是字节码级 zkEVM 等价，因此 Spectra 复用共享 EVM 客户端。",
+      "链 ID 为 534352。",
+      "Scroll 上的原生 USDC 合约地址为 0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4。"
+    ]
+  },
+  {
+    "id": "blast",
+    "name": "Blast",
+    "symbol": "ETH",
+    "tags": [
+      "EVM",
+      "L2",
+      "Optimistic Rollup"
+    ],
+    "family": "以太坊二层（收益型）",
+    "consensus": "将乐观 Rollup 数据提交至以太坊",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "用于 Blast 上的 EVM 转账及原生收益型 ETH/USDB 活动。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Blast 是具有原生 ETH/USDB 收益分发机制的 L2；流通量是动态变化的。",
+    "notableDetails": [
+      "Blast 与以太坊 EVM 等价，并向以太坊提交 Rollup；Spectra 复用共享 EVM 客户端。",
+      "链 ID 为 81457。",
+      "Blast 上的原生 USDB 合约地址为 0x4300000000000000000000000000000000000003。"
+    ]
+  },
+  {
+    "id": "mantle",
+    "name": "Mantle",
+    "symbol": "MNT",
+    "tags": [
+      "EVM",
+      "L2",
+      "模块化"
+    ],
+    "family": "以太坊二层（模块化 Rollup）",
+    "consensus": "具有 EigenDA 数据可用性的模块化 Rollup",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "用于 Mantle 上低费用的 EVM 转账和 ERC-20 结算。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Mantle 使用 MNT 作为原生燃料/治理代币（原 BIT）。流通量是动态变化的。",
+    "notableDetails": [
+      "Mantle 完全兼容 EVM；Spectra 复用共享 EVM 客户端。",
+      "链 ID 为 5000。",
+      "Mantle 上的原生 USDC 合约地址为 0x09Bc4E0D864854c6aFB6eB9A9cdF58aC190D0dF9。"
+    ]
+  },
+  {
+    "id": "zcash",
+    "name": "Zcash",
+    "symbol": "ZEC",
+    "tags": [
+      "UTXO",
+      "隐私",
+      "PoW"
+    ],
+    "family": "Zcash（Halo 2 + 透明 UTXO）",
+    "consensus": "工作量证明（Equihash 200,9）",
+    "stateModel": "UTXO（透明）+ zk-SNARK 屏蔽票据（Sapling, Orchard）",
+    "primaryUse": "可选屏蔽支付。Spectra 仅使用透明（t1）地址；不支持屏蔽发送。",
+    "slip44CoinType": "133（Zcash）",
+    "derivationPath": "m/44'/133'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "Zcash 参照比特币的减半计划，总供应量封顶于 21,000,000 ZEC。",
+    "notableDetails": [
+      "Spectra 仅支持透明（t1…）地址，不派生或发送屏蔽地址（zs…/u1…）。",
+      "交易使用 V5（NU5）格式，透明专属发送不含 Sapling 和 Orchard 捆绑包。",
+      "余额与历史来自 Trezor Blockbook（zec1.trezor.io）。"
+    ]
+  },
+  {
+    "id": "bitcoin-gold",
+    "name": "Bitcoin Gold",
+    "symbol": "BTG",
+    "tags": [
+      "UTXO",
+      "PoW"
+    ],
+    "family": "比特币分叉（Equihash 144,5）",
+    "consensus": "工作量证明（Equihash 144,5）",
+    "stateModel": "UTXO",
+    "primaryUse": "使用 GPU 友好的 Equihash 挖矿的比特币风格支付。",
+    "slip44CoinType": "156（Bitcoin Gold）",
+    "derivationPath": "m/44'/156'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "参照比特币减半计划，上限为 21,000,000 BTG。",
+    "notableDetails": [
+      "P2PKH 地址使用版本字节 0x26（G…）；P2SH 使用 0x17（A…）。",
+      "发送使用 BIP-143 签名哈希，并附带 SIGHASH_FORKID 和 BTG 分叉 ID 79。",
+      "余额与历史来自 Trezor Blockbook（btg1.trezor.io）。"
+    ]
+  },
+  {
+    "id": "decred",
+    "name": "Decred",
+    "symbol": "DCR",
+    "tags": [
+      "UTXO",
+      "混合",
+      "PoW",
+      "PoS"
+    ],
+    "family": "Decred（BLAKE-256，PoW + PoS 混合共识）",
+    "consensus": "混合 PoW（BLAKE-256）+ PoS 票据投票",
+    "stateModel": "带链上治理的 UTXO",
+    "primaryUse": "自我资助协议，持币人通过链上投票直接参与项目决策。",
+    "slip44CoinType": "42（Decred）",
+    "derivationPath": "m/44'/42'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "上限接近 21,000,000 DCR，区块奖励和 PoS 补贴递减。",
+    "notableDetails": [
+      "本版本为计划集成状态——派生、余额、历史和发送尚未接入。",
+      "Decred 使用 BLAKE-256（非双重 SHA-256）计算地址校验和，需要自定义编码器。",
+      "交易格式与比特币不同（见证 + 前缀分离，采用版本化序列化）。"
+    ]
+  },
+  {
+    "id": "kaspa",
+    "name": "Kaspa",
+    "symbol": "KAS",
+    "tags": [
+      "BlockDAG",
+      "PoW"
+    ],
+    "family": "Kaspa（GHOSTDAG 协议）",
+    "consensus": "基于 blockDAG 的工作量证明（kHeavyHash）",
+    "stateModel": "按 GHOSTDAG 拓扑排序的 UTXO",
+    "primaryUse": "通过并行区块 PoW 实现亚秒级确认的支付。",
+    "slip44CoinType": "111111（Kaspa）",
+    "derivationPath": "m/44'/111111'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "上限约为 28,700,000,000 KAS，采用每月递减的彩虹发行衰减机制。",
+    "notableDetails": [
+      "本版本为计划集成状态——派生、余额、历史和发送尚未接入。",
+      "地址使用带有 HRP 'kaspa' 的 CashAddr 变体 bech32 格式，与 BIP-173 bech32 不同。",
+      "交易使用 Schnorr-secp256k1 签名和自定义 protobuf 消息体。"
+    ]
+  },
+  {
+    "id": "sei",
+    "name": "Sei",
+    "symbol": "SEI",
+    "tags": [
+      "EVM",
+      "L1",
+      "PoS"
+    ],
+    "family": "Cosmos-SDK + EVM v2 模块",
+    "consensus": "Tendermint BFT（Sei v2 含 EVM 执行）",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "具备并行执行能力和 Cosmos 原生互操作的高吞吐 EVM。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "SEI 总量上限为 10,000,000,000，含质押与治理解锁。",
+    "notableDetails": [
+      "Spectra 复用共享 EVM 客户端。",
+      "EIP-155 链 ID 为 1329。"
+    ]
+  },
+  {
+    "id": "celo",
+    "name": "Celo",
+    "symbol": "CELO",
+    "tags": [
+      "EVM",
+      "L2",
+      "移动端"
+    ],
+    "family": "以太坊 L2（Celo 于 2025 年迁移至 OP Stack）",
+    "consensus": "以太坊上的乐观 Rollup",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "面向移动端的稳定币支付及低费用 EVM L2 上的 DeFi。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "CELO 总供应上限为 1,000,000,000，含纪元奖励。",
+    "notableDetails": [
+      "EIP-155 链 ID 为 42220。",
+      "原生 USDC 以及 cUSD/cEUR/cREAL 稳定币均部署在 Celo 上。"
+    ]
+  },
+  {
+    "id": "cronos",
+    "name": "Cronos",
+    "symbol": "CRO",
+    "tags": [
+      "EVM",
+      "L1"
+    ],
+    "family": "Cronos EVM（Cosmos-SDK + Ethermint）",
+    "consensus": "Tendermint BFT",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "Crypto.com 旗下用于稳定币支付和 DeFi 的 L1 EVM。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "CRO 总供应上限为 30,000,000,000（2022 年销毁后）。",
+    "notableDetails": [
+      "EIP-155 链 ID 为 25。",
+      "Cronos POS 链（链 ID 388）与此独立；Spectra 目标为 Cronos EVM。"
+    ]
+  },
+  {
+    "id": "opBNB",
+    "name": "opBNB",
+    "symbol": "BNB",
+    "tags": [
+      "EVM",
+      "L2",
+      "Optimistic Rollup"
+    ],
+    "family": "BNB Chain L2（OP Stack）",
+    "consensus": "BNB Chain 上的乐观 Rollup",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "为 BSC 用户提供低费用的 BNB 计价 Rollup 吞吐量。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "以 BNB 支付燃料费；无独立代币。",
+    "notableDetails": [
+      "EIP-155 链 ID 为 204。",
+      "结算至 BNB Smart Chain L1。"
+    ]
+  },
+  {
+    "id": "zksync-era",
+    "name": "zkSync Era",
+    "symbol": "ETH",
+    "tags": [
+      "EVM",
+      "L2",
+      "ZK Rollup"
+    ],
+    "family": "以太坊 L2（zkSync Era 验证/Rollup）",
+    "consensus": "具有 EVM 等价执行的 ZK Rollup",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "具备完整 EVM 等价性的有效性证明 L2。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "以 ETH 支付燃料费；ZK 代币用于治理。",
+    "notableDetails": [
+      "EIP-155 链 ID 为 324。",
+      "原生 ETH 转账使用标准 EIP-1559 封装；部分高级功能使用 EIP-712 交易，本版本暂不支持。"
+    ]
+  },
+  {
+    "id": "sonic",
+    "name": "Sonic",
+    "symbol": "S",
+    "tags": [
+      "EVM",
+      "L1"
+    ],
+    "family": "Sonic Labs（Fantom 继任者）",
+    "consensus": "Lachesis aBFT",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "高 TPS 的 EVM L1，即重品牌后的 Fantom 网络。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "上线时以 1:1 比例由 FTM 迁移，持续通胀中。",
+    "notableDetails": [
+      "EIP-155 链 ID 为 146。",
+      "Fantom Opera 的继任者；FTM 持有者可以 1:1 兑换为 S。"
+    ]
+  },
+  {
+    "id": "berachain",
+    "name": "Berachain",
+    "symbol": "BERA",
+    "tags": [
+      "EVM",
+      "L1",
+      "流动性证明"
+    ],
+    "family": "Berachain（Cosmos-SDK + EVM）",
+    "consensus": "流动性证明（BeaconKit + Tendermint）",
+    "stateModel": "EVM 账户状态 + 并行流动性奖励",
+    "primaryUse": "DeFi 原生 EVM L1，验证者通过链上流动性供给获得收益。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "BERA 初始供应量为 500,000,000，含 PoL 发行。",
+    "notableDetails": [
+      "EIP-155 链 ID 为 80094。",
+      "BGT 是质押/治理资产；BERA 是燃料代币。"
+    ]
+  },
+  {
+    "id": "unichain",
+    "name": "Unichain",
+    "symbol": "ETH",
+    "tags": [
+      "EVM",
+      "L2",
+      "Optimistic Rollup"
+    ],
+    "family": "以太坊 L2（OP Stack）",
+    "consensus": "以太坊上的乐观 Rollup",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "Uniswap 的专属 L2，为 DEX 原生快速结算而设计。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "以 ETH 支付燃料费；无独立代币。",
+    "notableDetails": [
+      "EIP-155 链 ID 为 130。",
+      "由 Uniswap Labs 基于 OP Stack 构建。"
+    ]
+  },
+  {
+    "id": "ink",
+    "name": "Ink",
+    "symbol": "ETH",
+    "tags": [
+      "EVM",
+      "L2",
+      "Optimistic Rollup"
+    ],
+    "family": "以太坊 L2（OP Stack）",
+    "consensus": "以太坊上的乐观 Rollup",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "Kraken 的 L2，用于低费用 DeFi 和交易所流量。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "以 ETH 支付燃料费；无独立代币。",
+    "notableDetails": [
+      "EIP-155 链 ID 为 57073。",
+      "由 Kraken 基于 OP Stack 构建。"
+    ]
+  },
+  {
+    "id": "dash",
+    "name": "Dash",
+    "symbol": "DASH",
+    "tags": [
+      "UTXO",
+      "PoW",
+      "主节点"
+    ],
+    "family": "比特币分叉（X11 + 主节点层）",
+    "consensus": "工作量证明（X11）+ 主节点法定服务",
+    "stateModel": "具备 InstantSend + ChainLocks 的 UTXO",
+    "primaryUse": "通过 InstantSend 实现快速最终确认的支付；主节点加固的 ChainLocks 抵抗 51% 攻击重组。",
+    "slip44CoinType": "5（Dash）",
+    "derivationPath": "m/44'/5'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "上限约为 18,900,000 DASH，年发行衰减约 7.14%。",
+    "notableDetails": [
+      "P2PKH 地址使用版本字节 0x4C（'X…'）；P2SH 使用 0x10（'7…'）。",
+      "网络格式和 SIGHASH_ALL 签名与比特币 V1 相同——主网不支持 SegWit。",
+      "余额与历史来自 Trezor Blockbook（dash1.trezor.io）。"
+    ]
+  },
+  {
+    "id": "x-layer",
+    "name": "X Layer",
+    "symbol": "OKB",
+    "tags": [
+      "EVM",
+      "L2",
+      "ZK Rollup"
+    ],
+    "family": "以太坊 L2（Polygon CDK zkEVM）",
+    "consensus": "具有 Polygon CDK 有效性证明的 ZK Rollup",
+    "stateModel": "EVM 账户状态",
+    "primaryUse": "OKX 旗下以 OKB 计价的 zkEVM L2，提供低费用 EVM 转账和 DeFi。",
+    "slip44CoinType": "60（以太坊）",
+    "derivationPath": "m/44'/60'/0'/0/0",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "以 OKB 支付燃料费；OKB 是 OKX 的交易所/实用代币，定期销毁。",
+    "notableDetails": [
+      "EIP-155 链 ID 为 196。",
+      "由 OKX 基于 Polygon CDK 构建；向以太坊 L1 提交 ZK 证明。",
+      "Spectra 复用共享 EVM 客户端——派生、余额、历史和发送均通过标准 EVM 流程处理。"
+    ]
+  },
+  {
+    "id": "bittensor",
+    "name": "Bittensor",
+    "symbol": "TAO",
+    "tags": [
+      "L1",
+      "PoW",
+      "AI",
+      "Substrate"
+    ],
+    "family": "Substrate（subtensor；Polkadot 风格运行时）",
+    "consensus": "工作量证明 + 子网验证者评分（Yuma 共识）",
+    "stateModel": "Substrate 账户/余额；子网和神经元被建模为链上状态",
+    "primaryUse": "去中心化机器学习市场，子网质押 TAO 并通过服务 AI 推理获得发行奖励。",
+    "slip44CoinType": "1005（Bittensor）",
+    "derivationPath": "m/44'/1005'/0'/0'/0'（substrate-bip39 忽略 BIP-32 节点；此处显示的规范路径仅供展示）",
+    "alternateDerivationPath": null,
+    "totalCirculationModel": "上限为 21,000,000 TAO，每 4 年减半，与比特币发行经济学相似。",
+    "notableDetails": [
+      "地址使用 Substrate 通用 SS58 前缀（42），以 `5…` 开头，与通用 Substrate 地址外观相同。",
+      "网络格式和外部交易签名与 Polkadot 兼容（SCALE 编码、MultiSignature 封装、sr25519 密钥对）。",
+      "Spectra 内置了硬编码的 Bittensor 运行时调用索引（余额 pallet 6，transfer_keep_alive 调用 3）；运行时升级后需重新验证这些索引。",
+      "余额和历史数据来自 Taostats（需配置 API 密钥）；无密钥时历史记录为空，余额回退为 0。"
     ]
   }
 ]

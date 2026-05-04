@@ -143,21 +143,17 @@ sync_appicon() {
 
   for svg_path in "$src"/*.svg; do
     [[ -e "$svg_path" ]] || continue
-    local filename name png_path sentinel src_md5
+    local filename name png_path
     filename="$(basename "$svg_path")"
     name="${filename%.svg}"
     png_path="$dest/${name}.png"
-    sentinel="$dest/.${name}.md5"
 
-    src_md5="$(md5 -q "$svg_path" 2>/dev/null || md5sum "$svg_path" | awk '{print $1}')"
-
-    if [[ -f "$png_path" && -f "$sentinel" && "$(cat "$sentinel")" == "$src_md5" ]]; then
+    if [[ -f "$png_path" && ! "$svg_path" -nt "$png_path" ]]; then
       ((skipped++))
       continue
     fi
 
-    $MAGICK_BIN -background none -resize 1024x1024 "$svg_path" "$png_path"
-    echo "$src_md5" > "$sentinel"
+    $MAGICK_BIN -density 1152 -background none "$svg_path" -resize 1024x1024 -depth 8 "$png_path"
     echo "  [appicon] converted $name → ${name}.png"
     ((converted++))
   done

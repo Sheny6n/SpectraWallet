@@ -2,10 +2,6 @@ import SwiftUI
 
 struct StakingView: View {
     @Environment(\.colorScheme) private var colorScheme
-    private let chainColumns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-    ]
     var body: some View {
         NavigationStack {
             ZStack {
@@ -43,7 +39,7 @@ struct StakingView: View {
                     .horizontal, 8
                 ).padding(.vertical, 3).background(Capsule(style: .continuous).fill(Color.orange.opacity(0.14)))
             }
-            LazyVGrid(columns: chainColumns, spacing: 12) {
+            VStack(spacing: 8) {
                 ForEach(StakingSupportedChain.allCases) { chain in
                     NavigationLink(value: chain) { chainTile(chain) }.buttonStyle(.plain)
                 }

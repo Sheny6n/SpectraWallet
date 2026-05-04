@@ -4,6 +4,7 @@ struct AddWalletEntryView: View {
     @State private var setupMode: SetupModeChoice = .simple
     var body: some View {
         ZStack {
+            SpectraBackdrop().ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 14) {
                     setupModePicker

@@ -47,7 +47,9 @@ struct ChainWikiLibraryView: View {
                             ChainWikiDetailView(chain: chain)
                         } label: {
                             ChainWikiRowCard(chain: chain).equatable()
-                        }.buttonStyle(.plain)
+                        }
+                        .buttonStyle(.plain)
+                        .simultaneousGesture(TapGesture().onEnded { spectraHaptic(.light) })
                     }
                 }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
             }.overlay {
@@ -59,6 +61,7 @@ struct ChainWikiLibraryView: View {
         .searchable(text: $searchText, prompt: AppLocalization.string("Search chains"))
         .textInputAutocapitalization(.never).autocorrectionDisabled()
         .toolbarBackground(.hidden, for: .navigationBar)
+        .onChange(of: selectedTag) { spectraHaptic(.light) }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

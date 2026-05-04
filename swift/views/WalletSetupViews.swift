@@ -5,15 +5,17 @@ struct SetupChainSelectionDescriptor: Identifiable {
     let id: String
     let titleKey: String
     let symbol: String
+    let gasTokenSymbol: String
     let chainName: String
     let assetIdentifier: String?
     let color: Color
     let category: SetupChainCategory
     var title: String { localizedWalletFlowString(titleKey) }
-    init(id: String, title: String, symbol: String, chainName: String, color: Color, category: SetupChainCategory) {
+    init(id: String, title: String, symbol: String, chainName: String, color: Color, category: SetupChainCategory, gasToken: String? = nil) {
         self.id = id
         self.titleKey = title
         self.symbol = symbol
+        self.gasTokenSymbol = gasToken ?? symbol
         self.chainName = chainName
         self.assetIdentifier = Coin.iconIdentifier(symbol: symbol, chainName: chainName)
         self.color = color
@@ -61,8 +63,8 @@ struct SetupView: View {
         SetupChainSelectionDescriptor(id: "avalanche", title: "Avalanche", symbol: "AVAX", chainName: "Avalanche", color: .red, category: .evmL1),
         SetupChainSelectionDescriptor(id: "hyperliquid", title: "Hyperliquid", symbol: "HYPE", chainName: "Hyperliquid", color: .mint, category: .evmL1),
         SetupChainSelectionDescriptor(id: "polygon", title: "Polygon", symbol: "POL", chainName: "Polygon", color: .purple, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "arbitrum", title: "Arbitrum", symbol: "ARB", chainName: "Arbitrum", color: .cyan, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "optimism", title: "Optimism", symbol: "OP", chainName: "Optimism", color: .red, category: .evmL2),
+        SetupChainSelectionDescriptor(id: "arbitrum", title: "Arbitrum", symbol: "ARB", chainName: "Arbitrum", color: .cyan, category: .evmL2, gasToken: "ETH"),
+        SetupChainSelectionDescriptor(id: "optimism", title: "Optimism", symbol: "OP", chainName: "Optimism", color: .red, category: .evmL2, gasToken: "ETH"),
         SetupChainSelectionDescriptor(id: "base", title: "Base", symbol: "ETH", chainName: "Base", color: .blue, category: .evmL2),
         SetupChainSelectionDescriptor(id: "linea", title: "Linea", symbol: "ETH", chainName: "Linea", color: .blue, category: .evmL2),
         SetupChainSelectionDescriptor(id: "scroll", title: "Scroll", symbol: "ETH", chainName: "Scroll", color: .orange, category: .evmL2),
@@ -111,8 +113,8 @@ struct SetupView: View {
         SetupChainSelectionDescriptor(id: "dash-testnet", title: "Dash Testnet", symbol: "tDASH", chainName: "Dash Testnet", color: .blue, category: .testnets),
         SetupChainSelectionDescriptor(id: "ethereum-sepolia", title: "Ethereum Sepolia", symbol: "SepoliaETH", chainName: "Ethereum Sepolia", color: .blue, category: .testnets),
         SetupChainSelectionDescriptor(id: "ethereum-hoodi", title: "Ethereum Hoodi", symbol: "HoodiETH", chainName: "Ethereum Hoodi", color: .blue, category: .testnets),
-        SetupChainSelectionDescriptor(id: "arbitrum-sepolia", title: "Arbitrum Sepolia", symbol: "SepoliaARB", chainName: "Arbitrum Sepolia", color: .cyan, category: .testnets),
-        SetupChainSelectionDescriptor(id: "optimism-sepolia", title: "Optimism Sepolia", symbol: "SepoliaOP", chainName: "Optimism Sepolia", color: .red, category: .testnets),
+        SetupChainSelectionDescriptor(id: "arbitrum-sepolia", title: "Arbitrum Sepolia", symbol: "SepoliaARB", chainName: "Arbitrum Sepolia", color: .cyan, category: .testnets, gasToken: "SepoliaETH"),
+        SetupChainSelectionDescriptor(id: "optimism-sepolia", title: "Optimism Sepolia", symbol: "SepoliaOP", chainName: "Optimism Sepolia", color: .red, category: .testnets, gasToken: "SepoliaETH"),
         SetupChainSelectionDescriptor(id: "base-sepolia", title: "Base Sepolia", symbol: "SepoliaETH", chainName: "Base Sepolia", color: .blue, category: .testnets),
         SetupChainSelectionDescriptor(id: "bnb-testnet", title: "BNB Chain Testnet", symbol: "tBNB", chainName: "BNB Chain Testnet", color: .yellow, category: .testnets),
         SetupChainSelectionDescriptor(id: "avalanche-fuji", title: "Avalanche Fuji", symbol: "FujiAVAX", chainName: "Avalanche Fuji", color: .red, category: .testnets),
@@ -132,7 +134,7 @@ struct SetupView: View {
         SetupChainSelectionDescriptor(id: "monero-stagenet", title: "Monero Stagenet", symbol: "sXMR", chainName: "Monero Stagenet", color: .indigo, category: .testnets),
     ]
     private static let popularChainSelectionIDs: [String] = [
-        "bitcoin", "ethereum", "solana", "base", "arbitrum", "tron",
+        "bitcoin", "ethereum", "solana", "base", "arbitrum", "tron", "monero", "litecoin",
     ]
     private static let nonPopularChainSelectionDescriptors = chainSelectionDescriptors.filter { d in
         !popularChainSelectionIDs.contains(d.id)
@@ -158,7 +160,7 @@ struct SetupView: View {
     @State private var setupPage: SetupPage
     @State private var customSeedPhraseWordCountInput: String
     @State private var chainSearchText: String = ""
-    @State private var isShowingAllChainsSheet: Bool = false
+    @State private var isShowingAllChainsPage: Bool = false
     @FocusState private var focusedSeedPhraseIndex: Int?
     // Two-column grid with generous spacing — the details page is now
     // dominated by chain selection, so each cell gets more room to breathe.
@@ -391,18 +393,18 @@ struct SetupView: View {
             // left, title + symbol stacked vertically on the right. Gives
             // chain identity room to breathe now that chain selection owns
             // the details page.
-            HStack(spacing: 14) {
+            HStack(spacing: 10) {
                 ZStack(alignment: .topTrailing) {
                     CoinBadge(
                         assetIdentifier: descriptor.assetIdentifier, fallbackText: descriptor.symbol,
-                        color: descriptor.color, size: 52
+                        color: descriptor.color, size: 36
                     )
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.subheadline.weight(.bold))
+                            .font(.caption.weight(.bold))
                             .foregroundStyle(descriptor.color)
                             .background(Circle().fill(Color.white.opacity(colorScheme == .light ? 1 : 0.88)))
-                            .offset(x: 6, y: -6)
+                            .offset(x: 4, y: -4)
                     }
                 }
                 VStack(alignment: .leading, spacing: 2) {
@@ -415,8 +417,8 @@ struct SetupView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
-            }.frame(maxWidth: .infinity, minHeight: 86, alignment: .leading)
-                .padding(.vertical, 14).padding(.horizontal, 14)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 10).padding(.horizontal, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 20, style: .continuous).fill(
                         isSelected ? descriptor.color.opacity(0.14) : Color.white.opacity(colorScheme == .light ? 0.55 : 0.04))
@@ -638,13 +640,13 @@ struct SetupView: View {
                                 ? Color.white.opacity(colorScheme == .light ? 0.55 : 0.08) : Color.orange.opacity(0.12))
                     )
                 }
-                LazyVGrid(columns: chainSelectionColumns, spacing: 12) {
+                LazyVGrid(columns: chainSelectionColumns, spacing: 8) {
                     ForEach(popularChainSelectionDescriptors) { descriptor in chainSelectionCard(descriptor) }
                 }
                 if !Self.nonPopularChainSelectionDescriptors.isEmpty {
                     Button {
                         chainSearchText = ""
-                        isShowingAllChainsSheet = true
+                        isShowingAllChainsPage = true
                     } label: {
                         HStack(spacing: 14) {
                             Image(systemName: "square.grid.2x2")
@@ -673,7 +675,7 @@ struct SetupView: View {
             .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
             chainSelectionFooterNote
         }.tint(.orange)
-        .sheet(isPresented: $isShowingAllChainsSheet) {
+        .navigationDestination(isPresented: $isShowingAllChainsPage) {
             AllChainsSelectionView(
                 chainSearchText: $chainSearchText, descriptors: Self.chainSelectionDescriptors,
                 selectedChainNames: selectedChainNameSet, toggleSelection: draft.toggleChainSelection,

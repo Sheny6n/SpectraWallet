@@ -28,7 +28,11 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
 final class AppUserPreferences {
     // ── UI ──────────────────────────────────────────────────────────────
     var hideBalances: Bool = false { didSet { guard hideBalances != oldValue else { return }; persistHandler?() } }
-    var appearanceMode: AppearanceMode = .dark {
+    var appearanceMode: AppearanceMode = {
+        if let raw = UserDefaults.standard.string(forKey: "settings.appearanceMode"),
+           let saved = AppearanceMode(rawValue: raw) { return saved }
+        return .dark
+    }() {
         didSet {
             guard appearanceMode != oldValue else { return }
             UserDefaults.standard.set(appearanceMode.rawValue, forKey: "settings.appearanceMode")
@@ -99,12 +103,7 @@ final class AppUserPreferences {
     @ObservationIgnored var notificationPermissionRequestHandler: (() -> Void)?
     @ObservationIgnored var refreshFrequencyChangedHandler: (() -> Void)?
 
-    nonisolated init() {
-        if let raw = UserDefaults.standard.string(forKey: "settings.appearanceMode"),
-           let saved = AppearanceMode(rawValue: raw) {
-            appearanceMode = saved
-        }
-    }
+    nonisolated init() {}
 
     /// Reset to factory defaults. Called from `StoreLifecycleReset.reset()`.
     /// Does NOT trigger `persistHandler`; callers are responsible for
