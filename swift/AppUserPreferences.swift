@@ -1,5 +1,17 @@
 import Foundation
 
+enum AppearanceMode: String, CaseIterable, Identifiable {
+    case dark, light, system
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .dark: return "Dark"
+        case .light: return "Light"
+        case .system: return "System"
+        }
+    }
+}
+
 /// User-facing UI / security preferences, split out of `AppState` so that
 /// views which only read preferences (Settings, lock-screen UI, the
 /// hide-balances dashboard mirror, etc.) don't get invalidated whenever
@@ -16,6 +28,12 @@ import Foundation
 final class AppUserPreferences {
     // ── UI ──────────────────────────────────────────────────────────────
     var hideBalances: Bool = false { didSet { guard hideBalances != oldValue else { return }; persistHandler?() } }
+    var appearanceMode: AppearanceMode = .dark {
+        didSet {
+            guard appearanceMode != oldValue else { return }
+            UserDefaults.standard.set(appearanceMode.rawValue, forKey: "settings.appearanceMode")
+        }
+    }
 
     // ── Security ────────────────────────────────────────────────────────
     var useFaceID: Bool = true {
@@ -81,7 +99,12 @@ final class AppUserPreferences {
     @ObservationIgnored var notificationPermissionRequestHandler: (() -> Void)?
     @ObservationIgnored var refreshFrequencyChangedHandler: (() -> Void)?
 
-    nonisolated init() {}
+    nonisolated init() {
+        if let raw = UserDefaults.standard.string(forKey: "settings.appearanceMode"),
+           let saved = AppearanceMode(rawValue: raw) {
+            appearanceMode = saved
+        }
+    }
 
     /// Reset to factory defaults. Called from `StoreLifecycleReset.reset()`.
     /// Does NOT trigger `persistHandler`; callers are responsible for
@@ -91,6 +114,7 @@ final class AppUserPreferences {
         persistHandler = nil
         defer { persistHandler = previousPersist }
         hideBalances = false
+        appearanceMode = .dark
         useFaceID = true
         useAutoLock = false
         useStrictRPCOnly = false

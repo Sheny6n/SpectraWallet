@@ -420,7 +420,7 @@ extension AppState {
 // EVM (special: token + native transfers, page-based pagination)
 // ────────────────────────────────────────────────────────────────────────────
 extension AppState {
-    @MainActor func refreshEVMTokenTransactions(
+    func refreshEVMTokenTransactions(
         chainName: String, maxResults: Int? = nil, loadMore: Bool = false, targetWalletIDs: Set<String>? = nil
     ) async {
         guard let chain = evmChainContext(for: chainName) else { return }

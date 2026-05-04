@@ -70,20 +70,22 @@ struct AddressBookView: View {
             }
             Section(AppLocalization.string("Saved Addresses")) {
                 if store.addressBook.isEmpty {
-                    Text(AppLocalization.string("No saved recipients yet.")).font(.caption).foregroundStyle(.secondary)
+                    Label(AppLocalization.string("No saved addresses yet"), systemImage: "person.crop.circle.badge.plus")
+                        .font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 4)
                 } else {
                     ForEach(store.addressBook) { entry in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(alignment: .top, spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(entry.name).font(.headline)
-                                    Text(entry.subtitleText).font(.caption).foregroundStyle(.secondary)
+                                    Text(entry.subtitleText).spectraHintText()
                                     Text(entry.address).font(.caption.monospaced()).textSelection(.enabled)
                                 }
                                 Spacer()
                                 Button {
                                     UIPasteboard.general.string = entry.address
                                     copiedEntryID = entry.id
+                                    spectraHaptic(.light)
                                 } label: {
                                     Label(
                                         copiedEntryID == entry.id ? AppLocalization.string("Copied") : AppLocalization.string("Copy"),
@@ -93,10 +95,12 @@ struct AddressBookView: View {
                             }
                         }.padding(.vertical, 4).swipeActions {
                             Button(AppLocalization.string("Edit")) {
+                                spectraHaptic(.light)
                                 editingEntry = entry
                                 editedName = entry.name
                             }
                             Button(AppLocalization.string("Delete"), role: .destructive) {
+                                spectraHaptic(.medium)
                                 store.removeAddressBookEntry(id: entry.id)
                             }
                         }
@@ -110,12 +114,12 @@ struct AddressBookView: View {
                         Text(
                             AppLocalization.string(
                                 "You can update the label for this saved address. The chain, address, and note stay fixed.")
-                        ).font(.caption).foregroundStyle(.secondary)
+                        ).spectraHintText()
                     }
                     Section(AppLocalization.string("Saved Address")) {
                         Text(entry.chainName)
                         Text(entry.address).font(.caption.monospaced()).textSelection(.enabled)
-                        if !entry.note.isEmpty { Text(entry.note).font(.caption).foregroundStyle(.secondary) }
+                        if !entry.note.isEmpty { Text(entry.note).spectraHintText() }
                     }
                     Section(AppLocalization.string("Label")) {
                         TextField(AppLocalization.string("Name"), text: $editedName).textInputAutocapitalization(.words)
@@ -141,9 +145,11 @@ struct AddressBookView: View {
     }
     private func saveContact() {
         guard store.canSaveAddressBookEntry(name: contactName, address: address, chainName: selectedChainName) else {
+            spectraNotificationHaptic(.error)
             formMessage = AppLocalization.format("Enter a unique valid %@ address and a contact name.", selectedChainName)
             return
         }
+        spectraNotificationHaptic(.success)
         store.addAddressBookEntry(name: contactName, address: address, chainName: selectedChainName, note: note)
         contactName = ""
         address = ""

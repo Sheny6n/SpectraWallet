@@ -38,51 +38,59 @@ struct ChainWikiLibraryView: View {
     }
     private var availableTags: [String] { ChainWikiEntry.all.availableWikiTags }
     var body: some View {
-        List {
-            ForEach(filteredEntries) { chain in
-                NavigationLink {
-                    ChainWikiDetailView(chain: chain)
-                } label: {
-                    ChainWikiRowLabel(chain: chain).equatable()
-                }
+        ZStack {
+            SpectraBackdrop().ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                LazyVStack(spacing: 10) {
+                    ForEach(filteredEntries) { chain in
+                        NavigationLink {
+                            ChainWikiDetailView(chain: chain)
+                        } label: {
+                            ChainWikiRowCard(chain: chain).equatable()
+                        }.buttonStyle(.plain)
+                    }
+                }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
+            }.overlay {
+                if filteredEntries.isEmpty { ContentUnavailableView.search }
             }
-        }.listStyle(.insetGrouped)
-            .navigationTitle(AppLocalization.string("Chain Wiki"))
-            .navigationBarTitleDisplayMode(.large)
-            .searchable(text: $searchText, prompt: AppLocalization.string("Search chains"))
-            .textInputAutocapitalization(.never).autocorrectionDisabled()
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker(AppLocalization.string("Tag"), selection: $selectedTag) {
-                            Text(AppLocalization.string("All")).tag(Optional<String>.none)
-                            ForEach(availableTags, id: \.self) { tag in
-                                Text(tag).tag(Optional(tag))
-                            }
+        }
+        .navigationTitle(AppLocalization.string("Chain Wiki"))
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $searchText, prompt: AppLocalization.string("Search chains"))
+        .textInputAutocapitalization(.never).autocorrectionDisabled()
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker(AppLocalization.string("Tag"), selection: $selectedTag) {
+                        Text(AppLocalization.string("All")).tag(Optional<String>.none)
+                        ForEach(availableTags, id: \.self) { tag in
+                            Text(tag).tag(Optional(tag))
                         }
-                    } label: {
-                        Image(systemName: selectedTag == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                    }.accessibilityLabel(AppLocalization.string("Filter by tag"))
-                }
+                    }
+                } label: {
+                    Image(systemName: selectedTag == nil ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                }.accessibilityLabel(AppLocalization.string("Filter by tag"))
             }
-            .overlay {
-                if filteredEntries.isEmpty {
-                    ContentUnavailableView.search
-                }
-            }
+        }
     }
 }
-private struct ChainWikiRowLabel: View, Equatable {
+private struct ChainWikiRowCard: View, Equatable {
     let chain: ChainWikiEntry
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.chain == rhs.chain }
     var body: some View {
-        HStack(spacing: 12) {
-            ChainWikiChainLogoBadge(chain: chain, size: 36)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(chain.name).font(.body)
-                Text(chain.family).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+        HStack(spacing: 14) {
+            ChainWikiChainLogoBadge(chain: chain, size: 40)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(chain.name).font(.headline).foregroundStyle(Color.primary)
+                Text(chain.family).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
-        }.padding(.vertical, 2)
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 18).padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(.white.opacity(0.03)).interactive(), in: .rect(cornerRadius: 22))
     }
 }
 

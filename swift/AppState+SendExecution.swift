@@ -691,7 +691,7 @@ extension AppState {
         sendError = "\(holding.chainName) native sending is not enabled yet."
     }
 
-    @MainActor private func submitSimpleNativeChainSend(
+    private func submitSimpleNativeChainSend(
         holding: Coin, wallet: ImportedWallet, destinationAddress: String, amount: Double,
         chainId: UInt32, chainName: String, symbol: String,
         feeDecimals: UInt32, checkSelfSend: Bool = false, supportsPrivateKey: Bool,
@@ -759,7 +759,7 @@ extension AppState {
         }
     }
 
-    @MainActor private func submitUTXOSatChainSend(
+    private func submitUTXOSatChainSend(
         holding: Coin, wallet: ImportedWallet, destinationAddress: String, amount: Double, chainId: UInt32, chainName: String,
         chain: SeedDerivationChain, symbol: String, feeFallback: Double,
         resolveAddress: @escaping (ImportedWallet) -> String?, getPreview: @escaping () -> BitcoinSendPreview?,

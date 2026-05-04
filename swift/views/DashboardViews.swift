@@ -48,10 +48,11 @@ struct DashboardView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        spectraHaptic(.light)
                         store.isShowingAddWalletEntry = true
                     } label: {
                         Image(systemName: "plus")
-                    }
+                    }.accessibilityLabel(AppLocalization.string("Add Wallet"))
                 }
             }.navigationDestination(isPresented: $store.isShowingAddWalletEntry) {
                 AddWalletEntryView(store: store)
@@ -157,7 +158,7 @@ struct DashboardView: View {
                 Spacer()
                 Text(dashboardCardCountText).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).monospacedDigit()
             }.padding(.horizontal, 20).padding(.vertical, 16)
-            Divider().opacity(0.35)
+            Divider().opacity(0.25)
             VStack(spacing: 0) {
                 switch dashboardPage {
                 case .wallets: walletsCardRows(wallets: store.wallets)
@@ -779,11 +780,11 @@ private struct DashboardActionButtons: View {
         let canReceive = store.canBeginReceive
         return GlassEffectContainer(spacing: 12) {
             HStack(spacing: 12) {
-                Button { store.beginSend() } label: {
+                Button { spectraHaptic(.medium); store.beginSend() } label: {
                     Label(AppLocalization.string("Send"), systemImage: "arrow.up.right")
                         .font(.body.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 14)
                 }.buttonStyle(.glass).disabled(!canSend)
-                Button { store.beginReceive() } label: {
+                Button { spectraHaptic(.medium); store.beginReceive() } label: {
                     Label(AppLocalization.string("Receive"), systemImage: "arrow.down.left")
                         .font(.body.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 14)
                 }.buttonStyle(.glassProminent).disabled(!canReceive)

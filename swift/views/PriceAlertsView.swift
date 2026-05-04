@@ -1,11 +1,13 @@
 import Foundation
 import SwiftUI
+import UIKit
 struct PriceAlertsView: View {
     @Bindable var store: AppState
     @State private var selectedHoldingKey: String = ""
     @State private var selectedCondition: PriceAlertCondition = .above
     @State private var targetPriceText: String = ""
     @State private var formMessage: String?
+    @State private var removingAlertID: UUID?
     private var alertableHoldingKeys: Set<String> { Set(store.alertableCoins.map(\.holdingKey)) }
     private var selectedCoin: Coin? {
         store.alertableCoins.first(where: { $0.holdingKey == selectedHoldingKey })
@@ -18,7 +20,7 @@ struct PriceAlertsView: View {
                     AppLocalization.string(
                         "Create alert rules for imported assets. When the current price reaches your target, Spectra sends a local notification. Alerts depend on price refreshes from your selected pricing source and fall back to built-in prices when live data is unavailable. Spectra refreshes prices when the app becomes active and on a repeating in-app watch cycle while it stays open."
                     )
-                ).font(.caption).foregroundStyle(.secondary)
+                ).spectraHintText()
             }
             Section(AppLocalization.string("Notifications")) {
                 Toggle(
@@ -28,14 +30,14 @@ struct PriceAlertsView: View {
                 Text(
                     AppLocalization.string(
                         "You can keep rules configured even when alerts are disabled. Re-enable this later to resume notifications.")
-                ).font(.caption).foregroundStyle(.secondary)
+                ).spectraHintText()
             }
             Section(AppLocalization.string("New Alert")) {
                 if store.alertableCoins.isEmpty {
                     Text(
                         AppLocalization.string(
                             "Import a wallet with assets first. Alerts are created from assets currently in your portfolio.")
-                    ).font(.caption).foregroundStyle(.secondary)
+                    ).spectraHintText()
                 } else {
                     Picker(AppLocalization.string("Asset"), selection: $selectedHoldingKey) {
                         ForEach(store.alertableCoins, id: \.holdingKey) { coin in
@@ -53,7 +55,7 @@ struct PriceAlertsView: View {
                             AppLocalization.format(
                                 "Current price: %@",
                                 store.formattedFiatAmountOrUnavailable(fromUSD: store.currentPriceIfAvailable(for: selectedCoin)))
-                        ).font(.caption).foregroundStyle(.secondary).spectraNumericTextLayout()
+                        ).spectraHintText().spectraNumericTextLayout()
                     }
                     if let formMessage { Text(formMessage).font(.caption).foregroundStyle(isDuplicateDraftAlert ? .orange : .secondary) }
                     Button(AppLocalization.string("Add Alert")) {
@@ -63,7 +65,8 @@ struct PriceAlertsView: View {
             }
             Section(AppLocalization.string("Active Alerts")) {
                 if store.priceAlerts.isEmpty {
-                    Text(AppLocalization.string("No alerts configured yet.")).font(.caption).foregroundStyle(.secondary)
+                    Label(AppLocalization.string("No alerts configured yet"), systemImage: "bell.slash")
+                        .font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 4)
                 } else {
                     ForEach(store.priceAlerts) { alert in
                         VStack(alignment: .leading, spacing: 8) {
@@ -81,18 +84,36 @@ struct PriceAlertsView: View {
                             }
                             HStack {
                                 Button(alert.isEnabled ? AppLocalization.string("Pause") : AppLocalization.string("Resume")) {
+                                    spectraHaptic(.light)
                                     store.togglePriceAlertEnabled(id: alert.id)
                                 }.buttonStyle(.borderless)
                                 Spacer()
                                 Button(AppLocalization.string("Remove"), role: .destructive) {
-                                    store.removePriceAlert(id: alert.id)
+                                    removingAlertID = alert.id
                                 }.buttonStyle(.borderless)
                             }.font(.caption)
                         }.padding(.vertical, 4)
                     }
                 }
             }
-        }.navigationTitle(AppLocalization.string("Price Alerts")).onAppear {
+        }.navigationTitle(AppLocalization.string("Price Alerts"))
+        .confirmationDialog(
+            AppLocalization.string("Remove Alert"),
+            isPresented: Binding(get: { removingAlertID != nil }, set: { if !$0 { removingAlertID = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(AppLocalization.string("Remove"), role: .destructive) {
+                if let id = removingAlertID {
+                    spectraHaptic(.medium)
+                    store.removePriceAlert(id: id)
+                }
+                removingAlertID = nil
+            }
+            Button(AppLocalization.string("Cancel"), role: .cancel) { removingAlertID = nil }
+        } message: {
+            Text(AppLocalization.string("This alert rule will be permanently removed."))
+        }
+        .onAppear {
             syncSelection()
         }.onChange(of: store.walletsRevision) { _, _ in
             syncSelection()
@@ -134,7 +155,6 @@ struct PriceAlertsView: View {
         if !alertableHoldingKeys.contains(selectedHoldingKey) { selectedHoldingKey = store.alertableCoins.first?.holdingKey ?? "" }
     }
     private func statusColor(for alert: PriceAlertRule) -> Color {
-        if !alert.isEnabled { return .gray }
-        return alert.hasTriggered ? .green : .orange
+        Color.spectraPriceAlertStatusColor(isEnabled: alert.isEnabled, hasTriggered: alert.hasTriggered)
     }
 }

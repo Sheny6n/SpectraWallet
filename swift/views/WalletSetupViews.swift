@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+
 struct SetupChainSelectionDescriptor: Identifiable {
     let id: String
     let titleKey: String
@@ -383,6 +384,7 @@ struct SetupView: View {
     private func chainSelectionCard(_ descriptor: SetupChainSelectionDescriptor) -> some View {
         let isSelected = selectedChainNameSet.contains(descriptor.chainName)
         Button {
+            spectraHaptic(.light)
             draft.toggleChainSelection(descriptor.chainName)
         } label: {
             // Two-column layout per cell: large badge + selection ring on the
@@ -579,23 +581,11 @@ struct SetupView: View {
     @ViewBuilder
     private var setupHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(stepIndicatorText).font(.footnote.weight(.semibold)).foregroundStyle(.orange).textCase(.uppercase)
             Text(setupTitle).font(.largeTitle.weight(.bold)).foregroundStyle(Color.primary)
                 .lineLimit(3).minimumScaleFactor(0.7).allowsTightening(true).fixedSize(horizontal: false, vertical: true)
             Text(setupSubtitle).font(.subheadline).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }.frame(maxWidth: .infinity, alignment: .leading)
-    }
-    private var stepIndicatorText: String {
-        let (current, total) = currentStepPosition
-        guard total > 0 else { return "" }
-        return "\(AppLocalization.string("import_flow.step_label")) \(current) \(AppLocalization.string("import_flow.step_of")) \(total)"
-    }
-    private var currentStepPosition: (current: Int, total: Int) {
-        // Derived directly from `setupFlow`. Side routes (e.g. `.advanced`)
-        // return `nil` from the flow and surface as the first step — the
-        // counter is hidden on those pages anyway.
-        setupFlow.stepPosition(for: setupPage) ?? (1, max(1, setupFlow.pages.count))
     }
     /// Single rendering entry point for the page body. Replaces six
     /// separate `*PageSection` properties stacked in a VStack, each with
@@ -634,49 +624,53 @@ struct SetupView: View {
             !Self.chainSelectionDescriptors.contains(where: { $0.chainName == name && popularIDSet.contains($0.id) })
         }.count
         VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .center, spacing: 12) {
-                Text(AppLocalization.string("Popular chains"))
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(chainSelectionSummary).font(.caption.weight(.semibold)).foregroundStyle(
-                    selectedChainCount == 0 ? Color.primary.opacity(0.68) : .orange
-                ).padding(.horizontal, 12).padding(.vertical, 7).background(
-                    Capsule(style: .continuous).fill(
-                        selectedChainCount == 0
-                            ? Color.white.opacity(colorScheme == .light ? 0.55 : 0.08) : Color.orange.opacity(0.12))
-                )
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .center, spacing: 12) {
+                    Text(AppLocalization.string("Popular chains"))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(chainSelectionSummary).font(.caption.weight(.semibold)).foregroundStyle(
+                        selectedChainCount == 0 ? Color.primary.opacity(0.68) : .orange
+                    ).padding(.horizontal, 12).padding(.vertical, 7).background(
+                        Capsule(style: .continuous).fill(
+                            selectedChainCount == 0
+                                ? Color.white.opacity(colorScheme == .light ? 0.55 : 0.08) : Color.orange.opacity(0.12))
+                    )
+                }
+                LazyVGrid(columns: chainSelectionColumns, spacing: 12) {
+                    ForEach(popularChainSelectionDescriptors) { descriptor in chainSelectionCard(descriptor) }
+                }
+                if !Self.nonPopularChainSelectionDescriptors.isEmpty {
+                    Button {
+                        chainSearchText = ""
+                        isShowingAllChainsSheet = true
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "square.grid.2x2")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.orange)
+                                .frame(width: 36, height: 36)
+                                .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(AppLocalization.format("Browse all %lld chains", Self.chainSelectionDescriptors.count))
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.primary)
+                                Text(AppLocalization.string("Search by name or symbol.")).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if extraSelectionCount > 0 {
+                                Text("+\(extraSelectionCount)").font(.caption.weight(.bold)).foregroundStyle(.white).padding(
+                                    .horizontal, 10
+                                ).padding(.vertical, 4).background(Capsule(style: .continuous).fill(.orange))
+                            }
+                            Image(systemName: "chevron.right").font(.subheadline.weight(.bold)).foregroundStyle(.secondary)
+                        }.padding(.horizontal, 14).padding(.vertical, 12).spectraInputFieldStyle()
+                    }.buttonStyle(.plain)
+                }
             }
-            LazyVGrid(columns: chainSelectionColumns, spacing: 12) {
-                ForEach(popularChainSelectionDescriptors) { descriptor in chainSelectionCard(descriptor) }
-            }
-            if !Self.nonPopularChainSelectionDescriptors.isEmpty {
-                Button {
-                    chainSearchText = ""
-                    isShowingAllChainsSheet = true
-                } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(.orange)
-                            .frame(width: 36, height: 36)
-                            .background(Color.orange.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(AppLocalization.format("Browse all %lld chains", Self.chainSelectionDescriptors.count))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.primary)
-                            Text(AppLocalization.string("Search by name or symbol.")).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if extraSelectionCount > 0 {
-                            Text("+\(extraSelectionCount)").font(.caption.weight(.bold)).foregroundStyle(.white).padding(
-                                .horizontal, 10
-                            ).padding(.vertical, 4).background(Capsule(style: .continuous).fill(.orange))
-                        }
-                        Image(systemName: "chevron.right").font(.subheadline.weight(.bold)).foregroundStyle(.secondary)
-                    }.padding(.horizontal, 14).padding(.vertical, 12).spectraInputFieldStyle()
-                }.buttonStyle(.plain)
-            }
+            .padding(20)
+            .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
             chainSelectionFooterNote
         }.tint(.orange)
         .sheet(isPresented: $isShowingAllChainsSheet) {
@@ -1150,46 +1144,33 @@ struct SetupView: View {
         }.padding(16).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
     }
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 24) {
-                setupHeader
-                VStack(alignment: .leading, spacing: 16) {
-                    pageContent
-                    importStatusSection
-                }
-            }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 24)
-        }.scrollBounceBehavior(.basedOnSize)
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) { setupToolbarBackButton }
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                setupBottomActionBar
-            }
+        ZStack {
+            SpectraBackdrop().ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 24) {
+                    setupHeader
+                    VStack(alignment: .leading, spacing: 16) {
+                        pageContent
+                        importStatusSection
+                    }
+                }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 24)
+            }.scrollBounceBehavior(.basedOnSize)
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            setupBottomActionBar
+        }
             .onChange(of: draft.mode) { _, _ in
                 setupPage = .details
             }.onChange(of: draft.selectedSeedPhraseWordCount) { _, newValue in
                 customSeedPhraseWordCountInput = String(newValue)
             }
     }
-    @ViewBuilder
-    private var setupToolbarBackButton: some View {
-        Button {
-            performBackNavigation()
-        } label: {
-            Image(systemName: "chevron.backward").font(.body.weight(.semibold))
-        }.accessibilityLabel(AppLocalization.string("import_flow.back"))
-    }
     private func performBackNavigation() {
-        // `.advanced` is a side route — it returns to the seed-phrase page
-        // it branched from, regardless of flow.
         if isShowingAdvancedPage {
             withAnimation { setupPage = .seedPhrase }
             return
         }
-        // Generic linear back-step. `nil` from `previous` means we're on
-        // the first page — escape the importer entirely.
         if let prev = setupFlow.previous(before: setupPage) {
             withAnimation { setupPage = prev }
             return
@@ -1200,18 +1181,30 @@ struct SetupView: View {
             dismiss()
         }
     }
+    private var canGoBack: Bool {
+        isShowingAdvancedPage || setupFlow.previous(before: setupPage) != nil
+    }
     @ViewBuilder
     private var setupBottomActionBar: some View {
         if !isShowingAdvancedPage {
             VStack(spacing: 0) {
                 Divider().opacity(0.4)
-                Button(action: performPrimaryAction) {
-                    Text(primaryActionTitle)
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                }.buttonStyle(.glassProminent).controlSize(.large).disabled(!isPrimaryActionEnabled)
-                    .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 16)
+                HStack(spacing: 12) {
+                    if canGoBack {
+                        Button(action: performBackNavigation) {
+                            Text(AppLocalization.string("Back"))
+                                .font(.body.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }.buttonStyle(.glass).controlSize(.large)
+                    }
+                    Button(action: performPrimaryAction) {
+                        Text(primaryActionTitle)
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                    }.buttonStyle(.glassProminent).controlSize(.large).disabled(!isPrimaryActionEnabled)
+                }.padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 16)
             }.glassEffect(.regular.tint(.white.opacity(0.04)), in: Rectangle())
         }
     }

@@ -24,7 +24,7 @@ private struct HistoryTransactionRowView: View, Equatable {
                         Text(amountText).font(.headline.weight(.semibold)).foregroundStyle(row.amountColor ?? Color.primary)
                             .spectraNumericTextLayout()
                     }
-                    Text(row.subtitleText).font(.caption).foregroundStyle(.secondary)
+                    Text(row.subtitleText).spectraHintText()
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 6) {
@@ -60,21 +60,14 @@ struct HistoryView: View {
                 SpectraBackdrop().ignoresSafeArea()
                 ScrollView(showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: 18) {
-                        if visibleTransactions.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(emptyStateTitle).font(.body)
-                                Text(emptyStateMessage).font(.footnote).foregroundStyle(.secondary)
-                            }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
-                                .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 28))
-                        } else {
-                            ForEach(groupedSections) { section in
+                        ForEach(groupedSections) { section in
                                 VStack(spacing: 0) {
                                     HStack {
                                         Text(AppLocalization.format("history.section.titleCount", section.title, section.rows.count))
                                             .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
                                         Spacer()
                                     }.padding(.horizontal, 20).padding(.vertical, 14)
-                                    Divider().opacity(0.35)
+                                    Divider().opacity(0.25)
                                     VStack(spacing: 0) {
                                         ForEach(Array(section.rows.enumerated()), id: \.element.id) { index, row in
                                             NavigationLink {
@@ -88,6 +81,7 @@ struct HistoryView: View {
                                                 {
                                                     if ["Bitcoin", "Bitcoin Cash", "Bitcoin SV", "Litecoin", "Dogecoin"].contains(row.transaction.chainName) {
                                                         Button {
+                                                            spectraHaptic(.light)
                                                             Task { _ = await store.retryUTXOTransactionStatus(for: row.transaction.id) }
                                                         } label: {
                                                             Label(AppLocalization.string("Recheck"), systemImage: "arrow.clockwise")
@@ -95,6 +89,7 @@ struct HistoryView: View {
                                                     }
                                                     if row.transaction.supportsSignedRebroadcast {
                                                         Button {
+                                                            spectraHaptic(.light)
                                                             Task { _ = await store.rebroadcastSignedTransaction(for: row.transaction.id) }
                                                         } label: {
                                                             Label(AppLocalization.string("Rebroadcast"), systemImage: "dot.radiowaves.up.forward")
@@ -107,12 +102,20 @@ struct HistoryView: View {
                                     }.padding(.vertical, 4)
                                 }.frame(maxWidth: .infinity).glassEffect(.regular.tint(.white.opacity(0.03)).interactive(), in: .rect(cornerRadius: 28))
                             }
-                        }
                         if shouldShowPagingControls { historyPagingControls }
                     }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
                 }.refreshable {
                     await store.performUserInitiatedRefresh()
                 }.scrollBounceBehavior(.always)
+                .overlay {
+                    if visibleTransactions.isEmpty {
+                        ContentUnavailableView {
+                            Label(emptyStateTitle, systemImage: store.normalizedHistoryIndex.isEmpty ? "clock.arrow.circlepath" : "magnifyingglass")
+                        } description: {
+                            Text(emptyStateMessage)
+                        }
+                    }
+                }
             }.searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always),
                          prompt: AppLocalization.string("Search wallet, asset, symbol, or address"))
             .textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -319,10 +322,7 @@ struct HistoryView: View {
         }
     }
     private func amountColor(for transaction: TransactionRecord) -> Color {
-        switch transaction.kind {
-        case .receive: return .mint
-        case .send: return .red
-        }
+        Color.spectraTransactionAmountColor(isReceive: transaction.kind == .receive)
     }
 }
 

@@ -48,6 +48,7 @@ struct SendView: View {
                     }.buttonStyle(.glassProminent)
                 }
                 Button {
+                    spectraHaptic(.light)
                     store.saveLastSentRecipientToAddressBook()
                 } label: {
                     Label(
@@ -224,7 +225,9 @@ struct SendView: View {
                 Toggle(AppLocalization.string("Use Custom Fees"), isOn: $store.useCustomEthereumFees)
                 if store.useCustomEthereumFees {
                     TextField(AppLocalization.string("Max Fee (gwei)"), text: $store.customEthereumMaxFeeGwei).keyboardType(.decimalPad)
+                        .padding(.horizontal, 12).padding(.vertical, 10).spectraInputFieldStyle(cornerRadius: 14)
                     TextField(AppLocalization.string("Priority Fee (gwei)"), text: $store.customEthereumPriorityFeeGwei).keyboardType(.decimalPad)
+                        .padding(.horizontal, 12).padding(.vertical, 10).spectraInputFieldStyle(cornerRadius: 14)
                     if let customEthereumFeeValidationError = store.customEthereumFeeValidationError {
                         Text(customEthereumFeeValidationError).font(.caption).foregroundStyle(.red)
                     } else {
@@ -235,6 +238,7 @@ struct SendView: View {
                 Toggle(AppLocalization.string("Manual Nonce"), isOn: $store.ethereumManualNonceEnabled)
                 if store.ethereumManualNonceEnabled {
                     TextField(AppLocalization.string("Nonce"), text: $store.ethereumManualNonce).keyboardType(.numberPad)
+                        .padding(.horizontal, 12).padding(.vertical, 10).spectraInputFieldStyle(cornerRadius: 14)
                     if let customEthereumNonceValidationError = store.customEthereumNonceValidationError {
                         Text(customEthereumNonceValidationError).font(.caption).foregroundStyle(.red)
                     }
@@ -247,9 +251,11 @@ struct SendView: View {
                         }
                     } else if store.hasPendingEthereumSendForSelectedWallet {
                         Button(AppLocalization.string("Speed Up Pending Transaction")) {
+                            spectraHaptic(.medium)
                             Task { await store.prepareEthereumSpeedUpContext() }
                         }
                         Button(AppLocalization.string("Cancel Pending Transaction")) {
+                            spectraHaptic(.medium)
                             Task { await store.prepareEthereumCancelContext() }
                         }
                     }
@@ -420,12 +426,13 @@ struct SendView: View {
                 if let qrScannerErrorMessage { Text(verbatim: qrScannerErrorMessage) }
             }.onChange(of: store.sendHoldingKey) { _, _ in
                 selectedAddressBookEntryID = ""
+            }.onChange(of: store.lastSentTransaction?.id) { old, new in
+                if old == nil, new != nil { spectraNotificationHaptic(.success) }
             }.toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(AppLocalization.string("Send")) {
-                        Task {
-                            await store.submitSend()
-                        }
+                        spectraHaptic(.heavy)
+                        Task { await store.submitSend() }
                     }.disabled(isSendBusy)
                 }
             }.alert(AppLocalization.string("High-Risk Send"), isPresented: $store.isShowingHighRiskSendConfirmation) {

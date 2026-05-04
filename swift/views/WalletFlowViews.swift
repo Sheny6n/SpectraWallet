@@ -11,13 +11,7 @@ func localizedWalletFlowString(_ key: String) -> String {
 struct TransactionStatusBadge: View {
     let status: TransactionStatus
     private var statusText: String { status.localizedTitle }
-    private var statusColor: Color {
-        switch status {
-        case .pending: return .orange
-        case .confirmed: return .mint
-        case .failed: return .red
-        }
-    }
+    private var statusColor: Color { Color.spectraTransactionStatusColor(status) }
     private var badgeScale: CGFloat {
         switch status {
         case .pending: return 1.0
@@ -86,6 +80,7 @@ struct QRCodeScannerView: UIViewControllerRepresentable {
             else { return }
             hasResolvedPayload = true
             dataScanner.stopScanning()
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
             onScan(payload)
         }
     }
@@ -379,6 +374,7 @@ struct WalletDetailView: View {
                             .textInputAutocapitalization(.never).autocorrectionDisabled().privacySensitive().padding(14)
                             .spectraInputFieldStyle().foregroundStyle(Color.primary)
                         Button {
+                            spectraHaptic(.medium)
                             isShowingSeedPhrasePasswordPrompt = false
                             Task {
                                 await revealSeedPhrase(password: seedPhrasePasswordInput)
@@ -460,11 +456,11 @@ struct WalletDetailView: View {
         let modeIcon: String = isWatchOnly ? "eye.fill" : (isPrivateKeyWallet ? "key.fill" : "doc.text.fill")
         VStack(alignment: .leading, spacing: 12) {
             walletStatRow(label: localizedWalletFlowString("Mode"), value: modeValue, icon: modeIcon)
-            Divider().opacity(0.4)
+            Divider().opacity(0.25)
             walletStatRow(
                 label: localizedWalletFlowString("Asset Count"),
                 value: "\(presentation.nonZeroAssetCount)", icon: "chart.pie.fill")
-            Divider().opacity(0.4)
+            Divider().opacity(0.25)
             walletStatRow(label: localizedWalletFlowString("First Activity"), value: firstActivityDateText, icon: "clock.fill")
         }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
             .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
@@ -499,7 +495,7 @@ struct WalletDetailView: View {
                 ForEach(holdings) { holding in
                     holdingRow(holding)
                     if holding.id != holdings.last?.id {
-                        Divider().opacity(0.3)
+                        Divider().opacity(0.25)
                     }
                 }
             }
@@ -516,6 +512,7 @@ struct WalletDetailView: View {
                 Button {
                     UIPasteboard.general.string = walletAddress
                     didCopyWalletAddress = true
+                    spectraHaptic(.light)
                 } label: {
                     Label(
                         didCopyWalletAddress ? localizedWalletFlowString("Copied") : localizedWalletFlowString("Copy"),
@@ -535,6 +532,7 @@ struct WalletDetailView: View {
     private var walletActionsStack: some View {
         VStack(spacing: 10) {
             Button {
+                spectraHaptic(.light)
                 withAnimation(.easeInOut(duration: 0.25)) {
                     store.beginEditingWallet(wallet)
                 }
@@ -545,6 +543,7 @@ struct WalletDetailView: View {
             }.buttonStyle(.glass).tint(.orange)
             if !isWatchOnly && !isPrivateKeyWallet {
                 Button {
+                    spectraHaptic(.medium)
                     if requiresSeedPhrasePassword {
                         seedPhrasePasswordInput = ""
                         isShowingSeedPhrasePasswordPrompt = true
@@ -565,6 +564,7 @@ struct WalletDetailView: View {
                 }.buttonStyle(.glass).tint(.orange).disabled(isRevealingSeedPhrase || !store.canRevealSeedPhrase(for: wallet.id))
             }
             Button(role: .destructive) {
+                spectraHaptic(.medium)
                 isShowingDeleteWalletAlert = true
             } label: {
                 Label(localizedWalletFlowString("Delete Wallet"), systemImage: "trash").font(.subheadline.weight(.semibold)).frame(
@@ -605,8 +605,10 @@ struct WalletDetailView: View {
             let phrase = try await store.revealSeedPhrase(for: wallet, password: password)
             revealedSeedPhrase = phrase
             seedPhrasePasswordInput = ""
+            spectraNotificationHaptic(.success)
             isShowingSeedPhraseSheet = true
         } catch {
+            spectraNotificationHaptic(.error)
             seedPhraseErrorMessage = error.localizedDescription
         }
     }

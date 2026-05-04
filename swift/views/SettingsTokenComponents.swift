@@ -92,6 +92,7 @@ struct TokenRegistryEntryCardView: View {
     let setEnabled: (Bool) -> Void
     let updateDecimals: (Int) -> Void
     let removeToken: () -> Void
+    @State private var isShowingRemoveConfirmation = false
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -120,11 +121,26 @@ struct TokenRegistryEntryCardView: View {
                     AppLocalization.format("Supports: %lld decimals", Int(entry.decimals)),
                     value: Binding(get: { Int(entry.decimals) }, set: { v in updateDecimals(v) }), in: 0...30, step: 1
                 )
-                Button(role: .destructive, action: removeToken) {
+                Button(role: .destructive) {
+                    isShowingRemoveConfirmation = true
+                } label: {
                     Label(AppLocalization.string("Remove Token"), systemImage: "trash")
                 }
             }
         }.padding(.vertical, 4)
+        .confirmationDialog(
+            AppLocalization.string("Remove Token"),
+            isPresented: $isShowingRemoveConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(AppLocalization.string("Remove"), role: .destructive) {
+                spectraHaptic(.medium)
+                removeToken()
+            }
+            Button(AppLocalization.string("Cancel"), role: .cancel) {}
+        } message: {
+            Text(AppLocalization.string("This custom token will be removed and will no longer appear in your portfolio."))
+        }
     }
 }
 private struct SettingsTokenDetailRow: View {

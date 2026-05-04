@@ -65,6 +65,7 @@ struct ReceiveView: View {
                     Button {
                         UIPasteboard.general.string = presentation.resolvedAddress
                         didCopyReceiveAddress = true
+                        spectraHaptic(.light)
                         Task {
                             try? await Task.sleep(for: .seconds(1.6))
                             didCopyReceiveAddress = false
@@ -84,7 +85,7 @@ struct ReceiveView: View {
                     QRCodeImage(address: presentation.resolvedAddress).frame(width: 184, height: 184).padding(14).background(
                         Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                     Text(AppLocalization.string("Scan to receive")).font(.headline)
-                    Text(AppLocalization.string("Share this QR code or copy the address below.")).font(.caption).foregroundStyle(.secondary)
+                    Text(AppLocalization.string("Share this QR code or copy the address below.")).spectraHintText()
                         .multilineTextAlignment(.center)
                     Button {
                         guard let receiveQRImage = presentation.qrImage else { return }
@@ -103,17 +104,24 @@ struct ReceiveView: View {
                         ).padding(.vertical, 10)
                     }.buttonStyle(.glass).disabled(presentation.qrImage == nil)
                 } else {
-                    ProgressView()
-                    Text(AppLocalization.string("Preparing receive address...")).font(.headline)
-                    Text(AppLocalization.string("Spectra is resolving the current address for this wallet.")).font(.caption).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                    SpectraShimmer(cornerRadius: 20, height: 212).frame(width: 212)
+                    SpectraShimmer(cornerRadius: 6, height: 18).frame(maxWidth: 130)
+                    SpectraShimmer(cornerRadius: 5, height: 13).frame(maxWidth: 200)
                 }
             }.frame(maxWidth: .infinity).padding(18).spectraBubbleFill().spectraCardFill(cornerRadius: 24)
         }
         spectraDetailCard(title: "Address") {
-            Text(presentation.resolvedAddress).font(.body.monospaced()).textSelection(.enabled).padding(14).frame(
-                maxWidth: .infinity, alignment: .leading
-            ).spectraBubbleFill().spectraCardFill(cornerRadius: 18)
+            if presentation.canUseAddress {
+                Text(presentation.resolvedAddress).font(.body.monospaced()).textSelection(.enabled).padding(14).frame(
+                    maxWidth: .infinity, alignment: .leading
+                ).spectraBubbleFill().spectraCardFill(cornerRadius: 18)
+            } else {
+                VStack(spacing: 6) {
+                    SpectraShimmer(cornerRadius: 5, height: 13).frame(maxWidth: .infinity)
+                    SpectraShimmer(cornerRadius: 5, height: 13).frame(maxWidth: .infinity)
+                    SpectraShimmer(cornerRadius: 5, height: 13).frame(maxWidth: 180, alignment: .leading)
+                }.padding(14).spectraBubbleFill()
+            }
             if didCopyReceiveAddress {
                 Label(AppLocalization.string("Address copied to clipboard."), systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(
                     .green)
@@ -128,7 +136,7 @@ struct ReceiveView: View {
                         )
                         VStack(alignment: .leading, spacing: 2) {
                             Text(receiveCoin.name).font(.headline)
-                            Text(receiveCoin.symbol).font(.caption).foregroundStyle(.secondary)
+                            Text(receiveCoin.symbol).spectraHintText()
                         }
                         Spacer()
                     }

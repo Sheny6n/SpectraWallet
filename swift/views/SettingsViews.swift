@@ -7,6 +7,7 @@ struct SettingsView: View {
         case addressBook
         case trackedTokens
         case decimalDisplay
+        case appearance
         case refreshFrequency
         case priceAlerts
         case largeMovementAlerts
@@ -40,6 +41,9 @@ struct SettingsView: View {
                     }
                     NavigationLink(value: Route.decimalDisplay) {
                         Label(AppLocalization.string("Decimal Display"), systemImage: "number")
+                    }
+                    NavigationLink(value: Route.appearance) {
+                        Label(AppLocalization.string("Appearance"), systemImage: "circle.lefthalf.filled")
                     }
                 }
                 Section(AppLocalization.string("Sync & Automation")) {
@@ -136,6 +140,7 @@ struct SettingsView: View {
                 case .addressBook: AddressBookView(store: store)
                 case .trackedTokens: TokenRegistrySettingsView(store: store)
                 case .decimalDisplay: DecimalDisplaySettingsView(store: store)
+                case .appearance: AppearanceSettingsView(preferences: store.preferences)
                 case .refreshFrequency: BackgroundSyncSettingsView(store: store)
                 case .priceAlerts: PriceAlertsView(store: store)
                 case .largeMovementAlerts: LargeMovementAlertsSettingsView(store: store)

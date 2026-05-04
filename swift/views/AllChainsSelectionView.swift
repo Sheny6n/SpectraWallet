@@ -36,6 +36,7 @@ struct AllChainsSelectionView: View {
     private func chip(_ descriptor: SetupChainSelectionDescriptor) -> some View {
         let isSelected = selectedChainNames.contains(descriptor.chainName)
         Button {
+            spectraHaptic(.light)
             toggleSelection(descriptor.chainName)
         } label: {
             VStack(spacing: 6) {

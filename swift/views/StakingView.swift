@@ -270,6 +270,7 @@ struct ChainStakingDetailView: View {
     @ViewBuilder
     private func actionButton(_ action: StakingActionKind) -> some View {
         Button {
+            spectraHaptic(.medium)
             pendingActionAlert = PendingAlert(action: action)
         } label: {
             HStack(spacing: 12) {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 private struct SpectraInputFieldChrome: ViewModifier {
     let cornerRadius: CGFloat
     let borderColor: Color?
@@ -65,7 +66,8 @@ struct ContentView: View {
                     }.buttonStyle(.glassProminent).controlSize(.large)
                 }.padding(28).glassEffect(.regular.tint(.white.opacity(0.05)), in: .rect(cornerRadius: 28)).padding(28)
             }
-        }.onAppear {
+        }.preferredColorScheme(store.preferences.appearanceMode == .dark ? .dark : store.preferences.appearanceMode == .light ? .light : nil)
+        .onAppear {
             store.setAppIsActive(scenePhase == .active)
             if scenePhase == .active { refreshAppStateForActivePhase() }
         }.environment(\.locale, AppLocalization.locale).onChange(of: scenePhase) { _, newPhase in
@@ -78,6 +80,60 @@ struct ContentView: View {
         }
     }
 }
+// MARK: — Typography helpers
+extension View {
+    func spectraHintText() -> some View { font(.caption).foregroundStyle(.secondary) }
+    func spectraSectionCaption() -> some View {
+        font(.caption2.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+    }
+}
+
+// MARK: — Semantic status colors
+extension Color {
+    static func spectraTransactionStatusColor(_ status: TransactionStatus) -> Color {
+        switch status {
+        case .pending: return .orange
+        case .confirmed: return .mint
+        case .failed: return .red
+        }
+    }
+    static func spectraTransactionAmountColor(isReceive: Bool) -> Color { isReceive ? .mint : .red }
+    static func spectraPriceAlertStatusColor(isEnabled: Bool, hasTriggered: Bool) -> Color {
+        if !isEnabled { return .gray }
+        return hasTriggered ? .green : .orange
+    }
+}
+
+// MARK: — Haptic helpers
+@MainActor func spectraHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .medium) {
+    UIImpactFeedbackGenerator(style: style).impactOccurred()
+}
+@MainActor func spectraNotificationHaptic(_ type: UINotificationFeedbackGenerator.FeedbackType = .success) {
+    UINotificationFeedbackGenerator().notificationOccurred(type)
+}
+
+// MARK: — Shimmer loading placeholder
+struct SpectraShimmer: View {
+    var cornerRadius: CGFloat = 8
+    var height: CGFloat = 16
+    @State private var phase: CGFloat = -1
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(Color.primary.opacity(0.08))
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(
+                    LinearGradient(colors: [.clear, Color.white.opacity(0.18), .clear], startPoint: .leading, endPoint: .trailing)
+                ).offset(x: geo.size.width * (phase + 1))
+            }
+        }
+        .frame(height: height)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .onAppear {
+            withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) { phase = 1 }
+        }
+    }
+}
+
 #Preview {
     ContentView(store: AppState())
 }
