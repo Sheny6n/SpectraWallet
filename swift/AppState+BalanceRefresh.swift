@@ -80,7 +80,7 @@ extension AppState {
             return RefreshEntry(chainId: chainId, walletId: wallet.id, address: address)
         }
         Task(priority: .utility) {
-            try? await WalletServiceBridge.shared.setRefreshEntriesTyped(entries)
+            try? WalletServiceBridge.shared.setRefreshEntriesTyped(entries)
             if !entries.isEmpty {
                 try? await WalletServiceBridge.shared.triggerImmediateBalanceRefresh()
             }
@@ -93,10 +93,10 @@ extension AppState {
     /// hardcoded 30 s, which was firing at 10× the requested rate and
     /// keeping the phone warm with constant radio activity.
     func setupRustRefreshEngine() {
-        let observer = WalletBalanceObserver(noPointer: .init())
+        let observer = WalletBalanceObserver()
         observer.store = self
         Task { [weak self] in
-            try? await WalletServiceBridge.shared.setBalanceObserver(observer)
+            try? WalletServiceBridge.shared.setBalanceObserver(observer)
             await self?.restartBalanceRefreshForCurrentConfiguration()
         }
         updateRefreshEngineEntries()
@@ -106,7 +106,7 @@ extension AppState {
     /// when the app transitions active/inactive — contexts where we want
     /// the interval value or the running state to actually change.
     func restartBalanceRefreshForCurrentConfiguration() async {
-        try? await WalletServiceBridge.shared.stopBalanceRefresh()
+        try? WalletServiceBridge.shared.stopBalanceRefresh()
         guard appIsActive else { return }
         // No wallets = no entries to refresh. Keeping the tokio interval
         // alive just to wake every N minutes and no-op is pure idle heat,

@@ -278,7 +278,7 @@ extension AppState {
 /// input text didn't actually change. Results are deterministic in their
 /// inputs, so we memoize them and cap the cache at a small size so user
 /// input can't grow it unbounded.
-nonisolated private final class AddressValidationCache: @unchecked Sendable {
+private final class AddressValidationCache: @unchecked Sendable {
     static let shared = AddressValidationCache()
     private let lock = NSLock()
     private var addressCache: [String: AddressValidationResult] = [:]
@@ -316,13 +316,13 @@ nonisolated private final class AddressValidationCache: @unchecked Sendable {
 }
 
 enum AddressValidation {
-    nonisolated static func isValid(_ address: String, kind: String, networkMode: String? = nil) -> Bool {
+    static func isValid(_ address: String, kind: String, networkMode: String? = nil) -> Bool {
         AddressValidationCache.shared.address(address, kind: kind, networkMode: networkMode).isValid
     }
-    nonisolated static func normalized(_ address: String, kind: String, networkMode: String? = nil) -> String? {
+    static func normalized(_ address: String, kind: String, networkMode: String? = nil) -> String? {
         AddressValidationCache.shared.address(address, kind: kind, networkMode: networkMode).normalizedValue
     }
-    nonisolated static func isValidAptosTokenType(_ value: String) -> Bool {
+    static func isValidAptosTokenType(_ value: String) -> Bool {
         AddressValidationCache.shared.string(value, kind: "aptosTokenType").isValid
     }
 }

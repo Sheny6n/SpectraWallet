@@ -10,8 +10,8 @@ enum WalletRustDerivationBridgeError: LocalizedError {
     }
 }
 enum WalletRustDerivationBridge {
-    nonisolated static var isAvailable: Bool { true }
-    nonisolated static func makeRequestModel(
+    static var isAvailable: Bool { true }
+    static func makeRequestModel(
         chain: SeedDerivationChain, seedPhrase: String, derivationPath: String?, passphrase: String?,
         iterationCount: Int?, hmacKeyString: String?, requestedOutputs: WalletDerivationRequestedOutputs,
         overrides: CoreWalletDerivationOverrides? = nil
@@ -43,7 +43,7 @@ enum WalletRustDerivationBridge {
             advancedOverrides: overrides
         )
     }
-    nonisolated static func derive(_ requestModel: WalletRustDerivationRequestModel) throws -> WalletRustDerivationResponseModel {
+    static func derive(_ requestModel: WalletRustDerivationRequestModel) throws -> WalletRustDerivationResponseModel {
         let overrides = requestModel.advancedOverrides
         let response = try derivationDerive(
             request: UniFfiDerivationRequest(
@@ -67,7 +67,7 @@ enum WalletRustDerivationBridge {
         return WalletRustDerivationResponseModel(
             address: response.address, publicKeyHex: response.publicKeyHex, privateKeyHex: response.privateKeyHex)
     }
-    nonisolated static func deriveFromPrivateKey(
+    static func deriveFromPrivateKey(
         chain: SeedDerivationChain, privateKeyHex: String
     ) throws -> WalletRustDerivationResponseModel {
         let requestCompilationPreset = WalletDerivationPresetCatalog.requestCompilationPreset(for: chain)
@@ -84,7 +84,7 @@ enum WalletRustDerivationBridge {
         return WalletRustDerivationResponseModel(
             address: response.address, publicKeyHex: response.publicKeyHex, privateKeyHex: response.privateKeyHex)
     }
-    nonisolated static func buildSigningMaterial(_ requestModel: WalletRustDerivationRequestModel) throws -> WalletRustSigningMaterialModel
+    static func buildSigningMaterial(_ requestModel: WalletRustDerivationRequestModel) throws -> WalletRustSigningMaterialModel
     {
         guard let derivationPath = requestModel.derivationPath else {
             throw WalletRustDerivationBridgeError.requestCompilationFailed("Signing material requires a derivation path.")
@@ -104,7 +104,7 @@ enum WalletRustDerivationBridge {
             address: response.address, privateKeyHex: response.privateKeyHex, derivationPath: response.derivationPath,
             account: response.account, branch: response.branch, index: response.index)
     }
-    nonisolated static func buildSigningMaterialFromPrivateKey(
+    static func buildSigningMaterialFromPrivateKey(
         chain: SeedDerivationChain, privateKeyHex: String, derivationPath: String
     ) throws -> WalletRustSigningMaterialModel {
         let requestCompilationPreset = WalletDerivationPresetCatalog.requestCompilationPreset(for: chain)
@@ -122,10 +122,10 @@ enum WalletRustDerivationBridge {
             address: response.address, privateKeyHex: response.privateKeyHex, derivationPath: response.derivationPath,
             account: response.account, branch: response.branch, index: response.index)
     }
-    nonisolated static func deriveAllAddresses(seedPhrase: String, chainPaths: [String: String]) throws -> [String: String] {
+    static func deriveAllAddresses(seedPhrase: String, chainPaths: [String: String]) throws -> [String: String] {
         try derivationDeriveAllAddresses(seedPhrase: seedPhrase, chainPaths: chainPaths)
     }
-    nonisolated private static func compileScriptType(from preset: WalletDerivationRequestCompilationPreset, derivationPath: String?) throws
+    private static func compileScriptType(from preset: WalletDerivationRequestCompilationPreset, derivationPath: String?) throws
         -> AppCoreScriptType
     {
         do {
@@ -210,7 +210,7 @@ struct WalletRustDerivationRequestModel: Sendable {
     /// MoneroBip39, Bip32Ed25519Icarus, DirectSeedEd25519, etc.) are only
     /// reachable through this field.
     let advancedOverrides: CoreWalletDerivationOverrides?
-    nonisolated init(
+    init(
         curve: WalletDerivationCurve,
         requestedOutputs: WalletDerivationRequestedOutputs,
         derivationAlgorithm: AppCoreDerivationAlgorithm,

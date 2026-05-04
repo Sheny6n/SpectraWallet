@@ -1,5 +1,5 @@
 import Foundation
-private nonisolated func historyRecordsTyped(
+private func historyRecordsTyped(
     _ snapshots: [CorePersistedTransactionRecord]
 ) -> [HistoryRecord] {
     snapshots.map { snap in
@@ -152,7 +152,7 @@ extension AppState {
     /// to no-op.
     private func reconcileBackgroundServices() async {
         if wallets.isEmpty {
-            try? await WalletServiceBridge.shared.stopBalanceRefresh()
+            try? WalletServiceBridge.shared.stopBalanceRefresh()
         } else {
             await startBalanceRefreshIfNeeded()
             startMaintenanceLoopIfNeeded()

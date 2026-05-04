@@ -30,7 +30,7 @@ enum SpectraChainID: Sendable {
     nonisolated static let scroll:           UInt32 = 27
     nonisolated static let blast:            UInt32 = 28
     nonisolated static let mantle:           UInt32 = 29
-    nonisolated static func id(for chainName: String) -> UInt32? { coreChainIdForName(name: chainName) }
+    nonisolated static func id(for chainName: String) -> UInt32? { MainActor.assumeIsolated { coreChainIdForName(name: chainName) } }
 }
 /// Test seam: tests that don't want to talk to a real Rust service can
 /// inject a stub conforming to `WalletServiceBridgeProtocol`. Existing
@@ -40,7 +40,7 @@ enum SpectraChainID: Sendable {
 /// call sites can migrate when their tests need it.
 protocol WalletServiceBridgeProtocol: Sendable {}
 
-actor WalletServiceBridge: WalletServiceBridgeProtocol {
+@MainActor final class WalletServiceBridge: WalletServiceBridgeProtocol {
     static let shared = WalletServiceBridge()
     private var _service: WalletService?
     nonisolated(unsafe) private static var _syncService: WalletService?
@@ -141,9 +141,9 @@ actor WalletServiceBridge: WalletServiceBridgeProtocol {
     func fetchSimpleChainSendPreviewTyped(chainId: UInt32, address: String, chain: SimpleChain) async throws -> SimpleChainPreview {
         try await service().fetchSimpleChainSendPreviewTyped(chainId: chainId, address: address, chain: chain)
     }
-    nonisolated func rustGenerateMnemonic(wordCount: Int) -> String { generateMnemonic(wordCount: UInt32(wordCount)) }
-    nonisolated func rustValidateMnemonic(_ phrase: String) -> Bool { validateMnemonic(phrase: phrase) }
-    nonisolated func rustBip39Wordlist() -> [String] { bip39EnglishWordlist().split(separator: "\n").map(String.init) }
+    nonisolated func rustGenerateMnemonic(wordCount: Int) -> String { MainActor.assumeIsolated { generateMnemonic(wordCount: UInt32(wordCount)) } }
+    nonisolated func rustValidateMnemonic(_ phrase: String) -> Bool { MainActor.assumeIsolated { validateMnemonic(phrase: phrase) } }
+    nonisolated func rustBip39Wordlist() -> [String] { MainActor.assumeIsolated { bip39EnglishWordlist() }.split(separator: "\n").map(String.init) }
     func broadcastRawExtract(chainId: UInt32, payload: String, resultField: String) async throws -> String {
         try await service().broadcastRawExtract(chainId: chainId, payload: payload, resultField: resultField)
     }
@@ -162,7 +162,7 @@ actor WalletServiceBridge: WalletServiceBridgeProtocol {
     func registerSecretStore(_ store: SecretStore) throws { try service().setSecretStore(store: store) }
     nonisolated func setEtherscanAPIKey(_ key: String) {
         Self._pendingEtherscanAPIKey = key
-        Self._syncService?.setEtherscanApiKey(key: key)
+        MainActor.assumeIsolated { Self._syncService?.setEtherscanApiKey(key: key) }
     }
 }
 extension WalletServiceBridge {
@@ -231,17 +231,17 @@ extension WalletServiceBridge {
     func clearAllHistoryRecords() async throws {
         try await service().clearAllHistoryRecords(dbPath: sqliteDbPath())
     }
-    nonisolated func historyNextCursor(chainId: UInt32, walletId: String) -> String? { WalletServiceBridge._syncService?.historyNextCursor(chainId: chainId, walletId: walletId) }
-    nonisolated func historyNextPage(chainId: UInt32, walletId: String) -> UInt32 { WalletServiceBridge._syncService?.historyNextPage(chainId: chainId, walletId: walletId) ?? 0 }
-    nonisolated func isHistoryExhausted(chainId: UInt32, walletId: String) -> Bool { WalletServiceBridge._syncService?.isHistoryExhausted(chainId: chainId, walletId: walletId) ?? false }
-    nonisolated func advanceHistoryCursor(chainId: UInt32, walletId: String, nextCursor: String?) { WalletServiceBridge._syncService?.advanceHistoryCursor(chainId: chainId, walletId: walletId, nextCursor: nextCursor) }
-    nonisolated func advanceHistoryPage(chainId: UInt32, walletId: String, isLast: Bool) { WalletServiceBridge._syncService?.advanceHistoryPage(chainId: chainId, walletId: walletId, isLast: isLast) }
-    nonisolated func setHistoryPage(chainId: UInt32, walletId: String, page: UInt32) { WalletServiceBridge._syncService?.setHistoryPage(chainId: chainId, walletId: walletId, page: page) }
-    nonisolated func setHistoryExhausted(chainId: UInt32, walletId: String, exhausted: Bool) { WalletServiceBridge._syncService?.setHistoryExhausted(chainId: chainId, walletId: walletId, exhausted: exhausted) }
-    nonisolated func resetHistory(chainId: UInt32, walletId: String) { WalletServiceBridge._syncService?.resetHistory(chainId: chainId, walletId: walletId) }
-    nonisolated func resetHistoryForWallet(walletId: String) { WalletServiceBridge._syncService?.resetHistoryForWallet(walletId: walletId) }
-    nonisolated func resetHistoryForChain(chainId: UInt32) { WalletServiceBridge._syncService?.resetHistoryForChain(chainId: chainId) }
-    nonisolated func resetAllHistory() { WalletServiceBridge._syncService?.resetAllHistory() }
+    nonisolated func historyNextCursor(chainId: UInt32, walletId: String) -> String? { MainActor.assumeIsolated { WalletServiceBridge._syncService?.historyNextCursor(chainId: chainId, walletId: walletId) } }
+    nonisolated func historyNextPage(chainId: UInt32, walletId: String) -> UInt32 { MainActor.assumeIsolated { WalletServiceBridge._syncService?.historyNextPage(chainId: chainId, walletId: walletId) ?? 0 } }
+    nonisolated func isHistoryExhausted(chainId: UInt32, walletId: String) -> Bool { MainActor.assumeIsolated { WalletServiceBridge._syncService?.isHistoryExhausted(chainId: chainId, walletId: walletId) ?? false } }
+    nonisolated func advanceHistoryCursor(chainId: UInt32, walletId: String, nextCursor: String?) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.advanceHistoryCursor(chainId: chainId, walletId: walletId, nextCursor: nextCursor) } }
+    nonisolated func advanceHistoryPage(chainId: UInt32, walletId: String, isLast: Bool) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.advanceHistoryPage(chainId: chainId, walletId: walletId, isLast: isLast) } }
+    nonisolated func setHistoryPage(chainId: UInt32, walletId: String, page: UInt32) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.setHistoryPage(chainId: chainId, walletId: walletId, page: page) } }
+    nonisolated func setHistoryExhausted(chainId: UInt32, walletId: String, exhausted: Bool) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.setHistoryExhausted(chainId: chainId, walletId: walletId, exhausted: exhausted) } }
+    nonisolated func resetHistory(chainId: UInt32, walletId: String) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetHistory(chainId: chainId, walletId: walletId) } }
+    nonisolated func resetHistoryForWallet(walletId: String) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetHistoryForWallet(walletId: walletId) } }
+    nonisolated func resetHistoryForChain(chainId: UInt32) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetHistoryForChain(chainId: chainId) } }
+    nonisolated func resetAllHistory() { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetAllHistory() } }
     func fetchUtxoTxStatusTyped(chainId: UInt32, txid: String) async throws -> UtxoTxStatus {
         try await service().fetchUtxoTxStatusTyped(chainId: chainId, txid: txid)
     }
@@ -260,7 +260,7 @@ enum WalletServiceBridgeError: LocalizedError {
         }}
 }
 private extension WalletServiceBridge {
-    nonisolated static func buildEndpoints() -> [ChainEndpoints] {
+    static func buildEndpoints() -> [ChainEndpoints] {
         var payloads: [ChainEndpoints] = []
         payloads += rpcPayloads(chainId: SpectraChainID.bitcoin,         chainName: "Bitcoin")
         payloads += evmPayloads(chainId: SpectraChainID.ethereum,        chainName: "Ethereum")
@@ -301,10 +301,10 @@ private extension WalletServiceBridge {
         for (primaryId, chainName) in explorerChains { payloads += explorerPayloads(chainId: endpointSlotId(primaryId, .explorer), chainName: chainName) }
         return payloads
     }
-    nonisolated static func endpointSlotId(_ chainId: UInt32, _ slot: AppCoreEndpointSlot) -> UInt32 {
+    static func endpointSlotId(_ chainId: UInt32, _ slot: AppCoreEndpointSlot) -> UInt32 {
         coreEndpointId(chainId: chainId, slot: slot) ?? chainId
     }
-    nonisolated static func rpcPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
+    static func rpcPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
         let endpoints = (
             try? WalletRustEndpointCatalogBridge.endpointRecords(
                 for: chainName, roles: [.rpc, .balance, .backend], settingsVisibleOnly: false
@@ -313,12 +313,12 @@ private extension WalletServiceBridge {
         guard !endpoints.isEmpty else { return [] }
         return [ChainEndpoints(chainId: chainId, endpoints: endpoints, apiKey: nil)]
     }
-    nonisolated static func evmPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
+    static func evmPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
         let endpoints = (try? WalletRustEndpointCatalogBridge.evmRPCEndpoints(for: chainName)) ?? []
         guard !endpoints.isEmpty else { return [] }
         return [ChainEndpoints(chainId: chainId, endpoints: endpoints, apiKey: nil)]
     }
-    nonisolated static func explorerPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
+    static func explorerPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
         let endpoints = (try? WalletRustEndpointCatalogBridge.explorerSupplementalEndpoints(for: chainName)) ?? []
         guard !endpoints.isEmpty else { return [] }
         return [ChainEndpoints(chainId: chainId, endpoints: endpoints, apiKey: nil)]

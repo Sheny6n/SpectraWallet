@@ -240,7 +240,7 @@ extension AppState {
         {
             let pathParts = wallet.seedDerivationPaths.bitcoin.split(separator: "/")
             let accountPath = String(pathParts.prefix(4).joined(separator: "/"))
-            if let xpub = try? await WalletServiceBridge.shared.deriveBitcoinAccountXpub(
+            if let xpub = try? WalletServiceBridge.shared.deriveBitcoinAccountXpub(
                 mnemonicPhrase: seedPhrase, passphrase: "", accountPath: accountPath
             ) {
                 let page = try await fetchBitcoinHDHistoryPage(xpub: xpub, limit: limit)

@@ -7,22 +7,16 @@
 
 import Foundation
 
-final class WalletBalanceObserver: BalanceObserverImpl, @unchecked Sendable {
+final class WalletBalanceObserver: BalanceObserver, @unchecked Sendable {
     weak var store: AppState?
-    nonisolated override init(noPointer: BalanceObserverImpl.NoPointer) {
-        super.init(noPointer: noPointer)
-    }
-    nonisolated required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        super.init(unsafeFromRawPointer: pointer)
-    }
-    nonisolated override func onBalanceUpdated(chainId: UInt32, walletId: String, summary: WalletSummary?) {
+    nonisolated func onBalanceUpdated(chainId: UInt32, walletId: String, summary: WalletSummary?) {
         _ = chainId
         guard let summary else { return }
         Task { @MainActor [weak self] in
             self?.store?.applyRustBalance(walletId: walletId, summary: summary)
         }
     }
-    nonisolated override func onRefreshCycleComplete(refreshed: UInt32, errors: UInt32) {
+    nonisolated func onRefreshCycleComplete(refreshed: UInt32, errors: UInt32) {
         _ = errors
         Task { @MainActor [weak self] in
             guard let store = self?.store else { return }

@@ -168,7 +168,7 @@ extension AppState {
             if let stored = wallet.bitcoinXpub?.trimmingCharacters(in: .whitespacesAndNewlines), !stored.isEmpty {
                 xpub = stored
             } else if let seedPhrase = storedSeedPhrase(for: wallet.id) {
-                xpub = try await WalletServiceBridge.shared.deriveBitcoinAccountXpub(
+                xpub = try WalletServiceBridge.shared.deriveBitcoinAccountXpub(
                     mnemonicPhrase: seedPhrase, passphrase: "", accountPath: "m/84'/0'/0'")
             } else {
                 receiveResolvedAddress = ""
@@ -793,13 +793,14 @@ extension AppState {
         decredAddress: String?, kaspaAddress: String?, dashAddress: String?,
         bittensorAddress: String?,
         seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths,
-        derivationOverrides: CoreWalletDerivationOverrides = CoreWalletDerivationOverrides(
-            passphrase: nil, mnemonicWordlist: nil, iterationCount: nil, saltPrefix: nil, hmacKey: nil,
-            curve: nil, derivationAlgorithm: nil, addressAlgorithm: nil, publicKeyFormat: nil, scriptType: nil
-        ),
+        derivationOverrides: CoreWalletDerivationOverrides? = nil,
         holdings: [Coin]
     ) -> ImportedWallet {
-        ImportedWallet(
+        let resolvedOverrides = derivationOverrides ?? CoreWalletDerivationOverrides(
+            passphrase: nil, mnemonicWordlist: nil, iterationCount: nil, saltPrefix: nil, hmacKey: nil,
+            curve: nil, derivationAlgorithm: nil, addressAlgorithm: nil, publicKeyFormat: nil, scriptType: nil
+        )
+        return ImportedWallet(
             id: id.uuidString, name: name, bitcoinNetworkMode: chainName == "Bitcoin" ? bitcoinNetworkMode : .mainnet,
             dogecoinNetworkMode: chainName == "Dogecoin" ? dogecoinNetworkMode : .mainnet,
             bitcoinAddress: chainName == "Bitcoin" ? bitcoinAddress : nil, bitcoinXpub: chainName == "Bitcoin" ? bitcoinXpub : nil,
@@ -828,17 +829,14 @@ extension AppState {
             dashAddress: chainName == "Dash" ? dashAddress : nil,
             bittensorAddress: chainName == "Bittensor" ? bittensorAddress : nil,
             seedDerivationPreset: seedDerivationPreset,
-            seedDerivationPaths: seedDerivationPaths, derivationOverrides: derivationOverrides,
+            seedDerivationPaths: seedDerivationPaths, derivationOverrides: resolvedOverrides,
             selectedChain: chainName, holdings: holdings.filter { $0.chainName == chainName },
             includeInPortfolioTotal: true
         )
     }
     func walletForPlannedImport(
         id: UUID, plan: PlannedWallet, seedDerivationPreset: SeedDerivationPreset, seedDerivationPaths: SeedDerivationPaths,
-        derivationOverrides: CoreWalletDerivationOverrides = CoreWalletDerivationOverrides(
-            passphrase: nil, mnemonicWordlist: nil, iterationCount: nil, saltPrefix: nil, hmacKey: nil,
-            curve: nil, derivationAlgorithm: nil, addressAlgorithm: nil, publicKeyFormat: nil, scriptType: nil
-        ),
+        derivationOverrides: CoreWalletDerivationOverrides? = nil,
         holdings: [Coin]
     ) -> ImportedWallet {
         walletForSingleChain(

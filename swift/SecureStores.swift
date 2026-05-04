@@ -99,21 +99,15 @@ nonisolated enum SecurePrivateKeyStore {
     static func deleteAllValues() { try? storage.deleteAllValues() }
 }
 
-final class SpectraSecretStoreAdapter: SecretStoreImpl, @unchecked Sendable {
-    nonisolated override init(noPointer: SecretStoreImpl.NoPointer) {
-        super.init(noPointer: noPointer)
-    }
-    nonisolated required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
-        super.init(unsafeFromRawPointer: pointer)
-    }
+final class SpectraSecretStoreAdapter: SecretStore, @unchecked Sendable {
     static func registerWithBridge() {
-        let adapter = SpectraSecretStoreAdapter(noPointer: .init())
+        let adapter = SpectraSecretStoreAdapter()
         Task {
-            try? await WalletServiceBridge.shared.registerSecretStore(adapter)
+            try? WalletServiceBridge.shared.registerSecretStore(adapter)
         }
     }
 
-    nonisolated override func loadSecret(kind: SecretClass, key: String) throws -> String {
+    nonisolated func loadSecret(kind: SecretClass, key: String) throws -> String {
         switch kind {
         case .seed:
             do {
@@ -134,7 +128,7 @@ final class SpectraSecretStoreAdapter: SecretStoreImpl, @unchecked Sendable {
         }
     }
 
-    nonisolated override func saveSecret(kind: SecretClass, key: String, value: String) throws {
+    nonisolated func saveSecret(kind: SecretClass, key: String, value: String) throws {
         switch kind {
         case .seed:
             do { try SecureSeedStore.save(value, for: key) } catch { throw SecretStoreError.Backend(message: String(describing: error)) }
@@ -145,7 +139,7 @@ final class SpectraSecretStoreAdapter: SecretStoreImpl, @unchecked Sendable {
         }
     }
 
-    nonisolated override func deleteSecret(kind: SecretClass, key: String) throws {
+    nonisolated func deleteSecret(kind: SecretClass, key: String) throws {
         switch kind {
         case .seed:
             do { try SecureSeedStore.deleteValue(for: key) } catch { throw SecretStoreError.Backend(message: String(describing: error)) }
@@ -156,7 +150,7 @@ final class SpectraSecretStoreAdapter: SecretStoreImpl, @unchecked Sendable {
         }
     }
 
-    nonisolated override func listKeys(kind: SecretClass, prefixFilter: String) throws -> [String] {
+    nonisolated func listKeys(kind: SecretClass, prefixFilter: String) throws -> [String] {
         return []
     }
 }
