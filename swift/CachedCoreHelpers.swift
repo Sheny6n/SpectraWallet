@@ -22,6 +22,9 @@ import Foundation
 @MainActor
 enum CachedCoreHelpers {
     // ── Unbounded caches for fixed-domain helpers ──────────────────────
+    private static var allChainsResult: [ChainEntry]?
+    private static var allTokensResult: [TokenEntry]?
+    private static var supportedPrivateKeyChainNamesResult: [String]?
     private static var dashboardAssetGroupingKeys: [String: String] = [:]
     private static var nativeAssetDisplaySettingsKeys: [String: String] = [:]
     private static var defaultAssetDisplayDecimalsByChainResult: [String: UInt32]?
@@ -30,6 +33,8 @@ enum CachedCoreHelpers {
     private static var seedDerivationChainRaws: [String: String?] = [:]
     private static var evmSeedDerivationChainNames: [String: String?] = [:]
     private static var receiveAddressResolvers: [String: ReceiveAddressResolverKind] = [:]
+    nonisolated(unsafe) private static var chainDerivationPaths: [String: String] = [:]
+    private static var resolvedChainIds: [String: String] = [:]
 
     // ── Bounded cache for user-input helpers ───────────────────────────
     private static var privateKeyHexIsLikelyCache: [String: Bool] = [:]
@@ -43,6 +48,31 @@ enum CachedCoreHelpers {
         if let hit = cache[key] { return hit }
         if cache.count >= cap { cache.removeAll(keepingCapacity: true) }
         let v = compute(); cache[key] = v; return v
+    }
+
+    // ── chains.* / tokens.* ───────────────────────────────────────────
+    static func allChains() -> [ChainEntry] {
+        if let cached = allChainsResult { return cached }
+        let value = listAllChains()
+        allChainsResult = value
+        return value
+    }
+    static func allTokens() -> [TokenEntry] {
+        if let cached = allTokensResult { return cached }
+        let value = listTokens(chainId: UInt32.max)
+        allTokensResult = value
+        return value
+    }
+    static func supportedPrivateKeyChainNames() -> [String] {
+        if let cached = supportedPrivateKeyChainNamesResult { return cached }
+        let value = coreSupportedPrivateKeyChainNames()
+        supportedPrivateKeyChainNamesResult = value
+        return value
+    }
+    static func resolveChainId(input: String) -> String {
+        cached(in: &resolvedChainIds, key: input) {
+            coreResolveChainId(input: input)
+        }
     }
 
     // ── formatting.* ───────────────────────────────────────────────────
@@ -95,5 +125,12 @@ enum CachedCoreHelpers {
         cachedBounded(in: &privateKeyHexIsLikelyCache, key: rawValue, cap: privateKeyCacheCap) {
             corePrivateKeyHexIsLikely(rawValue: rawValue)
         }
+    }
+    nonisolated static func chainDerivationPath(chainName: String) -> String {
+        if let hit = chainDerivationPaths[chainName] { return hit }
+        let p = listAllChains().first(where: { $0.name == chainName })?.derivationPath ?? ""
+        let result = p.hasPrefix("m/") ? p : ""
+        chainDerivationPaths[chainName] = result
+        return result
     }
 }

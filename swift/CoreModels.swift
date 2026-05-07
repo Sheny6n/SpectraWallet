@@ -225,8 +225,8 @@ enum SeedDerivationChain: String, CaseIterable, Codable, Identifiable {
     case polkadotWestend = "Polkadot Westend"
     case moneroStagenet = "Monero Stagenet"
     var id: String { rawValue }
-    var defaultPath: String { WalletDerivationPresetCatalog.defaultPreset(for: self).derivationPath }
-    var presetOptions: [SeedDerivationPathPreset] { WalletDerivationPresetCatalog.mainnetUIPresets(for: self) }
+    var defaultPath: String { CachedCoreHelpers.chainDerivationPath(chainName: rawValue) }
+    var presetOptions: [SeedDerivationPathPreset] { [] }
 }
 struct SeedDerivationPathPreset: Identifiable, Equatable {
     let title: String

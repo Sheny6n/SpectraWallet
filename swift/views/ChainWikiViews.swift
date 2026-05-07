@@ -1,5 +1,5 @@
 import SwiftUI
-struct ChainWikiEntry: Identifiable, Codable, Equatable {
+struct ChainWikiEntry: Identifiable, Equatable {
     let id: String
     let name: String
     let symbol: String
@@ -13,10 +13,20 @@ struct ChainWikiEntry: Identifiable, Codable, Equatable {
     let alternateDerivationPath: String?
     let totalCirculationModel: String
     let notableDetails: [String]
-    static var all: [ChainWikiEntry] { ChainWikiLibrary.loadEntries() }
-}
-private enum ChainWikiLibrary {
-    static func loadEntries() -> [ChainWikiEntry] { StaticContentCatalog.loadResource("ChainWikiEntries", as: [ChainWikiEntry].self) ?? [] }
+    static var all: [ChainWikiEntry] {
+        listAllChains()
+            .filter { !$0.family.isEmpty }
+            .map { chain in
+                ChainWikiEntry(
+                    id: chain.id, name: chain.name, symbol: chain.symbol, tags: chain.tags,
+                    family: chain.family, consensus: chain.consensus, stateModel: chain.stateModel,
+                    primaryUse: chain.primaryUse, slip44CoinType: chain.slip44CoinType,
+                    derivationPath: chain.derivationPath,
+                    alternateDerivationPath: chain.altDerivationPath.isEmpty ? nil : chain.altDerivationPath,
+                    totalCirculationModel: chain.totalCirculationModel, notableDetails: chain.notableDetails
+                )
+            }
+    }
 }
 
 // MARK: — Library (list view)
@@ -102,55 +112,26 @@ private struct ChainWikiRowCard: View, Equatable {
 struct ChainWikiDetailView: View {
     let chain: ChainWikiEntry
     var body: some View {
-        Form {
-            Section {
-                ChainWikiDetailHero(chain: chain)
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: 16) {
+                wikiHeroCard
+                wikiIdentityCard
+                wikiDerivationCard
+                wikiCirculationCard
+                if !chain.notableDetails.isEmpty { wikiTechnicalNotesCard }
             }
-            Section(AppLocalization.string("Identity")) {
-                ChainWikiKeyValueRow(title: AppLocalization.string("Ticker"), value: chain.symbol)
-                ChainWikiKeyValueRow(title: AppLocalization.string("Family"), value: chain.family)
-                ChainWikiKeyValueRow(title: AppLocalization.string("Consensus"), value: chain.consensus)
-                ChainWikiKeyValueRow(title: AppLocalization.string("State Model"), value: chain.stateModel)
-            }
-            Section {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(AppLocalization.string("Default Path")).font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
-                    Text(chain.derivationPath).font(.body.monospaced()).textSelection(.enabled)
-                }.padding(.vertical, 4)
-                if let alternateDerivationPath = chain.alternateDerivationPath {
-                    Text(alternateDerivationPath).font(.footnote).foregroundStyle(.secondary)
-                }
-            } header: {
-                Text(AppLocalization.string("Derivation"))
-            }
-            Section(AppLocalization.string("Circulation Model")) {
-                Text(chain.totalCirculationModel).font(.body).foregroundStyle(.secondary)
-            }
-            if !chain.notableDetails.isEmpty {
-                Section(AppLocalization.string("Technical Notes")) {
-                    ForEach(Array(chain.notableDetails.enumerated()), id: \.offset) { index, detail in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text("\(index + 1)")
-                                .font(.caption.weight(.bold)).foregroundStyle(chain.accentColor)
-                                .frame(width: 22, height: 22)
-                                .background(Circle().fill(chain.accentColor.opacity(0.18)))
-                            Text(detail).font(.body).foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }.padding(.vertical, 2)
-                    }
-                }
-            }
-        }.navigationTitle(chain.name).navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
+        }
+        .background(SpectraBackdrop().ignoresSafeArea())
+        .navigationTitle(chain.name).navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
-}
 
-private struct ChainWikiDetailHero: View {
-    let chain: ChainWikiEntry
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private var wikiHeroCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 14) {
                 ChainWikiChainLogoBadge(chain: chain, size: 52)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(chain.name).font(.title3.weight(.semibold))
                     Text(chain.symbol).font(.subheadline.monospaced()).foregroundStyle(.secondary)
                 }
@@ -169,18 +150,97 @@ private struct ChainWikiDetailHero: View {
                     }
                 }
             }
-        }.padding(.vertical, 6)
+        }
+        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 28))
     }
-}
 
-private struct ChainWikiKeyValueRow: View {
-    let title: String
-    let value: String
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title).foregroundStyle(.secondary)
+    private var wikiIdentityCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            wikiStatRow(label: AppLocalization.string("Ticker"), value: chain.symbol, icon: "tag.fill")
+            Divider().opacity(0.4)
+            wikiStatRow(label: AppLocalization.string("Family"), value: chain.family, icon: "link.circle.fill")
+            Divider().opacity(0.4)
+            wikiStatRow(label: AppLocalization.string("Consensus"), value: chain.consensus, icon: "checkmark.shield.fill")
+            Divider().opacity(0.4)
+            wikiStatRow(label: AppLocalization.string("State Model"), value: chain.stateModel, icon: "cylinder.split.1x2.fill")
+        }
+        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+
+    private var wikiDerivationCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            wikiStatRow(label: AppLocalization.string("SLIP-44"), value: chain.slip44CoinType, icon: "number.circle.fill")
+            Divider().opacity(0.4)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    Image(systemName: "key.fill")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(.orange).frame(width: 22)
+                    Text(AppLocalization.string("Default Path")).font(.subheadline).foregroundStyle(.secondary)
+                }
+                Text(chain.derivationPath).font(.body.monospaced()).foregroundStyle(Color.primary)
+                    .textSelection(.enabled).padding(.leading, 32)
+            }
+            if let alt = chain.alternateDerivationPath {
+                Divider().opacity(0.4)
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(.orange).frame(width: 22)
+                    Text(alt).font(.footnote).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+
+    private var wikiCirculationCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: "chart.bar.fill")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(.orange).frame(width: 22)
+                Text(AppLocalization.string("Circulation Model"))
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+            }
+            Text(chain.totalCirculationModel).font(.subheadline).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true).padding(.leading, 32)
+        }
+        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+
+    private var wikiTechnicalNotesCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.text.fill")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(.orange).frame(width: 22)
+                Text(AppLocalization.string("Technical Notes"))
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+            }
+            ForEach(Array(chain.notableDetails.enumerated()), id: \.offset) { index, detail in
+                if index > 0 { Divider().opacity(0.4) }
+                HStack(alignment: .top, spacing: 12) {
+                    Text("\(index + 1)").font(.caption.weight(.bold)).foregroundStyle(chain.accentColor)
+                        .frame(width: 22, height: 22).background(Circle().fill(chain.accentColor.opacity(0.18)))
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+
+    private func wikiStatRow(label: String, value: String, icon: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.semibold)).foregroundStyle(.orange).frame(width: 22)
+            Text(label).font(.subheadline).foregroundStyle(.secondary)
             Spacer(minLength: 12)
-            Text(value).foregroundStyle(Color.primary).multilineTextAlignment(.trailing)
+            Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary)
+                .multilineTextAlignment(.trailing)
         }
     }
 }

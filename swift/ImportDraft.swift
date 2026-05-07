@@ -46,12 +46,9 @@ enum SetupModeChoice: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class WalletImportDraft {
-    private static let supportedPrivateKeyChainNames: [String] = [
-        "Bitcoin", "Bitcoin Cash", "Bitcoin SV", "Litecoin", "Dogecoin", "Ethereum", "Ethereum Classic", "Arbitrum", "Optimism",
-        "BNB Chain", "Avalanche", "Hyperliquid", "Tron", "Solana", "Cardano", "Stellar", "XRP Ledger", "Sui", "Aptos", "TON",
-        "Internet Computer", "NEAR", "Polkadot",
-    ]
-    private static let supportedPrivateKeyChainNameSet = Set(supportedPrivateKeyChainNames)
+    private static var supportedPrivateKeyChainNameSet: Set<String> {
+        Set(CachedCoreHelpers.supportedPrivateKeyChainNames())
+    }
     var mode: WalletDraftMode = .importExisting {
         didSet { refreshSelectionState() }
     }
@@ -129,9 +126,10 @@ final class WalletImportDraft {
     private(set) var selectedChainNames: [String] = []
     var isCreateMode: Bool { mode == .createNew }
     var isPrivateKeyImportMode: Bool { mode == .importExisting && !isEditingWallet && !isWatchOnlyMode && secretImportMode == .privateKey }
-    var supportedPrivateKeyChainNames: [String] { Self.supportedPrivateKeyChainNames }
+    var supportedPrivateKeyChainNames: [String] { CachedCoreHelpers.supportedPrivateKeyChainNames() }
     var unsupportedPrivateKeyChainNames: [String] {
-        selectedChainNames.filter { !Self.supportedPrivateKeyChainNameSet.contains($0) }
+        let supported = Self.supportedPrivateKeyChainNameSet
+        return selectedChainNames.filter { !supported.contains($0) }
     }
     private var allowsMultipleChainSelection: Bool { !isEditingWallet && !isWatchOnlyMode && !isPrivateKeyImportMode }
     func isSelected(_ chainName: String) -> Bool { isSelectedChain(chainName) }
@@ -162,12 +160,7 @@ final class WalletImportDraft {
         return trimmed.isEmpty ? nil : trimmed
     }
     var walletPasswordValidationError: String? {
-        let password = walletPassword.trimmingCharacters(in: .whitespacesAndNewlines)
-        let confirmation = walletPasswordConfirmation.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !password.isEmpty || !confirmation.isEmpty else { return nil }
-        guard password.count >= 4 else { return "Wallet password must be at least 4 characters, or leave it blank." }
-        guard password == confirmation else { return "Wallet password confirmation does not match." }
-        return nil
+        coreValidateWalletPassword(password: walletPassword, confirmation: walletPasswordConfirmation)
     }
     var invalidSeedWords: [String] {
         guard !isEditingWallet else { return [] }
@@ -177,13 +170,7 @@ final class WalletImportDraft {
     }
     var seedPhraseLengthWarning: String? {
         guard !isEditingWallet else { return nil }
-        let count = selectedSeedPhraseWordCount
-        guard count > 0 else { return "Seed phrase length must be at least 1 word." }
-        if count < 12 { return "Seed phrase is too short. Use at least 12 words." }
-        if ![12, 15, 18, 21, 24].contains(count) {
-            return "Non-standard length selected. BIP-39 standard lengths are 12, 15, 18, 21, or 24 words."
-        }
-        return nil
+        return coreValidateSeedPhraseWordCount(wordCount: UInt32(selectedSeedPhraseWordCount))
     }
     private var isSeedPhraseEntryComplete: Bool {
         guard selectedSeedPhraseWordCount > 0 else { return false }
@@ -415,80 +402,22 @@ final class WalletImportDraft {
         selectedChainNames = effectiveChainNames
         selectedCoins = effectiveChainNames.compactMap(Self.coin(for:))
     }
-    private static let coinsByChain: [String: Coin] = [
-        "Bitcoin": Coin.makeCustom(
-            name: "Bitcoin", symbol: "BTC", coinGeckoId: "bitcoin", chainName: "Bitcoin", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 64000),
-        "Bitcoin Cash": Coin.makeCustom(
-            name: "Bitcoin Cash", symbol: "BCH", coinGeckoId: "bitcoin-cash", chainName: "Bitcoin Cash",
-            tokenStandard: "Native", contractAddress: nil, amount: 0, priceUsd: 420),
-        "Bitcoin SV": Coin.makeCustom(
-            name: "Bitcoin SV", symbol: "BSV", coinGeckoId: "bitcoin-cash-sv", chainName: "Bitcoin SV",
-            tokenStandard: "Native", contractAddress: nil, amount: 0, priceUsd: 70),
-        "Litecoin": Coin.makeCustom(
-            name: "Litecoin", symbol: "LTC", coinGeckoId: "litecoin", chainName: "Litecoin", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 90),
-        "Ethereum": Coin.makeCustom(
-            name: "Ethereum", symbol: "ETH", coinGeckoId: "ethereum", chainName: "Ethereum", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 3500),
-        "Ethereum Classic": Coin.makeCustom(
-            name: "Ethereum Classic", symbol: "ETC", coinGeckoId: "ethereum-classic", chainName: "Ethereum Classic",
-            tokenStandard: "Native", contractAddress: nil, amount: 0, priceUsd: 30),
-        "Arbitrum": Coin.makeCustom(
-            name: "Arbitrum", symbol: "ARB", coinGeckoId: "arbitrum", chainName: "Arbitrum", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 1),
-        "Optimism": Coin.makeCustom(
-            name: "Optimism", symbol: "OP", coinGeckoId: "optimism", chainName: "Optimism", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 0),
-        "Solana": Coin.makeCustom(
-            name: "Solana", symbol: "SOL", coinGeckoId: "solana", chainName: "Solana", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 150),
-        "BNB Chain": Coin.makeCustom(
-            name: "BNB", symbol: "BNB", coinGeckoId: "binancecoin", chainName: "BNB Chain", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 450),
-        "Avalanche": Coin.makeCustom(
-            name: "Avalanche", symbol: "AVAX", coinGeckoId: "avalanche-2", chainName: "Avalanche",
-            tokenStandard: "Native", contractAddress: nil, amount: 0, priceUsd: 35),
-        "Hyperliquid": Coin.makeCustom(
-            name: "Hyperliquid", symbol: "HYPE", coinGeckoId: "hyperliquid", chainName: "Hyperliquid",
-            tokenStandard: "Native", contractAddress: nil, amount: 0, priceUsd: 0),
-        "Stellar": Coin.makeCustom(
-            name: "Stellar", symbol: "XLM", coinGeckoId: "stellar", chainName: "Stellar", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 0.12),
-        "Dogecoin": Coin.makeCustom(
-            name: "Dogecoin", symbol: "DOGE", coinGeckoId: "dogecoin", chainName: "Dogecoin", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 0.15),
-        "Cardano": Coin.makeCustom(
-            name: "Cardano", symbol: "ADA", coinGeckoId: "cardano", chainName: "Cardano", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 0.55),
-        "Tron": Coin.makeCustom(
-            name: "Tron", symbol: "TRX", coinGeckoId: "tron", chainName: "Tron", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 0.12),
-        "XRP Ledger": Coin.makeCustom(
-            name: "XRP", symbol: "XRP", coinGeckoId: "ripple", chainName: "XRP Ledger", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 0.6),
-        "Monero": Coin.makeCustom(
-            name: "Monero", symbol: "XMR", coinGeckoId: "monero", chainName: "Monero", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 120),
-        "Sui": Coin.makeCustom(
-            name: "Sui", symbol: "SUI", coinGeckoId: "sui", chainName: "Sui", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 1.2),
-        "Aptos": Coin.makeCustom(
-            name: "Aptos", symbol: "APT", coinGeckoId: "aptos", chainName: "Aptos", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 8),
-        "TON": Coin.makeCustom(
-            name: "Toncoin", symbol: "TON", coinGeckoId: "the-open-network", chainName: "TON",
-            tokenStandard: "Native", contractAddress: nil, amount: 0, priceUsd: 7),
-        "Internet Computer": Coin.makeCustom(
-            name: "Internet Computer", symbol: "ICP", coinGeckoId: "internet-computer",
-            chainName: "Internet Computer", tokenStandard: "Native", contractAddress: nil, amount: 0, priceUsd: 12),
-        "NEAR": Coin.makeCustom(
-            name: "NEAR Protocol", symbol: "NEAR", coinGeckoId: "near", chainName: "NEAR", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 6),
-        "Polkadot": Coin.makeCustom(
-            name: "Polkadot", symbol: "DOT", coinGeckoId: "polkadot", chainName: "Polkadot", tokenStandard: "Native",
-            contractAddress: nil, amount: 0, priceUsd: 7),
-    ]
+    private static let coinsByChain: [String: Coin] = {
+        var dict: [String: Coin] = [:]
+        for chain in listAllChains() where !chain.nativeAssetName.isEmpty {
+            dict[chain.name] = Coin.makeCustom(
+                name: chain.nativeAssetName,
+                symbol: chain.gasTokenSymbol,
+                coinGeckoId: chain.nativeCoingeckoId,
+                chainName: chain.name,
+                tokenStandard: "Native",
+                contractAddress: nil,
+                amount: 0,
+                priceUsd: 0
+            )
+        }
+        return dict
+    }()
     private static func coin(for chainName: String) -> Coin? { coinsByChain[chainName] }
     func regenerateSeedPhrase() {
         guard isCreateMode else { return }

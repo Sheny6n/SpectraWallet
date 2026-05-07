@@ -28,12 +28,13 @@ enum WalletDerivationLayer {
         overrides: CoreWalletDerivationOverrides? = nil
     ) throws -> WalletRustDerivationResponseModel {
         guard !requestedOutputs.isEmpty else { throw WalletDerivationError.emptyRequestedOutputs }
-        let request = try WalletRustDerivationBridge.makeRequestModel(
+        return try WalletRustDerivationBridge.derive(
             chain: chain, seedPhrase: seedPhrase, derivationPath: derivationPath,
-            passphrase: nil, iterationCount: nil, hmacKeyString: nil, requestedOutputs: requestedOutputs,
-            overrides: overrides
+            passphrase: overrides?.passphrase, hmacKey: overrides?.hmacKey,
+            wantAddress: requestedOutputs.contains(.address),
+            wantPublicKey: requestedOutputs.contains(.publicKey),
+            wantPrivateKey: requestedOutputs.contains(.privateKey)
         )
-        return try WalletRustDerivationBridge.derive(request)
     }
     static func deriveAddress(
         seedPhrase: String, chain: SeedDerivationChain, derivationPath: String,
@@ -64,72 +65,3 @@ enum WalletDerivationPath {
     }
 }
 
-typealias WalletDerivationChainPreset = AppCoreChainPreset
-typealias WalletDerivationPathPreset = AppCorePathPreset
-typealias WalletDerivationRequestCompilationPreset = AppCoreRequestCompilationPreset
-
-extension AppCorePathPreset {
-var uiPreset: SeedDerivationPathPreset {
-        SeedDerivationPathPreset(title: title, detail: detail, path: derivationPath)
-    }
-}
-
-enum WalletDerivationPresetCatalog {
-static let all: [WalletDerivationChainPreset] = load()
-static let requestCompilationAll: [WalletDerivationRequestCompilationPreset] = loadRequestCompilation()
-
-static func chainPreset(for chain: SeedDerivationChain) -> WalletDerivationChainPreset {
-        guard let preset = all.first(where: { $0.chain == chain.rawValue }) else {
-            fatalError("Missing derivation preset for \(chain.rawValue)")
-        }
-        return preset
-    }
-
-static func pathPresets(for chain: SeedDerivationChain) -> [WalletDerivationPathPreset] {
-        chainPreset(for: chain).derivationPaths
-    }
-
-static func curve(for chain: SeedDerivationChain) -> WalletDerivationCurve {
-        let raw = chainPreset(for: chain).curve
-        guard let curve = WalletDerivationCurve(rawValue: raw) else {
-            fatalError("Unknown curve \(raw) for \(chain.rawValue)")
-        }
-        return curve
-    }
-
-static func requestCompilationPreset(for chain: SeedDerivationChain) -> WalletDerivationRequestCompilationPreset {
-        guard let preset = requestCompilationAll.first(where: { $0.chain == chain.rawValue }) else {
-            fatalError("Missing derivation request compilation preset for \(chain.rawValue)")
-        }
-        return preset
-    }
-
-static func defaultPreset(for chain: SeedDerivationChain) -> WalletDerivationPathPreset {
-        let paths = chainPreset(for: chain).derivationPaths
-        return paths.first(where: \.isDefault) ?? paths[0]
-    }
-
-static func defaultPath(for chain: SeedDerivationChain) -> String {
-        defaultPreset(for: chain).derivationPath
-    }
-
-static func mainnetUIPresets(for chain: SeedDerivationChain) -> [SeedDerivationPathPreset] {
-        pathPresets(for: chain).map(\.uiPreset)
-    }
-
-    private static func load() -> [WalletDerivationChainPreset] {
-        do {
-            return try appCoreChainPresets()
-        } catch {
-            fatalError("Rust derivation preset catalog failed to load: \(error.localizedDescription)")
-        }
-    }
-
-    private static func loadRequestCompilation() -> [WalletDerivationRequestCompilationPreset] {
-        do {
-            return try appCoreRequestCompilationPresets()
-        } catch {
-            fatalError("Rust derivation request compilation catalog failed to load: \(error.localizedDescription)")
-        }
-    }
-}

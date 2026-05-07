@@ -38,6 +38,16 @@ enum SetupChainCategory: String, CaseIterable, Identifiable {
         case .testnets: return AppLocalization.string("Testnets")
         }
     }
+    init?(chainCategory: String) {
+        switch chainCategory {
+        case "bitcoin-family": self = .bitcoinFamily
+        case "evm-l1": self = .evmL1
+        case "evm-l2": self = .evmL2
+        case "other": self = .other
+        case "testnet": self = .testnets
+        default: return nil
+        }
+    }
 }
 /// SetupView currently takes both a `store: AppState` (read-only access to
 /// app-wide state for chain/security info) and an `@Bindable` draft
@@ -51,88 +61,14 @@ enum SetupChainCategory: String, CaseIterable, Identifiable {
 /// declared in the type instead of hidden in field accesses. SetupView
 /// hasn't been migrated yet because its dependency surface is large.
 struct SetupView: View {
-    private static let chainSelectionDescriptors: [SetupChainSelectionDescriptor] = [
-        SetupChainSelectionDescriptor(id: "bitcoin", title: "Bitcoin", symbol: "BTC", chainName: "Bitcoin", color: .orange, category: .bitcoinFamily),
-        SetupChainSelectionDescriptor(id: "bitcoin-cash", title: "Bitcoin Cash", symbol: "BCH", chainName: "Bitcoin Cash", color: .orange, category: .bitcoinFamily),
-        SetupChainSelectionDescriptor(id: "bitcoin-sv", title: "Bitcoin SV", symbol: "BSV", chainName: "Bitcoin SV", color: .orange, category: .bitcoinFamily),
-        SetupChainSelectionDescriptor(id: "litecoin", title: "Litecoin", symbol: "LTC", chainName: "Litecoin", color: .gray, category: .bitcoinFamily),
-        SetupChainSelectionDescriptor(id: "dogecoin", title: "Dogecoin", symbol: "DOGE", chainName: "Dogecoin", color: .brown, category: .bitcoinFamily),
-        SetupChainSelectionDescriptor(id: "ethereum", title: "Ethereum", symbol: "ETH", chainName: "Ethereum", color: .blue, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "ethereum-classic", title: "Ethereum Classic", symbol: "ETC", chainName: "Ethereum Classic", color: .green, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "bnb-chain", title: "BNB Chain", symbol: "BNB", chainName: "BNB Chain", color: .yellow, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "avalanche", title: "Avalanche", symbol: "AVAX", chainName: "Avalanche", color: .red, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "hyperliquid", title: "Hyperliquid", symbol: "HYPE", chainName: "Hyperliquid", color: .mint, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "polygon", title: "Polygon", symbol: "POL", chainName: "Polygon", color: .purple, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "arbitrum", title: "Arbitrum", symbol: "ARB", chainName: "Arbitrum", color: .cyan, category: .evmL2, gasToken: "ETH"),
-        SetupChainSelectionDescriptor(id: "optimism", title: "Optimism", symbol: "OP", chainName: "Optimism", color: .red, category: .evmL2, gasToken: "ETH"),
-        SetupChainSelectionDescriptor(id: "base", title: "Base", symbol: "ETH", chainName: "Base", color: .blue, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "linea", title: "Linea", symbol: "ETH", chainName: "Linea", color: .blue, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "scroll", title: "Scroll", symbol: "ETH", chainName: "Scroll", color: .orange, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "blast", title: "Blast", symbol: "ETH", chainName: "Blast", color: .yellow, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "mantle", title: "Mantle", symbol: "MNT", chainName: "Mantle", color: .green, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "solana", title: "Solana", symbol: "SOL", chainName: "Solana", color: .purple, category: .other),
-        SetupChainSelectionDescriptor(id: "tron", title: "Tron", symbol: "TRX", chainName: "Tron", color: .teal, category: .other),
-        SetupChainSelectionDescriptor(id: "xrp-ledger", title: "XRP Ledger", symbol: "XRP", chainName: "XRP Ledger", color: .cyan, category: .other),
-        SetupChainSelectionDescriptor(id: "cardano", title: "Cardano", symbol: "ADA", chainName: "Cardano", color: .indigo, category: .other),
-        SetupChainSelectionDescriptor(id: "monero", title: "Monero", symbol: "XMR", chainName: "Monero", color: .indigo, category: .other),
-        SetupChainSelectionDescriptor(id: "sui", title: "Sui", symbol: "SUI", chainName: "Sui", color: .mint, category: .other),
-        SetupChainSelectionDescriptor(id: "aptos", title: "Aptos", symbol: "APT", chainName: "Aptos", color: .cyan, category: .other),
-        SetupChainSelectionDescriptor(id: "ton", title: "TON", symbol: "TON", chainName: "TON", color: .blue, category: .other),
-        SetupChainSelectionDescriptor(id: "internet-computer", title: "Internet Computer", symbol: "ICP", chainName: "Internet Computer", color: .indigo, category: .other),
-        SetupChainSelectionDescriptor(id: "near", title: "NEAR", symbol: "NEAR", chainName: "NEAR", color: .indigo, category: .other),
-        SetupChainSelectionDescriptor(id: "polkadot", title: "Polkadot", symbol: "DOT", chainName: "Polkadot", color: .pink, category: .other),
-        SetupChainSelectionDescriptor(id: "stellar", title: "Stellar", symbol: "XLM", chainName: "Stellar", color: .teal, category: .other),
-        SetupChainSelectionDescriptor(id: "bitcoin-gold", title: "Bitcoin Gold", symbol: "BTG", chainName: "Bitcoin Gold", color: .yellow, category: .bitcoinFamily),
-        SetupChainSelectionDescriptor(id: "decred", title: "Decred", symbol: "DCR", chainName: "Decred", color: .teal, category: .bitcoinFamily),
-        SetupChainSelectionDescriptor(id: "dash", title: "Dash", symbol: "DASH", chainName: "Dash", color: .blue, category: .bitcoinFamily),
-        SetupChainSelectionDescriptor(id: "zcash", title: "Zcash", symbol: "ZEC", chainName: "Zcash", color: .yellow, category: .other),
-        SetupChainSelectionDescriptor(id: "kaspa", title: "Kaspa", symbol: "KAS", chainName: "Kaspa", color: .mint, category: .other),
-        SetupChainSelectionDescriptor(id: "bittensor", title: "Bittensor", symbol: "TAO", chainName: "Bittensor", color: .indigo, category: .other),
-        SetupChainSelectionDescriptor(id: "sei", title: "Sei", symbol: "SEI", chainName: "Sei", color: .red, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "celo", title: "Celo", symbol: "CELO", chainName: "Celo", color: .yellow, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "cronos", title: "Cronos", symbol: "CRO", chainName: "Cronos", color: .blue, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "sonic", title: "Sonic", symbol: "S", chainName: "Sonic", color: .orange, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "berachain", title: "Berachain", symbol: "BERA", chainName: "Berachain", color: .brown, category: .evmL1),
-        SetupChainSelectionDescriptor(id: "opbnb", title: "opBNB", symbol: "BNB", chainName: "opBNB", color: .yellow, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "zksync-era", title: "zkSync Era", symbol: "ETH", chainName: "zkSync Era", color: .indigo, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "unichain", title: "Unichain", symbol: "ETH", chainName: "Unichain", color: .pink, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "ink", title: "Ink", symbol: "ETH", chainName: "Ink", color: .purple, category: .evmL2),
-        SetupChainSelectionDescriptor(id: "x-layer", title: "X Layer", symbol: "OKB", chainName: "X Layer", color: .gray, category: .evmL2),
-        // Testnets — each is a first-class chain (the chain identity carries
-        // the network flavor; there is no separate network parameter).
-        SetupChainSelectionDescriptor(id: "bitcoin-testnet", title: "Bitcoin Testnet", symbol: "tBTC", chainName: "Bitcoin Testnet", color: .orange, category: .testnets),
-        SetupChainSelectionDescriptor(id: "bitcoin-testnet4", title: "Bitcoin Testnet4", symbol: "tBTC", chainName: "Bitcoin Testnet4", color: .orange, category: .testnets),
-        SetupChainSelectionDescriptor(id: "bitcoin-signet", title: "Bitcoin Signet", symbol: "sBTC", chainName: "Bitcoin Signet", color: .orange, category: .testnets),
-        SetupChainSelectionDescriptor(id: "litecoin-testnet", title: "Litecoin Testnet", symbol: "tLTC", chainName: "Litecoin Testnet", color: .gray, category: .testnets),
-        SetupChainSelectionDescriptor(id: "bitcoin-cash-testnet", title: "Bitcoin Cash Testnet", symbol: "tBCH", chainName: "Bitcoin Cash Testnet", color: .orange, category: .testnets),
-        SetupChainSelectionDescriptor(id: "bitcoin-sv-testnet", title: "Bitcoin SV Testnet", symbol: "tBSV", chainName: "Bitcoin SV Testnet", color: .orange, category: .testnets),
-        SetupChainSelectionDescriptor(id: "dogecoin-testnet", title: "Dogecoin Testnet", symbol: "tDOGE", chainName: "Dogecoin Testnet", color: .brown, category: .testnets),
-        SetupChainSelectionDescriptor(id: "zcash-testnet", title: "Zcash Testnet", symbol: "tZEC", chainName: "Zcash Testnet", color: .yellow, category: .testnets),
-        SetupChainSelectionDescriptor(id: "decred-testnet", title: "Decred Testnet", symbol: "tDCR", chainName: "Decred Testnet", color: .teal, category: .testnets),
-        SetupChainSelectionDescriptor(id: "kaspa-testnet", title: "Kaspa Testnet", symbol: "tKAS", chainName: "Kaspa Testnet", color: .mint, category: .testnets),
-        SetupChainSelectionDescriptor(id: "dash-testnet", title: "Dash Testnet", symbol: "tDASH", chainName: "Dash Testnet", color: .blue, category: .testnets),
-        SetupChainSelectionDescriptor(id: "ethereum-sepolia", title: "Ethereum Sepolia", symbol: "SepoliaETH", chainName: "Ethereum Sepolia", color: .blue, category: .testnets),
-        SetupChainSelectionDescriptor(id: "ethereum-hoodi", title: "Ethereum Hoodi", symbol: "HoodiETH", chainName: "Ethereum Hoodi", color: .blue, category: .testnets),
-        SetupChainSelectionDescriptor(id: "arbitrum-sepolia", title: "Arbitrum Sepolia", symbol: "SepoliaARB", chainName: "Arbitrum Sepolia", color: .cyan, category: .testnets, gasToken: "SepoliaETH"),
-        SetupChainSelectionDescriptor(id: "optimism-sepolia", title: "Optimism Sepolia", symbol: "SepoliaOP", chainName: "Optimism Sepolia", color: .red, category: .testnets, gasToken: "SepoliaETH"),
-        SetupChainSelectionDescriptor(id: "base-sepolia", title: "Base Sepolia", symbol: "SepoliaETH", chainName: "Base Sepolia", color: .blue, category: .testnets),
-        SetupChainSelectionDescriptor(id: "bnb-testnet", title: "BNB Chain Testnet", symbol: "tBNB", chainName: "BNB Chain Testnet", color: .yellow, category: .testnets),
-        SetupChainSelectionDescriptor(id: "avalanche-fuji", title: "Avalanche Fuji", symbol: "FujiAVAX", chainName: "Avalanche Fuji", color: .red, category: .testnets),
-        SetupChainSelectionDescriptor(id: "polygon-amoy", title: "Polygon Amoy", symbol: "AmoyPOL", chainName: "Polygon Amoy", color: .purple, category: .testnets),
-        SetupChainSelectionDescriptor(id: "hyperliquid-testnet", title: "Hyperliquid Testnet", symbol: "tHYPE", chainName: "Hyperliquid Testnet", color: .mint, category: .testnets),
-        SetupChainSelectionDescriptor(id: "ethereum-classic-mordor", title: "Ethereum Classic Mordor", symbol: "MordorETC", chainName: "Ethereum Classic Mordor", color: .green, category: .testnets),
-        SetupChainSelectionDescriptor(id: "tron-nile", title: "Tron Nile", symbol: "NileTRX", chainName: "Tron Nile", color: .teal, category: .testnets),
-        SetupChainSelectionDescriptor(id: "solana-devnet", title: "Solana Devnet", symbol: "DevSOL", chainName: "Solana Devnet", color: .purple, category: .testnets),
-        SetupChainSelectionDescriptor(id: "xrp-testnet", title: "XRP Ledger Testnet", symbol: "tXRP", chainName: "XRP Ledger Testnet", color: .cyan, category: .testnets),
-        SetupChainSelectionDescriptor(id: "stellar-testnet", title: "Stellar Testnet", symbol: "tXLM", chainName: "Stellar Testnet", color: .teal, category: .testnets),
-        SetupChainSelectionDescriptor(id: "cardano-preprod", title: "Cardano Preprod", symbol: "tADA", chainName: "Cardano Preprod", color: .indigo, category: .testnets),
-        SetupChainSelectionDescriptor(id: "sui-testnet", title: "Sui Testnet", symbol: "tSUI", chainName: "Sui Testnet", color: .mint, category: .testnets),
-        SetupChainSelectionDescriptor(id: "aptos-testnet", title: "Aptos Testnet", symbol: "tAPT", chainName: "Aptos Testnet", color: .cyan, category: .testnets),
-        SetupChainSelectionDescriptor(id: "ton-testnet", title: "TON Testnet", symbol: "tTON", chainName: "TON Testnet", color: .blue, category: .testnets),
-        SetupChainSelectionDescriptor(id: "near-testnet", title: "NEAR Testnet", symbol: "tNEAR", chainName: "NEAR Testnet", color: .indigo, category: .testnets),
-        SetupChainSelectionDescriptor(id: "polkadot-westend", title: "Polkadot Westend", symbol: "WND", chainName: "Polkadot Westend", color: .pink, category: .testnets),
-        SetupChainSelectionDescriptor(id: "monero-stagenet", title: "Monero Stagenet", symbol: "sXMR", chainName: "Monero Stagenet", color: .indigo, category: .testnets),
-    ]
+    private static let chainSelectionDescriptors: [SetupChainSelectionDescriptor] = listAllChains().compactMap { chain in
+        guard let category = SetupChainCategory(chainCategory: chain.category) else { return nil }
+        return SetupChainSelectionDescriptor(
+            id: chain.id, title: chain.name, symbol: chain.symbol, chainName: chain.name,
+            color: RegistryColorLookup.color(named: chain.colorName), category: category,
+            gasToken: chain.gasTokenSymbol == chain.symbol ? nil : chain.gasTokenSymbol
+        )
+    }
     private static let popularChainSelectionIDs: [String] = [
         "bitcoin", "ethereum", "solana", "base", "arbitrum", "tron", "monero", "litecoin",
     ]

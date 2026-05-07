@@ -1,256 +1,329 @@
 import Foundation
+
 enum WalletRustDerivationBridgeError: LocalizedError {
-    case rustCoreUnsupportedChain(String)
-    case requestCompilationFailed(String)
+    case unsupportedChain(String)
     var errorDescription: String? {
         switch self {
-        case .rustCoreUnsupportedChain(let chain): return "The Rust derivation core does not support \(chain) yet."
-        case .requestCompilationFailed(let message): return message
+        case .unsupportedChain(let chain): return "Derivation is not yet available for \(chain)."
         }
     }
 }
+
 enum WalletRustDerivationBridge {
     static var isAvailable: Bool { true }
-    static func makeRequestModel(
-        chain: SeedDerivationChain, seedPhrase: String, derivationPath: String?, passphrase: String?,
-        iterationCount: Int?, hmacKeyString: String?, requestedOutputs: WalletDerivationRequestedOutputs,
-        overrides: CoreWalletDerivationOverrides? = nil
-    ) throws -> WalletRustDerivationRequestModel {
-        let requestCompilationPreset = WalletDerivationPresetCatalog.requestCompilationPreset(for: chain)
-        let presetCurve = WalletDerivationPresetCatalog.curve(for: chain)
-        let trimmedPath = derivationPath?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedDerivationPath =
-            (trimmedPath?.isEmpty == false)
-            ? trimmedPath
-            : WalletDerivationPresetCatalog.defaultPath(for: chain)
-        let compiledScriptType = try compileScriptType(from: requestCompilationPreset, derivationPath: resolvedDerivationPath)
-        // The typed Swift enums used for `WalletRustDerivationRequestModel`
-        // cover only the common preset algorithms. Advanced-mode overrides
-        // (e.g., TonMnemonic, SubstrateBip39, Monero, SS58) live outside these
-        // enums and are carried through to Rust as raw strings via
-        // `advancedOverrides` below.
-        return WalletRustDerivationRequestModel(
-            curve: presetCurve,
-            requestedOutputs: requestedOutputs,
-            derivationAlgorithm: requestCompilationPreset.derivationAlgorithm,
-            addressAlgorithm: requestCompilationPreset.addressAlgorithm,
-            publicKeyFormat: requestCompilationPreset.publicKeyFormat, scriptType: compiledScriptType,
-            seedPhrase: seedPhrase, derivationPath: resolvedDerivationPath,
-            passphrase: overrides?.passphrase ?? passphrase,
-            hmacKey: overrides?.hmacKey ?? hmacKeyString,
-            mnemonicWordlist: overrides?.mnemonicWordlist ?? "english",
-            iterationCount: overrides?.iterationCount ?? UInt32(iterationCount ?? 2048),
-            advancedOverrides: overrides
+
+    // MARK: — Seed-phrase derive
+
+    static func derive(
+        chain: SeedDerivationChain,
+        seedPhrase: String,
+        derivationPath: String?,
+        passphrase: String?,
+        hmacKey: String?,
+        scriptType: BitcoinScriptType? = nil,
+        wantAddress: Bool,
+        wantPublicKey: Bool,
+        wantPrivateKey: Bool
+    ) throws -> WalletRustDerivationResponseModel {
+        let path = derivationPath ?? CachedCoreHelpers.chainDerivationPath(chainName: chain.rawValue)
+        let result = try dispatch(
+            chain: chain, seedPhrase: seedPhrase, path: path,
+            passphrase: passphrase?.nonEmpty, hmacKey: hmacKey?.nonEmpty,
+            scriptType: scriptType ?? bitcoinScriptType(from: path),
+            wa: wantAddress, wp: wantPublicKey, wk: wantPrivateKey
         )
-    }
-    static func derive(_ requestModel: WalletRustDerivationRequestModel) throws -> WalletRustDerivationResponseModel {
-        let overrides = requestModel.advancedOverrides
-        let response = try derivationDerive(
-            request: UniFfiDerivationRequest(
-                chain: nil,
-                curve: requestModel.curve.rustWireValue,
-                requestedOutputs: requestModel.requestedOutputs.rustWireValue,
-                derivationAlgorithm: requestModel.derivationAlgorithm.rustWireValue,
-                addressAlgorithm: requestModel.addressAlgorithm.rustWireValue,
-                publicKeyFormat: requestModel.publicKeyFormat.rustWireValue,
-                scriptType: requestModel.scriptType.rustWireValue,
-                seedPhrase: requestModel.seedPhrase,
-                derivationPath: requestModel.derivationPath, passphrase: requestModel.passphrase, hmacKey: requestModel.hmacKey,
-                mnemonicWordlist: requestModel.mnemonicWordlist, iterationCount: requestModel.iterationCount,
-                saltPrefix: overrides?.saltPrefix,
-                curveOverrideName: overrides?.curve,
-                derivationAlgorithmOverrideName: overrides?.derivationAlgorithm,
-                addressAlgorithmOverrideName: overrides?.addressAlgorithm,
-                publicKeyFormatOverrideName: overrides?.publicKeyFormat,
-                scriptTypeOverrideName: overrides?.scriptType
-            ))
         return WalletRustDerivationResponseModel(
-            address: response.address, publicKeyHex: response.publicKeyHex, privateKeyHex: response.privateKeyHex)
+            address: result.address, publicKeyHex: result.publicKeyHex, privateKeyHex: result.privateKeyHex)
     }
+
+    // MARK: — Private-key derive (EVM + UTXO chains that have Rust helpers)
+
     static func deriveFromPrivateKey(
         chain: SeedDerivationChain, privateKeyHex: String
     ) throws -> WalletRustDerivationResponseModel {
-        let requestCompilationPreset = WalletDerivationPresetCatalog.requestCompilationPreset(for: chain)
-        let curve = WalletDerivationPresetCatalog.curve(for: chain)
-        let scriptType = try compileScriptType(
-            from: requestCompilationPreset, derivationPath: WalletDerivationPresetCatalog.defaultPath(for: chain))
-        let response = try derivationDeriveFromPrivateKey(
-            request: UniFfiPrivateKeyDerivationRequest(
-                chain: nil, curve: curve.rustWireValue,
-                addressAlgorithm: requestCompilationPreset.addressAlgorithm.rustWireValue,
-                publicKeyFormat: requestCompilationPreset.publicKeyFormat.rustWireValue,
-                scriptType: scriptType.rustWireValue, privateKeyHex: privateKeyHex
-            ))
+        let result: DerivationResult
+        switch chain {
+        case .ethereum, .arbitrum, .optimism, .avalanche, .base, .polygon, .hyperliquid,
+             .linea, .scroll, .blast, .mantle, .sei, .celo, .cronos, .opBNB, .zkSyncEra,
+             .sonic, .berachain, .unichain, .ink, .xLayer,
+             .ethereumClassic, .ethereumSepolia, .ethereumHoodi, .arbitrumSepolia,
+             .optimismSepolia, .baseSepolia, .bnbChainTestnet, .avalancheFuji, .polygonAmoy,
+             .hyperliquidTestnet, .ethereumClassicMordor:
+            result = try deriveEvmFromPrivateKey(privateKeyHex: privateKeyHex, wantAddress: true, wantPublicKey: false)
+        case .bitcoin, .bitcoinTestnet, .bitcoinTestnet4, .bitcoinSignet:
+            result = try deriveBitcoinFromPrivateKey(
+                privateKeyHex: privateKeyHex, scriptType: .p2wpkh, wantAddress: true, wantPublicKey: false)
+        case .bitcoinCash, .bitcoinCashTestnet:
+            result = try deriveBitcoinCashFromPrivateKey(
+                privateKeyHex: privateKeyHex, wantAddress: true, wantPublicKey: false)
+        case .bitcoinSV, .bitcoinSVTestnet:
+            return WalletRustDerivationResponseModel(address: nil, publicKeyHex: nil, privateKeyHex: nil)
+        case .litecoin, .litecoinTestnet:
+            result = try deriveLitecoinFromPrivateKey(
+                privateKeyHex: privateKeyHex, wantAddress: true, wantPublicKey: false)
+        case .dogecoin, .dogecoinTestnet:
+            result = try deriveDogecoinFromPrivateKey(
+                privateKeyHex: privateKeyHex, wantAddress: true, wantPublicKey: false)
+        case .decred, .decredTestnet:
+            result = try deriveDecredFromPrivateKey(
+                privateKeyHex: privateKeyHex, wantAddress: true, wantPublicKey: false)
+        default:
+            return WalletRustDerivationResponseModel(address: nil, publicKeyHex: nil, privateKeyHex: nil)
+        }
         return WalletRustDerivationResponseModel(
-            address: response.address, publicKeyHex: response.publicKeyHex, privateKeyHex: response.privateKeyHex)
+            address: result.address, publicKeyHex: result.publicKeyHex, privateKeyHex: result.privateKeyHex)
     }
-    static func buildSigningMaterial(_ requestModel: WalletRustDerivationRequestModel) throws -> WalletRustSigningMaterialModel
-    {
-        guard let derivationPath = requestModel.derivationPath else {
-            throw WalletRustDerivationBridgeError.requestCompilationFailed("Signing material requires a derivation path.")
-        }
-        let response = try derivationBuildMaterial(
-            request: UniFfiMaterialRequest(
-                chain: nil, curve: requestModel.curve.rustWireValue,
-                derivationAlgorithm: requestModel.derivationAlgorithm.rustWireValue,
-                addressAlgorithm: requestModel.addressAlgorithm.rustWireValue,
-                publicKeyFormat: requestModel.publicKeyFormat.rustWireValue,
-                scriptType: requestModel.scriptType.rustWireValue,
-                seedPhrase: requestModel.seedPhrase, derivationPath: derivationPath, passphrase: requestModel.passphrase,
-                hmacKey: requestModel.hmacKey, mnemonicWordlist: requestModel.mnemonicWordlist, iterationCount: requestModel.iterationCount,
-                saltPrefix: nil
-            ))
-        return WalletRustSigningMaterialModel(
-            address: response.address, privateKeyHex: response.privateKeyHex, derivationPath: response.derivationPath,
-            account: response.account, branch: response.branch, index: response.index)
-    }
-    static func buildSigningMaterialFromPrivateKey(
-        chain: SeedDerivationChain, privateKeyHex: String, derivationPath: String
-    ) throws -> WalletRustSigningMaterialModel {
-        let requestCompilationPreset = WalletDerivationPresetCatalog.requestCompilationPreset(for: chain)
-        let curve = WalletDerivationPresetCatalog.curve(for: chain)
-        let scriptType = try compileScriptType(from: requestCompilationPreset, derivationPath: derivationPath)
-        let response = try derivationBuildMaterialFromPrivateKey(
-            request: UniFfiPrivateKeyMaterialRequest(
-                chain: nil, curve: curve.rustWireValue,
-                addressAlgorithm: requestCompilationPreset.addressAlgorithm.rustWireValue,
-                publicKeyFormat: requestCompilationPreset.publicKeyFormat.rustWireValue,
-                scriptType: scriptType.rustWireValue,
-                privateKeyHex: privateKeyHex, derivationPath: derivationPath
-            ))
-        return WalletRustSigningMaterialModel(
-            address: response.address, privateKeyHex: response.privateKeyHex, derivationPath: response.derivationPath,
-            account: response.account, branch: response.branch, index: response.index)
-    }
+
+    // MARK: — Batch derive (all selected chains)
+
     static func deriveAllAddresses(seedPhrase: String, chainPaths: [String: String]) throws -> [String: String] {
-        try derivationDeriveAllAddresses(seedPhrase: seedPhrase, chainPaths: chainPaths)
+        var result: [String: String] = [:]
+        for (chainName, path) in chainPaths {
+            guard let chain = SeedDerivationChain(rawValue: chainName) else { continue }
+            if let address = try? derive(
+                chain: chain, seedPhrase: seedPhrase, derivationPath: path,
+                passphrase: nil, hmacKey: nil,
+                wantAddress: true, wantPublicKey: false, wantPrivateKey: false
+            ).address {
+                result[chainName] = address
+            }
+        }
+        return result
     }
-    private static func compileScriptType(from preset: WalletDerivationRequestCompilationPreset, derivationPath: String?) throws
-        -> AppCoreScriptType
-    {
-        do {
-            return try coreCompileScriptType(preset: preset, derivationPath: derivationPath)
-        } catch {
-            throw WalletRustDerivationBridgeError.requestCompilationFailed(error.localizedDescription)
+
+    // MARK: — Script type from path
+
+    private static func bitcoinScriptType(from path: String) -> BitcoinScriptType {
+        let purpose = path.split(separator: "/")
+            .first(where: { $0 != "m" && $0 != "M" })
+            .map { String($0).replacingOccurrences(of: "'", with: "") }
+        switch purpose {
+        case "44": return .p2pkh
+        case "49": return .p2shP2wpkh
+        case "86": return .p2tr
+        default:   return .p2wpkh
+        }
+    }
+
+    // MARK: — Per-chain dispatch
+
+    // swiftlint:disable:next function_body_length cyclomatic_complexity
+    private static func dispatch(
+        chain: SeedDerivationChain,
+        seedPhrase: String, path: String,
+        passphrase: String?, hmacKey: String?,
+        scriptType: BitcoinScriptType,
+        wa: Bool, wp: Bool, wk: Bool
+    ) throws -> DerivationResult {
+        switch chain {
+
+        // ── Bitcoin family (script-type aware) ──────────────────────────────
+        case .bitcoin:
+            return try deriveBitcoin(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .bitcoinTestnet:
+            return try deriveBitcoinTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .bitcoinTestnet4:
+            return try deriveBitcoinTestnet4(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .bitcoinSignet:
+            return try deriveBitcoinSignet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Bitcoin Cash ─────────────────────────────────────────────────────
+        case .bitcoinCash:
+            return try deriveBitcoinCash(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .bitcoinCashTestnet:
+            return try deriveBitcoinCashTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Bitcoin SV ───────────────────────────────────────────────────────
+        case .bitcoinSV:
+            return try deriveBitcoinSv(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .bitcoinSVTestnet:
+            return try deriveBitcoinSvTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Litecoin ─────────────────────────────────────────────────────────
+        case .litecoin:
+            return try deriveLitecoin(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .litecoinTestnet:
+            return try deriveLitecoinTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Dogecoin ─────────────────────────────────────────────────────────
+        case .dogecoin:
+            return try deriveDogecoin(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .dogecoinTestnet:
+            return try deriveDogecoinTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Dash ─────────────────────────────────────────────────────────────
+        case .dash:
+            return try deriveDash(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .dashTestnet:
+            return try deriveDashTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Bitcoin Gold ─────────────────────────────────────────────────────
+        case .bitcoinGold:
+            return try deriveBitcoinGold(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, scriptType: scriptType, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Zcash ────────────────────────────────────────────────────────────
+        case .zcash:
+            return try deriveZcash(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .zcashTestnet:
+            return try deriveZcashTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Decred ───────────────────────────────────────────────────────────
+        case .decred:
+            return try deriveDecred(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .decredTestnet:
+            return try deriveDecredTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Kaspa ────────────────────────────────────────────────────────────
+        case .kaspa:
+            return try deriveKaspa(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .kaspaTestnet:
+            return try deriveKaspaTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── EVM mainnets ─────────────────────────────────────────────────────
+        case .ethereum:
+            return try deriveEthereum(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .ethereumClassic:
+            return try deriveEthereumClassic(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .arbitrum:
+            return try deriveArbitrum(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .optimism:
+            return try deriveOptimism(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .avalanche:
+            return try deriveAvalanche(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .base:
+            return try deriveBase(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .polygon:
+            return try derivePolygon(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .hyperliquid:
+            return try deriveHyperliquid(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .linea:
+            return try deriveLinea(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .scroll:
+            return try deriveScroll(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .blast:
+            return try deriveBlast(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .mantle:
+            return try deriveMantle(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .sei:
+            return try deriveSei(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .celo:
+            return try deriveCelo(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .cronos:
+            return try deriveCronos(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .opBNB:
+            return try deriveOpBnb(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .zkSyncEra:
+            return try deriveZksyncEra(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .sonic:
+            return try deriveSonic(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .berachain:
+            return try deriveBerachain(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .unichain:
+            return try deriveUnichain(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .ink:
+            return try deriveInk(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .xLayer:
+            return try deriveXLayer(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── EVM testnets ─────────────────────────────────────────────────────
+        case .ethereumSepolia:
+            return try deriveEthereumSepolia(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .ethereumHoodi:
+            return try deriveEthereumHoodi(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .ethereumClassicMordor:
+            return try deriveEthereumClassicMordor(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .arbitrumSepolia:
+            return try deriveArbitrumSepolia(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .optimismSepolia:
+            return try deriveOptimismSepolia(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .baseSepolia:
+            return try deriveBaseSepolia(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .bnbChainTestnet:
+            return try deriveBnbTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .avalancheFuji:
+            return try deriveAvalancheFuji(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .polygonAmoy:
+            return try derivePolygonAmoy(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .hyperliquidTestnet:
+            return try deriveHyperliquidTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Tron ─────────────────────────────────────────────────────────────
+        case .tron:
+            return try deriveTron(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .tronNile:
+            return try deriveTronNile(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Solana ───────────────────────────────────────────────────────────
+        case .solana:
+            return try deriveSolana(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, hmacKey: hmacKey, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .solanaDevnet:
+            return try deriveSolanaDevnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, hmacKey: hmacKey, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Stellar ──────────────────────────────────────────────────────────
+        case .stellar:
+            return try deriveStellar(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, hmacKey: hmacKey, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .stellarTestnet:
+            return try deriveStellarTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, hmacKey: hmacKey, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── XRP ──────────────────────────────────────────────────────────────
+        case .xrp:
+            return try deriveXrp(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .xrpTestnet:
+            return try deriveXrpTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Cardano ──────────────────────────────────────────────────────────
+        case .cardano:
+            return try deriveCardano(seedPhrase: seedPhrase, derivationPath: path.isEmpty ? nil : path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .cardanoPreprod:
+            return try deriveCardanoPreprod(seedPhrase: seedPhrase, derivationPath: path.isEmpty ? nil : path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Sui ──────────────────────────────────────────────────────────────
+        case .sui:
+            return try deriveSui(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .suiTestnet:
+            return try deriveSuiTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Aptos ────────────────────────────────────────────────────────────
+        case .aptos:
+            return try deriveAptos(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .aptosTestnet:
+            return try deriveAptosTestnet(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── TON (no derivation path) ─────────────────────────────────────────
+        case .ton:
+            return try deriveTon(seedPhrase: seedPhrase, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .tonTestnet:
+            return try deriveTonTestnet(seedPhrase: seedPhrase, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Internet Computer ────────────────────────────────────────────────
+        case .internetComputer:
+            return try deriveIcp(seedPhrase: seedPhrase, derivationPath: path, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── NEAR (no derivation path) ────────────────────────────────────────
+        case .near:
+            return try deriveNear(seedPhrase: seedPhrase, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .nearTestnet:
+            return try deriveNearTestnet(seedPhrase: seedPhrase, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Polkadot / Westend (no derivation path) ──────────────────────────
+        case .polkadot:
+            return try derivePolkadot(seedPhrase: seedPhrase, passphrase: passphrase, hmacKey: hmacKey, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+        case .polkadotWestend:
+            return try derivePolkadotWestend(seedPhrase: seedPhrase, passphrase: passphrase, hmacKey: hmacKey, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Bittensor (no derivation path) ──────────────────────────────────
+        case .bittensor:
+            return try deriveBittensor(seedPhrase: seedPhrase, passphrase: passphrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
+
+        // ── Monero Stagenet (no derivation path) ─────────────────────────────
+        case .moneroStagenet:
+            return try deriveMoneroStagenet(seedPhrase: seedPhrase, wantAddress: wa, wantPublicKey: wp, wantPrivateKey: wk)
         }
     }
 }
 
-extension WalletDerivationCurve {
-    var rustWireValue: UInt32 {
-        switch self {
-        case .secp256k1: return 0
-        case .ed25519: return 1
-        }
-    }
-}
-extension WalletDerivationRequestedOutputs {
-    var rustWireValue: UInt32 {
-        var value: UInt32 = 0
-        if contains(.address) { value |= 1 << 0 }
-        if contains(.publicKey) { value |= 1 << 1 }
-        if contains(.privateKey) { value |= 1 << 2 }
-        return value
-    }
-}
-extension AppCoreDerivationAlgorithm {
-    var rustWireValue: UInt32 {
-        switch self {
-        case .bip32Secp256k1: return 1
-        case .slip10Ed25519: return 2
-        }
-    }
-}
-extension AppCoreAddressAlgorithm {
-    var rustWireValue: UInt32 {
-        switch self {
-        case .bitcoin: return 1
-        case .evm: return 2
-        case .solana: return 3
-        }
-    }
-}
-extension AppCorePublicKeyFormat {
-    var rustWireValue: UInt32 {
-        switch self {
-        case .compressed: return 1
-        case .uncompressed: return 2
-        case .xOnly: return 3
-        case .raw: return 4
-        }
-    }
-}
-extension AppCoreScriptType {
-    var rustWireValue: UInt32 {
-        switch self {
-        case .p2pkh: return 1
-        case .p2shP2wpkh: return 2
-        case .p2wpkh: return 3
-        case .p2tr: return 4
-        case .account: return 5
-        }
-    }
-}
-struct WalletRustDerivationRequestModel: Sendable {
-    let curve: WalletDerivationCurve
-    let requestedOutputs: WalletDerivationRequestedOutputs
-    let derivationAlgorithm: AppCoreDerivationAlgorithm
-    let addressAlgorithm: AppCoreAddressAlgorithm
-    let publicKeyFormat: AppCorePublicKeyFormat
-    let scriptType: AppCoreScriptType
-    let seedPhrase: String
-    let derivationPath: String?
-    let passphrase: String?
-    let hmacKey: String?
-    let mnemonicWordlist: String?
-    let iterationCount: UInt32
-    /// Power-user overrides for Advanced mode. When present, the string
-    /// values override the typed-enum fields above at wire-encoding time.
-    /// Algorithms outside the typed-enum set (TonMnemonic, SubstrateBip39,
-    /// MoneroBip39, Bip32Ed25519Icarus, DirectSeedEd25519, etc.) are only
-    /// reachable through this field.
-    let advancedOverrides: CoreWalletDerivationOverrides?
-    init(
-        curve: WalletDerivationCurve,
-        requestedOutputs: WalletDerivationRequestedOutputs,
-        derivationAlgorithm: AppCoreDerivationAlgorithm,
-        addressAlgorithm: AppCoreAddressAlgorithm,
-        publicKeyFormat: AppCorePublicKeyFormat, scriptType: AppCoreScriptType,
-        seedPhrase: String, derivationPath: String?, passphrase: String?, hmacKey: String?,
-        mnemonicWordlist: String?, iterationCount: UInt32,
-        advancedOverrides: CoreWalletDerivationOverrides? = nil
-    ) {
-        self.curve = curve
-        self.requestedOutputs = requestedOutputs
-        self.derivationAlgorithm = derivationAlgorithm
-        self.addressAlgorithm = addressAlgorithm
-        self.publicKeyFormat = publicKeyFormat
-        self.scriptType = scriptType
-        self.seedPhrase = seedPhrase
-        self.derivationPath = derivationPath
-        self.passphrase = passphrase
-        self.hmacKey = hmacKey
-        self.mnemonicWordlist = mnemonicWordlist
-        self.iterationCount = iterationCount
-        self.advancedOverrides = advancedOverrides
-    }
-}
+// MARK: — Shared result types
 
-// Override names (when set on `CoreWalletDerivationOverrides`) are passed
-// straight through to Rust via `*OverrideName` fields on `UniFfiDerivationRequest`.
-// Rust resolves them via `presets::*_wire_value` — the string→u32 lookup
-// tables that used to live here are gone.
-
-extension CoreWalletDerivationOverrides {
-    /// True when every override field is nil — i.e., the request should use
-    /// chain-preset defaults. Read at import time to skip the per-chain
-    /// derivation loop when no power-user overrides are set.
-    var isEmpty: Bool {
-        passphrase == nil && mnemonicWordlist == nil && iterationCount == nil && saltPrefix == nil
-            && hmacKey == nil && curve == nil && derivationAlgorithm == nil && addressAlgorithm == nil
-            && publicKeyFormat == nil && scriptType == nil
-    }
-}
 struct WalletRustSigningMaterialModel: Sendable {
     let address: String
     let privateKeyHex: String
@@ -259,8 +332,25 @@ struct WalletRustSigningMaterialModel: Sendable {
     let branch: UInt32
     let index: UInt32
 }
+
 struct WalletRustDerivationResponseModel: Sendable {
     let address: String?
     let publicKeyHex: String?
     let privateKeyHex: String?
+}
+
+// MARK: — CoreWalletDerivationOverrides helpers
+
+extension CoreWalletDerivationOverrides {
+    var isEmpty: Bool {
+        passphrase == nil && mnemonicWordlist == nil && iterationCount == nil && saltPrefix == nil
+            && hmacKey == nil && curve == nil && derivationAlgorithm == nil && addressAlgorithm == nil
+            && publicKeyFormat == nil && scriptType == nil
+    }
+}
+
+// MARK: — String helpers
+
+private extension String {
+    var nonEmpty: String? { isEmpty ? nil : self }
 }

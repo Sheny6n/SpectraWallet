@@ -3,46 +3,29 @@ import SwiftUI
 extension AppState {
     static let pinnedDashboardAssetSymbolsDefaultsKey = "dashboardPinnedAssetSymbols"
     private var defaultPinnedDashboardAssetSymbols: [String] { ["BTC", "ETH", "USDT", "USDC"] }
-    private static let dashboardPinPrototypeSpecs: [(String, String, String, String, String, String?, Double, Double)] = [
-        ("Bitcoin", "BTC", "bitcoin", "Bitcoin", "Native", nil, 0, 0),
-        ("Bitcoin Cash", "BCH", "bitcoin-cash", "Bitcoin Cash", "Native", nil, 0, 0),
-        ("Bitcoin SV", "BSV", "bitcoin-cash-sv", "Bitcoin SV", "Native", nil, 0, 0),
-        ("Litecoin", "LTC", "litecoin", "Litecoin", "Native", nil, 0, 0),
-        ("Dogecoin", "DOGE", "dogecoin", "Dogecoin", "Native", nil, 0, 0),
-        ("Ethereum", "ETH", "ethereum", "Ethereum", "Native", nil, 0, 0),
-        ("Ethereum Classic", "ETC", "ethereum-classic", "Ethereum Classic", "Native", nil, 0, 0),
-        ("Arbitrum", "ARB", "arbitrum", "Arbitrum", "Native", nil, 0, 0),
-        ("Optimism", "OP", "optimism", "Optimism", "Native", nil, 0, 0),
-        ("BNB Chain", "BNB", "binancecoin", "BNB Chain", "Native", nil, 0, 0),
-        ("Avalanche", "AVAX", "avalanche-2", "Avalanche", "Native", nil, 0, 0),
-        ("Hyperliquid", "HYPE", "", "Hyperliquid", "Native", nil, 0, 0),
-        ("Polygon", "POL", "matic-network", "Polygon", "Native", nil, 0, 0),
-        ("Base", "ETH", "ethereum", "Base", "Native", nil, 0, 0),
-        ("Linea", "ETH", "ethereum", "Linea", "Native", nil, 0, 0),
-        ("Scroll", "ETH", "ethereum", "Scroll", "Native", nil, 0, 0),
-        ("Blast", "ETH", "ethereum", "Blast", "Native", nil, 0, 0),
-        ("Mantle", "MNT", "mantle", "Mantle", "Native", nil, 0, 0),
-        ("Solana", "SOL", "solana", "Solana", "Native", nil, 0, 0),
-        ("Cardano", "ADA", "cardano", "Cardano", "Native", nil, 0, 0),
-        ("Tron", "TRX", "tron", "Tron", "Native", nil, 0, 0),
-        ("XRP Ledger", "XRP", "ripple", "XRP Ledger", "Native", nil, 0, 0),
-        ("Monero", "XMR", "monero", "Monero", "Native", nil, 0, 0),
-        ("Sui", "SUI", "sui", "Sui", "Native", nil, 0, 0),
-        ("Aptos", "APT", "aptos", "Aptos", "Native", nil, 0, 0),
-        ("Internet Computer", "ICP", "internet-computer", "Internet Computer", "Native", nil, 0, 0),
-        ("NEAR Protocol", "NEAR", "near", "NEAR", "Native", nil, 0, 0),
-        ("Polkadot", "DOT", "polkadot", "Polkadot", "Native", nil, 0, 0),
-        ("Stellar", "XLM", "stellar", "Stellar", "Native", nil, 0, 0),
-        ("Tether USD", "USDT", "tether", "Ethereum", "ERC-20", "0xdAC17F958D2ee523a2206206994597C13D831ec7", 0, 1),
-        ("USD Coin", "USDC", "usd-coin", "Ethereum", "ERC-20", "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 0, 1),
-    ]
-    private var dashboardPinPrototypes: [Coin] {
-        Self.dashboardPinPrototypeSpecs.map { spec in
-            Coin.makeCustom(
-                name: spec.0, symbol: spec.1, coinGeckoId: spec.2, chainName: spec.3, tokenStandard: spec.4,
-                contractAddress: spec.5, amount: spec.6, priceUsd: spec.7)
+    private static let dashboardPinPrototypes: [Coin] = {
+        let allChains = listAllChains()
+        let chainNameById = Dictionary(uniqueKeysWithValues: allChains.map { ($0.id, $0.name) })
+        var coins = allChains
+            .filter { !$0.nativeAssetName.isEmpty && $0.category != "testnet" }
+            .map { chain in
+                Coin.makeCustom(
+                    name: chain.nativeAssetName, symbol: chain.gasTokenSymbol,
+                    coinGeckoId: chain.nativeCoingeckoId, chainName: chain.name,
+                    tokenStandard: "Native", contractAddress: nil, amount: 0, priceUsd: 0)
+            }
+        for token in listTokens(chainId: UInt32.max) where token.category == "stablecoin" && token.enabled {
+            let chainName = chainNameById[token.chain] ?? token.chain
+            coins.append(Coin.makeCustom(
+                name: token.name, symbol: token.symbol,
+                coinGeckoId: token.coingeckoId, chainName: chainName,
+                tokenStandard: token.tokenStandard,
+                contractAddress: token.contract.isEmpty ? nil : token.contract,
+                amount: 0, priceUsd: 0))
         }
-    }
+        return coins
+    }()
+    private var dashboardPinPrototypes: [Coin] { Self.dashboardPinPrototypes }
     var pinnedDashboardAssetSymbols: [String] {
         cachedPinnedDashboardAssetSymbols.isEmpty
             ? defaultPinnedDashboardAssetSymbols

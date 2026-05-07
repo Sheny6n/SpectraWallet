@@ -47,11 +47,11 @@ struct DiagnosticsHubView: View {
 enum StandardDiagnosticsChain: String, Hashable {
     case dogecoin
     case bitcoin
-    case bitcoinCash
-    case bitcoinSV
+    case bitcoinCash         = "bitcoin-cash"
+    case bitcoinSV           = "bitcoin-sv"
     case litecoin
     case ethereum
-    case ethereumClassic
+    case ethereumClassic     = "ethereum-classic"
     case arbitrum
     case optimism
     case bnb
@@ -66,7 +66,7 @@ enum StandardDiagnosticsChain: String, Hashable {
     case sui
     case aptos
     case ton
-    case icp
+    case icp                 = "internet-computer"
     case near
     case polkadot
     var chainID: AppChainID { AppChainID(rawValue: rawValue) ?? .bitcoin }

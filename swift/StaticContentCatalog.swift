@@ -271,8 +271,7 @@ enum CommonLocalization {
     }
 }
 /// Maps a human-readable color name string (stored in `core/tokens.toml`
-/// and `resources/ChainVisualRegistry.json`) to a SwiftUI `Color`. Kept at
-/// module scope so both the chain and token visual catalogs can share it.
+/// and `core/chains.toml`) to a SwiftUI `Color`.
 enum RegistryColorLookup {
     static func color(named name: String) -> Color {
         switch name.lowercased() {
@@ -358,35 +357,6 @@ struct EndpointsContentCopy: Decodable {
     let customMoneroBackendURLPlaceholder: String
     static var current: EndpointsContentCopy {
         StaticContentCatalog.loadRequiredResource("EndpointsContent", as: EndpointsContentCopy.self)
-    }
-}
-struct ChainVisualRegistrySeed: Decodable {
-    let id: String
-    let symbol: String
-    let chainName: String
-    let colorName: String
-    let assetName: String
-}
-struct ChainVisualRegistryEntry {
-    let id: String
-    let symbol: String
-    let chainName: String
-    let color: Color
-    let assetName: String
-}
-enum ChainVisualRegistryCatalog {
-    static func loadEntries() -> [String: ChainVisualRegistryEntry] {
-        let seeds = StaticContentCatalog.loadRequiredResource("ChainVisualRegistry", as: [ChainVisualRegistrySeed].self)
-        return Dictionary(
-            uniqueKeysWithValues: seeds.map {
-                (
-                    $0.id,
-                    ChainVisualRegistryEntry(
-                        id: $0.id, symbol: $0.symbol, chainName: $0.chainName,
-                        color: RegistryColorLookup.color(named: $0.colorName), assetName: $0.assetName
-                    )
-                )
-            })
     }
 }
 private func tokenTrackingChainFor(_ value: String) -> TokenTrackingChain? {

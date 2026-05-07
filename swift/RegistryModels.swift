@@ -11,13 +11,9 @@ struct WalletChainID: Hashable, Codable, Identifiable, Comparable {
     var displayName: String { Self.displayNameByID[rawValue] ?? rawValue }
     init(rawValue: String) { self.rawValue = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
     init?(_ chainNameOrID: String) {
-        let normalized = chainNameOrID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return nil }
-        if let resolved = Self.lookupByNormalizedAlias[normalized.lowercased()] {
-            self.init(rawValue: resolved)
-        } else {
-            self.init(rawValue: Self.fallbackRawValue(for: normalized))
-        }
+        let trimmed = chainNameOrID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        self.init(rawValue: coreResolveChainId(input: trimmed))
     }
     static func resolved(_ chainNameOrID: String) -> WalletChainID {
         WalletChainID(chainNameOrID) ?? WalletChainID(rawValue: chainNameOrID)
@@ -25,25 +21,11 @@ struct WalletChainID: Hashable, Codable, Identifiable, Comparable {
     static func < (lhs: WalletChainID, rhs: WalletChainID) -> Bool {
         lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
     }
-    private static func fallbackRawValue(for chainNameOrID: String) -> String {
-        let normalized = chainNameOrID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let collapsed = normalized.replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
-        return collapsed.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-    }
-    private static let chainWikiEntries: [ChainWikiEntry] =
-        StaticContentCatalog.loadResource("ChainWikiEntries", as: [ChainWikiEntry].self) ?? []
     private static let displayNameByID: [String: String] = Dictionary(
-        uniqueKeysWithValues: chainWikiEntries.map { ($0.id.lowercased(), $0.name) }
+        uniqueKeysWithValues: listAllChains()
+            .filter { !$0.name.isEmpty }
+            .map { ($0.id.lowercased(), $0.name) }
     )
-    private static let lookupByNormalizedAlias: [String: String] = {
-        var entries: [String: String] = [:]
-        for entry in chainWikiEntries {
-            entries[entry.id.lowercased()] = entry.id
-            entries[entry.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()] = entry.id
-            entries[entry.symbol.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()] = entry.id
-        }
-        return entries
-    }()
 }
 typealias TokenTrackingChain = CoreTokenTrackingChain
 extension CoreTokenTrackingChain: RawRepresentable, CaseIterable, Codable, Identifiable {
@@ -113,17 +95,7 @@ extension CoreTokenTrackingChain: RawRepresentable, CaseIterable, Codable, Ident
     }
     public var id: String { rawValue }
     var tokenStandard: String {
-        switch self {
-        case .ethereum, .arbitrum, .optimism, .hyperliquid, .polygon, .base, .linea, .scroll, .blast, .mantle: return "ERC-20"
-        case .bnb: return "BEP-20"
-        case .avalanche: return "ARC-20"
-        case .solana: return "SPL"
-        case .sui: return "Sui Coin"
-        case .aptos: return "AIP-21"
-        case .ton: return "TEP-74"
-        case .near: return "NEP-141"
-        case .tron: return "TRC-20"
-        }
+        Self.chainEntryByName[rawValue.lowercased()]?.tokenStandard ?? ""
     }
     var filterDisplayName: String { "\(rawValue) (\(tokenStandard))" }
     var slug: String {
@@ -133,14 +105,7 @@ extension CoreTokenTrackingChain: RawRepresentable, CaseIterable, Codable, Ident
         }
     }
     var contractAddressPrompt: String {
-        switch self {
-        case .solana: return "Mint Address"
-        case .sui: return "Coin Standard Type"
-        case .aptos: return "Fungible Asset Metadata or Package Address"
-        case .ton: return "Jetton Master Address"
-        case .near: return "Contract Account ID"
-        default: return "Contract Address"
-        }
+        Self.chainEntryByName[rawValue.lowercased()]?.contractAddressPrompt ?? "Contract Address"
     }
     static func forChainName(_ chainName: String) -> TokenTrackingChain? {
         let normalized = chainName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -149,13 +114,13 @@ extension CoreTokenTrackingChain: RawRepresentable, CaseIterable, Codable, Ident
     private static let byNormalizedName: [String: TokenTrackingChain] = Dictionary(
         uniqueKeysWithValues: allCases.map { ($0.rawValue.lowercased(), $0) }
     )
-}
-private struct ChainRegistryVisualMetadata {
-    let color: Color
-    let assetName: String
-    static let byID: [String: ChainRegistryVisualMetadata] = ChainVisualRegistryCatalog.loadEntries().mapValues {
-        ChainRegistryVisualMetadata(color: $0.color, assetName: $0.assetName)
-    }
+    private static let chainEntryByName: [String: ChainEntry] = {
+        var dict: [String: ChainEntry] = [:]
+        for entry in listAllChains() where !entry.tokenStandard.isEmpty {
+            dict[entry.name.lowercased()] = entry
+        }
+        return dict
+    }()
 }
 struct ChainRegistryEntry: Identifiable {
     let id: String
@@ -178,33 +143,30 @@ struct ChainRegistryEntry: Identifiable {
             registryID: id, title: name, symbol: symbol, chainName: name, color: color, assetName: assetName
         )
     }
-    nonisolated(unsafe) private static var cachedAllByLocalization: [String: [ChainRegistryEntry]] = [:]
-    nonisolated(unsafe) private static var cachedEntriesByLowercasedID: [String: [String: ChainRegistryEntry]] = [:]
+    nonisolated(unsafe) private static var cachedAll: [ChainRegistryEntry]?
+    nonisolated(unsafe) private static var cachedEntriesByLowercasedID: [String: ChainRegistryEntry] = [:]
     static var all: [ChainRegistryEntry] {
-        let cacheKey = AppLocalization.preferredLocalizationIdentifiers().joined(separator: "|")
-        if let cachedEntries = cachedAllByLocalization[cacheKey] { return cachedEntries }
-        let entries: [ChainRegistryEntry] = ChainWikiEntry.all.compactMap { wiki in
-            guard let visual = ChainRegistryVisualMetadata.byID[wiki.id] else { return nil }
-            return ChainRegistryEntry(
-                id: wiki.id, name: wiki.name, symbol: wiki.symbol, color: visual.color, assetName: visual.assetName,
-                family: wiki.family, consensus: wiki.consensus, stateModel: wiki.stateModel, primaryUse: wiki.primaryUse,
-                slip44CoinType: wiki.slip44CoinType, derivationPath: wiki.derivationPath,
-                alternateDerivationPath: wiki.alternateDerivationPath, totalCirculationModel: wiki.totalCirculationModel,
-                notableDetails: wiki.notableDetails
-            )
-        }
-        cachedAllByLocalization[cacheKey] = entries
-        cachedEntriesByLowercasedID[cacheKey] = Dictionary(uniqueKeysWithValues: entries.map { ($0.id.lowercased(), $0) })
+        if let cached = cachedAll { return cached }
+        let entries = listAllChains()
+            .filter { !$0.name.isEmpty }
+            .map { chain in
+                ChainRegistryEntry(
+                    id: chain.id, name: chain.name, symbol: chain.symbol,
+                    color: RegistryColorLookup.color(named: chain.colorName), assetName: chain.assetName,
+                    family: chain.family, consensus: chain.consensus, stateModel: chain.stateModel,
+                    primaryUse: chain.primaryUse, slip44CoinType: chain.slip44CoinType,
+                    derivationPath: chain.derivationPath,
+                    alternateDerivationPath: chain.altDerivationPath.isEmpty ? nil : chain.altDerivationPath,
+                    totalCirculationModel: chain.totalCirculationModel, notableDetails: chain.notableDetails
+                )
+            }
+        cachedAll = entries
+        cachedEntriesByLowercasedID = Dictionary(uniqueKeysWithValues: entries.map { ($0.id.lowercased(), $0) })
         return entries
     }
-    private static var entriesByLowercasedID: [String: ChainRegistryEntry] {
-        let cacheKey = AppLocalization.preferredLocalizationIdentifiers().joined(separator: "|")
-        if let cachedEntries = cachedEntriesByLowercasedID[cacheKey] { return cachedEntries }
-        _ = all
-        return cachedEntriesByLowercasedID[cacheKey] ?? [:]
-    }
     static func entry(id: String) -> ChainRegistryEntry? {
-        entriesByLowercasedID[id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()]
+        if cachedAll == nil { _ = all }
+        return cachedEntriesByLowercasedID[id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()]
     }
 }
 struct TokenVisualRegistryEntry: Identifiable {
@@ -403,12 +365,10 @@ extension Coin {
         Dictionary(
             nativeChainIconDescriptors.map { ($0.assetIdentifier, $0) },
             uniquingKeysWith: { first, _ in first })
-    // Wiki-independent icon lookup: built from ChainVisualRegistry alone.
-    // Covers chains that have an icon but no wiki entry (e.g. Dash, Decred, Sei).
     private static let nativeIconAssetNameByAssetIdentifier: [String: String] = {
         var result: [String: String] = [:]
-        for entry in ChainVisualRegistryCatalog.loadEntries().values {
-            let key = iconIdentifier(symbol: entry.symbol, chainName: entry.chainName)
+        for entry in listAllChains() where !entry.assetName.isEmpty && !entry.name.isEmpty {
+            let key = iconIdentifier(symbol: entry.symbol, chainName: entry.name)
             result[key] = entry.assetName
         }
         return result
@@ -522,12 +482,12 @@ struct ChainBackendRecord {
 }
 enum AppChainID: String, CaseIterable, Identifiable, Decodable {
     case bitcoin
-    case bitcoinCash
-    case bitcoinSV
+    case bitcoinCash         = "bitcoin-cash"
+    case bitcoinSV           = "bitcoin-sv"
     case litecoin
     case dogecoin
     case ethereum
-    case ethereumClassic
+    case ethereumClassic     = "ethereum-classic"
     case arbitrum
     case optimism
     case bnb
@@ -548,7 +508,7 @@ enum AppChainID: String, CaseIterable, Identifiable, Decodable {
     case sui
     case aptos
     case ton
-    case icp
+    case icp                 = "internet-computer"
     case near
     case polkadot
     var id: String { rawValue }
