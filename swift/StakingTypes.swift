@@ -66,4 +66,15 @@ enum StakingSupportedChain: String, CaseIterable, Identifiable {
         case .icp: return "Internet Computer"
         }
     }
+    var chainId: UInt32 {
+        switch self {
+        case .solana:   return SpectraChainID.solana
+        case .cardano:  return SpectraChainID.cardano
+        case .sui:      return SpectraChainID.sui
+        case .aptos:    return SpectraChainID.aptos
+        case .near:     return SpectraChainID.near
+        case .polkadot: return SpectraChainID.polkadot
+        case .icp:      return SpectraChainID.icp
+        }
+    }
 }

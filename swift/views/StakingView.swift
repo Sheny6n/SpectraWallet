@@ -178,12 +178,12 @@ extension StakingSupportedChain {
 
 struct ChainStakingDetailView: View {
     let chain: StakingSupportedChain
+    @State private var vm: StakingViewModel
     @Environment(\.colorScheme) private var colorScheme
-    @State private var pendingActionAlert: PendingAlert?
 
-    private struct PendingAlert: Identifiable {
-        let id = UUID()
-        let action: StakingActionKind
+    init(chain: StakingSupportedChain) {
+        self.chain = chain
+        self._vm = State(wrappedValue: StakingViewModel(chain: chain))
     }
 
     var body: some View {
@@ -192,24 +192,32 @@ struct ChainStakingDetailView: View {
             VStack(alignment: .leading, spacing: 18) {
                 heroCard(descriptor: descriptor)
                 statsCard(descriptor: descriptor)
+                if !vm.validators.isEmpty { validatorsCard }
+                if !vm.positions.isEmpty { positionsCard }
                 actionsCard(descriptor: descriptor)
                 explanationCard(descriptor: descriptor)
-                statusCard
             }.padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 24)
         }
         .background(SpectraBackdrop().ignoresSafeArea())
         .navigationTitle(descriptor.chainName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .alert(item: $pendingActionAlert) { pending in
-            Alert(
-                title: Text(AppLocalization.string("Coming soon")),
-                message: Text(
-                    AppLocalization.format(
-                        "%@ on %@ is scaffolded but not yet implemented. The Rust client will dispatch the chain-native call when this lands.",
-                        pending.action.displayName, descriptor.chainName
-                    )),
-                dismissButton: .default(Text(AppLocalization.string("OK"))))
+        .task { await vm.loadValidators() }
+        .alert(AppLocalization.string("Error"), isPresented: Binding(
+            get: { vm.error != nil },
+            set: { if !$0 { vm.dismissError() } }
+        )) {
+            Button(AppLocalization.string("OK")) { vm.dismissError() }
+        } message: {
+            Text(vm.error?.localizedDescription ?? "")
+        }
+        .sheet(isPresented: Binding(
+            get: { vm.preview != nil },
+            set: { if !$0 { vm.dismissPreview() } }
+        )) {
+            if let preview = vm.preview {
+                StakingPreviewSheet(preview: preview, onDismiss: { vm.dismissPreview() })
+            }
         }
     }
 
@@ -224,6 +232,10 @@ struct ChainStakingDetailView: View {
                 Text(descriptor.apyEstimate).font(.subheadline.weight(.semibold)).foregroundStyle(.green)
                 Text(descriptor.shortMechanic).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
+            Spacer()
+            if vm.isLoading {
+                ProgressView().tint(.orange)
+            }
         }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
             .glassEffect(.regular.tint(.white.opacity(0.04)), in: .rect(cornerRadius: 28))
     }
@@ -236,6 +248,14 @@ struct ChainStakingDetailView: View {
             statRow(label: AppLocalization.string("Minimum Stake"), value: descriptor.minimumStake, icon: "scalemass.fill")
             Divider().opacity(0.5)
             statRow(label: AppLocalization.string("Unbonding"), value: descriptor.unbondingPeriod, icon: "hourglass")
+            if !vm.validators.isEmpty {
+                Divider().opacity(0.5)
+                statRow(
+                    label: AppLocalization.string("Validators"),
+                    value: "\(vm.validators.count)",
+                    icon: "server.rack"
+                )
+            }
         }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
             .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
     }
@@ -248,6 +268,52 @@ struct ChainStakingDetailView: View {
             Spacer()
             Text(value).font(.subheadline.weight(.semibold)).foregroundStyle(Color.primary).multilineTextAlignment(.trailing)
         }
+    }
+
+    @ViewBuilder
+    private var validatorsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(AppLocalization.string("Validators")).font(.headline)
+            ForEach(vm.validators.prefix(5), id: \.identifier) { v in
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(v.displayName).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        if let commission = v.commission {
+                            Text(AppLocalization.format("%.0f%% commission", commission * 100))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    Spacer()
+                    Text(AppLocalization.format("%.1f%% APY", v.apy * 100))
+                        .font(.caption.weight(.bold)).foregroundStyle(.green)
+                }
+                .padding(.vertical, 4)
+            }
+            if vm.validators.count > 5 {
+                Text(AppLocalization.format("+%d more", vm.validators.count - 5))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
+    }
+
+    @ViewBuilder
+    private var positionsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(AppLocalization.string("Your Positions")).font(.headline)
+            ForEach(vm.positions, id: \.validatorIdentifier) { pos in
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(pos.validatorDisplayName).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        Text(pos.status.displayName).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text(pos.stakedAmountSmallestUnit).font(.caption.weight(.semibold)).foregroundStyle(Color.primary)
+                }
+                .padding(.vertical, 4)
+            }
+        }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
     }
 
     @ViewBuilder
@@ -267,7 +333,7 @@ struct ChainStakingDetailView: View {
     private func actionButton(_ action: StakingActionKind) -> some View {
         Button {
             spectraHaptic(.medium)
-            pendingActionAlert = PendingAlert(action: action)
+            Task { await vm.loadValidators() }
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: action.systemIconName).font(.title3.weight(.semibold)).foregroundStyle(.orange).frame(
@@ -294,14 +360,44 @@ struct ChainStakingDetailView: View {
         }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
             .glassEffect(.regular.tint(.white.opacity(0.03)), in: .rect(cornerRadius: 28))
     }
+}
 
+private struct StakingPreviewSheet: View {
+    let preview: StakingActionPreview
+    let onDismiss: () -> Void
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    previewRow(label: AppLocalization.string("Action"), value: preview.kind.displayName)
+                    previewRow(label: AppLocalization.string("Validator"), value: preview.validatorDisplayName)
+                    previewRow(label: AppLocalization.string("Amount"), value: preview.amountDisplay)
+                    previewRow(label: AppLocalization.string("Estimated Fee"), value: preview.estimatedFeeDisplay)
+                    if preview.unbondingPeriodSeconds > 0 {
+                        let days = preview.unbondingPeriodSeconds / 86400
+                        previewRow(label: AppLocalization.string("Unbonding"), value: AppLocalization.format("%d days", days))
+                    }
+                    ForEach(preview.notes, id: \.self) { note in
+                        Text(note).font(.caption).foregroundStyle(.secondary)
+                    }
+                }.padding(20)
+            }
+            .navigationTitle(AppLocalization.string("Transaction Preview"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(AppLocalization.string("Close")) { onDismiss() }
+                }
+            }
+        }
+    }
     @ViewBuilder
-    private var statusCard: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "wrench.and.screwdriver.fill").font(.subheadline.weight(.semibold)).foregroundStyle(.orange)
-            Text(AppLocalization.string("Implementation in progress — actions display a notice for now."))
-                .font(.caption).foregroundStyle(.secondary)
-        }.padding(.horizontal, 16).padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
-            .background(Capsule(style: .continuous).fill(Color.orange.opacity(0.10)))
+    private func previewRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label).font(.subheadline).foregroundStyle(.secondary)
+            Spacer()
+            Text(value).font(.subheadline.weight(.semibold))
+        }
+        Divider().opacity(0.4)
     }
 }
