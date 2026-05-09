@@ -2,6 +2,9 @@ import Foundation
 import UIKit
 import UserNotifications
 import os
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Spectra", category: "Maintenance")
+
 extension AppState {
     func currentBatteryLevel() -> Float {
         let level = UIDevice.current.batteryLevel

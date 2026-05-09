@@ -276,7 +276,7 @@ final class WalletChainDiagnosticsState {
     var litecoinSelfTestsLastRunAt: Date?
     var dogecoinHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningDogecoinHistoryDiagnostics: Bool = false
-    var dogecoinEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var dogecoinEndpointHealthResults: [EndpointHealthRow] = []
     var dogecoinEndpointHealthLastUpdatedAt: Date?
     var isCheckingDogecoinEndpointHealth: Bool = false
     var ethereumSelfTestResults: [ChainSelfTestResult] = []
@@ -284,118 +284,118 @@ final class WalletChainDiagnosticsState {
     var ethereumSelfTestsLastRunAt: Date?
     var ethereumHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningEthereumHistoryDiagnostics: Bool = false
-    var ethereumEndpointHealthResults: [EthereumEndpointHealthResult] = []
+    var ethereumEndpointHealthResults: [EvmEndpointHealthRow] = []
     var ethereumEndpointHealthLastUpdatedAt: Date?
     var isCheckingEthereumEndpointHealth: Bool = false
     var etcHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningETCHistoryDiagnostics: Bool = false
-    var etcEndpointHealthResults: [EthereumEndpointHealthResult] = []
+    var etcEndpointHealthResults: [EvmEndpointHealthRow] = []
     var etcEndpointHealthLastUpdatedAt: Date?
     var isCheckingETCEndpointHealth: Bool = false
     var arbitrumHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningArbitrumHistoryDiagnostics: Bool = false
-    var arbitrumEndpointHealthResults: [EthereumEndpointHealthResult] = []
+    var arbitrumEndpointHealthResults: [EvmEndpointHealthRow] = []
     var arbitrumEndpointHealthLastUpdatedAt: Date?
     var isCheckingArbitrumEndpointHealth: Bool = false
     var optimismHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningOptimismHistoryDiagnostics: Bool = false
-    var optimismEndpointHealthResults: [EthereumEndpointHealthResult] = []
+    var optimismEndpointHealthResults: [EvmEndpointHealthRow] = []
     var optimismEndpointHealthLastUpdatedAt: Date?
     var isCheckingOptimismEndpointHealth: Bool = false
     var bnbHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningBNBHistoryDiagnostics: Bool = false
-    var bnbEndpointHealthResults: [EthereumEndpointHealthResult] = []
+    var bnbEndpointHealthResults: [EvmEndpointHealthRow] = []
     var bnbEndpointHealthLastUpdatedAt: Date?
     var isCheckingBNBEndpointHealth: Bool = false
     var avalancheHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningAvalancheHistoryDiagnostics: Bool = false
-    var avalancheEndpointHealthResults: [EthereumEndpointHealthResult] = []
+    var avalancheEndpointHealthResults: [EvmEndpointHealthRow] = []
     var avalancheEndpointHealthLastUpdatedAt: Date?
     var isCheckingAvalancheEndpointHealth: Bool = false
     var hyperliquidHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningHyperliquidHistoryDiagnostics: Bool = false
-    var hyperliquidEndpointHealthResults: [EthereumEndpointHealthResult] = []
+    var hyperliquidEndpointHealthResults: [EvmEndpointHealthRow] = []
     var hyperliquidEndpointHealthLastUpdatedAt: Date?
     var isCheckingHyperliquidEndpointHealth: Bool = false
     var tronHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningTronHistoryDiagnostics: Bool = false
-    var tronEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var tronEndpointHealthResults: [EndpointHealthRow] = []
     var tronEndpointHealthLastUpdatedAt: Date?
     var isCheckingTronEndpointHealth: Bool = false
     var solanaHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningSolanaHistoryDiagnostics: Bool = false
-    var solanaEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var solanaEndpointHealthResults: [EndpointHealthRow] = []
     var solanaEndpointHealthLastUpdatedAt: Date?
     var isCheckingSolanaEndpointHealth: Bool = false
     var xrpHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningXRPHistoryDiagnostics: Bool = false
-    var xrpEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var xrpEndpointHealthResults: [EndpointHealthRow] = []
     var xrpEndpointHealthLastUpdatedAt: Date?
     var isCheckingXRPEndpointHealth: Bool = false
     var stellarHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningStellarHistoryDiagnostics: Bool = false
-    var stellarEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var stellarEndpointHealthResults: [EndpointHealthRow] = []
     var stellarEndpointHealthLastUpdatedAt: Date?
     var isCheckingStellarEndpointHealth: Bool = false
     var moneroHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningMoneroHistoryDiagnostics: Bool = false
-    var moneroEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var moneroEndpointHealthResults: [EndpointHealthRow] = []
     var moneroEndpointHealthLastUpdatedAt: Date?
     var isCheckingMoneroEndpointHealth: Bool = false
     var suiHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningSuiHistoryDiagnostics: Bool = false
-    var suiEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var suiEndpointHealthResults: [EndpointHealthRow] = []
     var suiEndpointHealthLastUpdatedAt: Date?
     var isCheckingSuiEndpointHealth: Bool = false
     var aptosHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningAptosHistoryDiagnostics: Bool = false
-    var aptosEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var aptosEndpointHealthResults: [EndpointHealthRow] = []
     var aptosEndpointHealthLastUpdatedAt: Date?
     var isCheckingAptosEndpointHealth: Bool = false
     var tonHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningTONHistoryDiagnostics: Bool = false
-    var tonEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var tonEndpointHealthResults: [EndpointHealthRow] = []
     var tonEndpointHealthLastUpdatedAt: Date?
     var isCheckingTONEndpointHealth: Bool = false
     var icpHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningICPHistoryDiagnostics: Bool = false
-    var icpEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var icpEndpointHealthResults: [EndpointHealthRow] = []
     var icpEndpointHealthLastUpdatedAt: Date?
     var isCheckingICPEndpointHealth: Bool = false
     var nearHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningNearHistoryDiagnostics: Bool = false
-    var nearEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var nearEndpointHealthResults: [EndpointHealthRow] = []
     var nearEndpointHealthLastUpdatedAt: Date?
     var isCheckingNearEndpointHealth: Bool = false
     var polkadotHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningPolkadotHistoryDiagnostics: Bool = false
-    var polkadotEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var polkadotEndpointHealthResults: [EndpointHealthRow] = []
     var polkadotEndpointHealthLastUpdatedAt: Date?
     var isCheckingPolkadotEndpointHealth: Bool = false
     var cardanoHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningCardanoHistoryDiagnostics: Bool = false
-    var cardanoEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var cardanoEndpointHealthResults: [EndpointHealthRow] = []
     var cardanoEndpointHealthLastUpdatedAt: Date?
     var isCheckingCardanoEndpointHealth: Bool = false
     var lastImportedDiagnosticsBundle: DiagnosticsBundlePayload?
     var bitcoinHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningBitcoinHistoryDiagnostics: Bool = false
-    var bitcoinEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var bitcoinEndpointHealthResults: [EndpointHealthRow] = []
     var bitcoinEndpointHealthLastUpdatedAt: Date?
     var isCheckingBitcoinEndpointHealth: Bool = false
     var bitcoinCashHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningBitcoinCashHistoryDiagnostics: Bool = false
-    var bitcoinCashEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var bitcoinCashEndpointHealthResults: [EndpointHealthRow] = []
     var bitcoinCashEndpointHealthLastUpdatedAt: Date?
     var isCheckingBitcoinCashEndpointHealth: Bool = false
     var bitcoinSVHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningBitcoinSVHistoryDiagnostics: Bool = false
-    var bitcoinSVEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var bitcoinSVEndpointHealthResults: [EndpointHealthRow] = []
     var bitcoinSVEndpointHealthLastUpdatedAt: Date?
     var isCheckingBitcoinSVEndpointHealth: Bool = false
     var litecoinHistoryDiagnosticsLastUpdatedAt: Date?
     var isRunningLitecoinHistoryDiagnostics: Bool = false
-    var litecoinEndpointHealthResults: [BitcoinEndpointHealthResult] = []
+    var litecoinEndpointHealthResults: [EndpointHealthRow] = []
     var litecoinEndpointHealthLastUpdatedAt: Date?
     var isCheckingLitecoinEndpointHealth: Bool = false
 

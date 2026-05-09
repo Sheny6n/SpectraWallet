@@ -32,9 +32,18 @@ struct AddWalletEntryView: View {
                         // forces it back to .simple internally.
                         store.beginWatchAddressesImport()
                     }
+                    actionCard(
+                        title: AppLocalization.string("Find Lost Funds"),
+                        subtitle: AppLocalization.string("Scan 150+ derivation paths to locate hidden balances from any wallet app."),
+                        icon: "magnifyingglass.circle.fill", tint: Color.yellow
+                    ) {
+                        store.isShowingFundsFinder = true
+                    }
                 }.padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
             }
-        }.navigationTitle(AppLocalization.string("Add Wallet")).navigationBarTitleDisplayMode(.inline).navigationDestination(
+        }
+        .navigationTitle(AppLocalization.string("Add Wallet")).navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(
             isPresented: Binding(
                 get: { store.isShowingWalletImporter && store.editingWalletID == nil },
                 set: { isPresented in
@@ -43,6 +52,14 @@ struct AddWalletEntryView: View {
             )
         ) {
             SetupView(store: store, draft: store.importDraft)
+        }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { store.isShowingFundsFinder },
+                set: { store.isShowingFundsFinder = $0 }
+            )
+        ) {
+            FundsFinderView(store: store)
         }
     }
     private var setupModePicker: some View {

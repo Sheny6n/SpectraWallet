@@ -400,15 +400,15 @@ extension AppState {
     }
     func runBitcoinEndpointReachabilityDiagnostics() async {
         await withEndpointCheck(\.isCheckingBitcoinEndpointHealth) {
-            var results: [BitcoinEndpointHealthResult] = []
+            var results: [EndpointHealthRow] = []
             for endpoint in self.effectiveBitcoinEsploraEndpoints() {
                 guard let url = URL(string: endpoint) else {
-                    results.append(BitcoinEndpointHealthResult(endpoint: endpoint, reachable: false, statusCode: nil, detail: "Invalid URL"))
+                    results.append(EndpointHealthRow(endpoint: endpoint, reachable: false, statusCode: nil, detail: "Invalid URL"))
                     continue
                 }
                 let probe = await self.probeHTTP(url.appending(path: "blocks/tip/height"))
                 results.append(
-                    BitcoinEndpointHealthResult(
+                    EndpointHealthRow(
                         endpoint: endpoint, reachable: probe.reachable, statusCode: probe.statusCode, detail: probe.detail))
                 self.bitcoinEndpointHealthResults = results
                 self.bitcoinEndpointHealthLastUpdatedAt = Date()
@@ -421,14 +421,14 @@ extension AppState {
             let resolvedBackendURL = trimmedBackendURL.isEmpty ? MoneroBalanceService.defaultPublicBackend.baseURL : trimmedBackendURL
             guard let baseURL = URL(string: resolvedBackendURL) else {
                 self.moneroEndpointHealthResults = [
-                    BitcoinEndpointHealthResult(
+                    EndpointHealthRow(
                         endpoint: "monero.backend.baseURL", reachable: false, statusCode: nil, detail: "Monero backend is not configured.")
                 ]
                 self.moneroEndpointHealthLastUpdatedAt = Date(); return
             }
             let probe = await self.probeHTTP(baseURL.appendingPathComponent("v1/monero/balance"), profile: .diagnostics)
             self.moneroEndpointHealthResults = [
-                BitcoinEndpointHealthResult(
+                EndpointHealthRow(
                     endpoint: baseURL.absoluteString, reachable: probe.reachable, statusCode: probe.statusCode, detail: probe.detail)
             ]
             self.moneroEndpointHealthLastUpdatedAt = Date()
@@ -436,7 +436,7 @@ extension AppState {
     }
     func runNearEndpointReachabilityDiagnostics() async {
         await withEndpointCheck(\.isCheckingNearEndpointHealth) {
-            var results: [BitcoinEndpointHealthResult] = []
+            var results: [EndpointHealthRow] = []
             let rpcEndpoints = Set(NearBalanceService.rpcEndpointCatalog())
             for check in NearBalanceService.diagnosticsChecks() {
                 let endpoint = check.endpoint
@@ -446,10 +446,10 @@ extension AppState {
                 } else if let url = URL(string: probeURL) {
                     let probe = await self.probeHTTP(url, profile: .diagnostics)
                     results.append(
-                        BitcoinEndpointHealthResult(
+                        EndpointHealthRow(
                             endpoint: endpoint, reachable: probe.reachable, statusCode: probe.statusCode, detail: probe.detail))
                 } else {
-                    results.append(BitcoinEndpointHealthResult(endpoint: endpoint, reachable: false, statusCode: nil, detail: "Invalid URL"))
+                    results.append(EndpointHealthRow(endpoint: endpoint, reachable: false, statusCode: nil, detail: "Invalid URL"))
                 }
             }
             self.nearEndpointHealthResults = results; self.nearEndpointHealthLastUpdatedAt = Date()
@@ -457,27 +457,27 @@ extension AppState {
     }
     func runPolkadotEndpointReachabilityDiagnostics() async {
         await withEndpointCheck(\.isCheckingPolkadotEndpointHealth) {
-            var results: [BitcoinEndpointHealthResult] = []
+            var results: [EndpointHealthRow] = []
             for check in PolkadotBalanceService.diagnosticsChecks() {
                 let endpoint = check.endpoint
                 let probeURL = check.probeUrl
                 if PolkadotBalanceService.sidecarEndpointCatalog().contains(endpoint) {
                     guard URL(string: probeURL) != nil else {
                         results.append(
-                            BitcoinEndpointHealthResult(endpoint: endpoint, reachable: false, statusCode: nil, detail: "Invalid URL"))
+                            EndpointHealthRow(endpoint: endpoint, reachable: false, statusCode: nil, detail: "Invalid URL"))
                         continue
                     }
                     do {
                         let resp = try await httpRequest(method: "GET", url: probeURL, headers: [], body: nil, profile: .diagnostics)
-                        let statusCode = Int(resp.statusCode)
+                        let statusCode = Int32(resp.statusCode)
                         let reachable = (200...299).contains(statusCode)
                         results.append(
-                            BitcoinEndpointHealthResult(
+                            EndpointHealthRow(
                                 endpoint: endpoint, reachable: reachable, statusCode: statusCode,
                                 detail: reachable ? "OK" : "HTTP \(statusCode)"))
                     } catch {
                         results.append(
-                            BitcoinEndpointHealthResult(
+                            EndpointHealthRow(
                                 endpoint: endpoint, reachable: false, statusCode: nil, detail: error.localizedDescription))
                     }
                     continue
@@ -494,13 +494,12 @@ extension AppState {
     // Pilot call site for the Rust HTTP migration (Phase 1).
     // Transport + JSON-RPC parse both live in `core::http_ffi::diagnostics_probe_jsonrpc`.
     // Swift owns nothing here beyond URL validation and result wrapping.
-    private func probeJSONRPC(endpoint: String, urlString: String, rpcMethod: String) async -> BitcoinEndpointHealthResult {
+    private func probeJSONRPC(endpoint: String, urlString: String, rpcMethod: String) async -> EndpointHealthRow {
         guard URL(string: urlString) != nil else {
-            return BitcoinEndpointHealthResult(endpoint: endpoint, reachable: false, statusCode: nil, detail: "Invalid URL")
+            return EndpointHealthRow(endpoint: endpoint, reachable: false, statusCode: nil, detail: "Invalid URL")
         }
         let outcome = await diagnosticsProbeJsonrpc(url: urlString, rpcMethod: rpcMethod)
-        let status = outcome.statusCode.map { Int($0) }
-        return BitcoinEndpointHealthResult(endpoint: endpoint, reachable: outcome.reachable, statusCode: status, detail: outcome.detail)
+        return EndpointHealthRow(endpoint: endpoint, reachable: outcome.reachable, statusCode: outcome.statusCode, detail: outcome.detail)
     }
 
     // MARK: EVM history diagnostics
@@ -592,31 +591,31 @@ extension AppState {
         return checks
     }
     func runSimpleEndpointReachabilityDiagnostics(
-        checks: [AppEndpointDiagnosticsCheck], profile: HttpRetryProfile, setResults: ([BitcoinEndpointHealthResult]) -> Void,
+        checks: [AppEndpointDiagnosticsCheck], profile: HttpRetryProfile, setResults: ([EndpointHealthRow]) -> Void,
         markUpdated: () -> Void
     ) async {
-        var results: [BitcoinEndpointHealthResult] = []
+        var results: [EndpointHealthRow] = []
         for check in checks {
             guard let url = URL(string: check.probeUrl) else {
                 results.append(
-                    BitcoinEndpointHealthResult(endpoint: check.endpoint, reachable: false, statusCode: nil, detail: "Invalid URL"))
+                    EndpointHealthRow(endpoint: check.endpoint, reachable: false, statusCode: nil, detail: "Invalid URL"))
                 continue
             }
             let probe = await probeHTTP(url, profile: profile)
             results.append(
-                BitcoinEndpointHealthResult(
+                EndpointHealthRow(
                     endpoint: check.endpoint, reachable: probe.reachable, statusCode: probe.statusCode, detail: probe.detail))
         }
         setResults(results); markUpdated()
     }
     func runLabeledEVMEndpointDiagnostics(
-        checks: [(label: String, endpoint: URL, isRPC: Bool)], setResults: ([EthereumEndpointHealthResult]) -> Void, markUpdated: () -> Void
+        checks: [(label: String, endpoint: URL, isRPC: Bool)], setResults: ([EvmEndpointHealthRow]) -> Void, markUpdated: () -> Void
     ) async {
-        var results: [EthereumEndpointHealthResult] = []
+        var results: [EvmEndpointHealthRow] = []
         for check in checks {
             let probe = check.isRPC ? await probeEthereumRPC(check.endpoint) : await probeHTTP(check.endpoint)
             results.append(
-                EthereumEndpointHealthResult(
+                EvmEndpointHealthRow(
                     label: check.label, endpoint: check.endpoint.absoluteString, reachable: probe.reachable, statusCode: probe.statusCode,
                     detail: probe.detail))
         }
@@ -624,7 +623,7 @@ extension AppState {
     }
     private func runSimpleEndpointDiagnostics(
         isCheckingKP: ReferenceWritableKeyPath<AppState, Bool>, checks: [AppEndpointDiagnosticsCheck],
-        resultsKP: ReferenceWritableKeyPath<AppState, [BitcoinEndpointHealthResult]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
+        resultsKP: ReferenceWritableKeyPath<AppState, [EndpointHealthRow]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
         guard !self[keyPath: isCheckingKP] else { return }
         self[keyPath: isCheckingKP] = true; defer { self[keyPath: isCheckingKP] = false }
@@ -634,7 +633,7 @@ extension AppState {
     }
     private func runPureEVMEndpointDiagnostics(
         isCheckingKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String, context: EVMChainContext,
-        resultsKP: ReferenceWritableKeyPath<AppState, [EthereumEndpointHealthResult]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
+        resultsKP: ReferenceWritableKeyPath<AppState, [EvmEndpointHealthRow]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
         guard !self[keyPath: isCheckingKP] else { return }
         self[keyPath: isCheckingKP] = true; defer { self[keyPath: isCheckingKP] = false }
@@ -655,21 +654,21 @@ extension AppState {
             group.cancelAll(); return first
         }
     }
-    func probeHTTP(_ url: URL, profile: HttpRetryProfile = .diagnostics) async -> (reachable: Bool, statusCode: Int?, detail: String) {
+    func probeHTTP(_ url: URL, profile: HttpRetryProfile = .diagnostics) async -> (reachable: Bool, statusCode: Int32?, detail: String) {
         do {
             return try await withTimeout(seconds: 10) {
                 let resp = try await httpRequest(method: "GET", url: url.absoluteString, headers: [], body: nil, profile: profile)
-                let statusCode = Int(resp.statusCode)
+                let statusCode = Int32(resp.statusCode)
                 return ((200..<300).contains(statusCode), statusCode, "HTTP \(statusCode)")
             }
         } catch { return (false, nil, error.localizedDescription) }
     }
-    func probeEthereumRPC(_ url: URL) async -> (reachable: Bool, statusCode: Int?, detail: String) {
+    func probeEthereumRPC(_ url: URL) async -> (reachable: Bool, statusCode: Int32?, detail: String) {
         do {
             return try await withTimeout(seconds: 10) {
                 let payload = #"{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}"#
                 let resp = try await httpPostJson(url: url.absoluteString, bodyJson: payload, headers: [:])
-                let statusCode = Int(resp.status)
+                let statusCode = Int32(resp.status)
                 if (200..<300).contains(statusCode) {
                     let trimmed = resp.body.trimmingCharacters(in: .whitespacesAndNewlines)
                     return (true, statusCode, trimmed.isEmpty ? "OK" : String(trimmed.prefix(120)))

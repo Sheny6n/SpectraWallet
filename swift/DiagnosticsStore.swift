@@ -84,7 +84,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningDogecoinHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningDogecoinHistoryDiagnostics = newValue }
     }
-    var dogecoinEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var dogecoinEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.dogecoinEndpointHealthResults }
         set { chainDiagnosticsState.dogecoinEndpointHealthResults = newValue }
     }
@@ -108,7 +108,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningEthereumHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningEthereumHistoryDiagnostics = newValue }
     }
-    var ethereumEndpointHealthResults: [EthereumEndpointHealthResult] {
+    var ethereumEndpointHealthResults: [EvmEndpointHealthRow] {
         get { chainDiagnosticsState.ethereumEndpointHealthResults }
         set { chainDiagnosticsState.ethereumEndpointHealthResults = newValue }
     }
@@ -132,7 +132,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningETCHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningETCHistoryDiagnostics = newValue }
     }
-    var etcEndpointHealthResults: [EthereumEndpointHealthResult] {
+    var etcEndpointHealthResults: [EvmEndpointHealthRow] {
         get { chainDiagnosticsState.etcEndpointHealthResults }
         set { chainDiagnosticsState.etcEndpointHealthResults = newValue }
     }
@@ -156,7 +156,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningArbitrumHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningArbitrumHistoryDiagnostics = newValue }
     }
-    var arbitrumEndpointHealthResults: [EthereumEndpointHealthResult] {
+    var arbitrumEndpointHealthResults: [EvmEndpointHealthRow] {
         get { chainDiagnosticsState.arbitrumEndpointHealthResults }
         set { chainDiagnosticsState.arbitrumEndpointHealthResults = newValue }
     }
@@ -180,7 +180,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningOptimismHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningOptimismHistoryDiagnostics = newValue }
     }
-    var optimismEndpointHealthResults: [EthereumEndpointHealthResult] {
+    var optimismEndpointHealthResults: [EvmEndpointHealthRow] {
         get { chainDiagnosticsState.optimismEndpointHealthResults }
         set { chainDiagnosticsState.optimismEndpointHealthResults = newValue }
     }
@@ -204,7 +204,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningBNBHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningBNBHistoryDiagnostics = newValue }
     }
-    var bnbEndpointHealthResults: [EthereumEndpointHealthResult] {
+    var bnbEndpointHealthResults: [EvmEndpointHealthRow] {
         get { chainDiagnosticsState.bnbEndpointHealthResults }
         set { chainDiagnosticsState.bnbEndpointHealthResults = newValue }
     }
@@ -228,7 +228,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningAvalancheHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningAvalancheHistoryDiagnostics = newValue }
     }
-    var avalancheEndpointHealthResults: [EthereumEndpointHealthResult] {
+    var avalancheEndpointHealthResults: [EvmEndpointHealthRow] {
         get { chainDiagnosticsState.avalancheEndpointHealthResults }
         set { chainDiagnosticsState.avalancheEndpointHealthResults = newValue }
     }
@@ -252,7 +252,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningHyperliquidHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningHyperliquidHistoryDiagnostics = newValue }
     }
-    var hyperliquidEndpointHealthResults: [EthereumEndpointHealthResult] {
+    var hyperliquidEndpointHealthResults: [EvmEndpointHealthRow] {
         get { chainDiagnosticsState.hyperliquidEndpointHealthResults }
         set { chainDiagnosticsState.hyperliquidEndpointHealthResults = newValue }
     }
@@ -276,7 +276,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningTronHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningTronHistoryDiagnostics = newValue }
     }
-    var tronEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var tronEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.tronEndpointHealthResults }
         set { chainDiagnosticsState.tronEndpointHealthResults = newValue }
     }
@@ -300,7 +300,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningSolanaHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningSolanaHistoryDiagnostics = newValue }
     }
-    var solanaEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var solanaEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.solanaEndpointHealthResults }
         set { chainDiagnosticsState.solanaEndpointHealthResults = newValue }
     }
@@ -324,7 +324,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningXRPHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningXRPHistoryDiagnostics = newValue }
     }
-    var xrpEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var xrpEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.xrpEndpointHealthResults }
         set { chainDiagnosticsState.xrpEndpointHealthResults = newValue }
     }
@@ -348,7 +348,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningStellarHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningStellarHistoryDiagnostics = newValue }
     }
-    var stellarEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var stellarEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.stellarEndpointHealthResults }
         set { chainDiagnosticsState.stellarEndpointHealthResults = newValue }
     }
@@ -372,7 +372,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningMoneroHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningMoneroHistoryDiagnostics = newValue }
     }
-    var moneroEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var moneroEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.moneroEndpointHealthResults }
         set { chainDiagnosticsState.moneroEndpointHealthResults = newValue }
     }
@@ -396,7 +396,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningSuiHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningSuiHistoryDiagnostics = newValue }
     }
-    var suiEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var suiEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.suiEndpointHealthResults }
         set { chainDiagnosticsState.suiEndpointHealthResults = newValue }
     }
@@ -420,7 +420,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningAptosHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningAptosHistoryDiagnostics = newValue }
     }
-    var aptosEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var aptosEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.aptosEndpointHealthResults }
         set { chainDiagnosticsState.aptosEndpointHealthResults = newValue }
     }
@@ -444,7 +444,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningTONHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningTONHistoryDiagnostics = newValue }
     }
-    var tonEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var tonEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.tonEndpointHealthResults }
         set { chainDiagnosticsState.tonEndpointHealthResults = newValue }
     }
@@ -468,7 +468,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningICPHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningICPHistoryDiagnostics = newValue }
     }
-    var icpEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var icpEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.icpEndpointHealthResults }
         set { chainDiagnosticsState.icpEndpointHealthResults = newValue }
     }
@@ -492,7 +492,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningNearHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningNearHistoryDiagnostics = newValue }
     }
-    var nearEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var nearEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.nearEndpointHealthResults }
         set { chainDiagnosticsState.nearEndpointHealthResults = newValue }
     }
@@ -516,7 +516,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningPolkadotHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningPolkadotHistoryDiagnostics = newValue }
     }
-    var polkadotEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var polkadotEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.polkadotEndpointHealthResults }
         set { chainDiagnosticsState.polkadotEndpointHealthResults = newValue }
     }
@@ -540,7 +540,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningCardanoHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningCardanoHistoryDiagnostics = newValue }
     }
-    var cardanoEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var cardanoEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.cardanoEndpointHealthResults }
         set { chainDiagnosticsState.cardanoEndpointHealthResults = newValue }
     }
@@ -564,7 +564,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningBitcoinHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningBitcoinHistoryDiagnostics = newValue }
     }
-    var bitcoinEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var bitcoinEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.bitcoinEndpointHealthResults }
         set { chainDiagnosticsState.bitcoinEndpointHealthResults = newValue }
     }
@@ -588,7 +588,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningBitcoinCashHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningBitcoinCashHistoryDiagnostics = newValue }
     }
-    var bitcoinCashEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var bitcoinCashEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.bitcoinCashEndpointHealthResults }
         set { chainDiagnosticsState.bitcoinCashEndpointHealthResults = newValue }
     }
@@ -612,7 +612,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningBitcoinSVHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningBitcoinSVHistoryDiagnostics = newValue }
     }
-    var bitcoinSVEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var bitcoinSVEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.bitcoinSVEndpointHealthResults }
         set { chainDiagnosticsState.bitcoinSVEndpointHealthResults = newValue }
     }
@@ -636,7 +636,7 @@ extension AppState {
         get { chainDiagnosticsState.isRunningLitecoinHistoryDiagnostics }
         set { chainDiagnosticsState.isRunningLitecoinHistoryDiagnostics = newValue }
     }
-    var litecoinEndpointHealthResults: [BitcoinEndpointHealthResult] {
+    var litecoinEndpointHealthResults: [EndpointHealthRow] {
         get { chainDiagnosticsState.litecoinEndpointHealthResults }
         set { chainDiagnosticsState.litecoinEndpointHealthResults = newValue }
     }

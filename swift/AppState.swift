@@ -287,6 +287,17 @@ final class AppState {
     let chainDiagnosticsState = WalletChainDiagnosticsState()
     @ObservationIgnored private(set) var recentPerformanceSamples: Deque<PerformanceSample> = []
     var isOnboarded: Bool { !wallets.isEmpty }
+
+    // ── Funds Finder backing storage ───────────────────────────────────────
+    // Observed by FundsFinderView via AppState+FundsFinder.swift computed vars.
+    var _isFundsFinderScanning: Bool = false
+    var _fundsFinderProgress: Double = 0
+    var _fundsFinderHits: [FundsFinderHit] = []
+    var _fundsFinderCheckedCount: Int = 0
+    var _fundsFinderTotalCount: Int = 0
+    var _fundsFinderScanError: String? = nil
+    @ObservationIgnored var _fundsFinderScanTask: Task<Void, Never>? = nil
+    var isShowingFundsFinder: Bool = false
     func chainKeypoolDiagnostics(for chainName: String) -> [ChainKeypoolDiagnostic] {
         wallets.filter { wallet in wallet.selectedChain == chainName || walletHasAddress(for: wallet, chainName: chainName) }
             .compactMap { wallet in
@@ -332,7 +343,7 @@ final class AppState {
             guard ethereumNetworkMode != oldValue else { return }
             persistAppSettings()
             cachedPricedChainByKey = [:]  // Rust `isPricedChain` answer depends on this
-            WalletServiceBridge.shared.resetHistoryForChain(chainId: 1)
+            WalletServiceBridge.shared.resetHistoryForChain(chainId: SpectraChainID.ethereum)
         }
     }
     var etherscanAPIKey: String = "" {
@@ -438,7 +449,7 @@ final class AppState {
         didSet {
             persistAppSettings()
             cachedPricedChainByKey = [:]  // Rust `isPricedChain` answer depends on this
-            WalletServiceBridge.shared.resetHistoryForChain(chainId: 0)
+            WalletServiceBridge.shared.resetHistoryForChain(chainId: SpectraChainID.bitcoin)
             Task {
                 try? await WalletServiceBridge.shared.deleteKeypoolForChain(chainName: "Bitcoin")
                 try? await WalletServiceBridge.shared.deleteOwnedAddressesForChain(chainName: "Bitcoin")
@@ -461,7 +472,7 @@ final class AppState {
     var bitcoinEsploraEndpoints: String = "" {
         didSet {
             persistAppSettings()
-            WalletServiceBridge.shared.resetHistoryForChain(chainId: 0)
+            WalletServiceBridge.shared.resetHistoryForChain(chainId: SpectraChainID.bitcoin)
         }
     }
     var bitcoinStopGap: Int = 10 {

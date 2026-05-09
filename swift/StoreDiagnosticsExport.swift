@@ -23,13 +23,7 @@ extension IcpHistoryDiagnostics: SimpleAddressHistoryDiag {}
 extension NearHistoryDiagnostics: SimpleAddressHistoryDiag {}
 extension PolkadotHistoryDiagnostics: SimpleAddressHistoryDiag {}
 
-private func rustRow(_ r: BitcoinEndpointHealthResult) -> EndpointHealthRow {
-    EndpointHealthRow(endpoint: r.endpoint, reachable: r.reachable, statusCode: r.statusCode.map { Int32($0) }, detail: r.detail)
-}
-private func rustRow(_ r: EthereumEndpointHealthResult) -> EvmEndpointHealthRow {
-    EvmEndpointHealthRow(
-        label: r.label, endpoint: r.endpoint, reachable: r.reachable, statusCode: r.statusCode.map { Int32($0) }, detail: r.detail)
-}
+
 private func simpleEntries<T: SimpleAddressHistoryDiag>(_ dict: [String: T]) -> [SimpleAddressHistoryEntry] {
     dict.map {
         SimpleAddressHistoryEntry(
@@ -44,37 +38,37 @@ extension AppState {
 
     private func utxoJSON(
         history: [String: BitcoinHistoryDiagnostics],
-        endpoints: [BitcoinEndpointHealthResult],
+        endpoints: [EndpointHealthRow],
         historyUpdatedAt: Date?,
         endpointsUpdatedAt: Date?,
         mode: String? = nil
     ) -> String? {
         diagnosticsBuildUtxoJson(
-            history: Array(history.values), endpoints: endpoints.map(rustRow),
+            history: Array(history.values), endpoints: endpoints,
             historyLastUpdatedAtUnix: historyUpdatedAt?.timeIntervalSince1970,
             endpointsLastUpdatedAtUnix: endpointsUpdatedAt?.timeIntervalSince1970,
             extraNetworkMode: mode)
     }
     private func evmJSON(
         history: [String: EthereumTokenTransferHistoryDiagnostics],
-        endpoints: [EthereumEndpointHealthResult],
+        endpoints: [EvmEndpointHealthRow],
         historyUpdatedAt: Date?,
         endpointsUpdatedAt: Date?
     ) -> String? {
         diagnosticsBuildEvmJson(
             history: history.map { EvmHistoryEntry(walletId: $0.key, diagnostics: $0.value) },
-            endpoints: endpoints.map(rustRow),
+            endpoints: endpoints,
             historyLastUpdatedAtUnix: historyUpdatedAt?.timeIntervalSince1970,
             endpointsLastUpdatedAtUnix: endpointsUpdatedAt?.timeIntervalSince1970)
     }
     private func simpleJSON<T: SimpleAddressHistoryDiag>(
         history: [String: T],
-        endpoints: [BitcoinEndpointHealthResult],
+        endpoints: [EndpointHealthRow],
         historyUpdatedAt: Date?,
         endpointsUpdatedAt: Date?
     ) -> String? {
         diagnosticsBuildSimpleAddressJson(
-            history: simpleEntries(history), endpoints: endpoints.map(rustRow),
+            history: simpleEntries(history), endpoints: endpoints,
             historyLastUpdatedAtUnix: historyUpdatedAt?.timeIntervalSince1970,
             endpointsLastUpdatedAtUnix: endpointsUpdatedAt?.timeIntervalSince1970)
     }
@@ -154,7 +148,7 @@ extension AppState {
     func tronDiagnosticsJSON() -> String? {
         diagnosticsBuildTronJson(
             history: tronHistoryDiagnosticsByWallet.map { TronHistoryEntry(walletId: $0.key, diagnostics: $0.value) },
-            endpoints: tronEndpointHealthResults.map(rustRow),
+            endpoints: tronEndpointHealthResults,
             historyLastUpdatedAtUnix: tronHistoryDiagnosticsLastUpdatedAt?.timeIntervalSince1970,
             endpointsLastUpdatedAtUnix: tronEndpointHealthLastUpdatedAt?.timeIntervalSince1970,
             lastSendErrorAtUnix: tronLastSendErrorAt?.timeIntervalSince1970, lastSendErrorDetails: tronLastSendErrorDetails)
@@ -162,7 +156,7 @@ extension AppState {
     func solanaDiagnosticsJSON() -> String? {
         diagnosticsBuildSolanaJson(
             history: solanaHistoryDiagnosticsByWallet.map { SolanaHistoryEntry(walletId: $0.key, diagnostics: $0.value) },
-            endpoints: solanaEndpointHealthResults.map(rustRow),
+            endpoints: solanaEndpointHealthResults,
             historyLastUpdatedAtUnix: solanaHistoryDiagnosticsLastUpdatedAt?.timeIntervalSince1970,
             endpointsLastUpdatedAtUnix: solanaEndpointHealthLastUpdatedAt?.timeIntervalSince1970)
     }
