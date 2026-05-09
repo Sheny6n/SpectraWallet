@@ -128,7 +128,7 @@ struct AdvancedSettingsView: View {
                 }
                 let payload = try store.importDiagnosticsBundle(from: fileURL)
                 maintenanceNotice = AppLocalization.format(
-                    "Imported diagnostics bundle (%@).", payload.generatedAt.formatted(date: .abbreviated, time: .shortened))
+                    "Imported diagnostics bundle (%@).", payload.generatedAtDate.formatted(date: .abbreviated, time: .shortened))
             } catch {
                 maintenanceNotice = AppLocalization.format("Import failed: %@", error.localizedDescription)
             }

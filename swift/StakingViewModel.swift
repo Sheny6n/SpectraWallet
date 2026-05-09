@@ -41,11 +41,12 @@ import Foundation
 
     func dismissError() { error = nil }
     func dismissPreview() { preview = nil }
+    private func beginTx() { isLoading = true; error = nil; preview = nil }
 
     // ── Solana ───────────────────────────────────────────────────────────────
 
     func solanaBuildStakeTx(walletAddress: String, amountLamports: UInt64, voteAccount: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.solanaBuildStakeTx(
                 walletAddress: walletAddress, amountLamports: amountLamports, voteAccount: voteAccount)
@@ -54,7 +55,7 @@ import Foundation
     }
 
     func solanaBuildDeactivateTx(walletAddress: String, stakeAccount: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.solanaBuildDeactivateTx(
                 walletAddress: walletAddress, stakeAccount: stakeAccount)
@@ -63,7 +64,7 @@ import Foundation
     }
 
     func solanaBuildWithdrawTx(walletAddress: String, stakeAccount: String, amountLamports: UInt64) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.solanaBuildWithdrawTx(
                 walletAddress: walletAddress, stakeAccount: stakeAccount, amountLamports: amountLamports)
@@ -74,7 +75,7 @@ import Foundation
     // ── Cardano ──────────────────────────────────────────────────────────────
 
     func cardanoBuildDelegateTx(walletAddress: String, poolId: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.cardanoBuildDelegateTx(
                 walletAddress: walletAddress, poolId: poolId)
@@ -83,7 +84,7 @@ import Foundation
     }
 
     func cardanoBuildClaimRewardsTx(walletAddress: String, amountLovelace: UInt64) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.cardanoBuildClaimRewardsTx(
                 walletAddress: walletAddress, amountLovelace: amountLovelace)
@@ -92,7 +93,7 @@ import Foundation
     }
 
     func cardanoBuildDeregisterTx(walletAddress: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.cardanoBuildDeregisterTx(
                 walletAddress: walletAddress)
@@ -103,7 +104,7 @@ import Foundation
     // ── Sui ──────────────────────────────────────────────────────────────────
 
     func suiBuildAddStakeTx(walletAddress: String, amountMist: UInt64, validatorAddress: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.suiBuildAddStakeTx(
                 walletAddress: walletAddress, amountMist: amountMist, validatorAddress: validatorAddress)
@@ -112,7 +113,7 @@ import Foundation
     }
 
     func suiBuildWithdrawStakeTx(walletAddress: String, stakedSuiObjectId: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.suiBuildWithdrawStakeTx(
                 walletAddress: walletAddress, stakedSuiObjectId: stakedSuiObjectId)
@@ -123,7 +124,7 @@ import Foundation
     // ── Aptos ────────────────────────────────────────────────────────────────
 
     func aptosBuildAddStakeTx(walletAddress: String, poolAddress: String, amountOctas: UInt64) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.aptosBuildAddStakeTx(
                 walletAddress: walletAddress, poolAddress: poolAddress, amountOctas: amountOctas)
@@ -132,7 +133,7 @@ import Foundation
     }
 
     func aptosBuildUnlockTx(walletAddress: String, poolAddress: String, amountOctas: UInt64) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.aptosBuildUnlockTx(
                 walletAddress: walletAddress, poolAddress: poolAddress, amountOctas: amountOctas)
@@ -141,7 +142,7 @@ import Foundation
     }
 
     func aptosBuildWithdrawTx(walletAddress: String, poolAddress: String, amountOctas: UInt64) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.aptosBuildWithdrawTx(
                 walletAddress: walletAddress, poolAddress: poolAddress, amountOctas: amountOctas)
@@ -152,7 +153,7 @@ import Foundation
     // ── NEAR ─────────────────────────────────────────────────────────────────
 
     func nearBuildDepositAndStakeTx(walletAddress: String, poolAccountId: String, amountYoctoNear: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.nearBuildDepositAndStakeTx(
                 walletAddress: walletAddress, poolAccountId: poolAccountId, amountYoctoNear: amountYoctoNear)
@@ -161,7 +162,7 @@ import Foundation
     }
 
     func nearBuildUnstakeTx(walletAddress: String, poolAccountId: String, amountYoctoNear: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.nearBuildUnstakeTx(
                 walletAddress: walletAddress, poolAccountId: poolAccountId, amountYoctoNear: amountYoctoNear)
@@ -170,7 +171,7 @@ import Foundation
     }
 
     func nearBuildWithdrawTx(walletAddress: String, poolAccountId: String, amountYoctoNear: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.nearBuildWithdrawTx(
                 walletAddress: walletAddress, poolAccountId: poolAccountId, amountYoctoNear: amountYoctoNear)
@@ -181,7 +182,7 @@ import Foundation
     // ── Polkadot ─────────────────────────────────────────────────────────────
 
     func polkadotBuildBondAndNominateTx(walletAddress: String, amountPlanck: String, validatorAddresses: [String]) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.polkadotBuildBondAndNominateTx(
                 walletAddress: walletAddress, amountPlanck: amountPlanck, validatorAddresses: validatorAddresses)
@@ -190,7 +191,7 @@ import Foundation
     }
 
     func polkadotBuildJoinPoolTx(walletAddress: String, amountPlanck: String, poolId: UInt32) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.polkadotBuildJoinPoolTx(
                 walletAddress: walletAddress, amountPlanck: amountPlanck, poolId: poolId)
@@ -199,7 +200,7 @@ import Foundation
     }
 
     func polkadotBuildUnbondTx(walletAddress: String, amountPlanck: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.polkadotBuildUnbondTx(
                 walletAddress: walletAddress, amountPlanck: amountPlanck)
@@ -208,7 +209,7 @@ import Foundation
     }
 
     func polkadotBuildWithdrawUnbondedTx(walletAddress: String) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.polkadotBuildWithdrawUnbondedTx(
                 walletAddress: walletAddress)
@@ -219,7 +220,7 @@ import Foundation
     // ── ICP ──────────────────────────────────────────────────────────────────
 
     func icpBuildCreateNeuronTx(walletAddress: String, amountE8s: UInt64, dissolveDelayMonths: UInt32) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.icpBuildCreateNeuronTx(
                 walletAddress: walletAddress, amountE8s: amountE8s, dissolveDelayMonths: dissolveDelayMonths)
@@ -228,7 +229,7 @@ import Foundation
     }
 
     func icpBuildIncreaseDissolveDelayTx(walletAddress: String, neuronId: UInt64, additionalMonths: UInt32) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.icpBuildIncreaseDissolveDelayTx(
                 walletAddress: walletAddress, neuronId: neuronId, additionalMonths: additionalMonths)
@@ -237,7 +238,7 @@ import Foundation
     }
 
     func icpBuildStartDissolvingTx(walletAddress: String, neuronId: UInt64) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.icpBuildStartDissolvingTx(
                 walletAddress: walletAddress, neuronId: neuronId)
@@ -246,10 +247,19 @@ import Foundation
     }
 
     func icpBuildDisburseTx(walletAddress: String, neuronId: UInt64, amountE8s: UInt64) async {
-        isLoading = true; error = nil; preview = nil
+        beginTx()
         do {
             preview = try await StakingBridge.shared.icpBuildDisburseTx(
                 walletAddress: walletAddress, neuronId: neuronId, amountE8s: amountE8s)
+        } catch { self.error = error }
+        isLoading = false
+    }
+
+    func icpBuildClaimMaturityTx(walletAddress: String, neuronId: UInt64) async {
+        beginTx()
+        do {
+            preview = try await StakingBridge.shared.icpBuildClaimMaturityTx(
+                walletAddress: walletAddress, neuronId: neuronId)
         } catch { self.error = error }
         isLoading = false
     }

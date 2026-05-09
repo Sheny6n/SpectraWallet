@@ -2,7 +2,6 @@ import Foundation
 import DequeModule
 import OrderedCollections
 import SwiftUI
-import os
 import UIKit
 #if canImport(Network)
     import Network
@@ -86,17 +85,6 @@ final class AppState {
     }
     static let persistenceEncoder = JSONEncoder()
     static let persistenceDecoder = JSONDecoder()
-    static let diagnosticsBundleEncoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }()
-    static let diagnosticsBundleDecoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }()
     static let exportFilenameTimestampFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withDashSeparatorInDate, .withColonSeparatorInTime]
@@ -105,8 +93,6 @@ final class AppState {
     static let operationalLogTimestampFormatter = ISO8601DateFormatter()
     // Nested enums (ResetScope, TimeoutError, SeedPhraseRevealError, BackgroundSyncProfile)
     // moved to Shell/AppStateTypes.swift via `extension AppState`.
-    let logger = Logger(subsystem: "com.spectra.wallet", category: "dogecoin")
-    let balanceTelemetryLogger = Logger(subsystem: "com.spectra.wallet", category: "balance.telemetry")
     @ObservationIgnored let appSettingsPersist = DebouncedAction(intervalMilliseconds: 100)
     // Each `DebouncedAction` captures its target's coalescing window at
     // construction so the interval is visible next to the field declaration
@@ -874,8 +860,6 @@ final class AppState {
             PerformanceSample(id: UUID(), operation: operation, durationMS: durationMS, timestamp: Date(), metadata: metadata)
         )
         if recentPerformanceSamples.count > 120 { recentPerformanceSamples.removeLast() }
-        balanceTelemetryLogger.info(
-            "perf \(operation, privacy: .public) \(durationMS, format: .fixed(precision: 2))ms \(metadata ?? "", privacy: .public)")
     }
     init() {
         // Wire preferences' side-effect closures back to AppState. Using

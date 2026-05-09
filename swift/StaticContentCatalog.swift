@@ -387,9 +387,10 @@ private func tokenTrackingChainFor(_ value: String) -> TokenTrackingChain? {
 extension ChainTokenRegistryEntry {
     static let builtIn: [ChainTokenRegistryEntry] = {
         listAllBuiltinTokens().compactMap { entry -> ChainTokenRegistryEntry? in
-            guard let chain = tokenTrackingChainFor(entry.chain),
-                  let category = TokenPreferenceCategory(rawValue: entry.category)
-            else { return nil }
+            guard let chain = tokenTrackingChainFor(entry.chain) else { return nil }
+            let category: TokenPreferenceCategory = entry.tags.lazy
+                .compactMap { TokenPreferenceCategory(rawValue: $0) }
+                .first ?? .custom
             return ChainTokenRegistryEntry(
                 chain: chain, name: entry.name, symbol: entry.symbol, tokenStandard: entry.tokenStandard,
                 contractAddress: entry.contract, coinGeckoId: entry.coingeckoId,

@@ -1,11 +1,9 @@
 import Foundation
 import SwiftUI
-import os
 @MainActor
 extension AppState {
     @discardableResult
     func refreshLivePrices() async -> Bool {
-        NSLog("[spectra] refreshLivePrices enter isRefreshing=\(isRefreshingLivePrices) provider=\(pricingProvider.rawValue)")
         guard !isRefreshingLivePrices else { return false }
         isRefreshingLivePrices = true
         defer {
@@ -14,7 +12,6 @@ extension AppState {
         }
         var didUpdatePrices = false
         let requestedCoins = priceRequestCoins
-        NSLog("[spectra] refreshLivePrices requestedCoins=\(requestedCoins.count)")
         guard !requestedCoins.isEmpty else {
             quoteRefreshError = nil
             return false
@@ -28,7 +25,6 @@ extension AppState {
             let fetchedPrices = try await WalletServiceBridge.shared.fetchPricesViaRust(
                 provider: pricingProvider.rawValue, coins: rustInputs
             )
-            NSLog("[spectra] refreshLivePrices fetched=\(fetchedPrices.count)")
             guard !fetchedPrices.isEmpty else {
                 quoteRefreshError = localizedStoreFormat("%@ returned no supported asset quotes", pricingProvider.rawValue)
                 return false
@@ -38,7 +34,6 @@ extension AppState {
             quoteRefreshError = nil
             didUpdatePrices = outcome.hadMeaningfulChange
         } catch {
-            NSLog("[spectra] refreshLivePrices FAIL: \(error)")
             quoteRefreshError = localizedStoreFormat("%@ pricing unavailable", pricingProvider.rawValue)
         }
         if didUpdatePrices { evaluatePriceAlerts() }
@@ -78,7 +73,6 @@ extension AppState {
             fiatRatesRefreshError = nil
             lastFiatRatesRefreshAt = Date()
         } catch {
-            NSLog("[spectra] refreshFiatExchangeRates FAIL: \(error)")
             if fiatRatesFromUSD.isEmpty {
                 fiatRatesFromUSD = [FiatCurrency.usd.rawValue: 1.0]
             } else {
@@ -204,16 +198,6 @@ extension AppState {
                 if abs(coin.amount) > 0 { partialResult += 1 }
             }
             let totalUnits = holdings.reduce(0) { $0 + $1.amount }
-            balanceTelemetryLogger.debug(
-                """
-                balance_update source=\(source, privacy: .public) \
-                chain=\(chainName, privacy: .public) \
-                wallet_id=\(wallet.id, privacy: .public) \
-                wallet_name=\(wallet.name, privacy: .public) \
-                non_zero_assets=\(nonZeroAssets, privacy: .public) \
-                total_units=\(totalUnits, privacy: .public)
-                """
-            )
             appendOperationalLog(
                 .debug, category: "Balance Telemetry", message: "Balance updated", chainName: chainName, walletID: wallet.id,
                 source: source, metadata: "non_zero_assets=\(nonZeroAssets), total_units=\(totalUnits)"

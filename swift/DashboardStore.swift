@@ -14,7 +14,7 @@ extension AppState {
                     coinGeckoId: chain.nativeCoingeckoId, chainName: chain.name,
                     tokenStandard: "Native", contractAddress: nil, amount: 0, priceUsd: 0)
             }
-        for token in listTokens(chainId: "") where token.category == "stablecoin" && token.enabled {
+        for token in listTokens(chainId: "") where token.tags.contains("stablecoin") && token.enabled {
             let chainName = chainNameById[token.chain] ?? token.chain
             coins.append(Coin.makeCustom(
                 name: token.name, symbol: token.symbol,
@@ -86,7 +86,7 @@ extension AppState {
                 chainName: existing.chainName,
                 tokenStandard: existing.tokenStandard,
                 contractAddress: existing.contractAddress,
-                amount: 0 as Double,
+                amount: 0,
                 priceUsd: existing.priceUsd
             )
         }

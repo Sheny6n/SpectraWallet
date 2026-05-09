@@ -1,5 +1,4 @@
 import Foundation
-import os
 enum SpectraChainID: Sendable {
     static let bitcoin:          String = "bitcoin"
     static let ethereum:         String = "ethereum"
@@ -158,7 +157,7 @@ protocol WalletServiceBridgeProtocol: Sendable {}
         try await service().fetchPricesTyped(provider: provider, coins: coins)
     }
     func fetchFiatRatesViaRust(provider: String, currencies: [String]) async throws -> [String: Double] {
-        return try await service().fetchFiatRatesTyped(provider: provider, currencies: currencies)
+        try await service().fetchFiatRatesTyped(provider: provider, currencies: currencies)
     }
     func registerSecretStore(_ store: SecretStore) throws { try service().setSecretStore(store: store) }
     nonisolated func setEtherscanAPIKey(_ key: String) {
@@ -300,7 +299,21 @@ private extension WalletServiceBridge {
         let tonV3URLs = AppEndpointDirectory.endpoints(for: ["ton.api.v3"])
         if !tonV3URLs.isEmpty { payloads.append(ChainEndpoints(chainId: endpointSlotId(SpectraChainID.ton, .secondary), endpoints: tonV3URLs, apiKey: nil)) }
         let explorerChains: [(String, String)] = [
-            (SpectraChainID.ethereum,        "Ethereum"), (SpectraChainID.tron,            "Tron"), (SpectraChainID.arbitrum,        "Arbitrum"), (SpectraChainID.optimism,        "Optimism"), (SpectraChainID.avalanche,       "Avalanche"), (SpectraChainID.near,            "NEAR"), (SpectraChainID.base,            "Base"), (SpectraChainID.ethereumClassic, "Ethereum Classic"), (SpectraChainID.bsc,             "BNB Chain"), (SpectraChainID.polygon,         "Polygon"), (SpectraChainID.linea,           "Linea"), (SpectraChainID.scroll,          "Scroll"), (SpectraChainID.blast,           "Blast"), (SpectraChainID.mantle,          "Mantle"), ]
+            (SpectraChainID.ethereum,        "Ethereum"),
+            (SpectraChainID.tron,            "Tron"),
+            (SpectraChainID.arbitrum,        "Arbitrum"),
+            (SpectraChainID.optimism,        "Optimism"),
+            (SpectraChainID.avalanche,       "Avalanche"),
+            (SpectraChainID.near,            "NEAR"),
+            (SpectraChainID.base,            "Base"),
+            (SpectraChainID.ethereumClassic, "Ethereum Classic"),
+            (SpectraChainID.bsc,             "BNB Chain"),
+            (SpectraChainID.polygon,         "Polygon"),
+            (SpectraChainID.linea,           "Linea"),
+            (SpectraChainID.scroll,          "Scroll"),
+            (SpectraChainID.blast,           "Blast"),
+            (SpectraChainID.mantle,          "Mantle"),
+        ]
         for (primaryId, chainName) in explorerChains { payloads += explorerPayloads(chainId: endpointSlotId(primaryId, .explorer), chainName: chainName) }
         return payloads
     }

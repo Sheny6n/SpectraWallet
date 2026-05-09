@@ -134,6 +134,10 @@ import Foundation
     func icpBuildDisburseTx(walletAddress: String, neuronId: UInt64, amountE8s: UInt64) async throws -> StakingActionPreview {
         try await service().icpBuildDisburseTx(walletAddress: walletAddress, neuronId: neuronId, amountE8s: amountE8s)
     }
+
+    func icpBuildClaimMaturityTx(walletAddress: String, neuronId: UInt64) async throws -> StakingActionPreview {
+        try await service().icpBuildClaimMaturityTx(walletAddress: walletAddress, neuronId: neuronId)
+    }
 }
 
 private extension StakingBridge {
