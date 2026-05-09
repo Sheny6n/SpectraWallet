@@ -544,7 +544,7 @@ extension AppState {
     /// sees the intermediate JSON. Unsupported chain → error record built
     /// on the Rust side via `fetch_evm_history_diagnostics`' fallback path.
     private func rustEVMHistoryDiagnostics(chainName: String, address: String) async -> EthereumTokenTransferHistoryDiagnostics {
-        let chainId = SpectraChainID.id(for: chainName) ?? 0
+        let chainId = SpectraChainID.id(for: chainName) ?? ""
         return (try? await WalletServiceBridge.shared.fetchEVMHistoryDiagnostics(chainId: chainId, address: address))
             ?? diagnosticsMakeEvmRunning(address: address)
     }
@@ -694,7 +694,7 @@ extension AppState {
         await refreshPendingUTXOChainTransactions(chainName: "Litecoin", chainId: SpectraChainID.litecoin, requireSendKind: false)
     }
     private func refreshPendingUTXOChainTransactions(
-        chainName: String, chainId: UInt32, requireSendKind: Bool = true, tracksFinality: Bool = false
+        chainName: String, chainId: String, requireSendKind: Bool = true, tracksFinality: Bool = false
     ) async {
         let now = Date()
         let tracked = transactions.filter {
@@ -783,7 +783,7 @@ extension AppState {
     }
 
     private func refreshPendingRustHistoryChainTransactions(
-        chainName: String, chainId: UInt32, addressResolver: (ImportedWallet) -> String?
+        chainName: String, chainId: String, addressResolver: (ImportedWallet) -> String?
     ) async {
         await refreshPendingHistoryBackedTransactions(chainName: chainName, addressResolver: addressResolver) { address in
             guard let confirmed = try? await WalletServiceBridge.shared.fetchHistoryConfirmedTxids(chainId: chainId, address: address) else {
@@ -797,7 +797,7 @@ extension AppState {
     // MARK: Rust-history-fetch bridges (generic)
 
     private func runRustHistoryDiagnosticsForAllWallets<D>(
-        chainId: UInt32, isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String,
+        chainId: String, isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String,
         resolveAddress: @escaping (ImportedWallet) -> String?, make: @escaping (String, String, Int, String?) -> D,
         diagsKP: ReferenceWritableKeyPath<AppState, [String: D]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
@@ -807,7 +807,7 @@ extension AppState {
             storeDiagnostics: { self[keyPath: diagsKP][$0] = $1 }, markUpdated: { self[keyPath: tsKP] = Date() })
     }
     private func runRustHistoryDiagnosticsForWallet<D>(
-        walletID: String, chainId: UInt32, isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String,
+        walletID: String, chainId: String, isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String,
         resolveAddress: @escaping (ImportedWallet) -> String?, make: @escaping (String, String, Int, String?) -> D,
         diagsKP: ReferenceWritableKeyPath<AppState, [String: D]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
@@ -817,7 +817,7 @@ extension AppState {
             storeDiagnostics: { self[keyPath: diagsKP][$0] = $1 }, markUpdated: { self[keyPath: tsKP] = Date() })
     }
     private func runUTXOStyleHistoryDiagnostics(
-        chainId: UInt32, isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String,
+        chainId: String, isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String,
         resolveAddress: @escaping (ImportedWallet) -> String?,
         diagsKP: ReferenceWritableKeyPath<AppState, [String: BitcoinHistoryDiagnostics]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
@@ -835,7 +835,7 @@ extension AppState {
             }, markUpdated: { self[keyPath: tsKP] = Date() })
     }
     private func runUTXOStyleHistoryDiagnosticsForWallet(
-        walletID: String, chainId: UInt32, isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String,
+        walletID: String, chainId: String, isRunningKP: ReferenceWritableKeyPath<AppState, Bool>, chainName: String,
         resolveAddress: @escaping (ImportedWallet) -> String?,
         diagsKP: ReferenceWritableKeyPath<AppState, [String: BitcoinHistoryDiagnostics]>, tsKP: ReferenceWritableKeyPath<AppState, Date?>
     ) async {
@@ -851,7 +851,7 @@ extension AppState {
     /// Fetch Rust history JSON and construct a per-chain diagnostics record.
     /// Counting is now delegated to Rust (`diagnosticsHistoryEntryCount`);
     /// the Swift layer only threads the chain-specific `make` constructor.
-    private func rustHistoryFetch<D>(chainId: UInt32, address: String, make: (String, String, Int, String?) -> D) async -> D {
+    private func rustHistoryFetch<D>(chainId: String, address: String, make: (String, String, Int, String?) -> D) async -> D {
         if let count = try? await WalletServiceBridge.shared.fetchHistoryEntryCount(chainId: chainId, address: address) {
             return make(address, "rust", Int(count), nil)
         }

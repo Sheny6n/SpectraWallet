@@ -1,37 +1,37 @@
 import Foundation
 import os
 enum SpectraChainID: Sendable {
-    static let bitcoin:          UInt32 = 0
-    static let ethereum:         UInt32 = 1
-    static let solana:           UInt32 = 2
-    static let dogecoin:         UInt32 = 3
-    static let xrp:              UInt32 = 4
-    static let litecoin:         UInt32 = 5
-    static let bitcoinCash:      UInt32 = 6
-    static let tron:             UInt32 = 7
-    static let stellar:          UInt32 = 8
-    static let cardano:          UInt32 = 9
-    static let polkadot:         UInt32 = 10
-    static let arbitrum:         UInt32 = 11
-    static let optimism:         UInt32 = 12
-    static let avalanche:        UInt32 = 13
-    static let sui:              UInt32 = 14
-    static let aptos:            UInt32 = 15
-    static let ton:              UInt32 = 16
-    static let near:             UInt32 = 17
-    static let icp:              UInt32 = 18
-    static let monero:           UInt32 = 19
-    static let base:             UInt32 = 20
-    static let ethereumClassic:  UInt32 = 21
-    static let bitcoinSv:        UInt32 = 22
-    static let bsc:              UInt32 = 23
-    static let hyperliquid:      UInt32 = 24
-    static let polygon:          UInt32 = 25
-    static let linea:            UInt32 = 26
-    static let scroll:           UInt32 = 27
-    static let blast:            UInt32 = 28
-    static let mantle:           UInt32 = 29
-    nonisolated static func id(for chainName: String) -> UInt32? { MainActor.assumeIsolated { coreChainIdForName(name: chainName) } }
+    static let bitcoin:          String = "bitcoin"
+    static let ethereum:         String = "ethereum"
+    static let solana:           String = "solana"
+    static let dogecoin:         String = "dogecoin"
+    static let xrp:              String = "xrp"
+    static let litecoin:         String = "litecoin"
+    static let bitcoinCash:      String = "bitcoin-cash"
+    static let tron:             String = "tron"
+    static let stellar:          String = "stellar"
+    static let cardano:          String = "cardano"
+    static let polkadot:         String = "polkadot"
+    static let arbitrum:         String = "arbitrum"
+    static let optimism:         String = "optimism"
+    static let avalanche:        String = "avalanche"
+    static let sui:              String = "sui"
+    static let aptos:            String = "aptos"
+    static let ton:              String = "ton"
+    static let near:             String = "near"
+    static let icp:              String = "internet-computer"
+    static let monero:           String = "monero"
+    static let base:             String = "base"
+    static let ethereumClassic:  String = "ethereum-classic"
+    static let bitcoinSv:        String = "bitcoin-sv"
+    static let bsc:              String = "bnb"
+    static let hyperliquid:      String = "hyperliquid"
+    static let polygon:          String = "polygon"
+    static let linea:            String = "linea"
+    static let scroll:           String = "scroll"
+    static let blast:            String = "blast"
+    static let mantle:           String = "mantle"
+    nonisolated static func id(for chainName: String) -> String? { MainActor.assumeIsolated { coreChainStrIdForName(name: chainName) } }
 }
 /// Test seam: tests that don't want to talk to a real Rust service can
 /// inject a stub conforming to `WalletServiceBridgeProtocol`. Existing
@@ -58,23 +58,23 @@ protocol WalletServiceBridgeProtocol: Sendable {}
     func refreshEndpoints() async throws {
         try await service().updateEndpointsTyped(endpoints: Self.buildEndpoints())
     }
-    func fetchNativeBalanceSummary(chainId: UInt32, address: String) async throws -> NativeBalanceSummary {
+    func fetchNativeBalanceSummary(chainId: String, address: String) async throws -> NativeBalanceSummary {
         try await service().fetchNativeBalanceSummary(chainId: chainId, address: address)
     }
-    func fetchHistoryHasActivity(chainId: UInt32, address: String) async throws -> Bool {
+    func fetchHistoryHasActivity(chainId: String, address: String) async throws -> Bool {
         try await service().fetchHistoryHasActivity(chainId: chainId, address: address)
     }
-    func fetchHistoryEntryCount(chainId: UInt32, address: String) async throws -> UInt32 {
+    func fetchHistoryEntryCount(chainId: String, address: String) async throws -> UInt32 {
         try await service().fetchHistoryEntryCount(chainId: chainId, address: address)
     }
-    func fetchHistoryConfirmedTxids(chainId: UInt32, address: String) async throws -> [String] {
+    func fetchHistoryConfirmedTxids(chainId: String, address: String) async throws -> [String] {
         try await service().fetchHistoryConfirmedTxids(chainId: chainId, address: address)
     }
     func fetchBitcoinHdHistoryPage(xpub: String, limit: UInt64) async throws -> [CoreBitcoinHistorySnapshot] {
         try await service().fetchBitcoinHdHistoryPage(xpub: xpub, limit: limit)
     }
     func fetchEVMHistoryPage(
-        chainId: UInt32, address: String, tokens: [TokenDescriptor], page: Int, pageSize: Int
+        chainId: String, address: String, tokens: [TokenDescriptor], page: Int, pageSize: Int
     ) async throws -> EvmHistoryPageDecoded {
         try await service().fetchEvmHistoryPage(
             chainId: chainId, address: address, tokens: tokens,
@@ -82,20 +82,20 @@ protocol WalletServiceBridgeProtocol: Sendable {}
         )
     }
     func fetchEVMHistoryDiagnostics(
-        chainId: UInt32, address: String
+        chainId: String, address: String
     ) async throws -> EthereumTokenTransferHistoryDiagnostics {
         try await service().fetchEvmHistoryDiagnostics(chainId: chainId, address: address)
     }
     func executeSend(_ request: SendExecutionRequest) async throws -> SendExecutionResult { try await service().executeSend(request: request) }
     func fetchEVMTokenBalancesBatch(
-        chainId: UInt32, address: String, tokens: [TokenDescriptor]
+        chainId: String, address: String, tokens: [TokenDescriptor]
     ) async throws -> [TokenBalanceResult] {
         guard !tokens.isEmpty else { return [] }
         return try await service().fetchEvmTokenBalancesBatchTyped(
             chainId: chainId, address: address, tokens: tokens)
     }
     func fetchTokenBalances(
-        chainId: UInt32, address: String, tokens: [TokenDescriptor]
+        chainId: String, address: String, tokens: [TokenDescriptor]
     ) async throws -> [TokenBalanceResult] {
         guard !tokens.isEmpty else { return [] }
         return try await service().fetchTokenBalances(
@@ -107,30 +107,30 @@ protocol WalletServiceBridgeProtocol: Sendable {}
     func resolveENSName(_ name: String) async throws -> String? {
         try await service().resolveEnsNameTyped(name: name)
     }
-    func fetchEvmHasContractCode(chainId: UInt32, address: String) async throws -> Bool {
+    func fetchEvmHasContractCode(chainId: String, address: String) async throws -> Bool {
         try await service().fetchEvmHasContractCode(chainId: chainId, address: address)
     }
-    func fetchEVMTxNonce(chainId: UInt32, txHash: String) async throws -> Int {
+    func fetchEVMTxNonce(chainId: String, txHash: String) async throws -> Int {
         Int(try await service().fetchEvmTxNonceTyped(chainId: chainId, txHash: txHash))
     }
-    func fetchEvmReceiptClassification(chainId: UInt32, txHash: String) async throws -> EvmReceiptClassification? {
+    func fetchEvmReceiptClassification(chainId: String, txHash: String) async throws -> EvmReceiptClassification? {
         try await service().fetchEvmReceiptClassification(chainId: chainId, txHash: txHash)
     }
     func fetchEvmSendPreviewTyped(
-        chainId: UInt32, from: String, to: String, valueWei: String, dataHex: String,
+        chainId: String, from: String, to: String, valueWei: String, dataHex: String,
         explicitNonce: Int64?, customFees: EvmCustomFeeConfiguration?
     ) async throws -> EthereumSendPreview? {
         try await service().fetchEvmSendPreviewTyped(
             chainId: chainId, from: from, to: to, valueWei: valueWei, dataHex: dataHex,
             explicitNonce: explicitNonce, customFees: customFees)
     }
-    func fetchEvmAddressProbe(chainId: UInt32, address: String) async throws -> EvmAddressProbe {
+    func fetchEvmAddressProbe(chainId: String, address: String) async throws -> EvmAddressProbe {
         try await service().fetchEvmAddressProbe(chainId: chainId, address: address)
     }
     func fetchTronSendPreviewTyped(address: String, symbol: String, contractAddress: String) async throws -> TronSendPreview? {
         try await service().fetchTronSendPreviewTyped(address: address, symbol: symbol, contractAddress: contractAddress)
     }
-    func fetchUtxoFeePreviewTyped(chainId: UInt32, address: String, feeRateSvb: UInt64) async throws -> BitcoinSendPreview? {
+    func fetchUtxoFeePreviewTyped(chainId: String, address: String, feeRateSvb: UInt64) async throws -> BitcoinSendPreview? {
         try await service().fetchUtxoFeePreviewTyped(chainId: chainId, address: address, feeRateSvb: feeRateSvb)
     }
     func fetchDogecoinSendPreviewTyped(address: String, requestedAmount: Double, feePriority: String) async throws -> DogecoinSendPreview? {
@@ -139,13 +139,13 @@ protocol WalletServiceBridgeProtocol: Sendable {}
     func fetchBitcoinHdSendPreviewTyped(xpub: String, receiveCount: UInt32 = 20, changeCount: UInt32 = 20) async throws -> BitcoinSendPreview? {
         try await service().fetchBitcoinHdSendPreviewTyped(xpub: xpub, receiveCount: receiveCount, changeCount: changeCount)
     }
-    func fetchSimpleChainSendPreviewTyped(chainId: UInt32, address: String, chain: SimpleChain) async throws -> SimpleChainPreview {
+    func fetchSimpleChainSendPreviewTyped(chainId: String, address: String, chain: SimpleChain) async throws -> SimpleChainPreview {
         try await service().fetchSimpleChainSendPreviewTyped(chainId: chainId, address: address, chain: chain)
     }
     nonisolated func rustGenerateMnemonic(wordCount: Int) -> String { MainActor.assumeIsolated { generateMnemonic(wordCount: UInt32(wordCount)) } }
     nonisolated func rustValidateMnemonic(_ phrase: String) -> Bool { MainActor.assumeIsolated { validateMnemonic(phrase: phrase) } }
     nonisolated func rustBip39Wordlist() -> [String] { MainActor.assumeIsolated { bip39EnglishWordlist() }.split(separator: "\n").map(String.init) }
-    func broadcastRawExtract(chainId: UInt32, payload: String, resultField: String) async throws -> String {
+    func broadcastRawExtract(chainId: String, payload: String, resultField: String) async throws -> String {
         try await service().broadcastRawExtract(chainId: chainId, payload: payload, resultField: resultField)
     }
     func deriveBitcoinHdAddressStrings(xpub: String, change: UInt32, startIndex: UInt32, count: UInt32) async throws -> [String] {
@@ -173,7 +173,7 @@ extension WalletServiceBridge {
     func fetchNearBalance(address: String) async throws -> NearBalance {
         try await service().fetchNearBalanceTyped(address: address)
     }
-    func fetchErc20Balance(chainId: UInt32, contract: String, holder: String) async throws -> Erc20Balance {
+    func fetchErc20Balance(chainId: String, contract: String, holder: String) async throws -> Erc20Balance {
         try await service().fetchErc20BalanceTyped(chainId: chainId, contract: contract, holder: holder)
     }
     func loadState(key: String) async throws -> String { try await service().loadState(dbPath: sqliteDbPath(), key: key) }
@@ -194,7 +194,7 @@ extension WalletServiceBridge {
     func saveAddressBookStore(key: String, value: CorePersistedAddressBookStore) async throws {
         try await service().saveAddressBookStore(dbPath: sqliteDbPath(), key: key, value: value)
     }
-    func fetchNormalizedHistory(chainId: UInt32, address: String) async throws -> [NormalizedHistoryItem] {
+    func fetchNormalizedHistory(chainId: String, address: String) async throws -> [NormalizedHistoryItem] {
         try await service().fetchNormalizedHistory(chainId: chainId, address: address)
     }
     func saveAppSettingsTyped(settings: PersistedAppSettings) async throws {
@@ -234,18 +234,18 @@ extension WalletServiceBridge {
     func clearAllHistoryRecords() async throws {
         try await service().clearAllHistoryRecords(dbPath: sqliteDbPath())
     }
-    nonisolated func historyNextCursor(chainId: UInt32, walletId: String) -> String? { MainActor.assumeIsolated { WalletServiceBridge._syncService?.historyNextCursor(chainId: chainId, walletId: walletId) } }
-    nonisolated func historyNextPage(chainId: UInt32, walletId: String) -> UInt32 { MainActor.assumeIsolated { WalletServiceBridge._syncService?.historyNextPage(chainId: chainId, walletId: walletId) ?? 0 } }
-    nonisolated func isHistoryExhausted(chainId: UInt32, walletId: String) -> Bool { MainActor.assumeIsolated { WalletServiceBridge._syncService?.isHistoryExhausted(chainId: chainId, walletId: walletId) ?? false } }
-    nonisolated func advanceHistoryCursor(chainId: UInt32, walletId: String, nextCursor: String?) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.advanceHistoryCursor(chainId: chainId, walletId: walletId, nextCursor: nextCursor) } }
-    nonisolated func advanceHistoryPage(chainId: UInt32, walletId: String, isLast: Bool) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.advanceHistoryPage(chainId: chainId, walletId: walletId, isLast: isLast) } }
-    nonisolated func setHistoryPage(chainId: UInt32, walletId: String, page: UInt32) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.setHistoryPage(chainId: chainId, walletId: walletId, page: page) } }
-    nonisolated func setHistoryExhausted(chainId: UInt32, walletId: String, exhausted: Bool) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.setHistoryExhausted(chainId: chainId, walletId: walletId, exhausted: exhausted) } }
-    nonisolated func resetHistory(chainId: UInt32, walletId: String) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetHistory(chainId: chainId, walletId: walletId) } }
+    nonisolated func historyNextCursor(chainId: String, walletId: String) -> String? { MainActor.assumeIsolated { WalletServiceBridge._syncService?.historyNextCursor(chainId: chainId, walletId: walletId) } }
+    nonisolated func historyNextPage(chainId: String, walletId: String) -> UInt32 { MainActor.assumeIsolated { WalletServiceBridge._syncService?.historyNextPage(chainId: chainId, walletId: walletId) ?? 0 } }
+    nonisolated func isHistoryExhausted(chainId: String, walletId: String) -> Bool { MainActor.assumeIsolated { WalletServiceBridge._syncService?.isHistoryExhausted(chainId: chainId, walletId: walletId) ?? false } }
+    nonisolated func advanceHistoryCursor(chainId: String, walletId: String, nextCursor: String?) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.advanceHistoryCursor(chainId: chainId, walletId: walletId, nextCursor: nextCursor) } }
+    nonisolated func advanceHistoryPage(chainId: String, walletId: String, isLast: Bool) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.advanceHistoryPage(chainId: chainId, walletId: walletId, isLast: isLast) } }
+    nonisolated func setHistoryPage(chainId: String, walletId: String, page: UInt32) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.setHistoryPage(chainId: chainId, walletId: walletId, page: page) } }
+    nonisolated func setHistoryExhausted(chainId: String, walletId: String, exhausted: Bool) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.setHistoryExhausted(chainId: chainId, walletId: walletId, exhausted: exhausted) } }
+    nonisolated func resetHistory(chainId: String, walletId: String) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetHistory(chainId: chainId, walletId: walletId) } }
     nonisolated func resetHistoryForWallet(walletId: String) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetHistoryForWallet(walletId: walletId) } }
-    nonisolated func resetHistoryForChain(chainId: UInt32) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetHistoryForChain(chainId: chainId) } }
+    nonisolated func resetHistoryForChain(chainId: String) { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetHistoryForChain(chainId: chainId) } }
     nonisolated func resetAllHistory() { MainActor.assumeIsolated { WalletServiceBridge._syncService?.resetAllHistory() } }
-    func fetchUtxoTxStatusTyped(chainId: UInt32, txid: String) async throws -> UtxoTxStatus {
+    func fetchUtxoTxStatusTyped(chainId: String, txid: String) async throws -> UtxoTxStatus {
         try await service().fetchUtxoTxStatusTyped(chainId: chainId, txid: txid)
     }
     private func sqliteDbPath() -> String {
@@ -299,15 +299,15 @@ private extension WalletServiceBridge {
         payloads += explorerPayloads(chainId: endpointSlotId(SpectraChainID.icp, .secondary), chainName: "Internet Computer")
         let tonV3URLs = AppEndpointDirectory.endpoints(for: ["ton.api.v3"])
         if !tonV3URLs.isEmpty { payloads.append(ChainEndpoints(chainId: endpointSlotId(SpectraChainID.ton, .secondary), endpoints: tonV3URLs, apiKey: nil)) }
-        let explorerChains: [(UInt32, String)] = [
+        let explorerChains: [(String, String)] = [
             (SpectraChainID.ethereum,        "Ethereum"), (SpectraChainID.tron,            "Tron"), (SpectraChainID.arbitrum,        "Arbitrum"), (SpectraChainID.optimism,        "Optimism"), (SpectraChainID.avalanche,       "Avalanche"), (SpectraChainID.near,            "NEAR"), (SpectraChainID.base,            "Base"), (SpectraChainID.ethereumClassic, "Ethereum Classic"), (SpectraChainID.bsc,             "BNB Chain"), (SpectraChainID.polygon,         "Polygon"), (SpectraChainID.linea,           "Linea"), (SpectraChainID.scroll,          "Scroll"), (SpectraChainID.blast,           "Blast"), (SpectraChainID.mantle,          "Mantle"), ]
         for (primaryId, chainName) in explorerChains { payloads += explorerPayloads(chainId: endpointSlotId(primaryId, .explorer), chainName: chainName) }
         return payloads
     }
-    static func endpointSlotId(_ chainId: UInt32, _ slot: AppCoreEndpointSlot) -> UInt32 {
-        coreEndpointId(chainId: chainId, slot: slot) ?? chainId
+    static func endpointSlotId(_ chainId: String, _ slot: AppCoreEndpointSlot) -> String {
+        coreEndpointStrId(chainId: chainId, slot: slot) ?? chainId
     }
-    static func rpcPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
+    static func rpcPayloads(chainId: String, chainName: String) -> [ChainEndpoints] {
         let endpoints = (
             try? WalletRustEndpointCatalogBridge.endpointRecords(
                 for: chainName, roles: [.rpc, .balance, .backend], settingsVisibleOnly: false
@@ -316,12 +316,12 @@ private extension WalletServiceBridge {
         guard !endpoints.isEmpty else { return [] }
         return [ChainEndpoints(chainId: chainId, endpoints: endpoints, apiKey: nil)]
     }
-    static func evmPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
+    static func evmPayloads(chainId: String, chainName: String) -> [ChainEndpoints] {
         let endpoints = (try? WalletRustEndpointCatalogBridge.evmRPCEndpoints(for: chainName)) ?? []
         guard !endpoints.isEmpty else { return [] }
         return [ChainEndpoints(chainId: chainId, endpoints: endpoints, apiKey: nil)]
     }
-    static func explorerPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
+    static func explorerPayloads(chainId: String, chainName: String) -> [ChainEndpoints] {
         let endpoints = (try? WalletRustEndpointCatalogBridge.explorerSupplementalEndpoints(for: chainName)) ?? []
         guard !endpoints.isEmpty else { return [] }
         return [ChainEndpoints(chainId: chainId, endpoints: endpoints, apiKey: nil)]

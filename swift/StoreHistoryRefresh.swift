@@ -9,26 +9,26 @@ struct BitcoinHistoryPage {
 extension AppState {
     private var wsb: WalletServiceBridge { WalletServiceBridge.shared }
     private func notifyHistoryMutation() { bumpCachesRevision() }
-    func historyPaginationExhausted(chainId: UInt32, walletId: String) -> Bool {
+    func historyPaginationExhausted(chainId: String, walletId: String) -> Bool {
         wsb.isHistoryExhausted(chainId: chainId, walletId: walletId)
     }
-    func historyPaginationCursor(chainId: UInt32, walletId: String) -> String? {
+    func historyPaginationCursor(chainId: String, walletId: String) -> String? {
         wsb.historyNextCursor(chainId: chainId, walletId: walletId)
     }
-    func historyPaginationPage(chainId: UInt32, walletId: String) -> Int { Int(wsb.historyNextPage(chainId: chainId, walletId: walletId)) }
-    func setHistoryCursor(chainId: UInt32, walletId: String, cursor: String?) {
+    func historyPaginationPage(chainId: String, walletId: String) -> Int { Int(wsb.historyNextPage(chainId: chainId, walletId: walletId)) }
+    func setHistoryCursor(chainId: String, walletId: String, cursor: String?) {
         wsb.advanceHistoryCursor(chainId: chainId, walletId: walletId, nextCursor: cursor); notifyHistoryMutation()
     }
-    func setHistoryPage(chainId: UInt32, walletId: String, page: Int) {
+    func setHistoryPage(chainId: String, walletId: String, page: Int) {
         wsb.setHistoryPage(chainId: chainId, walletId: walletId, page: UInt32(max(0, page))); notifyHistoryMutation()
     }
-    func markHistoryExhausted(chainId: UInt32, walletId: String) {
+    func markHistoryExhausted(chainId: String, walletId: String) {
         wsb.setHistoryExhausted(chainId: chainId, walletId: walletId, exhausted: true); notifyHistoryMutation()
     }
-    func markHistoryActive(chainId: UInt32, walletId: String) {
+    func markHistoryActive(chainId: String, walletId: String) {
         wsb.setHistoryExhausted(chainId: chainId, walletId: walletId, exhausted: false); notifyHistoryMutation()
     }
-    func resetHistoryPagination(chainId: UInt32, walletId: String) {
+    func resetHistoryPagination(chainId: String, walletId: String) {
         wsb.resetHistory(chainId: chainId, walletId: walletId); notifyHistoryMutation()
     }
     func resetHistoryPaginationForWallet(_ walletId: String) { wsb.resetHistoryForWallet(walletId: walletId); notifyHistoryMutation() }
@@ -85,7 +85,7 @@ extension AppState {
     //    SOL, TRX, SUI, APT, TON, NEAR, ICP, XMR and any future account-based chain)
     func refreshNormalizedChainTransactions(
         chainName: String,
-        chainId: UInt32,
+        chainId: String,
         resolveAddress: (ImportedWallet) -> String?,
         upsert: ([TransactionRecord]) -> Void,
         loadMore: Bool = false,
@@ -458,7 +458,7 @@ extension AppState {
         var encounteredErrors = false
         let unknownTimestamp = Date.distantPast
         let requestedPageSize = max(20, min(maxResults ?? HistoryPaging.endpointBatchSize, 500))
-        let evmChainId: UInt32 = historyPaginationChainId(chainName: chainName) ?? SpectraChainID.bsc
+        let evmChainId: String = historyPaginationChainId(chainName: chainName) ?? SpectraChainID.bsc
         if !loadMore {
             for walletID in Set(walletsToRefresh.map { $0.0.id }) {
                 resetHistoryPagination(chainId: evmChainId, walletId: walletID)

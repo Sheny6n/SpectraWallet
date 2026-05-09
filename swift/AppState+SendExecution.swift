@@ -693,7 +693,7 @@ extension AppState {
 
     private func submitSimpleNativeChainSend(
         holding: Coin, wallet: ImportedWallet, destinationAddress: String, amount: Double,
-        chainId: UInt32, chainName: String, symbol: String,
+        chainId: String, chainName: String, symbol: String,
         feeDecimals: UInt32, checkSelfSend: Bool = false, supportsPrivateKey: Bool,
         gasBudgetFromFee: Bool = false, feeAmountFromFee: Bool = false, moneroPriority: UInt32? = nil,
         resolveAddress: @escaping (ImportedWallet) -> String?,
@@ -760,7 +760,7 @@ extension AppState {
     }
 
     private func submitUTXOSatChainSend(
-        holding: Coin, wallet: ImportedWallet, destinationAddress: String, amount: Double, chainId: UInt32, chainName: String,
+        holding: Coin, wallet: ImportedWallet, destinationAddress: String, amount: Double, chainId: String, chainName: String,
         chain: SeedDerivationChain, symbol: String, feeFallback: Double,
         resolveAddress: @escaping (ImportedWallet) -> String?, getPreview: @escaping () -> BitcoinSendPreview?,
         refreshPreview: @escaping () async -> Void, clearPreview: @escaping () -> Void

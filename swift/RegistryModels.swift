@@ -516,7 +516,6 @@ enum AppChainID: String, CaseIterable, Identifiable, Decodable {
 struct AppChainDescriptor: Identifiable, Decodable {
     let id: AppChainID
     let chainName: String
-    let shortLabel: String
     let nativeSymbol: String
     let searchKeywords: [String]
     let supportsDiagnostics: Bool

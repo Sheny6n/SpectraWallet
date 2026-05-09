@@ -59,7 +59,7 @@ enum CachedCoreHelpers {
     }
     static func allTokens() -> [TokenEntry] {
         if let cached = allTokensResult { return cached }
-        let value = listTokens(chainId: UInt32.max)
+        let value = listTokens(chainId: "")
         allTokensResult = value
         return value
     }

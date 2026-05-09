@@ -13,11 +13,11 @@ import Foundation
 
     // ── Common ───────────────────────────────────────────────────────────────
 
-    func fetchValidators(chainId: UInt32) async throws -> [StakingValidator] {
+    func fetchValidators(chainId: String) async throws -> [StakingValidator] {
         try await service().fetchValidators(chainId: chainId)
     }
 
-    func fetchPositions(chainId: UInt32, walletAddress: String) async throws -> [StakingPosition] {
+    func fetchPositions(chainId: String, walletAddress: String) async throws -> [StakingPosition] {
         try await service().fetchPositions(chainId: chainId, walletAddress: walletAddress)
     }
 
@@ -149,7 +149,7 @@ private extension StakingBridge {
         return payloads
     }
 
-    static func rpcPayloads(chainId: UInt32, chainName: String) -> [ChainEndpoints] {
+    static func rpcPayloads(chainId: String, chainName: String) -> [ChainEndpoints] {
         let endpoints = (
             try? WalletRustEndpointCatalogBridge.endpointRecords(
                 for: chainName, roles: [.rpc, .balance, .backend], settingsVisibleOnly: false

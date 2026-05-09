@@ -9,7 +9,7 @@ import Foundation
 
 final class WalletBalanceObserver: BalanceObserver, @unchecked Sendable {
     weak var store: AppState?
-    func onBalanceUpdated(chainId: UInt32, walletId: String, summary: WalletSummary?) {
+    func onBalanceUpdated(chainId: String, walletId: String, summary: WalletSummary?) {
         _ = chainId
         guard let summary else { return }
         Task { @MainActor [weak self] in

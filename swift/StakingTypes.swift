@@ -66,7 +66,7 @@ enum StakingSupportedChain: String, CaseIterable, Identifiable {
         case .icp: return "Internet Computer"
         }
     }
-    var chainId: UInt32 {
+    var chainId: String {
         switch self {
         case .solana:   return SpectraChainID.solana
         case .cardano:  return SpectraChainID.cardano

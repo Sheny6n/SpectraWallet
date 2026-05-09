@@ -1433,7 +1433,7 @@ extension AppState {
         tronLastSendErrorAt = Date()
     }
     private func fetchChainRiskWarning(
-        chainId: UInt32, address: String, chainName: String, balanceLabel: String
+        chainId: String, address: String, chainName: String, balanceLabel: String
     ) async -> (warning: String?, info: String?) {
         guard let summary = try? await WalletServiceBridge.shared.fetchNativeBalanceSummary(chainId: chainId, address: address) else {
             return (nil, nil)

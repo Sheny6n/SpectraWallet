@@ -47,7 +47,7 @@ enum WalletRustEndpointCatalogBridge {
     static func appChainDescriptors() -> [AppChainDescriptor] {
         appCoreAppChainDescriptors().compactMap {
             guard let chainID = AppChainID(rawValue: $0.id) else { return nil }
-            return AppChainDescriptor(id: chainID, chainName: $0.chainName, shortLabel: $0.shortLabel, nativeSymbol: $0.nativeSymbol, searchKeywords: $0.searchKeywords, supportsDiagnostics: $0.supportsDiagnostics, supportsEndpointCatalog: $0.supportsEndpointCatalog, isEVM: $0.isEvm)
+            return AppChainDescriptor(id: chainID, chainName: $0.chainName, nativeSymbol: $0.nativeSymbol, searchKeywords: $0.searchKeywords, supportsDiagnostics: $0.supportsDiagnostics, supportsEndpointCatalog: $0.supportsEndpointCatalog, isEVM: $0.isEvm)
         }
     }
     private static func roleMask(for roles: Set<AppEndpointRole>) -> UInt32 {

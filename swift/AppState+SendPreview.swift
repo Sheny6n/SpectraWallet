@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Private pure helpers (no store state)
 
-private func decodedUTXOFeePreview(chainId: UInt32, address: String, satPerCoin: Double, feeRateSvb: UInt64 = 0) async throws
+private func decodedUTXOFeePreview(chainId: String, address: String, satPerCoin: Double, feeRateSvb: UInt64 = 0) async throws
     -> BitcoinSendPreview
 {
     guard
@@ -199,7 +199,7 @@ extension AppState {
         }
     }
     private func refreshUTXOSatChainPreview(
-        chainName: String, symbol: String, chainId: UInt32, resolveAddress: (ImportedWallet) -> String?,
+        chainName: String, symbol: String, chainId: String, resolveAddress: (ImportedWallet) -> String?,
         setPreview: (BitcoinSendPreview?) -> Void
     ) async {
         guard let wallet = wallet(for: sendWalletID), let selectedSendCoin = selectedSendCoin, selectedSendCoin.chainName == chainName,
@@ -289,7 +289,7 @@ extension AppState {
     // gasBudgetMist, feeStroops, etc.). Swift just resolves address, fetches JSON, and
     // applies the tagged-enum result to the right AppState field.
     private struct SimpleChainConfig {
-        let chainId: UInt32
+        let chainId: String
         let rustChain: SimpleChain
         let coinCheck: (AppState, Coin) -> Bool
         let resolveAddress: (AppState, ImportedWallet) -> String?
