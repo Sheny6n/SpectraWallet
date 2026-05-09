@@ -8,6 +8,9 @@ struct FundsFinderView: View {
     @State private var passphrase: String = ""
     @State private var showPassphrase: Bool = false
     @State private var hasStarted: Bool = false
+    @State private var wordSlots: [String] = Array(repeating: "", count: 24)
+    @State private var showAll24: Bool = false
+    @FocusState private var focusedSlot: Int?
 
     private var canStart: Bool {
         let words = seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -50,6 +53,8 @@ struct FundsFinderView: View {
                         hasStarted = false
                         seedPhrase = ""
                         passphrase = ""
+                        wordSlots = Array(repeating: "", count: 24)
+                        showAll24 = false
                     }
                 }
             }
@@ -92,25 +97,75 @@ struct FundsFinderView: View {
     }
 
     private var seedPhraseCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(AppLocalization.string("Seed Phrase")).font(.subheadline.weight(.semibold))
-            TextEditor(text: $seedPhrase)
-                .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 100)
-                .spectraInputFieldStyle(cornerRadius: 14)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-            let wordCount = seedPhrase.trimmingCharacters(in: .whitespacesAndNewlines)
-                .components(separatedBy: .whitespaces).filter { !$0.isEmpty }.count
-            if wordCount > 0 {
-                Text(AppLocalization.format("%lld words", wordCount))
-                    .font(.caption).foregroundStyle(wordCount >= 12 ? Color.secondary : Color.red)
+        let slotCount = showAll24 ? 24 : 12
+        let count = filledWordCount
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(AppLocalization.string("Seed Phrase")).font(.subheadline.weight(.semibold))
+                Spacer()
+                if count > 0 {
+                    Text(AppLocalization.format("%lld words", count))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(count >= 12 ? Color.green : Color.orange)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(count >= 12 ? Color.green.opacity(0.14) : Color.orange.opacity(0.14)))
+                }
+            }
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                ForEach(0..<slotCount, id: \.self) { i in
+                    wordSlotView(index: i, slotCount: slotCount)
+                }
+            }
+            if !showAll24 {
+                Button { showAll24 = true } label: {
+                    Text(AppLocalization.string("Using 24 words?"))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .spectraCardFill(cornerRadius: 22)
     }
+
+    private func wordSlotView(index: Int, slotCount: Int) -> some View {
+        HStack(spacing: 4) {
+            Text("\(index + 1)")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 14, alignment: .trailing)
+            TextField("", text: Binding(
+                get: { wordSlots[index] },
+                set: { newVal in
+                    let parts = newVal.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                    if parts.count > 1 {
+                        for (offset, word) in parts.prefix(slotCount - index).enumerated() {
+                            wordSlots[index + offset] = word.lowercased()
+                        }
+                        if parts.count > 12 { showAll24 = true }
+                        focusedSlot = min(index + parts.count, slotCount - 1)
+                    } else {
+                        wordSlots[index] = newVal.lowercased()
+                    }
+                    syncSeedPhrase()
+                }
+            ))
+            .font(.system(.footnote, design: .monospaced).weight(.medium))
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+            .focused($focusedSlot, equals: index)
+            .onSubmit { if index < slotCount - 1 { focusedSlot = index + 1 } }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 7)
+        .background(.white.opacity(focusedSlot == index ? 0.1 : 0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .stroke(focusedSlot == index ? Color.yellow.opacity(0.5) : Color.clear, lineWidth: 1))
+        .animation(.easeInOut(duration: 0.15), value: focusedSlot == index)
+    }
+
+    private var filledWordCount: Int { wordSlots.filter { !$0.isEmpty }.count }
+    private func syncSeedPhrase() { seedPhrase = wordSlots.filter { !$0.isEmpty }.joined(separator: " ") }
 
     private var passphraseCard: some View {
         VStack(alignment: .leading, spacing: 10) {

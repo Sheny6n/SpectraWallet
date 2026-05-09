@@ -104,7 +104,7 @@ struct SetupView: View {
         GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12),
     ]
     private let seedPhraseGridColumns = [
-        GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6),
     ]
     private let setupCardCornerRadius: CGFloat = 24
     init(store: AppState, draft: WalletImportDraft) {
@@ -284,7 +284,7 @@ struct SetupView: View {
     @ViewBuilder
     private func seedPhraseField(at index: Int) -> some View {
         let entry = draft.seedPhraseEntry(at: index).trimmingCharacters(in: .whitespacesAndNewlines)
-        let isInvalidWord = !entry.isEmpty && !BIP39EnglishWordList.words.contains(entry)
+        let isInvalidWord = !entry.isEmpty && !BIP39WordList.words(for: draft.seedPhraseLanguage).contains(entry.lowercased())
         numberedSeedPhraseRow(index: index, isInvalidWord: isInvalidWord)
     }
     @ViewBuilder
@@ -453,28 +453,59 @@ struct SetupView: View {
             }
         }.tint(.secondary)
     }
+    private static let seedPhraseLanguageOptions: [(code: String, label: String)] = [
+        ("en", "English"), ("cs", "Czech"), ("fr", "French"), ("it", "Italian"),
+        ("ja", "Japanese"), ("ko", "Korean"), ("pt", "Portuguese"), ("es", "Spanish"),
+        ("zh-cn", "Chinese (Simplified)"), ("zh-tw", "Chinese (Traditional)"),
+    ]
+    @ViewBuilder
+    private var seedPhraseLanguagePicker: some View {
+        let isNonEnglish = draft.seedPhraseLanguage != "en"
+        HStack(spacing: 6) {
+            Image(systemName: "globe").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Picker("Wordlist", selection: $draft.seedPhraseLanguage) {
+                ForEach(Self.seedPhraseLanguageOptions, id: \.code) { option in
+                    Text(option.label).tag(option.code)
+                }
+            }
+            .pickerStyle(.menu)
+            .font(.caption.weight(.semibold))
+            .tint(.secondary)
+            Spacer()
+            if isNonEnglish {
+                Text(draft.seedPhraseLanguage).font(.caption.weight(.bold)).foregroundStyle(.orange).padding(
+                    .horizontal, 8
+                ).padding(.vertical, 2).background(Capsule(style: .continuous).fill(Color.orange.opacity(0.14)))
+            }
+        }
+    }
     @ViewBuilder
     private func numberedSeedPhraseRow(index: Int, text: String? = nil, isInvalidWord: Bool = false) -> some View {
         let validEntryColor: Color = colorScheme == .light ? Color.black.opacity(0.85) : .white
         let isFocused = focusedSeedPhraseIndex == index
-        let borderColor: Color? =
-            isInvalidWord ? Color.red.opacity(0.85)
-            : (isFocused ? Color.orange.opacity(0.7) : nil)
-        HStack(spacing: 6) {
-            Text("\(index + 1)").font(.caption2.weight(.heavy)).foregroundStyle(.orange.opacity(0.95))
-                .frame(minWidth: 18, alignment: .trailing).monospacedDigit()
+        let accentColor: Color = isInvalidWord ? Color.red.opacity(0.85) : Color.orange.opacity(0.7)
+        HStack(spacing: 4) {
+            Text("\(index + 1)").font(.system(size: 10, weight: .bold)).foregroundStyle(.tertiary)
+                .frame(width: 14, alignment: .trailing).monospacedDigit()
             if let text {
-                Text(text).font(.footnote.weight(.medium)).foregroundStyle(Color.primary).lineLimit(1).minimumScaleFactor(0.7)
+                Text(text).font(.system(.footnote, design: .monospaced).weight(.medium))
+                    .foregroundStyle(Color.primary).lineLimit(1).minimumScaleFactor(0.7)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 TextField("", text: seedPhraseBinding(for: index)).textInputAutocapitalization(.never).autocorrectionDisabled()
                     .keyboardType(.asciiCapable)
-                    .font(.footnote.weight(.medium)).foregroundStyle(isInvalidWord ? .red.opacity(0.95) : validEntryColor).focused(
-                        $focusedSeedPhraseIndex, equals: index
-                    ).frame(maxWidth: .infinity, alignment: .leading)
+                    .font(.system(.footnote, design: .monospaced).weight(.medium))
+                    .foregroundStyle(isInvalidWord ? .red.opacity(0.95) : validEntryColor)
+                    .focused($focusedSeedPhraseIndex, equals: index)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-        }.frame(maxWidth: .infinity, minHeight: 38).padding(.horizontal, 10).padding(.vertical, 8).spectraInputFieldStyle(
-            borderColor: borderColor)
+        }
+        .frame(maxWidth: .infinity, minHeight: 30)
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(.white.opacity(isFocused ? 0.1 : 0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .stroke((isFocused || isInvalidWord) ? accentColor : Color.clear, lineWidth: 1))
+        .animation(.easeInOut(duration: 0.15), value: isFocused)
     }
     @ViewBuilder
     private func watchedAddressSection(
@@ -887,9 +918,10 @@ struct SetupView: View {
     @ViewBuilder
     private var newWalletSeedPhraseSection: some View {
         seedPhraseLengthPicker(title: copy.importSeedLengthTitle, subtitle: copy.importSeedLengthSubtitle)
+        seedPhraseLanguagePicker
         Text(copy.seedPhraseEntryHelp).font(.footnote).foregroundStyle(.secondary)
         seedPhraseEntryHeader
-        LazyVGrid(columns: seedPhraseGridColumns, spacing: 8) {
+        LazyVGrid(columns: seedPhraseGridColumns, spacing: 6) {
             ForEach(0..<draft.selectedSeedPhraseWordCount, id: \.self) { index in seedPhraseField(at: index) }
         }
         if !seedPhraseStatusText.isEmpty { Text(seedPhraseStatusText).font(.footnote).foregroundStyle(seedPhraseStatusColor) }
@@ -901,7 +933,7 @@ struct SetupView: View {
         )
         Text(copy.createSeedPhraseWarning).font(.footnote).foregroundStyle(.secondary)
         seedPhraseDisplayHeader
-        LazyVGrid(columns: seedPhraseGridColumns, spacing: 8) {
+        LazyVGrid(columns: seedPhraseGridColumns, spacing: 6) {
             ForEach(draft.seedPhraseWords.indices, id: \.self) { index in
                 numberedSeedPhraseRow(index: index, text: draft.seedPhraseWords[index])
             }
@@ -1066,12 +1098,14 @@ struct SetupView: View {
             } else {
                 ForEach(draft.backupVerificationWordIndices.indices, id: \.self) { offset in
                     let wordIndex = draft.backupVerificationWordIndices[offset]
-                    HStack(spacing: 10) {
-                        Text(walletFlowLocalizedFormat("Word #%lld", wordIndex + 1)).font(.caption.weight(.bold)).foregroundStyle(.secondary).frame(width: 88, alignment: .leading)
-                        TextField("Enter word \(wordIndex + 1)", text: backupVerificationBinding(for: offset)).textInputAutocapitalization(
+                    HStack(spacing: 8) {
+                        Text(walletFlowLocalizedFormat("Word #%lld", wordIndex + 1)).font(.caption.weight(.bold)).foregroundStyle(.secondary).frame(width: 72, alignment: .leading)
+                        TextField("", text: backupVerificationBinding(for: offset)).textInputAutocapitalization(
                             .never
-                        ).autocorrectionDisabled().foregroundStyle(Color.primary)
-                    }.padding(.horizontal, 12).padding(.vertical, 10).spectraInputFieldStyle(cornerRadius: 16)
+                        ).autocorrectionDisabled()
+                        .font(.system(.footnote, design: .monospaced).weight(.medium))
+                        .foregroundStyle(Color.primary)
+                    }.padding(.horizontal, 10).padding(.vertical, 7).spectraInputFieldStyle(cornerRadius: 12)
                 }
                 if draft.isBackupVerificationComplete {
                     Text(copy.backupVerifiedMessage).font(.footnote).foregroundStyle(.green.opacity(0.9))

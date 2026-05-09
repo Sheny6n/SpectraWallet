@@ -83,6 +83,7 @@ final class WalletImportDraft {
     var overrideAddressAlgorithm: String = ""
     var overridePublicKeyFormat: String = ""
     var overrideScriptType: String = ""
+    var seedPhraseLanguage: String = "en"
     var seedPhraseEntries: [String] = Array(repeating: "", count: 12)
     var selectedSeedPhraseWordCount: Int = 12 {
         didSet {
@@ -164,9 +165,9 @@ final class WalletImportDraft {
     }
     var invalidSeedWords: [String] {
         guard !isEditingWallet else { return [] }
-        let wordlist = Set(WalletServiceBridge.shared.rustBip39Wordlist())
+        let wordset = BIP39WordList.words(for: seedPhraseLanguage)
         let words = seedPhrase.lowercased().split(separator: " ").map(String.init).filter { !$0.isEmpty }
-        return words.filter { !wordlist.contains($0) }
+        return words.filter { !wordset.contains($0) }
     }
     var seedPhraseLengthWarning: String? {
         guard !isEditingWallet else { return nil }

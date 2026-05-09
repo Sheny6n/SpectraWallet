@@ -401,13 +401,22 @@ extension ChainTokenRegistryEntry {
     }()
 }
 enum BIP39EnglishWordList {
-    static let words: Set<String> = {
-        let text = bip39EnglishWordlist()
-        return Set(
-            text.split(whereSeparator: \.isWhitespace).map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+    static let words: Set<String> = BIP39WordList.words(for: "en")
+}
+enum BIP39WordList {
+    private static var cache: [String: Set<String>] = [:]
+    static func words(for language: String) -> Set<String> {
+        let key = language.lowercased()
+        if let hit = cache[key] { return hit }
+        let text = bip39Wordlist(language: language)
+        let set = Set(
+            text.split(whereSeparator: \.isWhitespace)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
                 .filter { !$0.isEmpty }
         )
-    }()
+        cache[key] = set
+        return set
+    }
 }
 enum AppLocalization {
     private final class BundleMarker {}
