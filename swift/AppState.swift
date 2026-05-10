@@ -602,8 +602,8 @@ final class AppState {
     /// Live Tor bootstrap/connection state polled from Rust. Drives the
     /// dashboard indicator and the settings status row.
     var torStatus: TorStatus = .stopped
-    /// Whether Tor is turned on. Persisted via UserDefaults; default true.
-    var torEnabled: Bool = true {
+    /// Whether Tor is turned on. Persisted via UserDefaults; default false.
+    var torEnabled: Bool = false {
         didSet {
             guard torEnabled != oldValue else { return }
             UserDefaults.standard.set(torEnabled, forKey: Self.torEnabledDefaultsKey)

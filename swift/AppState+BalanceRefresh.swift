@@ -30,10 +30,16 @@ extension AppState {
         let walletIndexById = Dictionary(uniqueKeysWithValues: walletsCopy.enumerated().map { ($1.id, $0) })
         var anyChanged = false
         for update in batch {
-            guard let idx = walletIndexById[update.walletId] else { continue }
+            guard let idx = walletIndexById[update.walletId] else {
+                print("[BalanceRefresh] flushBatch: walletId \(update.walletId) not found in \(walletsCopy.map(\.id))")
+                continue
+            }
             if let updated = holdingsAppliedFromSummary(update.summary, to: walletsCopy[idx]) {
                 walletsCopy[idx] = updated
                 anyChanged = true
+                print("[BalanceRefresh] applied balance for wallet '\(walletsCopy[idx].name)' holdings=\(updated.holdings.map { "\($0.symbol):\($0.amount)" })")
+            } else {
+                print("[BalanceRefresh] holdingsAppliedFromSummary returned nil for wallet '\(walletsCopy[idx].name)' incoming=\(update.summary.holdings.map { "\($0.symbol):\($0.amount)" }) existing=\(walletsCopy[idx].holdings.map { "\($0.symbol):\($0.amount)" })")
             }
         }
         if anyChanged { wallets = walletsCopy }
@@ -72,13 +78,122 @@ extension AppState {
         contract.map { "\(chainName):\($0.lowercased())" } ?? "\(chainName):\(symbol)"
     }
 
+    /// Fetch ERC-20/EVM token balances for all EVM wallets and merge them into holdings.
+    /// Called after each native refresh cycle so token balances stay current alongside native balances.
+    func refreshEVMTokenBalances() async {
+        for wallet in wallets {
+            guard isEVMChain(wallet.selectedChain),
+                  let tokenChain = TokenTrackingChain.forChainName(wallet.selectedChain),
+                  let chainId = SpectraChainID.id(for: wallet.selectedChain),
+                  let address = resolvedAddress(for: wallet, chainName: wallet.selectedChain)
+            else { continue }
+            let trackedTokens = enabledEVMTrackedTokens(for: tokenChain)
+            guard !trackedTokens.isEmpty else { continue }
+            let descriptors = trackedTokens.map {
+                TokenDescriptor(contract: $0.contractAddress, symbol: $0.symbol, decimals: UInt8($0.decimals), name: $0.name)
+            }
+            guard let results = try? await WalletServiceBridge.shared.fetchEVMTokenBalancesBatch(
+                chainId: chainId, address: address, tokens: descriptors
+            ) else { continue }
+            guard let currentIdx = wallets.firstIndex(where: { $0.id == wallet.id }) else { continue }
+            var holdings = wallets[currentIdx].holdings
+            let existingKeys = holdings.map { holdingKey($0.chainName, $0.symbol, $0.contractAddress) }
+            var holdingsChanged = false
+            for result in results {
+                let amount = Double(result.balanceDisplay) ?? 0
+                let normalizedContract = normalizeEVMAddress(result.contractAddress)
+                let key = holdingKey(wallet.selectedChain, result.symbol, normalizedContract.isEmpty ? nil : normalizedContract)
+                if let existingIdx = existingKeys.firstIndex(of: key) {
+                    guard holdings[existingIdx].amount != amount else { continue }
+                    let old = holdings[existingIdx]
+                    holdings[existingIdx] = CoreCoin(
+                        id: old.id, name: old.name, symbol: old.symbol,
+                        coinGeckoId: old.coinGeckoId, chainName: old.chainName,
+                        tokenStandard: old.tokenStandard, contractAddress: old.contractAddress,
+                        amount: amount, priceUsd: old.priceUsd)
+                    holdingsChanged = true
+                } else if amount > 0 {
+                    guard let entry = trackedTokens.first(where: { $0.contractAddress == normalizedContract }) else { continue }
+                    holdings.append(CoreCoin(
+                        id: UUID().uuidString,
+                        name: entry.name, symbol: entry.symbol,
+                        coinGeckoId: entry.coinGeckoId, chainName: wallet.selectedChain,
+                        tokenStandard: entry.tokenStandard, contractAddress: entry.contractAddress,
+                        amount: amount, priceUsd: 0))
+                    holdingsChanged = true
+                }
+            }
+            if holdingsChanged {
+                var walletsCopy = wallets
+                walletsCopy[currentIdx] = walletByReplacingHoldings(walletsCopy[currentIdx], with: holdings)
+                wallets = walletsCopy
+                print("[BalanceRefresh] applied token balances for wallet '\(wallet.name)' tokens=\(results.filter { (Double($0.balanceDisplay) ?? 0) > 0 }.map { "\($0.symbol):\($0.balanceDisplay)" })")
+            }
+        }
+        await refreshSolanaTokenBalances()
+    }
+
+    private func refreshSolanaTokenBalances() async {
+        let solanaTokens = enabledTokenPreferences(for: .solana)
+        guard !solanaTokens.isEmpty else { return }
+        let descriptors = solanaTokens.map {
+            TokenDescriptor(contract: $0.contractAddress, symbol: $0.symbol, decimals: UInt8(clamping: $0.decimals), name: $0.name)
+        }
+        for wallet in wallets {
+            guard wallet.selectedChain == "Solana",
+                  let address = resolvedAddress(for: wallet, chainName: "Solana")
+            else { continue }
+            guard let results = try? await WalletServiceBridge.shared.fetchTokenBalances(
+                chainId: SpectraChainID.solana, address: address, tokens: descriptors
+            ) else { continue }
+            guard let currentIdx = wallets.firstIndex(where: { $0.id == wallet.id }) else { continue }
+            var holdings = wallets[currentIdx].holdings
+            let existingKeys = holdings.map { holdingKey($0.chainName, $0.symbol, $0.contractAddress) }
+            var holdingsChanged = false
+            for result in results {
+                let amount = Double(result.balanceDisplay) ?? 0
+                let mintAddress = result.contractAddress
+                let key = holdingKey("Solana", result.symbol, mintAddress.isEmpty ? nil : mintAddress)
+                if let existingIdx = existingKeys.firstIndex(of: key) {
+                    guard holdings[existingIdx].amount != amount else { continue }
+                    let old = holdings[existingIdx]
+                    holdings[existingIdx] = CoreCoin(
+                        id: old.id, name: old.name, symbol: old.symbol,
+                        coinGeckoId: old.coinGeckoId, chainName: old.chainName,
+                        tokenStandard: old.tokenStandard, contractAddress: old.contractAddress,
+                        amount: amount, priceUsd: old.priceUsd)
+                    holdingsChanged = true
+                } else if amount > 0 {
+                    guard let entry = solanaTokens.first(where: { $0.contractAddress == mintAddress }) else { continue }
+                    holdings.append(CoreCoin(
+                        id: UUID().uuidString,
+                        name: entry.name, symbol: entry.symbol,
+                        coinGeckoId: entry.coinGeckoId, chainName: "Solana",
+                        tokenStandard: entry.tokenStandard, contractAddress: entry.contractAddress,
+                        amount: amount, priceUsd: 0))
+                    holdingsChanged = true
+                }
+            }
+            if holdingsChanged {
+                var walletsCopy = wallets
+                walletsCopy[currentIdx] = walletByReplacingHoldings(walletsCopy[currentIdx], with: holdings)
+                wallets = walletsCopy
+                print("[BalanceRefresh] applied Solana SPL balances for wallet '\(wallet.name)' tokens=\(results.filter { (Double($0.balanceDisplay) ?? 0) > 0 }.map { "\($0.symbol):\($0.balanceDisplay)" })")
+            }
+        }
+    }
+
     func updateRefreshEngineEntries() {
         let entries: [RefreshEntry] = wallets.compactMap { wallet in
             guard let chainId = SpectraChainID.id(for: wallet.selectedChain),
                 let address = resolvedRefreshAddress(for: wallet)
-            else { return nil }
+            else {
+                print("[BalanceRefresh] dropped wallet '\(wallet.name)' chain=\(wallet.selectedChain) chainId=\(SpectraChainID.id(for: wallet.selectedChain) ?? "nil") addr=\(resolvedRefreshAddress(for: wallet) ?? "nil")")
+                return nil
+            }
             return RefreshEntry(chainId: chainId, walletId: wallet.id, address: address)
         }
+        print("[BalanceRefresh] setEntries count=\(entries.count) walletCount=\(wallets.count)")
         Task(priority: .utility) {
             try? WalletServiceBridge.shared.setRefreshEntriesTyped(entries)
             if !entries.isEmpty {

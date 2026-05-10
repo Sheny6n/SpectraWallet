@@ -9,10 +9,20 @@ struct BuyCryptoHelpView: View {
         let url: URL
         let urlLabel: String
     }
-    private let providers: [BuyCryptoProvider] = BuyCryptoProviderCatalog.loadEntries().compactMap { provider in
-        guard let url = URL(string: provider.url) else { return nil }
-        return BuyCryptoProvider(name: provider.name, description: provider.description, url: url, urlLabel: provider.urlLabel)
-    }
+    private let providers: [BuyCryptoProvider] = {
+        let links = AppLinks.current
+        let copy = SettingsContentCopy.current
+        let raw: [(name: String, description: String, urlString: String, urlLabel: String)] = [
+            (copy.moonpayName, copy.moonpayDescription, links.moonpayBuy, links.moonpayBuyLabel),
+            (copy.rampNetworkName, copy.rampNetworkDescription, links.rampNetworkBuy, links.rampNetworkBuyLabel),
+            (copy.transakName, copy.transakDescription, links.transakBuy, links.transakBuyLabel),
+            (copy.banxaName, copy.banxaDescription, links.banxaBuy, links.banxaBuyLabel),
+        ]
+        return raw.compactMap { item in
+            guard let url = URL(string: item.urlString) else { return nil }
+            return BuyCryptoProvider(name: item.name, description: item.description, url: url, urlLabel: item.urlLabel)
+        }
+    }()
     var body: some View {
         Form {
             Section {

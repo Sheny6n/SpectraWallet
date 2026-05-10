@@ -2,7 +2,7 @@ import SwiftUI
 struct DashboardView: View {
     @Bindable var store: AppState
     @State private var dashboardPage: DashboardPage = .assets
-    @State private var isShowingPinnedAssetsSheet = false
+    @State private var isNavigatingToPinnedAssets = false
     @State private var selectedWalletID: String?
     @State private var selectedAssetGroup: DashboardAssetGroup?
     private var deleteWalletMessage: String {
@@ -41,7 +41,11 @@ struct DashboardView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    torToolbarIndicator
+                    NavigationLink {
+                        TorSettingsView(store: store)
+                    } label: {
+                        torToolbarIndicator
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     dashboardSectionMenu
@@ -81,7 +85,7 @@ struct DashboardView: View {
                     }
                 } message: {
                     Text(deleteWalletMessage)
-                }.sheet(isPresented: $isShowingPinnedAssetsSheet) {
+                }.navigationDestination(isPresented: $isNavigatingToPinnedAssets) {
                     PinnedAssetsView(store: store)
                 }
         }
@@ -247,8 +251,8 @@ struct DashboardView: View {
             }
             if dashboardPage == .assets {
                 Divider()
-                Button(AppLocalization.string("Customize Assets")) {
-                    isShowingPinnedAssetsSheet = true
+                Button(AppLocalization.string("Pin Assets")) {
+                    isNavigatingToPinnedAssets = true
                 }
             }
         } label: {
@@ -547,7 +551,6 @@ private struct AssetChainBreakdownRow: View {
 }
 struct PinnedAssetsView: View {
     let store: AppState
-    @Environment(\.dismiss) private var dismiss
     @State private var searchText: String = ""
     private var filteredOptions: [DashboardPinOption] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -559,34 +562,27 @@ struct PinnedAssetsView: View {
         }
     }
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(filteredOptions) { option in
-                        Toggle(isOn: binding(for: option.symbol)) {
-                            DashboardPinnedAssetRowView(
-                                option: option,
-                                subtitleText: AppLocalization.format("dashboard.pinnedAsset.symbolSubtitle", option.symbol, option.subtitle)
-                            ).equatable()
-                        }
-                    }
-                } header: {
-                    Text(AppLocalization.string("Pinned Assets"))
-                } footer: {
-                    Text(AppLocalization.string("Pinned assets stay visible in My Assets even when the total balance is zero."))
-                }
-            }.navigationTitle(AppLocalization.string("Pinned Assets")).searchable(
-                text: $searchText, prompt: AppLocalization.string("Search assets")
-            ).toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(AppLocalization.string("Reset")) {
-                        store.resetPinnedDashboardAssets()
+        List {
+            Section {
+                ForEach(filteredOptions) { option in
+                    Toggle(isOn: binding(for: option.symbol)) {
+                        DashboardPinnedAssetRowView(
+                            option: option,
+                            subtitleText: AppLocalization.format("dashboard.pinnedAsset.symbolSubtitle", option.symbol, option.subtitle)
+                        ).equatable()
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(AppLocalization.string("Done")) {
-                        dismiss()
-                    }
+            } header: {
+                Text(AppLocalization.string("Pinned Assets"))
+            } footer: {
+                Text(AppLocalization.string("Pinned assets stay visible in My Assets even when the total balance is zero."))
+            }
+        }.navigationTitle(AppLocalization.string("Pinned Assets")).searchable(
+            text: $searchText, prompt: AppLocalization.string("Search assets")
+        ).toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(AppLocalization.string("Reset")) {
+                    store.resetPinnedDashboardAssets()
                 }
             }
         }

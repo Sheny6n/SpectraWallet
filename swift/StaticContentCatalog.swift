@@ -119,6 +119,14 @@ struct SettingsContentCopy: Decodable {
     let reportProblemActionTitle: String
     let buyProvidersIntro: String
     let buyWarning: String
+    let moonpayName: String
+    let moonpayDescription: String
+    let rampNetworkName: String
+    let rampNetworkDescription: String
+    let transakName: String
+    let transakDescription: String
+    let banxaName: String
+    let banxaDescription: String
     static var current: SettingsContentCopy { StaticContentCatalog.loadRequiredResource("SettingsContent", as: SettingsContentCopy.self) }
 }
 struct DiagnosticsContentCopy: Decodable {
@@ -313,23 +321,20 @@ enum TokenVisualRegistryCatalog {
         return entries
     }
 }
-struct BuyCryptoProviderSeed: Decodable {
-    let name: String
-    let description: String
-    let url: String
-    let urlLabel: String
-}
-enum BuyCryptoProviderCatalog {
-    static func loadEntries() -> [BuyCryptoProviderSeed] {
-        StaticContentCatalog.loadRequiredResource("BuyCryptoProviders", as: [BuyCryptoProviderSeed].self)
-    }
-}
 /// App-wide links that do NOT vary by locale — same URL regardless of the
 /// user's language. Stored in `resources/AppLinks.json` at the root of the
 /// shared resources folder (not `core/embedded/`, since Rust has no reason
 /// to consume this — it's purely a Swift-side UI link).
 struct AppLinks: Decodable {
     let reportProblem: String
+    let moonpayBuy: String
+    let moonpayBuyLabel: String
+    let rampNetworkBuy: String
+    let rampNetworkBuyLabel: String
+    let transakBuy: String
+    let transakBuyLabel: String
+    let banxaBuy: String
+    let banxaBuyLabel: String
     static var current: AppLinks { StaticContentCatalog.loadRequiredResource("AppLinks", as: AppLinks.self) }
 }
 struct DonationDestinationSeed: Decodable {
@@ -404,7 +409,7 @@ enum BIP39EnglishWordList {
     static let words: Set<String> = BIP39WordList.words(for: "en")
 }
 enum BIP39WordList {
-    private static var cache: [String: Set<String>] = [:]
+    nonisolated(unsafe) private static var cache: [String: Set<String>] = [:]
     static func words(for language: String) -> Set<String> {
         let key = language.lowercased()
         if let hit = cache[key] { return hit }

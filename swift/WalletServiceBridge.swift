@@ -349,8 +349,7 @@ extension WalletServiceBridge {
     }
     func setBalanceObserver(_ observer: BalanceObserver) throws { try balanceRefreshEngine().setObserver(observer: observer) }
     func setRefreshEntriesTyped(_ entries: [RefreshEntry]) throws {
-        let engine = try balanceRefreshEngine()
-        Task.detached(priority: .background) { engine.setEntriesTyped(entries: entries) }
+        try balanceRefreshEngine().setEntriesTyped(entries: entries)
     }
     func startBalanceRefresh(intervalSecs: UInt64) async throws { try await balanceRefreshEngine().start(intervalSecs: intervalSecs) }
     func stopBalanceRefresh() throws { try balanceRefreshEngine().stop() }
